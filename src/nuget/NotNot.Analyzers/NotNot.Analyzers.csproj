@@ -1,0 +1,66 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	  <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+	  <LangVersion>preview</LangVersion>
+	  <EnablePreviewFeatures>true</EnablePreviewFeatures>
+	  
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="bin\**" />
+    <EmbeddedResource Remove="bin\**" />
+    <None Remove="bin\**" />
+  </ItemGroup>
+
+
+	<ItemGroup>
+		<PackageReference Include="editorconfig" Version="0.15.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" PrivateAssets="all" />
+
+		<!--gitversion: version automatically.  but it has a bug when .sln is in a subrepo?  (test1.sln is in a code-only subrepo)-->
+		<!--<PackageReference Include="GitVersion.MsBuild" Version="6.0.0">
+			<PrivateAssets>All</PrivateAssets>
+		</PackageReference>-->
+	</ItemGroup>
+
+	<PropertyGroup>
+		<PackageId>NotNot.Analyzers</PackageId>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <None Remove="bin\Debug\netstandard2.0\\$(AssemblyName).dll" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Concurrency\" />
+	</ItemGroup>
+
+
+	<PropertyGroup>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<Deterministic>true</Deterministic>
+		<!--for other macro properties, see https://learn.microsoft.com/en-us/visualstudio/msbuild/common-msbuild-project-properties?view=vs-2022 -->
+		<PackageOutputPath>$(SolutionDir).nuget-test-packages\$(AssemblyName)</PackageOutputPath>
+	  <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+
+	  <IncludeBuildOutput>false</IncludeBuildOutput>
+	  <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+	  <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+	  <UserSecretsId>fabf5a14-bb71-4048-a595-afef95740429</UserSecretsId>
+	</PropertyGroup>
+
+	
+
+</Project>

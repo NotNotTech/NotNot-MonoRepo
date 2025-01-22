@@ -1,0 +1,11 @@
+﻿# Template coppied from https://github.com/LanguageDev/Yoakke/tree/master/Sources, mostly for the header example.   
+# help/hints: https://editorconfig.org/#supported-properties
+# full docs here: https://docs.microsoft.com/en-us/visualstudio/ide/create-portable-custom-editor-options?view=vs-2022
+
+# allow higher level editor configs to be inherited
+root = false
+
+[*.{appxmanifest,asax,ascx,aspx,build,config,cs,cshtml,csproj,dbml,discomap,dtd,fs,fsi,fsscript,fsx,htm,html,jsproj,lsproj,master,ml,mli,njsproj,nuspec,proj,props,razor,resw,resx,skin,StyleCop,targets,tasks,vb,vbproj,xaml,xamlx,xml,xoml,xsd}]
+
+# File header template  https://docs.microsoft.com/en-us/visualstudio/ide/reference/add-file-header?view=vs-2019
+file_header_template = [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] \n[!!] Copyright ©️ NotNot Project and Contributors. \n[!!] This file is licensed to you under the MPL-2.0.\n[!!] See the LICENSE.md file in the project root for more info. \n[!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!] 
