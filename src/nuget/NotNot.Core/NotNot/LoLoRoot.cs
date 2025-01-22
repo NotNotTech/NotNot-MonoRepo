@@ -11,7 +11,7 @@ using NotNot._internal.Diagnostics;
 using NotNot._internal.Threading;
 using NotNot.Diagnostics.Advanced;
 using NotNot.Validation;
-using Xunit;
+
 
 namespace NotNot;
 
@@ -128,7 +128,8 @@ public partial class LoLoRoot
 
 			if (__.Test.IsTestingActive)
 			{
-				Xunit.Assert.Fail(finalMessage);
+				Todo("setup test runner logger");
+				//Xunit.Assert.Fail(finalMessage);
 			}
 		}
 	}
@@ -164,7 +165,8 @@ public partial class LoLoRoot
 
 		if (__.Test.IsTestingActive)
 		{
-			Xunit.Assert.Fail(finalMessage);
+			Todo("setup test runner logger");
+			//Xunit.Assert.Fail(finalMessage);
 		}
 	}
 
@@ -789,42 +791,42 @@ public partial class LoLoRoot
 	}
 }
 
-public class _Tests
-{
+//public class _Tests
+//{
 
-	public _Tests()
-	{
-		//if (__ == null)
-		//{
-		//	__ = new LoLoRoot();
-		//}
-	}
+//	public _Tests()
+//	{
+//		//if (__ == null)
+//		//{
+//		//	__ = new LoLoRoot();
+//		//}
+//	}
 
-	[Fact]
-	public void Logger_Basic()
-	{
-		var AX = "VX";
-		var AY = "VY";
-
-
-
-		__.GetLogger(this)._EzInfo("warmup");
-		__.GetLogger<_Tests>()._EzInfo("T", (AX: "VX", AY: "VY"));
-		__.GetLogger()._EzInfo("test", AX, "AA", 123);
-		__.GetLogger(this)._EzInfo("T", new { AX, AY });
-		__.GetLogger(this)._EzInfo("T", (AX: "VX", AY: "VY"));
-		__.GetLogger(this)._EzInfo("T", (AX, AY));
-	}
+//	[Fact]
+//	public void Logger_Basic()
+//	{
+//		var AX = "VX";
+//		var AY = "VY";
 
 
-	[Fact]
-	public void Logger_RefEquals()
-	{
-		var logger = __.GetLogger();
 
-		Assert.True(ReferenceEquals(logger, logger));
-		Assert.True(ReferenceEquals(logger, __.GetLogger()));
-		Assert.True(ReferenceEquals(logger, __.GetLogger(this)));
-		Assert.True(ReferenceEquals(logger, __.GetLogger<_Tests>()));
-	}
-}
+//		__.GetLogger(this)._EzInfo("warmup");
+//		__.GetLogger<_Tests>()._EzInfo("T", (AX: "VX", AY: "VY"));
+//		__.GetLogger()._EzInfo("test", AX, "AA", 123);
+//		__.GetLogger(this)._EzInfo("T", new { AX, AY });
+//		__.GetLogger(this)._EzInfo("T", (AX: "VX", AY: "VY"));
+//		__.GetLogger(this)._EzInfo("T", (AX, AY));
+//	}
+
+
+//	[Fact]
+//	public void Logger_RefEquals()
+//	{
+//		var logger = __.GetLogger();
+
+//		Assert.True(ReferenceEquals(logger, logger));
+//		Assert.True(ReferenceEquals(logger, __.GetLogger()));
+//		Assert.True(ReferenceEquals(logger, __.GetLogger(this)));
+//		Assert.True(ReferenceEquals(logger, __.GetLogger<_Tests>()));
+//	}
+//}

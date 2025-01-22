@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using Xunit.Abstractions;
-using Xunit.Sdk;
+//using Xunit.Abstractions;
+//using Xunit.Sdk;
 
 #pragma warning disable CA1001
 
@@ -45,27 +45,29 @@ public class TestHelper
       }
    }
 
-   private ITestOutputHelper _testOutputHelper;
-   IEnumerable<string> _ignoreOutputRegex;
+   //private ITestOutputHelper _testOutputHelper;
+   private object _testOutputHelper;
 
-   /// <summary>
-   /// each XUnit test run (class constructor) should invoke this  to enable console output
-   /// <para>every test needs to set the output helper so console writes occur</para>
-   /// <para>be sure to call .DisposeTest() in your test's dispose method to unhook</para>
-   /// </summary>
-   /// <param name="testOutputHelper"></param>
-   /// <param name="ignoreOutputRegex"></param>
-   public void InitTest(ITestOutputHelper testOutputHelper, IEnumerable<string>? ignoreOutputRegex = default)
-   {
-      _testOutputHelper = testOutputHelper;
-      _ignoreOutputRegex = ignoreOutputRegex ?? new string[0];
-      IsTestingActive = true;
+	IEnumerable<string> _ignoreOutputRegex;
 
-	}
-   public void InitTest(ITestOutputHelper testOutputHelper, params string[] ignoreOutputRegex)
-   {
-      InitTest(testOutputHelper, (IEnumerable<string>)ignoreOutputRegex);
-   }
+ //  /// <summary>
+ //  /// each XUnit test run (class constructor) should invoke this  to enable console output
+ //  /// <para>every test needs to set the output helper so console writes occur</para>
+ //  /// <para>be sure to call .DisposeTest() in your test's dispose method to unhook</para>
+ //  /// </summary>
+ //  /// <param name="testOutputHelper"></param>
+ //  /// <param name="ignoreOutputRegex"></param>
+ //  public void InitTest(ITestOutputHelper testOutputHelper, IEnumerable<string>? ignoreOutputRegex = default)
+ //  {
+ //     _testOutputHelper = testOutputHelper;
+ //     _ignoreOutputRegex = ignoreOutputRegex ?? new string[0];
+ //     IsTestingActive = true;
+
+	//}
+ //  public void InitTest(ITestOutputHelper testOutputHelper, params string[] ignoreOutputRegex)
+ //  {
+ //     InitTest(testOutputHelper, (IEnumerable<string>)ignoreOutputRegex);
+ //  }
    public void InitTest()
    {
 	   IsTestingActive = true;
@@ -131,7 +133,8 @@ public class TestHelper
             }
          }
          //write to console
-         _testOutputHelper.WriteLine(completeMsg);
+			__.Todo("implement below");
+         //_testOutputHelper.WriteLine(completeMsg);
       }
       catch (InvalidOperationException e)
       {

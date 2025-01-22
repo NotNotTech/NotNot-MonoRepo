@@ -1,9 +1,9 @@
-﻿using Xunit;
+﻿//using Xunit;
 using Isopoh.Cryptography.Argon2;
 using System.Text;
 using System.Security.Cryptography;
 using System.Security;
-using Xunit.Abstractions;
+//using Xunit.Abstractions;
 using System.Net.Sockets;
 using System.Diagnostics;
 
@@ -189,59 +189,59 @@ public static class Kdf
    }
 
 
-   public class Tests
-   {
-      /// <summary>
-      /// verify that pjsc legacy hash can be verified properly
-      /// </summary>
-      [Fact]
-      internal async Task LegacyVerify()
-      {
-         //a pjsc legacy argon2 digest and it's respective pw
-         //var argon2OutputDigest = "$argon2i$m=4096,t=10,p=2$PULvv73vv71q77+977+9Hw$lahPtyP8+75QmphI4I66asTVf5nlXHiwr5itJsN/Q2E";
-         var argon2OutputDigest = "$argon2i$m=4096,t=10,p=2$PULvv73vv71q77+977+9Hw$lahPtyP8+75QmphI4I66asTVf5nlXHiwr5itJsN/Q2E";
-         var pw = "secret duck";
+   //public class Tests
+   //{
+   //   /// <summary>
+   //   /// verify that pjsc legacy hash can be verified properly
+   //   /// </summary>
+   //   [Fact]
+   //   internal async Task LegacyVerify()
+   //   {
+   //      //a pjsc legacy argon2 digest and it's respective pw
+   //      //var argon2OutputDigest = "$argon2i$m=4096,t=10,p=2$PULvv73vv71q77+977+9Hw$lahPtyP8+75QmphI4I66asTVf5nlXHiwr5itJsN/Q2E";
+   //      var argon2OutputDigest = "$argon2i$m=4096,t=10,p=2$PULvv73vv71q77+977+9Hw$lahPtyP8+75QmphI4I66asTVf5nlXHiwr5itJsN/Q2E";
+   //      var pw = "secret duck";
 
-         var result = await Verify(pw, argon2OutputDigest);
-         var result2 = VerifyOld(pw, argon2OutputDigest);
+   //      var result = await Verify(pw, argon2OutputDigest);
+   //      var result2 = VerifyOld(pw, argon2OutputDigest);
 
-         __.Assert(result);
-
-
-         var config = new Argon2Config();
-         config.DecodeString(argon2OutputDigest, out var hash);
-         __.Assert(config.Salt is not null, "assumption that legacy use salt");
-      }
-
-      [Fact]
-      internal async Task BasicHash()
-      {
-
-         var pw = "secret duck";
-
-         var digest = Hash(pw);
-         var result = await Verify(pw, digest);
-         __.Assert(result);
-
-         var result2 = await Verify(pw, "$argon2id$v=19$m=65536,t=3,p=1$wj+z7XEcaMUPZpA8/KNj5w$C3g2qHxgXH52x2ndoYcq0LtkyiGJdPBWNTb8riXM9y0");
-         __.Assert(result2);
-
-         var config = new Argon2Config();
-         config.DecodeString(digest, out var hash);
-         __.Assert(config.Salt is not null, "assumption that modern uses random salt");
-
-         var digest2 = Hash(pw);
-         var config2 = new Argon2Config();
-         config2.DecodeString(digest2, out var hash2);
-         __.Assert(config2.Salt is not null && config2.Salt.SequenceEqual(config.Salt) is false, "assumption that modern uses random salt");
+   //      __.Assert(result);
 
 
+   //      var config = new Argon2Config();
+   //      config.DecodeString(argon2OutputDigest, out var hash);
+   //      __.Assert(config.Salt is not null, "assumption that legacy use salt");
+   //   }
+
+   //   [Fact]
+   //   internal async Task BasicHash()
+   //   {
+
+   //      var pw = "secret duck";
+
+   //      var digest = Hash(pw);
+   //      var result = await Verify(pw, digest);
+   //      __.Assert(result);
+
+   //      var result2 = await Verify(pw, "$argon2id$v=19$m=65536,t=3,p=1$wj+z7XEcaMUPZpA8/KNj5w$C3g2qHxgXH52x2ndoYcq0LtkyiGJdPBWNTb8riXM9y0");
+   //      __.Assert(result2);
+
+   //      var config = new Argon2Config();
+   //      config.DecodeString(digest, out var hash);
+   //      __.Assert(config.Salt is not null, "assumption that modern uses random salt");
+
+   //      var digest2 = Hash(pw);
+   //      var config2 = new Argon2Config();
+   //      config2.DecodeString(digest2, out var hash2);
+   //      __.Assert(config2.Salt is not null && config2.Salt.SequenceEqual(config.Salt) is false, "assumption that modern uses random salt");
 
 
-      }
 
 
-   }
+   //   }
+
+
+   //}
 
 
 
