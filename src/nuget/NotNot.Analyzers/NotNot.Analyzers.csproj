@@ -7,8 +7,8 @@
 	  <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 	  <LangVersion>preview</LangVersion>
 	  <EnablePreviewFeatures>true</EnablePreviewFeatures>
-	  <!--see https://github.com/versionize/versionize-->
-	  <Version>0.0.0</Version>
+	  <!--see https://github.com/adamralph/minver?tab=readme-ov-file#can-i-version-multiple-projects-in-a-single-repository-independently -->
+	  <MinVerTagPrefix>NotNot.Analyzers-</MinVerTagPrefix>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,6 +25,10 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" PrivateAssets="all" />
+		<PackageReference Include="MinVer" Version="6.0.0">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 
 		<!--gitversion: version automatically.  but it has a bug when .sln is in a subrepo?  (test1.sln is in a code-only subrepo)-->
 		<!--<PackageReference Include="GitVersion.MsBuild" Version="6.0.0">
