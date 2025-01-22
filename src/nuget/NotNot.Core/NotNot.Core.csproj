@@ -12,6 +12,8 @@
 		<LangVersion>preview</LangVersion>
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 		<RootNamespace></RootNamespace>
+		<!--see https://github.com/versionize/versionize-->
+		<Version>0.0.0</Version>
 	</PropertyGroup>
 
 
