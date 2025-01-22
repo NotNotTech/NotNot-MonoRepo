@@ -1,0 +1,24 @@
+﻿<!--this file should be referenced as an import in all .csproj files-->
+<!--it allows the project to share common .csproj settings-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<!--optional settings for source generator build output-->
+	<!--this will cause source generators to write their output-->
+	<!--to the file system so you may track changes/debug-->
+	<!--but also ignore the output from the build, as it is automatically included from memory-->
+	<PropertyGroup>
+		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+		<CompilerGeneratedFilesOutputPath>.Generated</CompilerGeneratedFilesOutputPath>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<NoWarn>1701;1702;1591</NoWarn>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<NoWarn>1701;1702;1591</NoWarn>
+	</PropertyGroup>
+	<ItemGroup>
+		<!--Exclude the output of source generators from the compilation-->
+		<Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
+	</ItemGroup>
+
+</Project>
