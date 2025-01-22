@@ -1,2 +1,1 @@
-dotnet tool install --global Versionize
-vvvv
+@rem dotnet tool install --global Versionize

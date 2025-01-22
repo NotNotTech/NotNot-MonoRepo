@@ -62,9 +62,30 @@
 
 	  <IncludeBuildOutput>false</IncludeBuildOutput>
 	  <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-	  <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
 	  <UserSecretsId>fabf5a14-bb71-4048-a595-afef95740429</UserSecretsId>
 	</PropertyGroup>
+
+<!-- standard nuget package details -->
+		<ItemGroup>
+			<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png">
+			  <Pack>True</Pack>
+			  <PackagePath>\</PackagePath>
+			</None>
+			<None Include=".\README.md">
+			  <Pack>True</Pack>
+			  <PackagePath>\</PackagePath>
+			</None>
+		</ItemGroup>
+
+		<PropertyGroup>
+			<PackageProjectUrl>https://github.com/jasonswearingen/NotNot/src/nuget/NotNot.Analyzers/</PackageProjectUrl>
+			<Copyright>Jason Swearingen</Copyright>
+			<RepositoryUrl>https://github.com/jasonswearingen/NotNot</RepositoryUrl>
+			<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
+			<PackageReadmeFile>README.md</PackageReadmeFile>
+			<PackageTags>NotNot; Analyzers; Novaleaf;</PackageTags>
+			<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+		</PropertyGroup>
 
 	
 
