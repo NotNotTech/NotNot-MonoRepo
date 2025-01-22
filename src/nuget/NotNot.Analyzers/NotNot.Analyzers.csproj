@@ -37,7 +37,7 @@
 	</ItemGroup>
 
 	<PropertyGroup>
-		<PackageId>NotNot.Analyzers</PackageId>
+		<PackageId>$(AssemblyName)</PackageId>
 	</PropertyGroup>
 
 	<ItemGroup>
