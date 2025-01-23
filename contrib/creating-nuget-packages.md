@@ -27,18 +27,20 @@
 	<PropertyGroup>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 		<!--see https://github.com/adamralph/minver?tab=readme-ov-file#can-i-version-multiple-projects-in-a-single-repository-independently -->
-		<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>
-		<PackageProjectUrl>https://github.com/jasonswearingen/NotNot/src/nuget/$(AssemblyName)/</PackageProjectUrl>
-		<Copyright>$(Authors)</Copyright>
-		<RepositoryUrl>https://github.com/jasonswearingen/NotNot</RepositoryUrl>
-		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<PackageTags>NotNot; Novaleaf;</PackageTags>
+		<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>	
 		<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
 		<OutputType>Library</OutputType>
 		<PackageOutputPath>$(SolutionDir).nuget-test-packages\$(AssemblyName)</PackageOutputPath>
 		<Authors>Novaleaf</Authors>
-		<PackageDescription>see https://github.com/jasonswearingen/NotNot/src/nuget/$(AssemblyName)/ or the README</PackageDescription>
+		<Copyright>$(Authors)</Copyright>
+		<PackageProjectUrl>https://github.com/jasonswearingen/NotNot/src/nuget/$(AssemblyName)/</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/jasonswearingen/NotNot</RepositoryUrl>
+		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageTags>NotNot; Novaleaf;</PackageTags>
+		<Description>$(AssemblyName) see Project URL or the README</Description>
+	 <!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
+	<Version>0.0.0-minverBroken</Version>
 	</PropertyGroup>
 	```
 

@@ -41,9 +41,10 @@
 	<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
 	<PackageTags>NotNot; Novaleaf;</PackageTags>
-	<Description>see https://github.com/jasonswearingen/NotNot/src/nuget/$(AssemblyName)/ or the README</Description>
+	<Description>$(AssemblyName) see Project URL or the README</Description>
+	 <!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
+	<Version>0.0.0-minverBroken</Version>
 </PropertyGroup>
-
 
 	<ItemGroup>
 		<PackageReference Include="Ben.Demystifier" Version="0.4.1" />
