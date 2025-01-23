@@ -21,7 +21,12 @@
 
 
 	<ItemGroup>
-    <PackageReference Include="NotNot.Core" Version="0.1.1-alpha.1" />
+    <PackageReference Include="NotNot.Core" Version="0.1.1-alpha.2" />
   </ItemGroup>
+
+<!--only use project references when in DEBUG, otherwise use the nuget package references--> 
+	<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+		<ProjectReference Include="..\..\nuget\NotNot.Core\NotNot.Core.csproj" />
+	</ItemGroup>
 
 </Project>

@@ -1,3 +1,9 @@
+# TOC
+- [TOC](#toc)
+- [steps to convert a .csproj to a nuget package](#steps-to-convert-a-csproj-to-a-nuget-package)
+- [using a locally dev'd nuget package in another project](#using-a-locally-devd-nuget-package-in-another-project)
+
+
 # steps to convert a .csproj to a nuget package
 
 
@@ -40,7 +46,22 @@
 		<PackageTags>NotNot; Novaleaf;</PackageTags>
 		<Description>$(AssemblyName) see Project URL or the README</Description>
 	 <!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
-	<Version>0.0.0-minverBroken</Version>
+	<Version>0.0.0-projectReferenceNotNuget</Version>
 	</PropertyGroup>
 	```
 
+# using a locally dev'd nuget package in another project
+
+if you don't need to edit the nuget, you can just add it normally via nuget.org.
+
+If you need to debug/edit the nuget:
+- From your consumer project, reference the nuget normally
+- then reference the nuget's local project (Project Reference)
+- then open your consumer .csproj, and change it to Conditional, such as shown:
+	```xml
+		<!--only use project references when in DEBUG, otherwise use the nuget package references--> 
+			<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+				<ProjectReference Include="..\..\nuget\NotNot.Core\NotNot.Core.csproj" />
+			</ItemGroup>
+	```
+	this will cause the projectReference to be used in DEBUG builds, and the normal nuget package otherwise.
