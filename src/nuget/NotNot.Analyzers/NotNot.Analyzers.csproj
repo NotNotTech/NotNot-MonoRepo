@@ -7,8 +7,6 @@
 	  <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 	  <LangVersion>preview</LangVersion>
 	  <EnablePreviewFeatures>true</EnablePreviewFeatures>
-	  <!--see https://github.com/adamralph/minver?tab=readme-ov-file#can-i-version-multiple-projects-in-a-single-repository-independently -->
-	  <MinVerTagPrefix>NotNot.Analyzers-</MinVerTagPrefix>
   </PropertyGroup>
 
   <ItemGroup>
@@ -61,31 +59,37 @@
 	  <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 
 	  <IncludeBuildOutput>false</IncludeBuildOutput>
-	  <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	  <UserSecretsId>fabf5a14-bb71-4048-a595-afef95740429</UserSecretsId>
 	</PropertyGroup>
 
+	<!-- standard nuget package details -->
+<ItemGroup>
+	<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png">
+		<Pack>True</Pack>
+		<PackagePath>\</PackagePath>
+	</None>
+	<None Include=".\README.md">
+		<Pack>True</Pack>
+		<PackagePath>\</PackagePath>
+	</None>
+</ItemGroup>
 <!-- standard nuget package details -->
-		<ItemGroup>
-			<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png">
-			  <Pack>True</Pack>
-			  <PackagePath>\</PackagePath>
-			</None>
-			<None Include=".\README.md">
-			  <Pack>True</Pack>
-			  <PackagePath>\</PackagePath>
-			</None>
-		</ItemGroup>
-
-		<PropertyGroup>
-			<PackageProjectUrl>https://github.com/jasonswearingen/NotNot/src/nuget/NotNot.Analyzers/</PackageProjectUrl>
-			<Copyright>Jason Swearingen</Copyright>
-			<RepositoryUrl>https://github.com/jasonswearingen/NotNot</RepositoryUrl>
-			<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
-			<PackageReadmeFile>README.md</PackageReadmeFile>
-			<PackageTags>NotNot; Analyzers; Novaleaf;</PackageTags>
-			<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
-		</PropertyGroup>
+<PropertyGroup>
+	<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+	<!--see https://github.com/adamralph/minver?tab=readme-ov-file#can-i-version-multiple-projects-in-a-single-repository-independently -->
+	<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>	
+	<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+	<OutputType>Library</OutputType>
+	<PackageOutputPath>$(SolutionDir).nuget-test-packages\$(AssemblyName)</PackageOutputPath>
+	<Authors>Novaleaf</Authors>
+	<Copyright>$(Authors)</Copyright>
+	<PackageProjectUrl>https://github.com/jasonswearingen/NotNot/src/nuget/$(AssemblyName)/</PackageProjectUrl>
+	<RepositoryUrl>https://github.com/jasonswearingen/NotNot</RepositoryUrl>
+	<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
+	<PackageTags>NotNot; Novaleaf;</PackageTags>
+	<PackageDescription>see https://github.com/jasonswearingen/NotNot/src/nuget/$(AssemblyName)/ or the README</PackageDescription>
+</PropertyGroup>
 
 	
 
