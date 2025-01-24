@@ -49,10 +49,10 @@
 
 	<ItemGroup>
 		<PackageReference Include="Ben.Demystifier" Version="0.4.1" />
-		<PackageReference Include="Blake3" Version="1.1.0" />
+		<PackageReference Include="Blake3" Version="2.0.0" />
 		<PackageReference Include="codeessentials.AspNetCore.Diagnostics.Demystifier" Version="1.1.66" />
 		<PackageReference Include="codeessentials.Extensions.Logging.Demystifier" Version="1.1.66" />
-		<PackageReference Include="CommunityToolkit.HighPerformance" Version="8.3.2" />
+		<PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
 		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.4.0-beta.1">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -63,8 +63,8 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.1" />
 		<PackageReference Include="MinVer" Version="6.0.0">
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -73,12 +73,12 @@
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
 		<PackageReference Include="ParallelHelper" Version="3.6.1" />
-		<PackageReference Include="Roslynator.Analyzers" Version="4.12.9">
+		<PackageReference Include="Roslynator.Analyzers" Version="4.12.10">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="SimpleBase" Version="4.0.2" />
-		<PackageReference Include="ZstdSharp.Port" Version="0.8.2" />
+		<PackageReference Include="ZstdSharp.Port" Version="0.8.4" />
 	</ItemGroup>
 
 
