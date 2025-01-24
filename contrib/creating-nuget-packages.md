@@ -32,10 +32,12 @@
 	<!-- standard nuget package details -->
 	<PropertyGroup>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+	<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<!--see https://github.com/adamralph/minver?tab=readme-ov-file#can-i-version-multiple-projects-in-a-single-repository-independently -->
 		<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>	
 		<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
 		<OutputType>Library</OutputType>
+
 	<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-test-packages\$(AssemblyName)</PackageOutputPath>
 		<Authors>Novaleaf</Authors>
 		<Copyright>$(Authors)</Copyright>

@@ -12,7 +12,7 @@ internal class Program
 	private static async Task Main(string[] args)
 	{
 		Console.Clear();
-
+		
 		var logger = __.GetLogger();
 		logger._EzTrace("starting app scafolding (Microsoft.Extensions.Hosting)");
 
