@@ -3,9 +3,15 @@
 This is a monoRepo of free open source projects licensed publicly under the `MPL-2.0`
 
 ## Important links
+
+### Nuget Packages
 - Source code for nuget packages, such as `NotNot.Core` can be found under [./src/nuget](./src/nuget)
   - readme's for each nuget package can be found in their respective folders
 
+### Examples
+
+- see [./src/example/](./src/example/) for listing of example projects
+  
 
 ## License: MPL-2.0
 
