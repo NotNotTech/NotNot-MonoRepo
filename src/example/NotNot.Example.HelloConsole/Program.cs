@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Serilog;
 
 namespace NotNot.Example.HelloConsole;
@@ -51,37 +50,4 @@ internal class Program
 		Console.WriteLine("Done!  (host + services are now disposed)");
 
 	}
-}
-
-public class HelloHostedService(ILogger<HelloHostedService> _logger)
-	: BackgroundService, IAutoInitialize
-{
-
-	public async ValueTask AutoInitialize(IServiceProvider services, CancellationToken ct)
-	{
-		_logger._EzTrace("HelloHostedService initialized!");
-	}
-
-	public override Task StartAsync(CancellationToken cancellationToken)
-	{
-		_logger._EzTrace("Hello from the hosted service!");
-		return base.StartAsync(cancellationToken);
-	}
-
-	public override Task StopAsync(CancellationToken cancellationToken)
-	{
-		_logger._EzTrace("Goodbye from the hosted service!");
-		return base.StopAsync(cancellationToken);
-	}
-
-	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-	{
-		while (!stoppingToken.IsCancellationRequested)
-		{
-			_logger._EzError($"Background task running at: {DateTimeOffset.Now}");
-			// Perform background work here
-			await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
-		}
-	}
-
 }
