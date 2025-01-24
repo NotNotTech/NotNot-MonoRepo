@@ -18,7 +18,7 @@ internal class Program
 
 		logger._EzTrace("running DI setup. (builder)....");
 		var builder = Host.CreateApplicationBuilder(args);
-
+		
 		//required settings so things like logging behaves as expected
 		builder.Configuration.AddJsonFile("appsettings.json", optional: false);
 

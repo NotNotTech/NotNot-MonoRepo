@@ -38,6 +38,7 @@
 		<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
 		<OutputType>Library</OutputType>
 
+			<!--for other macro properties, see https://learn.microsoft.com/en-us/visualstudio/msbuild/common-msbuild-project-properties?view=vs-2022 -->
 	<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-test-packages\$(AssemblyName)</PackageOutputPath>
 		<Authors>Novaleaf</Authors>
 		<Copyright>$(Authors)</Copyright>
@@ -57,13 +58,18 @@
 if you don't need to edit the nuget, you can just add it normally via nuget.org.
 
 If you need to debug/edit the nuget:
-- From your consumer project, reference the nuget normally
-- then reference the nuget's local project (Project Reference)
-- then open your consumer .csproj, and change it to Conditional, such as shown:
+- From your consumer project, reference the nuget normally,
+- then change the nuget reference wildcards, 
+- and reference the nuget's local project (Project Reference), and change it to Conditional
+- here's an example of what it should look like:
 	```xml
+		<ItemGroup>
+			<PackageReference Include="NotNot" Version="*-*" />
+			<PackageReference Include="NotNot" Version="*" />
+		</ItemGroup>
 		<!--only use project references when in DEBUG, otherwise use the nuget package references--> 
-			<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+			<ItemGroup Condition="'$(Configuration)' == 'LocalProjectsDebug'">
 				<ProjectReference Include="..\..\nuget\NotNot.Core\NotNot.Core.csproj" />
 			</ItemGroup>
 	```
-	this will cause the projectReference to be used in DEBUG builds, and the normal nuget package otherwise.
+	this will cause the projectReference to be used in `LocalProjectsDebug` builds, and the normal nuget package otherwise.

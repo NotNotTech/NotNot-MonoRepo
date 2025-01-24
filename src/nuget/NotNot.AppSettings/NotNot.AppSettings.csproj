@@ -1,0 +1,138 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+	</PropertyGroup>
+	<PropertyGroup>
+		<!--standard dotnet stuff-->
+		<!--<TargetFramework>net8.0</TargetFramework>-->
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<InvariantGlobalization>true</InvariantGlobalization>
+	</PropertyGroup>
+
+	<!--LOCAL DEV NOTES:  To reference `.csproj`, not Nuget: Add ` OutputItemType="Analyzer" ReferenceOutputAssembly="false"` to the `ProjectReference`-->
+
+	<!--BS scafolding needed for sourcegen to reference nuget packages, see: https://github.com/dotnet/roslyn/discussions/47517#discussioncomment-5787288
+	ALL the dlls in the package need to be referenced, not just the one you want to use (System.Text.Json) due to it's dependencies
+	-->
+		<ItemGroup>
+			<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />			
+			<None Include="C:\repos\vUnified\dev\public\NotNot.SourceGenerator.AppSettings\.editorconfig" />
+			<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" GeneratePathProperty="true" PrivateAssets="all" />
+			<PackageReference Include="System.Buffers" Version="4.5.1" GeneratePathProperty="true" PrivateAssets="all" />
+			<PackageReference Include="System.Memory" Version="4.5.5" GeneratePathProperty="true" PrivateAssets="all" />
+			<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" GeneratePathProperty="true" PrivateAssets="all" />
+			<PackageReference Include="System.Text.Encodings.Web" Version="8.0.0" GeneratePathProperty="true" PrivateAssets="all" />
+			<PackageReference Include="System.Text.Json" Version="8.0.0" PrivateAssets="all" GeneratePathProperty="true" />
+			<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" GeneratePathProperty="true" PrivateAssets="all" />
+
+			<None Include="$(PKGSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+			<None Include="$(PKGMicrosoft_Bcl_AsyncInterfaces)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+			<None Include="$(PKGSystem_Buffers)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+			<None Include="$(PKGSystem_Memory)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+			<None Include="$(PKGSystem_Runtime_CompilerServices_Unsafe)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+			<None Include="$(PKGSystem_Text_Encodings_Web)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+			<None Include="$(PKGMSystem_Threading_Tasks_Extensions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		</ItemGroup>
+
+
+		<Target Name="GetDependencyTargetPaths">
+			<ItemGroup>
+				<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Text_Json)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
+				<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Bcl_AsyncInterfaces)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
+				<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Buffers)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
+				<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Memory)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
+				<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Runtime_CompilerServices_Unsafe)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
+				<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Text_Encodings_Web)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
+				<TargetPathWithTargetPlatformMoniker Include="$(PKGMSystem_Threading_Tasks_Extensions)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
+			</ItemGroup>
+		</Target>
+	
+
+			<!-- standard nuget package details -->
+	<ItemGroup>
+		<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+		<None Include=".\README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+	<!-- standard nuget package details -->
+	<PropertyGroup>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+	<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<!--see https://github.com/adamralph/minver?tab=readme-ov-file#can-i-version-multiple-projects-in-a-single-repository-independently -->
+		<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>	
+		<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+		<OutputType>Library</OutputType>
+
+			<!--for other macro properties, see https://learn.microsoft.com/en-us/visualstudio/msbuild/common-msbuild-project-properties?view=vs-2022 -->
+	<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-test-packages\$(AssemblyName)</PackageOutputPath>
+		<Authors>Novaleaf</Authors>
+		<Copyright>$(Authors)</Copyright>
+		<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/src/nuget/$(AssemblyName)/</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
+		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+			<PackageTags>AppSettings; Source Generator; SourceGenerator; Json; NotNot; Novaleaf;</PackageTags>
+		<Description>Automatically create strongly typed C# settings classes from AppSettings.json. Uses Source Generators. Includes a simple deserialization helper for when you are using Dependency Injection, or not.</Description>
+	 <!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
+	<Version>0.0.0-0.projectReferenceNotNuget</Version>
+	</PropertyGroup>
+
+
+	<!--stuff for nuget package publishing-->
+		<ItemGroup>
+		  <EditorConfigFiles Remove="C:\repos\vUnified\dev\public\NotNot.SourceGenerator.AppSettings\.editorconfig" />
+		  <PackageReference Include="GitVersion.MsBuild" Version="5.12.0">
+			  <!--version assembly automatically based on git commmit.   can configure version layout via gitversion.yml-->
+			  <PrivateAssets>All</PrivateAssets>
+		  </PackageReference>
+			
+		</ItemGroup>
+
+		<PropertyGroup>
+			<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
+			<Title>NotNot.AppSettings</Title>
+			<Authors>Jason Swearingen</Authors>
+			
+		</PropertyGroup>
+
+		<PropertyGroup>
+			<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+			<Deterministic>true</Deterministic>
+		</PropertyGroup>
+
+		<ItemGroup>
+			<!--required for sourcegen-->
+			<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
+			<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4">
+				<PrivateAssets>all</PrivateAssets>
+				<!--required so that the .props file is included in the target project build-->
+				<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+			</PackageReference>
+			<!--required for json IConfiguration.Bind()  _BinderShims.cs-->
+			<PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+			<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+			<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.0" />
+
+		</ItemGroup>
+
+		<ItemGroup>
+			<!--attaches this .props file to the target project. required so target project appsettings.json files are included for sourcegen scanning-->
+			<None Update="NotNot.AppSettings.props" Pack="true" PackagePath="build" Visible="true" />
+		</ItemGroup>
+	
+		<ItemGroup>
+			<!--attaches this .targets file to the target project.  (this file make this package a private asset).  Can't be rolled into the above .props sadly-->
+			<None Include="NotNot.AppSettings.targets" Pack="true" PackagePath="build\"/>
+		</ItemGroup>
+
+</Project>

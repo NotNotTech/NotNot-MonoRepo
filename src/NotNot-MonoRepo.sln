@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot", "nuget\NotNot\NotN
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.Example.HelloConsole", "example\NotNot.Example.HelloConsole\NotNot.Example.HelloConsole.csproj", "{F6FC0EA1-0B4C-4190-AA0C-B7C97F232EC9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.AppSettings", "nuget\NotNot.AppSettings\NotNot.AppSettings.csproj", "{7EEE9FB7-8643-F215-99D1-29D24474B4AE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,6 +44,12 @@ Global
 		{F6FC0EA1-0B4C-4190-AA0C-B7C97F232EC9}.LocalProjectsDebug|Any CPU.Build.0 = LocalProjectsDebug|Any CPU
 		{F6FC0EA1-0B4C-4190-AA0C-B7C97F232EC9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F6FC0EA1-0B4C-4190-AA0C-B7C97F232EC9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7EEE9FB7-8643-F215-99D1-29D24474B4AE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7EEE9FB7-8643-F215-99D1-29D24474B4AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7EEE9FB7-8643-F215-99D1-29D24474B4AE}.LocalProjectsDebug|Any CPU.ActiveCfg = Release|Any CPU
+		{7EEE9FB7-8643-F215-99D1-29D24474B4AE}.LocalProjectsDebug|Any CPU.Build.0 = Release|Any CPU
+		{7EEE9FB7-8643-F215-99D1-29D24474B4AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7EEE9FB7-8643-F215-99D1-29D24474B4AE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
