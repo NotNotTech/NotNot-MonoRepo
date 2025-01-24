@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <Configurations>Debug;Release;LocalProjectsDebug</Configurations>
   </PropertyGroup>
 
 	<!--shared common .csproj settings-->
@@ -18,14 +19,23 @@
 		<RootNamespace></RootNamespace>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <None Remove="appsettings.json" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <AdditionalFiles Include="appsettings.json">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </AdditionalFiles>
+	</ItemGroup>
+
 
   <ItemGroup>
-    <PackageReference Include="NotNot" Version="0.0.0-alpha.0.12" />
+    <PackageReference Include="NotNot" Version="*" />
   </ItemGroup>
 
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\nuget\NotNot\NotNot.csproj" />
-  </ItemGroup>
+	<ItemGroup Condition="'$(Configuration)'=='LocalProjectsDebug'">
+	  <ProjectReference Include="..\..\nuget\NotNot\NotNot.csproj" />
+	</ItemGroup>
 
 </Project>

@@ -10,11 +10,9 @@
 		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 		<CompilerGeneratedFilesOutputPath>.Generated</CompilerGeneratedFilesOutputPath>
 	</PropertyGroup>
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-		<NoWarn>1701;1702;1591</NoWarn>
-  <DebugType>embedded</DebugType>
-	</PropertyGroup>
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+	<!-- for all build configurations, don't need conditional, so just commenting conditions out  -->
+	<!-- <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'"> -->
+	<PropertyGroup>
 		<NoWarn>1701;1702;1591</NoWarn>
   <DebugType>embedded</DebugType>
 	</PropertyGroup>

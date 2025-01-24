@@ -7,6 +7,7 @@
 	  <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 	  <LangVersion>preview</LangVersion>
 	  <EnablePreviewFeatures>true</EnablePreviewFeatures>
+	  <Configurations>Debug;Release;LocalProjectsDebug</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
