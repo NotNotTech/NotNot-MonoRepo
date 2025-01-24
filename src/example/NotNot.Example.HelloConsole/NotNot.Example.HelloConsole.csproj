@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
+
+	<PropertyGroup>
+		<!--standard dotnet stuff-->
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<RootNamespace></RootNamespace>
+	</PropertyGroup>
+
+
+  <ItemGroup>
+    <PackageReference Include="NotNot" Version="0.0.0-alpha.0.12" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\nuget\NotNot\NotNot.csproj" />
+  </ItemGroup>
+
+</Project>
