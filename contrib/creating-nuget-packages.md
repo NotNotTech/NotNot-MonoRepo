@@ -2,6 +2,7 @@
 - [TOC](#toc)
 - [steps to convert a .csproj to a nuget package](#steps-to-convert-a-csproj-to-a-nuget-package)
 - [using a locally dev'd nuget package in another project](#using-a-locally-devd-nuget-package-in-another-project)
+- [nuget package versioning](#nuget-package-versioning)
 
 
 # steps to convert a .csproj to a nuget package
@@ -73,3 +74,7 @@ If you need to debug/edit the nuget:
 			</ItemGroup>
 	```
 	this will cause the projectReference to be used in `LocalProjectsDebug` builds, and the normal nuget package otherwise.
+
+# nuget package versioning
+ - `MinVer` is used for nuget versioning. The above xml, pasted into your `.csproj`, will make so when you Tag a git commit with, for example `NotNot.Core-1.23.4`, then next build of `NotNot.Core` will use that version.
+ - 

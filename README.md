@@ -11,7 +11,15 @@ This is a monoRepo of free open source projects licensed publicly under the `MPL
 ### Examples
 
 - see [./src/example/](./src/example/) for listing of example projects
-  
+
+### MonoRepo weirdness
+
+Because this repo is focused on the development of multiple Nuget projects, there are a few weird "quality of life" tweaks to aid development:
+- `MinVer` used for nuget versioning ()
+-`LocalProjectsDebug`: used to run examples referencing the local library project source code instead of their nuget packages (useful for debugging and development)
+  - This requires modifying `.csproj` for nuget references
+
+see `./contrib/creating-nuget-packages.md` for some more details on the above.
 
 ## License: MPL-2.0
 
