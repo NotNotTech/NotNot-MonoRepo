@@ -7,8 +7,11 @@
 	  <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 	  <LangVersion>preview</LangVersion>
 	  <EnablePreviewFeatures>true</EnablePreviewFeatures>
-	  <Configurations>Debug;Release;LocalProjectsDebug</Configurations>
   </PropertyGroup>
+
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
 
   <ItemGroup>
     <Compile Remove="bin\**" />

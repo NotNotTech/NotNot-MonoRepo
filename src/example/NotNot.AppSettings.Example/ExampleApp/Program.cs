@@ -1,6 +1,6 @@
-﻿using ExampleApp.AppSettingsGen;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using AppSettingsGen;
 
 namespace ExampleApp;
 public class Program
@@ -12,7 +12,7 @@ public class Program
       {
          Console.WriteLine("NON-DI EXAMPLE");
                   
-         var appSettings = ExampleApp.AppSettingsGen.AppSettingsBinder.LoadDirect();
+         var appSettings = AppSettingsBinder.LoadDirect();
          Console.WriteLine(appSettings.Hello.World);
          
       }

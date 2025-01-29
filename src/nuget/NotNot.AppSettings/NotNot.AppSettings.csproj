@@ -3,6 +3,12 @@
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 	</PropertyGroup>
+
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
+
+
 	<PropertyGroup>
 		<!--standard dotnet stuff-->
 		<!--<TargetFramework>net8.0</TargetFramework>-->
@@ -133,7 +139,7 @@
 	
 		<ItemGroup>
 			<!--attaches this .targets file to the target project.  (this file make this package a private asset).  Can't be rolled into the above .props sadly-->
-			<None Include="NotNot.AppSettings.targets" Pack="true" PackagePath="build\"/>
+			<None Include="NotNot.AppSettings.targets" Pack="true" PackagePath="build\" />
 		</ItemGroup>
 
 </Project>

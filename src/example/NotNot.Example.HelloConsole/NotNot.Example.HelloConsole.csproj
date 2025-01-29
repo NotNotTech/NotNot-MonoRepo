@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <Configurations>Debug;Release;LocalProjectsDebug</Configurations>
   </PropertyGroup>
 
 	<!--shared common .csproj settings-->

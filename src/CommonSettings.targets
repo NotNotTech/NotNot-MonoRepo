@@ -9,16 +9,32 @@
 	<PropertyGroup>
 		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 		<CompilerGeneratedFilesOutputPath>.Generated</CompilerGeneratedFilesOutputPath>
-	</PropertyGroup>
-	<!-- for all build configurations, don't need conditional, so just commenting conditions out  -->
-	<!-- <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'"> -->
-	<PropertyGroup>
-		<NoWarn>1701;1702;1591</NoWarn>
-  <DebugType>embedded</DebugType>
-	</PropertyGroup>
+	</PropertyGroup>	
 	<ItemGroup>
 		<!--Exclude the output of source generators from the compilation-->
 		<Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
 	</ItemGroup>
+
+
+	<!-- for all build configurations, don't need conditional, so just commenting conditions out  -->
+	<!-- <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'"> -->
+	<PropertyGroup>			
+		<NoWarn>1701;1702;1591</NoWarn>
+  <DebugType>embedded</DebugType>
+	</PropertyGroup>
+
+<!-- include our LocalProjectsDebug build configuration -->
+<PropertyGroup>			
+		<Configurations>Debug;Release;LocalProjectsDebug</Configurations>
+	</PropertyGroup>
+
+
+
+<!-- skip MinVer if running in DEBUG or  LocalProjectsDebug -->
+<PropertyGroup>			
+	<MinVerSkip Condition="$(Configuration.Contains('Debug'))">true</MinVerSkip>
+</PropertyGroup>
+
+
 
 </Project>
