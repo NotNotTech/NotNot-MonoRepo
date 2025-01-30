@@ -1,12 +1,16 @@
 # NotNot-MonoRepo
 
-This is a monoRepo of free open source projects licensed publicly under the `MPL-2.0`
+This is a monoRepo of open source C# Nuget packages.  MonoRepo because:
+- easier to maintain/debug multiple Nugets when they are part of the same solution
+  
 
-## Important links
+## Nuget Packages
 
-### Nuget Packages
-- Source code for nuget packages, such as `NotNot.Core` can be found under [./src/nuget](./src/nuget)
-  - readme's for each nuget package can be found in their respective folders
+### [`NotNot.AppSettings`](./src/nuget/NotNot.AppSettings/)
+Strongly-Typed `appSettings.json` via source-generator  (Also a high quality example of how to write a source-generator)
+
+### [`NotNot.Bcl`](./src/nuget/NotNot.Bcl/) [***WIP***: Not Ready for public use]
+Base Class Library for My personal projects.  ***Kitchen Sink Included***
 
 ### Examples
 
