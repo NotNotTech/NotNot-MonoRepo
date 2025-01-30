@@ -88,7 +88,7 @@
 	<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-test-packages\$(AssemblyName)</PackageOutputPath>
 	<Authors>Novaleaf</Authors>
 	<Copyright>$(Authors)</Copyright>
-	<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/src/nuget/$(AssemblyName)/</PackageProjectUrl>
+	<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/$(AssemblyName)/</PackageProjectUrl>
 	<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
 	<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
 	<PackageReadmeFile>README.md</PackageReadmeFile>

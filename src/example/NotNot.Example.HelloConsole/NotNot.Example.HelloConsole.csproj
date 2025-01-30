@@ -30,12 +30,12 @@
 
 
   <ItemGroup>
-	  <PackageReference Include="NotNot" Version="*-*" />
-	  <PackageReference Include="NotNot" Version="*" />
+	  <PackageReference Include="NotNot.Bcl" Version="*-*" />
+	  <PackageReference Include="NotNot.Bcl" Version="*" />
   </ItemGroup>
 
 	<ItemGroup Condition="'$(Configuration)'=='LocalProjectsDebug'">
-	  <ProjectReference Include="..\..\nuget\NotNot\NotNot.Bcl.csproj" />
+	  <ProjectReference Include="..\..\nuget\NotNot.Bcl\NotNot.Bcl.csproj" />
 	</ItemGroup>
 
 </Project>

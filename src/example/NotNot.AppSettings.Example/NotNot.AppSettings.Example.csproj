@@ -36,7 +36,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-		<!--<PackageReference Include="NotNot.AppSettings" Version="1.1.1" />-->
+		<PackageReference Include="NotNot.AppSettings" Version="*-*" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(Configuration)'=='LocalProjectsDebug'">

@@ -66,6 +66,7 @@ Write-Output dotnet nuget push "$NugetPackage" --source https://api.nuget.org/v3
 $response = read-host "Type 'makeitso' and Press enter to continue.  Anything else to abort"
 if ($response -ne "makeitso") {
 	"Aborted"
+	popd
 	Exit(-1)
 }
 

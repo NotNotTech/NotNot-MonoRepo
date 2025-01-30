@@ -134,7 +134,7 @@ A summary from [TldrLegal](https://www.tldrlegal.com/license/mozilla-public-lice
 **In brief**: You can basically use this project however you want, but all changes to it must be open sourced.
 
 ## Changes
-
+- **`1.2.1`** : improve doc for missing appSettings.json, handle projects with blank default namespace. move to new repository.
 - **`1.1.1`** : make the nuget package `<PrivateAsset>` so only the project that directly references it uses it. 
   - (needed for example: test projects)
 - **`1.0.0`** : polish and readme tweaks.  **Put a fork in it, it's done!**

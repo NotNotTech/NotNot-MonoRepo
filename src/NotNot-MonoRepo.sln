@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.13.35617.110
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.Bcl.Core", "nuget\NotNot.Core\NotNot.Bcl.Core.csproj", "{F2542088-A74F-ED3B-F46E-A9D5DC2A3E8A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.Bcl.Core", "nuget\NotNot.Bcl.Core\NotNot.Bcl.Core.csproj", "{F2542088-A74F-ED3B-F46E-A9D5DC2A3E8A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.Analyzers", "nuget\NotNot.Analyzers\NotNot.Analyzers.csproj", "{FB440EC7-4E09-7D83-31A8-B1FDA5B43F34}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.Bcl", "nuget\NotNot\NotNot.Bcl.csproj", "{AC1D58D4-DF00-E757-1E1D-70EFC0E7A096}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.Bcl", "nuget\NotNot.Bcl\NotNot.Bcl.csproj", "{AC1D58D4-DF00-E757-1E1D-70EFC0E7A096}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.Example.HelloConsole", "example\NotNot.Example.HelloConsole\NotNot.Example.HelloConsole.csproj", "{F6FC0EA1-0B4C-4190-AA0C-B7C97F232EC9}"
 EndProject
