@@ -15,7 +15,6 @@
 		<Configurations>Debug;Release;LocalProjectsDebug</Configurations>
 	</PropertyGroup>
 
-
 	<!-- standard nuget package details -->
 <ItemGroup>
 	<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png">
@@ -38,7 +37,7 @@
 	<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-test-packages\$(AssemblyName)</PackageOutputPath>
 	<Authors>Novaleaf</Authors>
 	<Copyright>$(Authors)</Copyright>
-	<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/src/nuget/$(AssemblyName)/</PackageProjectUrl>
+	<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/$(AssemblyName)/</PackageProjectUrl>
 	<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
 	<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
@@ -48,39 +47,52 @@
 	<Version>0.0.0-0.projectReferenceNotNuget</Version>
 </PropertyGroup>
 
+
+
 	<ItemGroup>
-		<PackageReference Include="Ben.Demystifier" Version="0.4.1" />
-		<PackageReference Include="Blake3" Version="2.0.0" />
-		<PackageReference Include="codeessentials.AspNetCore.Diagnostics.Demystifier" Version="1.1.66" />
-		<PackageReference Include="codeessentials.Extensions.Logging.Demystifier" Version="1.1.66" />
-		<PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
-		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.4.0-beta.1">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="Glob" Version="1.1.9" />
-		<PackageReference Include="Isopoh.Cryptography.Argon2" Version="2.0.0" />
-		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.11.0-beta1.23525.2">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
+ <!--nuget versioning--> 
+			<PackageReference Include="MinVer" Version="6.0.0">
+				<PrivateAssets>all</PrivateAssets>
+				<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+			</PackageReference>
+
+
+		<!--NotNot.Utils nugets-->
+		<!--DI and App Host stuff-->
+		<PackageReference Include="AutoMapper" Version="13.0.1" />
+
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.1" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.1" />
+		<PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="9.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.1" />
-		<PackageReference Include="MinVer" Version="6.0.0">
-		  <PrivateAssets>all</PrivateAssets>
-		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="NewOrbit.CodeAnalysis.UtcTime" Version="1.0.2" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-		<PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
-		<PackageReference Include="ParallelHelper" Version="3.6.1" />
-		<PackageReference Include="Roslynator.Analyzers" Version="4.12.11">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="SimpleBase" Version="4.0.2" />
-		<PackageReference Include="ZstdSharp.Port" Version="0.8.4" />
+		<PackageReference Include="Scrutor" Version="6.0.1" />
+		<PackageReference Include="Serilog" Version="4.2.0" />
+		<PackageReference Include="Serilog.Expressions" Version="5.0.0" />
+		<PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
+		<PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
+		<PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
+		<PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+		<PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+		<PackageReference Include="CsvHelper" Version="33.0.1" />
+		<PackageReference Include="FluentValidation" Version="11.11.0" />
+		<PackageReference Include="Spectre.Console.Cli" Version="0.49.1" />
+
 	</ItemGroup>
 
+	<ItemGroup>
+		<ProjectReference Include="..\NotNot.Bcl.Core\NotNot.Bcl.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--testing port-->
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.1">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.3" />
+		<PackageReference Include="Z.EntityFramework.Plus.EFCore" Version="9.103.7" />
+
+	</ItemGroup>
 
 </Project>
