@@ -35,7 +35,7 @@
   </ItemGroup>
 
 	<ItemGroup Condition="'$(Configuration)'=='LocalProjectsDebug'">
-	  <ProjectReference Include="..\..\nuget\NotNot\NotNot.csproj" />
+	  <ProjectReference Include="..\..\nuget\NotNot\NotNot.Bcl.csproj" />
 	</ItemGroup>
 
 </Project>

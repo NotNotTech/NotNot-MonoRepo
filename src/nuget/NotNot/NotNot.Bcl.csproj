@@ -81,7 +81,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\NotNot.Core\NotNot.Core.csproj" />
+		<ProjectReference Include="..\NotNot.Core\NotNot.Bcl.Core.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

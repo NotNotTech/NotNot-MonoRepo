@@ -28,24 +28,24 @@ else {
 	$NugetPackagePath = if ($userPath) { $userPath } else { $defaultPath }
 }
 
-# change dir to folder containing script
-pushd $PSScriptRoot
+# change dir to folder containing nuget packages
+pushd $NugetPackagePath
 
 
-#Get-ChildItem -Path "$PSScriptRoot\bin\Release\" -Filter "*.nupkg" -Name |
+#Get-ChildItem -Path "$NugetPackagePath\bin\Release\" -Filter "*.nupkg" -Name |
 #Select-Object -First 1 -Wait
 
 
-Write-Output "********  SELECT NUGET PACKAGE FROM $PSScriptRoot ********  (see selection prompt)" 
+Write-Output "********  SELECT NUGET PACKAGE FROM $NugetPackagePath ********  (see selection prompt)" 
 
 # #$NugetPackage = "./bin/Release/Raylib-CsLo.4.0.0-rc.1.nupkg"
 
-# $NugetPackage = @(Get-ChildItem -Path "$PSScriptRoot\.nuget-test-packages\" -Recurse -Filter "*.nupkg" -Name | Out-GridView -Title 'Choose a file' -PassThru)
-# $NugetPackage = "$PSScriptRoot\bin\Release\" + $NugetPackage
+# $NugetPackage = @(Get-ChildItem -Path "$NugetPackagePath\.nuget-test-packages\" -Recurse -Filter "*.nupkg" -Name | Out-GridView -Title 'Choose a file' -PassThru)
+# $NugetPackage = "$NugetPackagePath\bin\Release\" + $NugetPackage
 
 ### get full path of nuget package as output
-#$NugetPackage = @(Get-ChildItem -Path "$PSScriptRoot\.nuget-test-packages\" -Recurse -Filter "*.nupkg" | ForEach-Object { $_.FullName } | Out-GridView -Title 'Choose a file' -PassThru)
-$NugetPackage = @(Get-ChildItem -Path "$PSScriptRoot" -Recurse -Filter "*.nupkg" | ForEach-Object { $_.FullName } | Out-GridView -Title 'Choose a file' -PassThru )
+#$NugetPackage = @(Get-ChildItem -Path "$NugetPackagePath\.nuget-test-packages\" -Recurse -Filter "*.nupkg" | ForEach-Object { $_.FullName } | Out-GridView -Title 'Choose a file' -PassThru)
+$NugetPackage = @(Get-ChildItem -Path "$NugetPackagePath" -Recurse -Filter "*.nupkg" | ForEach-Object { $_.FullName } | Out-GridView -Title 'Choose a file' -PassThru )
 
 
 
@@ -55,7 +55,7 @@ $NugetPackage = @(Get-ChildItem -Path "$PSScriptRoot" -Recurse -Filter "*.nupkg"
 # $FileBrowser = New-Object System.Windows.Forms.OpenFileDialog -Property @{
 # 	Title            = "Select the nuget package to publish"
 # 	Multiselect      = $false # Multiple files can be chosen
-# 	InitialDirectory = "$PSScriptRoot\bin\Release\"
+# 	InitialDirectory = "$NugetPackagePath\bin\Release\"
 # 	Filter           = 'Nuget Packages (*.nupkg)|*.nupkg' # Specified file types	
 # } 
 # [void]$FileBrowser.ShowDialog()
