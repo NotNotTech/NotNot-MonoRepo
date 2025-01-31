@@ -4,6 +4,29 @@ Automatically create strongly typed C# settings objects from AppSettings.json. U
 
 Includes a simple deserialization helper for when you are using Dependency Injection, or not.
 
+## Table of Contents
+
+- [NotNot.AppSettings](#notnotappsettings)
+	- [Table of Contents](#table-of-contents)
+	- [Getting Started](#getting-started)
+	- [How it works](#how-it-works)
+	- [Example](#example)
+	- [Troubleshooting / Tips](#troubleshooting--tips)
+		- [How to access the `AppSettings` class from external code?](#how-to-access-the-appsettings-class-from-external-code)
+		- [How to extend the generated `AppSettings` class?](#how-to-extend-the-generated-appsettings-class)
+		- [Some settings not being loaded (value is `NULL`). Or:  My `appSettings.Development.json` file is not loaded](#some-settings-not-being-loaded-value-is-null-or--my-appsettingsdevelopmentjson-file-is-not-loaded)
+		- [Intellisense not working for `AppSettings` class](#intellisense-not-working-for-appsettings-class)
+		- [Why are some of my nodes typed as `object`?](#why-are-some-of-my-nodes-typed-as-object)
+		- [Tip: Backup generated code in your git repository](#tip-backup-generated-code-in-your-git-repository)
+	- [Contribute](#contribute)
+		- [Local Development (Reference `.csproj`, not Nuget)](#local-development-reference-csproj-not-nuget)
+		- [Nuget](#nuget)
+	- [Acknowledgments](#acknowledgments)
+	- [License: MPL-2.0](#license-mpl-20)
+	- [Notable Changes](#notable-changes)
+
+
+
 ## Getting Started
 
 1) Add an `appsettings.json` file to your project *(make sure it's copied to the output)*.
@@ -144,7 +167,8 @@ A summary from [TldrLegal](https://www.tldrlegal.com/license/mozilla-public-lice
 
 **In brief**: You can basically use this project however you want, but all changes to it must be open sourced.
 
-## Changes
+## Notable Changes
+
 - **`2.0.0`** : generated code is now `internal` by default.  Make it public by adding `<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>` to your `.csproj`
 - **`1.2.1`** : improve doc for missing appSettings.json, handle projects with blank default namespace. move to new repository.
 - **`1.1.1`** : make the nuget package `<PrivateAsset>` so only the project that directly references it uses it. 

@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+	</PropertyGroup>
 
 	<!--shared common .csproj settings-->
 	<Import Project="..\..\CommonSettings.targets" />
@@ -19,22 +19,28 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <None Remove="appsettings.json" />
+		<None Remove="appsettings.json" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <AdditionalFiles Include="appsettings.json">
-	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-	  </AdditionalFiles>
+		<AdditionalFiles Include="appsettings.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</AdditionalFiles>
 	</ItemGroup>
 
 
-	<ItemGroup Condition="'$(Configuration)'!='LocalProjectsDebug'">
-		<PackageReference Include="NotNot.Bcl" Version="*" />
-  </ItemGroup>
-
-	<ItemGroup Condition="'$(Configuration)'=='LocalProjectsDebug'">
-	  <ProjectReference Include="..\..\nuget\NotNot.Bcl\NotNot.Bcl.csproj" />
-	</ItemGroup>
+	<Choose>
+		<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
+		<When Condition="'$(Configuration)'=='LocalProjectsDebug'">
+			<ItemGroup>
+				<ProjectReference Include="..\..\nuget\NotNot.Bcl\NotNot.Bcl.csproj" />
+			</ItemGroup>
+		</When>
+		<Otherwise>
+			<ItemGroup>
+				<PackageReference Include="NotNot.Bcl" Version="*" />
+			</ItemGroup>
+		</Otherwise>
+	</Choose>
 
 </Project>
