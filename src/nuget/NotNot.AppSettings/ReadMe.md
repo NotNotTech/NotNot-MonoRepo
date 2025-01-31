@@ -65,7 +65,7 @@ public class Program
 ## Troubleshooting / Tips
 
 ### How to access the `AppSettings` class from external code?
-- v`2.0.0` and later: The `AppSettings` class is now `internal` by default.  If you need to access it from another project, you can add the following to your `.csproj` file:
+- v`2.0.0` and later: The `AppSettings` class is now `internal` by default (better library support).  If you need to access it from another project, you can add the following to your `.csproj` file:
 ```xml
 	<PropertyGroup>
 		<!--make generated code public.  (default is internal)-->
@@ -145,6 +145,7 @@ A summary from [TldrLegal](https://www.tldrlegal.com/license/mozilla-public-lice
 **In brief**: You can basically use this project however you want, but all changes to it must be open sourced.
 
 ## Changes
+- **`2.0.0`** : generated code is now `internal` by default.  Make it public by adding `<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>` to your `.csproj`
 - **`1.2.1`** : improve doc for missing appSettings.json, handle projects with blank default namespace. move to new repository.
 - **`1.1.1`** : make the nuget package `<PrivateAsset>` so only the project that directly references it uses it. 
   - (needed for example: test projects)

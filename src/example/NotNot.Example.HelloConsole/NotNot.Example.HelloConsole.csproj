@@ -30,8 +30,7 @@
 
 
 	<ItemGroup Condition="'$(Configuration)'!='LocalProjectsDebug'">
-	  <PackageReference Include="NotNot.Bcl" Version="*-*" />
-	  <PackageReference Include="NotNot.Bcl" Version="*" />
+		<PackageReference Include="NotNot.Bcl" Version="*" />
   </ItemGroup>
 
 	<ItemGroup Condition="'$(Configuration)'=='LocalProjectsDebug'">

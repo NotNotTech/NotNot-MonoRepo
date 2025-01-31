@@ -66,7 +66,6 @@ If you need to debug/edit the nuget:
 	```xml
 	<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
 	<ItemGroup Condition="'$(Configuration)'!='LocalProjectsDebug'">
-		<PackageReference Include="NotNot.AppSettings" Version="*-*" />
 		<PackageReference Include="NotNot.AppSettings" Version="*" />
 	</ItemGroup>
 	<ItemGroup Condition="'$(Configuration)'=='LocalProjectsDebug'">
