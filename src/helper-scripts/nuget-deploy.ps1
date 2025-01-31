@@ -28,15 +28,60 @@ else {
 	$NugetPackagePath = if ($userPath) { $userPath } else { $defaultPath }
 }
 
-# change dir to folder containing nuget packages
-pushd $NugetPackagePath
-
 
 #Get-ChildItem -Path "$NugetPackagePath\bin\Release\" -Filter "*.nupkg" -Name |
 #Select-Object -First 1 -Wait
 
 
 Write-Output "********  SELECT NUGET PACKAGE FROM $NugetPackagePath ********  (see selection prompt)" 
+
+
+# show a prompt listing all subfolders of $NugetPackagePath, and having the user select one of them
+<#
+.SYNOPSIS
+Allows user selection of a NuGet package folder from available directories.
+
+.DESCRIPTION
+Lists all subdirectories in the specified NuGet package path and prompts the user to select one by entering its index number. 
+The selected folder path then becomes the new NuGet package path. If the selection is invalid, script exits with error.
+
+.PARAMETER NugetPackagePath 
+The root path where NuGet package folders are located. This parameter is modified based on user selection.
+
+.EXAMPLE
+Initial path: "C:\Packages"
+Available folders:
+[0] Package1
+[1] Package2
+Enter the number: 1
+-> Sets NugetPackagePath to "C:\Packages\Package2"
+
+.NOTES
+- Only processes directories, not files
+- Validates numeric input and array bounds
+- Exits with error code 1 if selection is invalid
+#>
+$folders = Get-ChildItem -Path $NugetPackagePath -Directory
+if ($folders.Count -gt 0) {
+	Write-Output "Available folders:"
+	for ($i = 0; $i -lt $folders.Count; $i++) {
+		Write-Output "[$i] $($folders[$i].Name)"
+	}
+	$selection = Read-Host "Enter the number of the folder you want to use"
+	if ($selection -match '^\d+$' -and [int]$selection -lt $folders.Count) {
+		$NugetPackagePath = $folders[[int]$selection].FullName
+	}
+ else {
+		Write-Error "Invalid selection"
+		Exit 1
+	}
+}
+
+Write-Output $NugetPackagePath
+# change dir to folder containing nuget packages
+Push-Location $NugetPackagePath
+
+
 
 # #$NugetPackage = "./bin/Release/Raylib-CsLo.4.0.0-rc.1.nupkg"
 
