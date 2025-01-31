@@ -37,6 +37,8 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
 	</ItemGroup>
+
+
 	<Choose>
 		<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
 		<When Condition="'$(Configuration)'=='LocalProjectsDebug'">
@@ -44,10 +46,23 @@
 				<ProjectReference OutputItemType="Analyzer" ReferenceOutputAssembly="false" Include="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.csproj" />
 			</ItemGroup>
 		</When>
+		<When Condition="'$(Configuration)'=='Debug'">
+			<ItemGroup>
+				<PackageReference Include="NotNot.AppSettings" Version="0.0.0-0.localDebug" />
+			</ItemGroup>
+			<PropertyGroup>
+				<!--force nuget to restore without using cached packages, to ensure above wildcard always gets latest non-preview version in nuget-->
+				<RestoreNoCache>true</RestoreNoCache>
+			</PropertyGroup>
+		</When>
 		<Otherwise>
 			<ItemGroup>
 				<PackageReference Include="NotNot.AppSettings" Version="*" />
 			</ItemGroup>
+			<PropertyGroup>
+				<!--force nuget to restore without using cached packages, to ensure above wildcard always gets latest non-preview version in nuget-->
+				<RestoreNoCache>true</RestoreNoCache>
+			</PropertyGroup>
 		</Otherwise>
 	</Choose>
 
@@ -55,6 +70,6 @@
 
 	<PropertyGroup>
 		<!--make generated code public.  (default is internal)-->
-		<NotNot_AppSettings_GenPublic>false</NotNot_AppSettings_GenPublic>
+		<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>
 	</PropertyGroup>
 </Project>

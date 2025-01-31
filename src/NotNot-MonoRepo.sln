@@ -10,6 +10,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.Bcl", "nuget\NotNot.Bcl\NotNot.Bcl.csproj", "{AC1D58D4-DF00-E757-1E1D-70EFC0E7A096}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.Example.HelloConsole", "example\NotNot.Example.HelloConsole\NotNot.Example.HelloConsole.csproj", "{F6FC0EA1-0B4C-4190-AA0C-B7C97F232EC9}"
+	ProjectSection(ProjectDependencies) = postProject
+		{AC1D58D4-DF00-E757-1E1D-70EFC0E7A096} = {AC1D58D4-DF00-E757-1E1D-70EFC0E7A096}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.AppSettings", "nuget\NotNot.AppSettings\NotNot.AppSettings.csproj", "{7EEE9FB7-8643-F215-99D1-29D24474B4AE}"
 EndProject
@@ -18,6 +21,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "example", "example", "{F0429D9F-3E5F-4003-A75F-1D547D2A4A1B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.AppSettings.Example", "example\NotNot.AppSettings.Example\NotNot.AppSettings.Example.csproj", "{058B8F69-758D-CDC8-D5D9-5A003EDD4716}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7EEE9FB7-8643-F215-99D1-29D24474B4AE} = {7EEE9FB7-8643-F215-99D1-29D24474B4AE}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -40,7 +40,6 @@
 		<OutputType>Library</OutputType>
 
 			<!--for other macro properties, see https://learn.microsoft.com/en-us/visualstudio/msbuild/common-msbuild-project-properties?view=vs-2022 -->
-	<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-test-packages\$(AssemblyName)</PackageOutputPath>
 		<Authors>Novaleaf</Authors>
 		<Copyright>$(Authors)</Copyright>
 		<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/$(AssemblyName)/</PackageProjectUrl>
@@ -50,7 +49,7 @@
 		<PackageTags>NotNot; Novaleaf;</PackageTags>
 		<Description>$(AssemblyName) see Project URL or the README</Description>
 	 <!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
-	<Version>0.0.0-0.projectReferenceNotNuget</Version>
+	<Version>0.0.0-0.invalidMinverProcess</Version>
 	</PropertyGroup>
 	```
 
@@ -68,17 +67,32 @@ If you need to debug/edit the nuget:
 		<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
 		<When Condition="'$(Configuration)'=='LocalProjectsDebug'">
 			<ItemGroup>
-				<ProjectReference Include="..\..\nuget\NotNot.Bcl\NotNot.Bcl.csproj" />
+				<ProjectReference OutputItemType="Analyzer" ReferenceOutputAssembly="false" Include="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.csproj" />
 			</ItemGroup>
+		</When>
+		<When Condition="'$(Configuration)'=='Debug'">
+			<ItemGroup>
+				<PackageReference Include="NotNot.AppSettings" Version="0.0.0-0.localDebug" />
+			</ItemGroup>
+			<PropertyGroup>
+				<!--force nuget to restore without using cached packages, to ensure above wildcard always gets latest non-preview version in nuget-->
+				<RestoreNoCache>true</RestoreNoCache>
+			</PropertyGroup>
 		</When>
 		<Otherwise>
 			<ItemGroup>
-				<PackageReference Include="NotNot.Bcl" Version="*" />
+				<PackageReference Include="NotNot.AppSettings" Version="*" />
 			</ItemGroup>
+			<PropertyGroup>
+				<!--force nuget to restore without using cached packages, to ensure above wildcard always gets latest non-preview version in nuget-->
+				<RestoreNoCache>true</RestoreNoCache>
+			</PropertyGroup>
 		</Otherwise>
 	</Choose>
 	```
-	this will cause the projectReference to be used in `LocalProjectsDebug` builds, and the normal nuget package otherwise.
+	-	this will cause the projectReference to be used in `LocalProjectsDebug` builds, the latest local debug nuget for `Debug` and the latest nuget package from `nuget.org` otherwise.
+	- see also: https://stackoverflow.com/a/79403643/1115220
+
 
 # nuget package versioning
  - `MinVer` is used for nuget versioning. The above xml, pasted into your `.csproj`, will make so when you Tag a git commit with, for example `NotNot.Core-1.23.4`, then next build of `NotNot.Core` will use that version.
