@@ -64,14 +64,14 @@ If you need to debug/edit the nuget:
 - and reference the nuget's local project (Project Reference), and change it to Conditional
 - here's an example of what it should look like:
 	```xml
-		<ItemGroup>
-			<PackageReference Include="NotNot" Version="*-*" />
-			<PackageReference Include="NotNot" Version="*" />
-		</ItemGroup>
-		<!--only use project references when in DEBUG, otherwise use the nuget package references--> 
-			<ItemGroup Condition="'$(Configuration)' == 'LocalProjectsDebug'">
-				<ProjectReference Include="..\..\nuget\NotNot.Core\NotNot.Core.csproj" />
-			</ItemGroup>
+	<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
+	<ItemGroup Condition="'$(Configuration)'!='LocalProjectsDebug'">
+		<PackageReference Include="NotNot.AppSettings" Version="*-*" />
+		<PackageReference Include="NotNot.AppSettings" Version="*" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(Configuration)'=='LocalProjectsDebug'">
+		<ProjectReference OutputItemType="Analyzer" ReferenceOutputAssembly="false" Include="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.csproj" />
+	</ItemGroup>
 	```
 	this will cause the projectReference to be used in `LocalProjectsDebug` builds, and the normal nuget package otherwise.
 
