@@ -35,6 +35,14 @@ internal class AppSettingsGen : IIncrementalGenerator
 		/////////////  NEW ADDITIONAL FILES WORKFLOW
 		{
 
+			// Get the MSBuild property <NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic> from the consuming project .csproj file
+			var genPublicProvider = context.AnalyzerConfigOptionsProvider
+				.Select((provider, ct) =>
+				{
+					provider.GlobalOptions.TryGetValue("build_property.NotNot_AppSettings_GenPublic", out var genPublic);
+					return bool.TryParse(genPublic, out var result) && result;
+				});
+
 			//get appsettings*.json via AdditionalFiles
 			var regex = new Regex(@"\\appsettings\..*json$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 			var additionalFiles = context.AdditionalTextsProvider.Where(file =>
@@ -71,18 +79,28 @@ internal class AppSettingsGen : IIncrementalGenerator
 					return rootNamespace;
 				});
 
-			var combinedProvider = namespaceProvider.Combine(combinedSourceTextsProvider);
-
+			var combinedProvider = namespaceProvider.Combine(combinedSourceTextsProvider).Combine(genPublicProvider);
+			
 
 
 			context.RegisterSourceOutput(
 				combinedProvider,
 				(spc, content) =>
 				{
-					var rootNamespace = content.Left;
-					var combinedSourceTexts = content.Right;
+					var rootNamespace = content.Left.Left;
+					var combinedSourceTexts = content.Left.Right;
+					var genPublic = content.Right;
 
-					ExecuteGenerator(spc, rootNamespace, combinedSourceTexts);
+					var config = new AppSettingsGenConfig
+					{
+						RootNamespace = rootNamespace,
+						IsPublic = genPublic,
+						AppSettingsJsonSourceFiles = combinedSourceTexts,
+						GenSemVer = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0.0-Unknown",
+					};
+					config.startingNamespace = string.IsNullOrWhiteSpace(config.RootNamespace) ? "AppSettingsGen" : $"{config.RootNamespace}.AppSettingsGen";
+
+					ExecuteGenerator(spc, config);
 				});
 
 		}
@@ -105,11 +123,11 @@ internal class AppSettingsGen : IIncrementalGenerator
 		//}
 	}
 
-	public void ExecuteGenerator(SourceProductionContext spc, string? rootNamespace, Dictionary<string, SourceText> combinedSourceTexts)
+	public void ExecuteGenerator(SourceProductionContext spc, AppSettingsGenConfig config)
 	{
 		var diagReports = new List<Diagnostic>();
 
-		var results = GenerateSourceFiles(rootNamespace, combinedSourceTexts, diagReports);
+		var results = GenerateSourceFiles(config, diagReports);
 
 		foreach (var report in diagReports)
 		{
@@ -129,7 +147,7 @@ internal class AppSettingsGen : IIncrementalGenerator
 	/// <param name="appSettingsJsonSourceFiles">the appsettings.json files</param>
 	/// <param name="rootNamespace">{rootNamespace}.AppSettingsGen is used as the namespace of generated files</param>
 	/// <returns>the "output" C#, source generated files</returns>
-	public Dictionary<string, SourceText> GenerateSourceFiles(string? rootNamespace, Dictionary<string, SourceText> appSettingsJsonSourceFiles, List<Diagnostic> diagReport)
+	public Dictionary<string, SourceText> GenerateSourceFiles(AppSettingsGenConfig config, List<Diagnostic> diagReport)
 	{
 
 		var toReturn = new Dictionary<string, SourceText>();
@@ -139,25 +157,23 @@ internal class AppSettingsGen : IIncrementalGenerator
 		//	diagReport._Error($"missing required inputs. rootNamespace={rootNamespace}");
 		//	return toReturn;
 		//}
-		if (appSettingsJsonSourceFiles.Count == 0)
+		if (config.AppSettingsJsonSourceFiles.Count == 0)
 		{
 			diagReport._Error($"No appSettings.json files were found in your project.  SourceGen aborted. In Project Properties, Make sure it's BuildAction=C# Analyzer, and copy-to-output=ALWAYS.");
 			return toReturn;
 		}
 
-		diagReport._Info($"rootNamespace={rootNamespace}, appSettingsJsonSourceFiles.Count={appSettingsJsonSourceFiles.Count}");
+		diagReport._Info($"rootNamespace={config.RootNamespace}, appSettingsJsonSourceFiles.Count={config.AppSettingsJsonSourceFiles.Count}");
 
-
-		var startingNamespace = string.IsNullOrWhiteSpace(rootNamespace)?"AppSettingsGen" : $"{rootNamespace}.AppSettingsGen";
 
 
 		//merge into one big json
-		var allJsonDict = JsonMerger.MergeJsonFiles(appSettingsJsonSourceFiles, diagReport);
+		var allJsonDict = JsonMerger.MergeJsonFiles(config.AppSettingsJsonSourceFiles, diagReport);
 
 		//generate classes for the entire json hiearchy
-		GenerateFilesWorker(diagReport, toReturn, allJsonDict, "AppSettings", $"{startingNamespace}");
+		GenerateFilesWorker(diagReport, toReturn, allJsonDict, "AppSettings", $"{config.startingNamespace}", config);
 
-		AddBinderShims(diagReport, toReturn, startingNamespace);
+		AddBinderShims(diagReport, toReturn, config);
 
 		return toReturn;
 
@@ -169,18 +185,18 @@ internal class AppSettingsGen : IIncrementalGenerator
 	/// <param name="diagReport"></param>
 	/// <param name="toReturn"></param>
 	/// <param name="startingNamespace"></param>
-	private void AddBinderShims(List<Diagnostic> diagReport, Dictionary<string, SourceText> toReturn, string startingNamespace)
+	private void AddBinderShims(List<Diagnostic> diagReport, Dictionary<string, SourceText> toReturn, AppSettingsGenConfig config)
 	{
 		var builder = new StringBuilder();
 		builder.Append(@$"
 /** 
- * This file is generated by the NotNot.AppSettings nuget package.
+ * This file is generated by the NotNot.AppSettings nuget package (v{config.GenSemVer}).
  * Do not edit this file directly, instead edit the appsettings.json files and rebuild the project.
  * `AddBinderShims()` was called.
 **/
 
 using Microsoft.Extensions.Configuration;
-namespace {startingNamespace};
+namespace {config.startingNamespace};
 
 
 /// <summary>
@@ -188,7 +204,7 @@ namespace {startingNamespace};
 /// <para>You can use this directly, extend it (it's a partial class), 
 /// or get a populated instance of it via the <see cref=""AppSettingsBinder""/> DI service</para>
 /// </summary>
-public partial class AppSettings
+{config.GenAccessModifier} partial class AppSettings
 {{
 }}
 
@@ -201,7 +217,7 @@ public partial class AppSettings
 /// <para><strong>Non-DI Usage:</strong></para>
 /// <para><c>var appSettings = AppSettingsBinder.LoadDirect();</c></para>
 /// </summary>
-public partial class AppSettingsBinder : IAppSettingsBinder
+{config.GenAccessModifier} partial class AppSettingsBinder : IAppSettingsBinder
 {{
 	public AppSettings AppSettings {{ get; protected set; }}
 
@@ -346,7 +362,7 @@ public partial class AppSettingsBinder : IAppSettingsBinder
 /// <para><strong>Non-DI Usage:</strong></para>
 /// <para><c>var appSettings = AppSettingsBinder.LoadDirect();</c></para>
 /// </summary>
-public interface IAppSettingsBinder
+{config.GenAccessModifier} interface IAppSettingsBinder
 {{
 	public AppSettings AppSettings {{ get; }}
 }}
@@ -365,7 +381,7 @@ public interface IAppSettingsBinder
 	/// <param name="currentNamespace"></param>
 	/// <returns>returns name of json primitive, "object" for null/undefined nodes,  named nodes for other json objects</returns>
 	/// <exception cref="ArgumentException"></exception>
-	public string GetSourceTypeName(JsonElement elm, string currentName, string currentNamespace)
+	public string GetSourceTypeName(JsonElement elm, string currentName, string currentNamespace, AppSettingsGenConfig config)
 	{
 		string toReturn;
 		switch (elm.ValueKind)
@@ -393,7 +409,7 @@ public interface IAppSettingsBinder
 				string? unifiedChildType = null;
 				foreach (var child in elm.EnumerateArray())
 				{
-					var childType = GetSourceTypeName(child, currentName, currentNamespace);
+					var childType = GetSourceTypeName(child, currentName, currentNamespace, config);
 					if (unifiedChildType is null)
 					{
 						unifiedChildType = childType;
@@ -418,7 +434,7 @@ public interface IAppSettingsBinder
 	/// <summary>
 	/// generate files for the given json hierarchy, recursively calling itself for each child node
 	/// </summary>
-	protected void GenerateFilesWorker(List<Diagnostic> diagReport, Dictionary<string, SourceText> generatedSourceFiles, Dictionary<string, JsonElement> currentNode, string currentNodeName, string currentNamespace)
+	protected void GenerateFilesWorker(List<Diagnostic> diagReport, Dictionary<string, SourceText> generatedSourceFiles, Dictionary<string, JsonElement> currentNode, string currentNodeName, string currentNamespace, AppSettingsGenConfig config)
 	{
 		//build currentNode into file
 		var currentClassName = currentNodeName._ConvertToAlphanumericCaps();
@@ -429,7 +445,7 @@ public interface IAppSettingsBinder
 		{
 			var propertyName = kvp.Key._ConvertToAlphanumericCaps();
 			var propertyNamespace = $"{currentNamespace}._{currentClassName}";
-			var valueType = GetSourceTypeName(kvp.Value, propertyName, propertyNamespace);
+			var valueType = GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config);
 			if (kvp.Value.ValueKind == JsonValueKind.Array)
 			{
 				valueType += "[]";
@@ -440,7 +456,7 @@ public interface IAppSettingsBinder
 		var sourceBuilder = new StringBuilder();
 		sourceBuilder.Append(@$"
 /** 
- * This file is generated by the NotNot.AppSettings nuget package.
+ * This file is generated by the NotNot.AppSettings nuget package  (v{config.GenSemVer}).
  * Do not edit this file directly, instead edit the appsettings.json files and rebuild the project.
  * `GenerateFilesWorker()` was called for {currentNodeName}
 **/
@@ -449,7 +465,7 @@ using System.Runtime.CompilerServices;
 namespace {currentNamespace};
 
 [CompilerGenerated]
-public partial class {currentClassName} {{
+{config.GenAccessModifier} partial class {currentClassName} {{
 {propertyBuilder}
 }}
 ");
@@ -468,7 +484,7 @@ public partial class {currentClassName} {{
 				case JsonValueKind.Object:
 					{
 						var childNode = kvp.Value.Deserialize<Dictionary<string, JsonElement>>(JsonMerger._serializerOptions)!;
-						GenerateFilesWorker(diagReport, generatedSourceFiles, childNode, propertyName, propertyNamespace);
+						GenerateFilesWorker(diagReport, generatedSourceFiles, childNode, propertyName, propertyNamespace,config);
 					}
 					break;
 				case JsonValueKind.Array:
@@ -476,7 +492,7 @@ public partial class {currentClassName} {{
 
 						var childNodes = kvp.Value.Deserialize<List<JsonElement>>(JsonMerger._serializerOptions)!;
 						//get name of node
-						var arrayTypeName = GetSourceTypeName(kvp.Value, propertyName, propertyNamespace);
+						var arrayTypeName = GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config);
 						switch (arrayTypeName)
 						{
 							case "string":
@@ -492,7 +508,7 @@ public partial class {currentClassName} {{
 								{
 									JsonMerger.MergeJson(squashedChildren, child);
 								}
-								GenerateFilesWorker(diagReport, generatedSourceFiles, squashedChildren, propertyName, propertyNamespace);
+								GenerateFilesWorker(diagReport, generatedSourceFiles, squashedChildren, propertyName, propertyNamespace, config);
 								break;
 						}
 

@@ -36,11 +36,20 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-		<PackageReference Include="NotNot.AppSettings" Version="*-*" />
 	</ItemGroup>
 
+	<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
+	<ItemGroup Condition="'$(Configuration)'!='LocalProjectsDebug'">
+		<PackageReference Include="NotNot.AppSettings" Version="*-*" />
+		<PackageReference Include="NotNot.AppSettings" Version="*" />
+	</ItemGroup>
 	<ItemGroup Condition="'$(Configuration)'=='LocalProjectsDebug'">
 		<ProjectReference OutputItemType="Analyzer" ReferenceOutputAssembly="false" Include="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.csproj" />
 	</ItemGroup>
 
+
+	<PropertyGroup>
+		<!--make generated code public.  (default is internal)-->
+		<NotNot_AppSettings_GenPublic>taco</NotNot_AppSettings_GenPublic>
+	</PropertyGroup>
 </Project>

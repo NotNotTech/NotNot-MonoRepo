@@ -15,6 +15,12 @@
 		<Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
 	</ItemGroup>
 
+	<!--Remove source generator output files before build-->
+	<Target Name="CleanSourceGeneratorOutput" BeforeTargets="BeforeBuild">
+		<RemoveDir Directories="$(CompilerGeneratedFilesOutputPath)" />
+	</Target>
+
+
 
 	<!-- for all build configurations, don't need conditional, so just commenting conditions out  -->
 	<!-- <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'"> -->

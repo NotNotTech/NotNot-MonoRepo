@@ -64,6 +64,17 @@ public class Program
 
 ## Troubleshooting / Tips
 
+### How to access the `AppSettings` class from external code?
+- v`2.0.0` and later: The `AppSettings` class is now `internal` by default.  If you need to access it from another project, you can add the following to your `.csproj` file:
+```xml
+	<PropertyGroup>
+		<!--make generated code public.  (default is internal)-->
+		<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>
+	</PropertyGroup>
+```
+- v`1.x` and earlier: The `AppSettings` class is `public` by default.
+
+
 ### How to extend the generated `AppSettings` class?
 
 You can extend any/all of the generated code by creating a partial class in the same namespace.
