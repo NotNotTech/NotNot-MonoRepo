@@ -49,28 +49,4 @@
 		</Otherwise>
 	</Choose>
 
-
-
-	<!-- skip MinVer if running in DEBUG or  LocalProjectsDebug -->
-
-	<!--<Choose>
-		<When Condition="'$(Configuration)'=='LocalProjectsDebug'">
-			<PropertyGroup>
-				<MinVerVersionOverride>0.0.0-0.projectReferenceNotNuget</MinVerVersionOverride>
-				<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-test-packages\$(AssemblyName)</PackageOutputPath>
-			</PropertyGroup>
-		</When>
-		<When Condition="'$(Configuration)'=='Debug'">
-			<PropertyGroup>
-				<MinVerDefaultPreReleaseIdentifiers>debug.0</MinVerDefaultPreReleaseIdentifiers>
-				<MinVerVersionOverride>0.0.0-0.debug</MinVerVersionOverride>
-			</PropertyGroup>
-		</When>
-		<Otherwise>
-		</Otherwise>
-	</Choose>-->
-
-
-
-
 </Project>
