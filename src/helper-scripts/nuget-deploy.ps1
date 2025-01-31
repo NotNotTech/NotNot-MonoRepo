@@ -23,7 +23,7 @@ if ($env:NUGET_PACKAGE_PATH) {
 	$NugetPackagePath = $env:NUGET_PACKAGE_PATH
 }
 else {
-	$defaultPath = "V:\.nuget-test-packages"
+	$defaultPath = "V:\.nuget-release-packages"
 	$userPath = Read-Host "Enter path to nuget packages (default: $defaultPath)"
 	$NugetPackagePath = if ($userPath) { $userPath } else { $defaultPath }
 }

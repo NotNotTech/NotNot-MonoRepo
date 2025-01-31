@@ -3,4 +3,10 @@
 		<!--make this a private asset-->
 		<PackageReference Update="NotNot.AppSettings" PrivateAssets="All"/>
 	</ItemGroup>
+
+	<ItemGroup>
+		<!--allow reading this property from the target project .csproj-->
+		<CompilerVisibleProperty Include="NotNot_AppSettings_GenPublic" />
+	</ItemGroup>
+
 </Project>

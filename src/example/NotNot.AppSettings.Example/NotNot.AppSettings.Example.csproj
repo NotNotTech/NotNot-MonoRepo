@@ -68,8 +68,8 @@
 
 
 
+	<!--make generated code public.  (default is internal)-->
 	<PropertyGroup>
-		<!--make generated code public.  (default is internal)-->
-		<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>
+		<!--<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>-->
 	</PropertyGroup>
 </Project>

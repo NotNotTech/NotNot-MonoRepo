@@ -141,4 +141,5 @@
 		<None Include="NotNot.AppSettings.targets" Pack="true" PackagePath="build\" />
 	</ItemGroup>
 
+
 </Project>

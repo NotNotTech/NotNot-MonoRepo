@@ -24,7 +24,7 @@ internal class AppSettingsGen : IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 #if DEBUG
-		//////if enabled, this will allow you to attach and debug sourcegen when building the target project.
+		////if enabled, this will allow you to attach and debug sourcegen when building the target project.
 		//if (!Debugger.IsAttached)
 		//{
 		//	Debugger.Launch();
@@ -38,10 +38,20 @@ internal class AppSettingsGen : IIncrementalGenerator
 			// Get the MSBuild property <NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic> from the consuming project .csproj file
 			var genPublicProvider = context.AnalyzerConfigOptionsProvider
 				.Select((provider, ct) =>
+			{
+				//IMPORTANT!: this property has to be whitelisted in the `NotNot.AppSettings.targets` file, which is included in the consuming project.
+				// First try reading directly from build_property
+				provider.GlobalOptions.TryGetValue("build_property.NotNot_AppSettings_GenPublic", out var genPublic);
+
+				// If not found or empty, try reading from MSBuild properties
+				if (string.IsNullOrEmpty(genPublic))
 				{
-					provider.GlobalOptions.TryGetValue("build_property.NotNot_AppSettings_GenPublic", out var genPublic);
-					return bool.TryParse(genPublic, out var result) && result;
-				});
+					provider.GlobalOptions.TryGetValue("build_metadata.NotNot_AppSettings_GenPublic", out genPublic);
+				}
+
+				// Parse as boolean, defaulting to false if parsing fails or value is not found
+				return !string.IsNullOrEmpty(genPublic) && bool.TryParse(genPublic, out var result) && result;
+			});
 
 			//get appsettings*.json via AdditionalFiles
 			var regex = new Regex(@"\\appsettings\..*json$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
@@ -96,9 +106,13 @@ internal class AppSettingsGen : IIncrementalGenerator
 						RootNamespace = rootNamespace,
 						IsPublic = genPublic,
 						AppSettingsJsonSourceFiles = combinedSourceTexts,
-						GenSemVer = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0.0-Unknown",
+						GenSemVer = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+									 ?? Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyVersionAttribute>()?.Version.ToString()
+									 ?? Assembly.GetExecutingAssembly().GetName().ToString(),
 					};
 					config.startingNamespace = string.IsNullOrWhiteSpace(config.RootNamespace) ? "AppSettingsGen" : $"{config.RootNamespace}.AppSettingsGen";
+
+					//config.GenSemVer += $" {config.IsPublic} {DateTime.Now}";
 
 					ExecuteGenerator(spc, config);
 				});
