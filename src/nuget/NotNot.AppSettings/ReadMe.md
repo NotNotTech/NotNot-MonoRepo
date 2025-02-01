@@ -87,11 +87,15 @@ public class Program
 
 ## Troubleshooting / Tips
 
-### How to access the `AppSettings` class from external code?
-- v`2.0.0` and later: The `AppSettings` class is now `internal` by default (better library support).  If you need to access it from another project, you can add the following to your `.csproj` file:
+### How to access the generated classes from external code?
+
+To prevent namespace collisions with other projects, the generated classes are `internal` by default.
+If you need to access it from another project, the best solution is to make a wrapper class in the project that uses the generated code.
+Alternatively, you can make the generated code `public`:
+
+- v`2.0.0` and later: you can add the following to your `.csproj` file:
 ```xml
 	<PropertyGroup>
-		<!--make generated code public.  (default is internal)-->
 		<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>
 	</PropertyGroup>
 ```
@@ -150,9 +154,8 @@ This way you can check it into source control and have a backup of the generated
 
 ### Nuget
 
-- current version is set via GitVersion.yml
-- `main` branch to create prerelease packages
-- `release` branch to create release packages
+- current version is set via `MinVer`, which matches the repo git tags.
+- read the repo's `Contrib/` folder for more info.
 
 
 ## Acknowledgments
