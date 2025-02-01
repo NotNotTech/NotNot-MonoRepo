@@ -1,13 +1,24 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
 
-    <IsPackable>false</IsPackable>
-    <IsTestProject>true</IsTestProject>
-  </PropertyGroup>
+	<PropertyGroup>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+	</PropertyGroup>
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
+
+	<PropertyGroup>
+		<!--standard dotnet stuff-->
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<RootNamespace></RootNamespace>
+	</PropertyGroup>
 
   <ItemGroup>
     <None Remove="Inputs\appsettings.Development.json" />
@@ -42,7 +53,7 @@
   </ItemGroup>
 
   <ItemGroup>
-	  <ProjectReference Include="..\NotNot.AppSettings\NotNot.AppSettings.csproj">
+	  <ProjectReference Include="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.csproj">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive; generators</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>		  
 	  </ProjectReference>
