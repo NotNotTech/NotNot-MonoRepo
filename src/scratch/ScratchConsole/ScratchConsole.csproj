@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+	</PropertyGroup>
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
+
+	<PropertyGroup>
+		<!--standard dotnet stuff-->
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		
+		<RootNamespace></RootNamespace>
+	</PropertyGroup>
+
+	<Choose>
+		<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
+		<When Condition="'$(Configuration)'=='LocalProjectsDebug'">
+			<ItemGroup>
+				<ProjectReference Include="..\..\nuget\NotNot.Bcl\NotNot.Bcl.csproj" />
+			</ItemGroup>
+		</When>
+		<When Condition="'$(Configuration)'=='Debug'">
+			<ItemGroup>
+				<PackageReference Include="NotNot.Bcl" Version="0.0.0-0.localDebug"/>
+			</ItemGroup>
+			<PropertyGroup>
+				<!--force nuget to restore without using cached packages, to ensure above wildcard always gets latest non-preview version in nuget-->
+				<RestoreNoCache>true</RestoreNoCache>
+			</PropertyGroup>
+		</When>
+		<Otherwise>
+			<ItemGroup>
+				<PackageReference Include="NotNot.Bcl" Version="*" />
+			</ItemGroup>
+			<PropertyGroup>
+				<!--force nuget to restore without using cached packages, to ensure above wildcard always gets latest non-preview version in nuget-->
+				<RestoreNoCache>true</RestoreNoCache>
+			</PropertyGroup>
+		</Otherwise>
+	</Choose>
+
+
+
+
+</Project>
