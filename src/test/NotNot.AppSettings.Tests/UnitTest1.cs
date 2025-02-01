@@ -35,8 +35,15 @@ public class EndToEnd
          sourceFiles.Add(relativePath, sourceText);
       }
 
+      var config = new AppSettingsGenConfig()
+      {
+			RootNamespace = "TestApp",
+			IsPublic = true,
+			CombinedSourceTexts = sourceFiles,
+			NugetVersion = "0.0.0-test",
+		};
       //var results = gen.GenerateSourceFiles_FileIo((startingFolder, "TestInputs"), diagReports);
-      var results = gen.GenerateSourceFiles("TestApp", sourceFiles, diagReports);
+      var results = gen.GenerateSourceFiles(config, diagReports);
 
 
       

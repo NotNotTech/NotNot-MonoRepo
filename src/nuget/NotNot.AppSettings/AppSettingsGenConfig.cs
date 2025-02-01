@@ -15,16 +15,25 @@ public class AppSettingsGenConfig
 	/// </summary>
 	public bool IsPublic { get; set; }
 
-	public Dictionary<string, SourceText> AppSettingsJsonSourceFiles { get; set; }
+	/// <summary>
+	/// the "sourceTexts" from the consuming project, 
+	/// </summary>
+	public Dictionary<string, SourceText> CombinedSourceTexts { get; set; }
+
+
+	/// <summary>
+	/// nuget version of the generator, used only to add a comment to the generated code (for debugging)
+	/// </summary>
+	public string NugetVersion { get; set; }
+
 	/// <summary>
 	/// root namespace for all generated code
 	/// </summary>
-	public string startingNamespace;
+	public string StartingNamespace => string.IsNullOrWhiteSpace(RootNamespace) ? "AppSettingsGen" : $"{RootNamespace}.AppSettingsGen";
 
 	/// <summary>
 	/// public or internal, based on value of .IsPublic
 	/// </summary>
 	public string GenAccessModifier=> IsPublic ? "public" : "internal";
 
-	public string GenSemVer;
 }
