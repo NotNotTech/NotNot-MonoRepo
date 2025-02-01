@@ -1,9 +1,17 @@
 # TOC
 - [TOC](#toc)
+- [using the nuget packages in other local repo projects](#using-the-nuget-packages-in-other-local-repo-projects)
 - [steps to convert a .csproj to a nuget package](#steps-to-convert-a-csproj-to-a-nuget-package)
 - [using a locally dev'd nuget package in another project](#using-a-locally-devd-nuget-package-in-another-project)
 - [nuget package versioning](#nuget-package-versioning)
 
+# using the nuget packages in other local repo projects
+
+when these projects are built, the generated nuget package will differ based on the release mode:
+- LocalProjectsDebug: no nuget will be published or referenced locally.  instead a local project reference is used, for rapid dev feedback.   
+- Debug: also for local use, but as a nuget.   local project using version moniker `0.0.0-0.localDebug` is used.  Your VS instance should point to the build 
+- Release:  the normal, public nuget should be referenced.   The local built package should not be auto-picked up by VS, only use the actual nuget.org repo to ensure full public roundtrip of nuget package consumption is used.
+  
 
 # steps to convert a .csproj to a nuget package
 

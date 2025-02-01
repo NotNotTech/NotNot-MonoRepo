@@ -66,8 +66,6 @@
 		</Otherwise>
 	</Choose>
 
-
-
 	<!--make generated code public.  (default is internal)-->
 	<PropertyGroup>
 		<!--<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>-->

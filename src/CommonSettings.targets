@@ -34,16 +34,18 @@
 		<Configurations>Debug;Release;LocalProjectsDebug</Configurations>
 	</PropertyGroup>
 
-<!-- Debug project settings for nuget -->
+<!-- Debug project settings for nuget.  put debug builds in different location from release -->
 	<Choose>
 		<When Condition="$(Configuration.Contains('Debug'))">
 			<PropertyGroup>
 				<MinVerVersionOverride>0.0.0-0.localDebug</MinVerVersionOverride>
+				<!--root of drive, eg: V:\.nuget-debug-packages\$(AssemblyName)-->
 				<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-debug-packages\$(AssemblyName)</PackageOutputPath>
 			</PropertyGroup>
 		</When>
 		<Otherwise>
 			<PropertyGroup>
+				<!--root of drive, eg: V:\.nuget-release-packages\$(AssemblyName)-->
 				<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-release-packages\$(AssemblyName)</PackageOutputPath>
 			</PropertyGroup>
 		</Otherwise>

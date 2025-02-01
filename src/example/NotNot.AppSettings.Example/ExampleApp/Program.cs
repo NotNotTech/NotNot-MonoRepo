@@ -14,7 +14,7 @@ public class Program
                   
          var appSettings = AppSettingsBinder.LoadDirect();
          Console.WriteLine(appSettings.Hello.World);
-         
+			
       }
       /////////
       {
