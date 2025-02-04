@@ -86,8 +86,6 @@
 		<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
 		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<PackageTags>AppSettings; Source Generator; SourceGenerator; Json; NotNot; Novaleaf;</PackageTags>
-		<Description>Automatically create strongly typed C# settings classes from AppSettings.json. Uses Source Generators. Includes a simple deserialization helper for when you are using Dependency Injection, or not.</Description>
 		<!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
 		<Version>0.0.0-0.invalidMinverProcess</Version>
 	</PropertyGroup>
@@ -104,17 +102,24 @@
 
 	</ItemGroup>
 
-	<PropertyGroup>
-		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
-		<Title>NotNot.AppSettings</Title>
-		<Authors>Jason Swearingen</Authors>
 
-	</PropertyGroup>
 
 	<PropertyGroup>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 		<Deterministic>true</Deterministic>
 	</PropertyGroup>
+
+
+	<!--project specific nuget settings-->
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
+		<Title>NotNot.AppSettings</Title>
+		<Authors>Jason Swearingen</Authors>
+		<PackageTags>AppSettings; Source Generator; SourceGenerator; Json; NotNot; Novaleaf;</PackageTags>
+		<Description>Automatically create strongly typed C# settings classes from AppSettings.json. Uses Source Generators. Includes a simple deserialization helper for when you are using Dependency Injection, or not.</Description>
+
+	</PropertyGroup>
+
 
 	<ItemGroup>
 		<!--required for sourcegen-->
