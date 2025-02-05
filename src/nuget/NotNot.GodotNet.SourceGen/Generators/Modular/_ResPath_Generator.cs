@@ -15,9 +15,7 @@ using NotNot.GodotNet.SourceGen.Generators.Modular;
 
 
 /// <summary>
-/// This source generator scans for classes marked with the [NotNotScene] attribute
-/// and generates partial classes for them. Additionally, it processes specific
-/// additional files such as .tscn, project.godot, and .gd files.
+/// creates a `_ResPath` class that lists all assets imported by Godot.  list is accessable at compile time.
 /// </summary>
 [Generator]
 public class _ResPath_Generator : ModularGenerator_Base

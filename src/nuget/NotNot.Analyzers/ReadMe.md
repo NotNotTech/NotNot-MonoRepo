@@ -25,3 +25,11 @@ see the `ExampleConstAnalyzer.cs`
 The ParallelHelper analyzer project is a great reference for how to do things.  https://github.com/Concurrency-Lab/ParallelHelper
 
 
+## Usage
+
+If referencing this project directly (not the nuget package) be sure to add ` OutputItemType="Analyzer" ReferenceOutputAssembly="false"` to the `.csproj` reference, like:
+
+```xml
+<ProjectReference Include="..\lib\NotNot.GodotNet.SourceGen\NotNot.GodotNet.SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+```
+
