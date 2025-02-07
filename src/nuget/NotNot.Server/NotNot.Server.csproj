@@ -1,0 +1,73 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\CommonSettings.targets" />
+	
+	<PropertyGroup>
+		<!--standard dotnet stuff-->
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<RootNamespace></RootNamespace>
+	</PropertyGroup>
+
+
+	<PropertyGroup>
+		<!--needed for swagger doc gen-->
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+
+	<ItemGroup>
+		<!--needed to ref aspcore types like IResult from a library.  see: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/target-aspnetcore?view=aspnetcore-8.0&tabs=visual-studio -->
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+    <ProjectReference Include="..\NotNot\NotNot.csproj" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<!--server-app specific libraries-->
+		<PackageReference Include="Google.Cloud.SecretManager.V1" Version="2.5.0" />
+		<PackageReference Include="Stripe.net" Version="45.5.0" />
+		<PackageReference Include="ZiggyCreatures.FusionCache" Version="1.2.0" />
+	</ItemGroup>
+
+
+
+	<ItemGroup>
+		<!--db stuff-->
+		<PackageReference Include="Google.Cloud.Datastore.V1" Version="4.12.0" />
+
+
+	</ItemGroup>
+
+	<!--optional settings for source generator build output-->
+	<PropertyGroup>
+		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+		<CompilerGeneratedFilesOutputPath>.Generated</CompilerGeneratedFilesOutputPath>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<NoWarn>1701;1702;1591</NoWarn>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<NoWarn>1701;1702;1591</NoWarn>
+	</PropertyGroup>
+	<ItemGroup>
+		<!--Exclude the output of source generators from the compilation-->
+		<Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\NotNot\NotNot.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+<!--move back during troubleshoot-->
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+	</ItemGroup>
+</Project>

@@ -34,6 +34,11 @@
 		<Configurations>Debug;Release;LocalProjectsDebug</Configurations>
 	</PropertyGroup>
 
+	<!-- add conditional ENVVARTEST when running in DEBUG configuration -->
+	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
+		<DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+	</PropertyGroup>
+
 <!-- Debug project settings for nuget.  put debug builds in different location from release -->
 	<Choose>
 		<When Condition="$(Configuration.Contains('Debug'))">
