@@ -1,3 +1,6 @@
-[gd_scene format=3 uid="uid://l3dnu0xybknl"]
+[gd_scene load_steps=2 format=3 uid="uid://l3dnu0xybknl"]
+
+[ext_resource type="Script" uid="uid://bga2jm2axwu8c" path="res://Game2D/LotM/Main.cs" id="1_nydle"]
 
 [node name="Node2D" type="Node2D"]
+script = ExtResource("1_nydle")
