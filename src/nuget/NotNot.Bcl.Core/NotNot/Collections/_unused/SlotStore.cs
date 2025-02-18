@@ -102,6 +102,20 @@ public class SlotStore<T>
       return slot;
    }
 
+	/// <summary>
+	/// grow the free slots by the given count
+	/// </summary>
+	/// <param name="slotCount"></param>
+	public void Grow(int slotCount)
+   {
+	   var nextFree = _storage.Grow(slotCount);
+		for (var i = 0; i < slotCount; i++)
+		{
+			var toEnqueueFree = nextFree + i;
+			_freeSlots.Push(toEnqueueFree);
+		}
+	}
+
    public int Alloc()
    {
       lock (_lock)
