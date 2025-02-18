@@ -1,0 +1,19 @@
+{
+  "profiles": {
+    "NotNot.GodotDev": {
+      "commandName": "Project"
+    },
+    "DebugProject": {
+      "commandName": "Executable",
+      "executablePath": "V:\\r2025\\v2025-MonoRepo\\binaries\\Godot_v4.4-beta3_mono_win64\\Godot_v4.4-beta3_mono_win64.exe",
+      "commandLineArgs": "--path . --verbose >out.gdlog 2>&1",
+      "workingDirectory": "."
+    },
+    "DebugEditor": {
+      "commandName": "Executable",
+      "executablePath": "V:\\r2025\\v2025-MonoRepo\\binaries\\Godot_v4.4-beta3_mono_win64\\Godot_v4.4-beta3_mono_win64.exe",
+      "commandLineArgs": "project.godot",
+      "workingDirectory": "."
+    }
+  }
+}

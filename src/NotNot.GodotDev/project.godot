@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="NotNot.GodotDev"
+run/main_scene="uid://l3dnu0xybknl"
 config/features=PackedStringArray("4.4", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 

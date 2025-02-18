@@ -10,6 +10,7 @@ namespace AppSettingsGen;
 
 [CompilerGenerated]
 internal partial class AppSettings {
+   public AppSettingsGen._AppSettings.SomeDevOption? SomeDevOption{get; set;}
    public string? AllowedHosts{get; set;}
    public AppSettingsGen._AppSettings.Logging? Logging{get; set;}
    public AppSettingsGen._AppSettings.Hello? Hello{get; set;}
