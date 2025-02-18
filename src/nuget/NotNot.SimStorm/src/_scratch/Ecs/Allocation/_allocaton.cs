@@ -8,6 +8,7 @@
 // [!!] Would you like to know more? https://github.com/NotNotTech/NotNot 
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
+using NotNot.Collections;
 using NotNot.Collections._unused;
 using System.Diagnostics;
 using System.Numerics;
