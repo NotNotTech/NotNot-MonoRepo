@@ -6,151 +6,153 @@
 
 using System.Collections.Concurrent;
 
-namespace NotNot.Collections._unused;
-
-/// <summary>
-///    An array backed storage where you can free up individual slots for reuse.    When it runs out of capacity, the
-///    backing array will be resized.
-///    <para>thread safe writes and non-blocking reads if not using `ref return` accessors</para>
-/// </summary>
-/// <typeparam name="T"></typeparam>
-public class SlotStore<T>
+namespace NotNot.Collections
 {
-   private ResizableArray<T> _storage;
+	/// <summary>
+	/// **FreeSlotStore** provides an array‐backed storage where individual slots can be freed for reuse.
+	/// - When out of capacity, the backing array is **resized**.
+	/// - **Thread safe writes** are ensured via locking.
+	/// - **Non-blocking reads** are available via the indexer.
+	/// </summary>
+	/// <typeparam name="T">The type of item to store.</typeparam>
+	public class FreeSlotStore<T>
+	{
+		private ResizableArray<T> _storage; // **Underlying resizable storage**
 
-   public int Count => _storage.Length - _freeSlots.Count;
+		/// <summary>
+		/// **Used slots count**: calculated as total allocated minus free slots.
+		/// </summary>
+		public int Count => _storage.Length - _freeSlots.Count;
 
-   //public int CurrentCapacity => this._storage.Length;
-   public int FreeCount => _freeSlots.Count;
+		/// <summary>
+		/// **Count of free slots**.
+		/// </summary>
+		public int FreeCount => _freeSlots.Count;
 
+		/// <summary>
+		/// **Version** is incremented on every allocation or deallocation.
+		/// </summary>
+		public int Version { get; private set; }
 
-   /// <summary>
-   ///    can be used to detect when items are alloc or dealloc
-   /// </summary>
-   public int Version { get; private set; }
-
-#if CHECKED
+#if DEBUG
+		// **Tracks allocated slots** for debugging purposes.
 		private ConcurrentDictionary<int, bool> _CHECKED_allocationTracker;
 #endif
 
-   private readonly Stack<int> _freeSlots;
+		private readonly Stack<int> _freeSlots; // **Stack to track free slot indices**
+		private readonly object _lock = new();  // **Lock for thread safety**
 
-   private readonly object _lock = new();
-
-
-   public SlotStore(int initialCapacity = 10)
-   {
-      _storage = new ResizableArray<T>(initialCapacity);
-      _storage.Clear();
-      _freeSlots = new Stack<int>(initialCapacity);
-#if CHECKED
-			this._CHECKED_allocationTracker = new();
-#endif
-      for (var i = 0; i < initialCapacity; i++)
-      {
-         _freeSlots.Push(initialCapacity - i);
-      }
-   }
-
-   //public T this[int slot]
-   //{
-   //	get
-   //	{
-   //		__.CHECKED.Throw(this._CHECKED_allocationTracker.ContainsKey(slot), "slot is not allocated and you are using it");
-   //		return _storage[slot];
-   //	}
-   //	set
-   //	{
-   //		lock (this._lock)
-   //		{
-   //			__.CHECKED.Throw(this._CHECKED_allocationTracker.ContainsKey(slot), "slot is not allocated and you are using it");
-   //			_storage[slot] = value;
-   //		}
-   //	}
-   //}
-   public T this[int slot]
-   {
-      get
-      {
-#if CHECKED
-        __.GetLogger()._EzError(_CHECKED_allocationTracker.ContainsKey(slot),
-            "slot is not allocated and you are using it");
-#endif
-         return _storage[slot];
-      }
-      set
-      {
-         lock (_lock)
-         {
-            _storage.Set(slot, value);
-         }
-      }
-   }
-
-
-   public int Alloc(T data)
-   {
-      var slot = Alloc();
-      _storage.Set(slot, data);
-      return slot;
-   }
-
-   public int Alloc(ref T data)
-   {
-      var slot = Alloc();
-      _storage.Set(slot, data);
-      return slot;
-   }
-
-	/// <summary>
-	/// grow the free slots by the given count
-	/// </summary>
-	/// <param name="slotCount"></param>
-	public void Grow(int slotCount)
-   {
-	   var nextFree = _storage.Grow(slotCount);
-		for (var i = 0; i < slotCount; i++)
+		public FreeSlotStore(int initialCapacity = 10)
 		{
-			var toEnqueueFree = nextFree + i;
-			_freeSlots.Push(toEnqueueFree);
+			// **Initialize the underlying storage** with the initial capacity.
+			_storage = new ResizableArray<T>(initialCapacity);
+			_freeSlots = new Stack<int>(initialCapacity);
+#if DEBUG
+			_CHECKED_allocationTracker = new ConcurrentDictionary<int, bool>();
+#endif
+			// **Push all slots** into the free slots stack in reverse order.
+			for (var i = initialCapacity - 1; i >= 0; i--)
+			{
+				_freeSlots.Push(i);
+			}
+		}
+
+		/// <summary>
+		/// **Indexer** to access elements by slot index.
+		/// - **DEBUG check:** logs an error if the slot is not allocated.
+		/// </summary>
+		public T this[int slot]
+		{
+			get
+			{
+#if DEBUG
+				// **DEBUG check:** verify that the slot is allocated.
+				__.GetLogger()._EzError(_CHECKED_allocationTracker.ContainsKey(slot),
+					"slot is not allocated and you are using it");
+#endif
+				return _storage[slot]; // **Non-blocking read**
+			}
+			set
+			{
+				lock (_lock)
+				{
+					_storage.Set(slot, value); // **Thread-safe write**
+				}
+			}
+		}
+
+		/// <summary>
+		/// **Alloc** a free slot and set it with **data**.
+		/// </summary>
+		public int Alloc(T data)
+		{
+			var slot = Alloc();
+			_storage.Set(slot, data);
+			return slot;
+		}
+
+		/// <summary>
+		/// **Alloc** a free slot and set it with **data** (by reference).
+		/// </summary>
+		public int Alloc(ref T data)
+		{
+			var slot = Alloc();
+			_storage.Set(slot, data);
+			return slot;
+		}
+
+		/// <summary>
+		/// **Alloc** a free slot.
+		/// - Increases **Version**.
+		/// - If no free slot is available, expands the storage.
+		/// - **DEBUG mode:** tracks allocation via _CHECKED_allocationTracker.
+		/// </summary>
+		public int Alloc()
+		{
+			lock (_lock)
+			{
+				Version++; // **Increment version for allocation**
+				int slot;
+				if (_freeSlots.Count > 0)
+				{
+					slot = _freeSlots.Pop(); // **Reuse a free slot**
+#if DEBUG
+					// **DEBUG:** Track the allocation in both branches.
+					var added = _CHECKED_allocationTracker.TryAdd(slot, true);
+					__.GetLogger()._EzError(added, "slot already allocated");
+#endif
+				}
+				else
+				{
+					// **Grow storage:** no free slot available, so allocate a new slot.
+					slot = _storage.Grow(1);
+#if DEBUG
+					var added = _CHECKED_allocationTracker.TryAdd(slot, true);
+					__.GetLogger()._EzError(added, "slot already allocated");
+#endif
+				}
+				return slot;
+			}
+		}
+
+		/// <summary>
+		/// **Frees** a previously allocated slot.
+		/// - Increases **Version**.
+		/// - **DEBUG mode:** validates that the slot is currently allocated.
+		/// </summary>
+		public void Free(int slot)
+		{
+			lock (_lock)
+			{
+				Version++; // **Increment version for deallocation**
+#if DEBUG
+				// **DEBUG:** Remove the slot from the allocation tracker.
+				__.GetLogger()._EzError(_CHECKED_allocationTracker.TryRemove(slot, out var temp),
+					"slot is not allocated but trying to remove");
+#endif
+				_freeSlots.Push(slot); // **Mark slot as free**
+				_storage.Set(slot, default); // **Clear the slot's data**
+			}
 		}
 	}
-
-   public int Alloc()
-   {
-      lock (_lock)
-      {
-         Version++;
-
-         int slot;
-         if (_freeSlots.Count > 0)
-         {
-            slot = _freeSlots.Pop();
-#if CHECKED
-           __.GetLogger()._EzError(_CHECKED_allocationTracker.TryAdd(slot, true), "slot already allocated");
-#endif
-         }
-         else
-         {
-            //need to allocate a new slot
-            slot = _storage.Grow(1);
-         }
-
-         return slot;
-      }
-   }
-
-   public void Free(int slot)
-   {
-      lock (_lock)
-      {
-         Version++;
-#if CHECKED
-        __.GetLogger()._EzError(_CHECKED_allocationTracker.TryRemove(slot, out var temp),
-            "slot is not allocated but trying to remove");
-#endif
-         _freeSlots.Push(slot);
-         _storage.Set(slot, default);
-      }
-   }
 }

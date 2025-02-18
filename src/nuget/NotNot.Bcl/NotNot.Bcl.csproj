@@ -12,7 +12,6 @@
 		<LangVersion>preview</LangVersion>
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 		<RootNamespace></RootNamespace>
-		<Configurations>Debug;Release;LocalProjectsDebug</Configurations>
 	</PropertyGroup>
 
 	<!-- standard nuget package details -->
