@@ -134,7 +134,7 @@ public class EntityRegistry
 
 	public void Free(Span<EntityHandle> handles)
 	{
-      __.CheckedAssertOnce(handles._IsSorted(), "sort first"); 
+      __.DebugAssertOnce(handles._IsSorted(), "sort first"); 
 		using var freeSpanOwner = SpanGuard<int>.Allocate(handles.Length);
 		var freeSpan = freeSpanOwner.Span;
 		for (var i = 0; i < handles.Length; i++)

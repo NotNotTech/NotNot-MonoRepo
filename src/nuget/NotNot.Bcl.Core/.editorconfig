@@ -9,3 +9,9 @@ root = false
 
 # File header template  https://docs.microsoft.com/en-us/visualstudio/ide/reference/add-file-header?view=vs-2019
 file_header_template = [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] \n[!!] Copyright ©️ NotNot Project and Contributors. \n[!!] This file is licensed to you under the MPL-2.0.\n[!!] See the LICENSE.md file in the project root for more info. \n[!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!] 
+
+# RCS1169: Make field read-only
+dotnet_diagnostic.RCS1169.severity = none
+
+# IDE0044: Add readonly modifier
+dotnet_style_readonly_field = false
