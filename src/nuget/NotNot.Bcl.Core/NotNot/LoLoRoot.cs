@@ -236,30 +236,25 @@ public partial class LoLoRoot
 		await func();
 	}
 
-	[Conditional("CHECKED")]
-	public void CheckedExec(Action action)
-	{
-		action();
-	}
-	[Conditional("CHECKED")]
-	public async void CheckedExec(Func<Task> func)
-	{
-		await func();
-	}
 
-	[Conditional("CHECKED")]
-	public void CheckedAssert(bool condition, string? message = null, [CallerMemberName] string memberName = "",
+	/// <summary>
+	/// assert, but only in DEBUG builds
+	/// </summary>
+	/// <param name="condition"></param>
+	/// <param name="message"></param>
+	/// <param name="memberName"></param>
+	/// <param name="sourceFilePath"></param>
+	/// <param name="sourceLineNumber"></param>
+	[Conditional("DEBUG")]
+	public void DebugAssert(bool condition, string? message = null, [CallerMemberName] string memberName = "",
 			  [CallerFilePath] string sourceFilePath = "",
 					 [CallerLineNumber] int sourceLineNumber = 0)
 	{
-		if (condition is false)
-		{
-			Debug.Assert(false, message._FormatAppendArgs(memberName, sourceFilePath, sourceLineNumber));
-		}
+		Assert(condition, message, memberName, sourceFilePath, sourceLineNumber);
 	}
 
-	[Conditional("CHECKED")]
-	public void CheckedAssert(string? message = null, [CallerMemberName] string memberName = "",
+	[Conditional("DEBUG")]
+	public void DebugAssert(string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
@@ -267,17 +262,17 @@ public partial class LoLoRoot
 	}
 
 
-	public void CheckedAssert(Exception ex, [CallerMemberName] string memberName = "",
+	public void DebugAssert(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-		Debug.Assert(false, ex.Message._FormatAppendArgs(memberName, sourceFilePath, sourceLineNumber), ex._ToUserFriendlyString());
+		Assert(ex, memberName, sourceFilePath, sourceLineNumber);
 	}
 
 
 
-	[Conditional("CHECKED")]
-	public void CheckedAssertOnce(bool condition, string? message = null, [CallerMemberName] string memberName = "",
+	[Conditional("DEBUG")]
+	public void DebugAssertOnce(bool condition, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
@@ -293,8 +288,8 @@ public partial class LoLoRoot
 
 	}
 
-	[Conditional("CHECKED")]
-	public void CheckedAssertOnce(string? message = null, [CallerMemberName] string memberName = "",
+	[Conditional("DEBUG")]
+	public void DebugAssertOnce(string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
@@ -306,8 +301,8 @@ public partial class LoLoRoot
 	}
 
 
-	[Conditional("CHECKED")]
-	public void CheckedAssertOnce(Exception ex, [CallerMemberName] string memberName = "",
+	[Conditional("DEBUG")]
+	public void DebugAssertOnce(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
