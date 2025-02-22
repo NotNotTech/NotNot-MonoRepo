@@ -16,6 +16,7 @@ namespace NotNot.Collections
 	/// </summary>
 	/// <typeparam name="TItem">Item type (supports both **reference** and **value** types)</typeparam>
 	[ThreadSafety(ThreadSituation.Add, ThreadSituation.ReadExisting, ThreadSituation.Overwrite)]
+	[Obsolete("can just use List<T> and get unsafe access to backing array")]
 	public class ResizableArray<TItem>
 	{
 		private readonly object _lock = new(); // **Lock object for thread safety**
