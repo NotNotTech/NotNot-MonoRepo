@@ -14,13 +14,23 @@ namespace NotNot.Collections
 	/// </summary>
 	public record struct SlotHandle
 	{
+		/// <summary>
+		/// for internal use only:  internal reference to the array/list location of the data
+		/// </summary>
 		public required int Index { get; init; }
-		public required int Version { get; init; }
-
+		/// <summary>
+		/// for internal use only:  ensures the handle is not reused after freeing
+		/// </summary>
+		public required uint Version { get; init; }
+		/// <summary>
+		/// for internal use only:  ensures this handle is not used across different collections
+		/// </summary>
 		public required int CollectionId { get; init; }
 
-		public bool IsEmpty => Version == 0;
-
+		/// <summary>
+		/// mostly for internal use:  if the handle was properly allocated by a collection
+		/// </summary>
+		public required bool IsAllocated { get; init; }
 	}
 
 
@@ -47,7 +57,7 @@ namespace NotNot.Collections
 		/// <summary>
 		/// tracks allocations, to ensure a slot is not used after being freed.
 		/// </summary>
-		private int _nextVersion = 1;
+		private uint _nextVersion = 1;
 
 		/// <summary>
 		/// storage for the data and their handles (for tracking lifetime)
@@ -148,6 +158,10 @@ namespace NotNot.Collections
 			lock (_lock)
 			{
 				var version = _nextVersion++;
+				if (_nextVersion <= 0)
+				{
+					_nextVersion = 1;
+				}
 				int index;
 				if (_freeSlots.Count > 0)
 				{
@@ -164,9 +178,9 @@ namespace NotNot.Collections
 				ref var p_element = ref _storage._AsSpan_Unsafe()[index];
 
 
-				//verify allocated but unused
-				__.DebugAssert(_storage.Count > index && p_element.handle.IsEmpty);
 
+				//verify allocated but unused
+				__.DebugAssert(_storage.Count > index && _storage[index].handle.IsAllocated is false);
 
 
 				var toReturn = new SlotHandle()
@@ -174,9 +188,15 @@ namespace NotNot.Collections
 					Index = index,
 					CollectionId = CollectionId,
 					Version = version,
+					IsAllocated = true,
 				};
 
 				p_element.handle = toReturn;
+
+				//verify allocated and ref ok
+				__.DebugAssert(_storage[index].handle.IsAllocated);
+
+
 				return toReturn;
 			}
 		}
@@ -184,7 +204,7 @@ namespace NotNot.Collections
 		public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle slot)
 		{
 
-			if (slot.IsEmpty)
+			if (slot.IsAllocated)
 			{
 				return (false, "slot.IsEmpty");
 			}
