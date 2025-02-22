@@ -14,7 +14,7 @@ namespace NotNot.Collections
 	/// </summary>
 	public record struct SlotHandle
 	{
-		public required int SlotId { get; init; }
+		public required int Index { get; init; }
 		public required int Version { get; init; }
 
 		public required int CollectionId { get; init; }
@@ -89,12 +89,12 @@ namespace NotNot.Collections
 			_storage = new(initialCapacity);
 			_freeSlots = new Stack<int>(initialCapacity);
 
-
-			// **Push all slots** into the free slots stack in reverse order.
-			for (var i = initialCapacity - 1; i >= 0; i--)
-			{
-				_freeSlots.Push(i);
-			}
+			//below NOT NEEDED: list has Count=0 now, so can let it grow/freSlot organically
+			//// **Push all slots** into the free slots stack in reverse order.
+			//for (var i = initialCapacity - 1; i >= 0; i--)
+			//{
+			//	_freeSlots.Push(i);
+			//}
 		}
 
 		/// <summary>
@@ -106,8 +106,8 @@ namespace NotNot.Collections
 			get
 			{
 				var currentVersion = _nextVersion;
-				__.DebugAssert(_VerifyHandle(slot).isValid);
-				ref var toReturn  = ref _storage._AsSpan_Unsafe()[slot.SlotId].data; // **Non-blocking read**
+				__.DebugAssert(_IsHandleValid(slot).isValid);
+				ref var toReturn  = ref _storage._AsSpan_Unsafe()[slot.Index].data; // **Non-blocking read**
 				__.DebugAssert(currentVersion==_nextVersion,"race condition: an allocation occured during entity read/write.  Don't do this, as the array could be resized during allocation, causing you to loose write data");
 
 				return ref toReturn;
@@ -122,13 +122,13 @@ namespace NotNot.Collections
 		public SlotHandle Alloc(T data)
 		{
 			var slot = Alloc();
-			_storage[slot.SlotId] = (slot, data);
+			_storage[slot.Index] = (slot, data);
 			return slot;
 		}
 		public SlotHandle Alloc(ref T data)
 		{
 			var handle = Alloc();
-			ref var p_element = ref _storage._AsSpan_Unsafe()[handle.SlotId];
+			ref var p_element = ref _storage._AsSpan_Unsafe()[handle.Index];
 			//p_element.handle = handle;
 			p_element.data = data;
 
@@ -152,7 +152,6 @@ namespace NotNot.Collections
 				if (_freeSlots.Count > 0)
 				{
 					index = _freeSlots.Pop(); // **Reuse a free slot**
-
 				}
 				else
 				{
@@ -172,7 +171,7 @@ namespace NotNot.Collections
 
 				var toReturn = new SlotHandle()
 				{
-					SlotId = index,
+					Index = index,
 					CollectionId = CollectionId,
 					Version = version,
 				};
@@ -182,7 +181,7 @@ namespace NotNot.Collections
 			}
 		}
 
-		private (bool isValid, string? invalidReason) _VerifyHandle(SlotHandle slot)
+		public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle slot)
 		{
 
 			if (slot.IsEmpty)
@@ -194,12 +193,12 @@ namespace NotNot.Collections
 				return (false, "wrong CollectionId");
 			}
 
-			if (_storage.Count <= slot.SlotId)
+			if (_storage.Count <= slot.Index)
 			{
 				return (false, "storage not long enough");
 			}
 
-			if (_storage[slot.SlotId].handle.Version == slot.Version)
+			if (_storage[slot.Index].handle.Version == slot.Version)
 			{
 				return (true, null);
 			}
@@ -217,12 +216,12 @@ namespace NotNot.Collections
 		/// </summary>
 		public void Free(SlotHandle slot)
 		{
-			__.DebugAssert(_VerifyHandle(slot).isValid);
+			__.DebugAssert(_IsHandleValid(slot).isValid);
 
 			lock (_lock)
 			{
-				_freeSlots.Push(slot.SlotId); // **Mark slot as free**
-				_storage[slot.SlotId] = default; // **Clear the slot's data**
+				_freeSlots.Push(slot.Index); // **Mark slot as free**
+				_storage[slot.Index] = default; // **Clear the slot's data**
 			}
 		}
 	}
