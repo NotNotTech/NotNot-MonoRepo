@@ -54,17 +54,32 @@ public class Placeholder
       ToDo("Delay()", memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber);
 
       return __.Async.Delay(__.Random._NextTimeSpan(0, maxSeconds));
-   }
+	}
 
-   [DebuggerHidden]
+
+   private HashSet<string> _todoWarnOnceCache = new();
+	/// <summary>
+	/// shows log message (once per callsite), and will throw in RELEASE builds
+	/// </summary>
+	[DebuggerHidden]
    [DebuggerNonUserCode]
    public void ToDo(string message = "Do Soon", [CallerMemberName] string memberName = "",
       [CallerFilePath] string sourceFilePath = "",
       [CallerLineNumber] int sourceLineNumber = 0)
    {
       _ThrowIfRelease();
-      __.GetLogger<Placeholder>()._EzWarn("TODO", message, memberName: memberName, sourceFilePath: sourceFilePath,
-         sourceLineNumber: sourceLineNumber);
+
+#if DEBUG
+      var warnOnceKey = $"{sourceFilePath}:{sourceLineNumber}";
+      if (_todoWarnOnceCache.Add(warnOnceKey))
+      {
+	      __.GetLogger()._EzWarn($"TODO: {message}", sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
+      }
+      return;
+#endif
+
+		//__.GetLogger<Placeholder>()._EzWarn("TODO", message, memberName: memberName, sourceFilePath: sourceFilePath,
+  //       sourceLineNumber: sourceLineNumber);
    }
 
    [DebuggerHidden]

@@ -1322,9 +1322,10 @@ public static class zz_Extensions_List
 {
 	private static ThreadLocal<Random> _rand = new(() => new Random());
 
-	public static T _PickRandom<T>(this IList<T> target)
+	public static T _PickRandom<T>(this IList<T> target, Random? randomInstance = null)
 	{
-		return target[_rand.Value.Next(target.Count)];
+		randomInstance ??= _rand.Value;
+		return target[randomInstance.Next(target.Count)];
 	}
 
 	public static bool _TryRemoveRandom<T>(this IList<T> target, out T value)
@@ -1950,6 +1951,10 @@ public static class zz_Extensions_Numeric
 	//}
 
 
+	public static bool _BetweenInclusive<T>(this T value, T lowerInclusive, T upperInclusive) where T : INumber<T>
+	{
+		return value >= lowerInclusive && value <= upperInclusive;
+	}
 	public static bool _AproxEqual<T>(this T value, T other, T tolerance) where T : IFloatingPoint<T>
 	{
 		// Handle NaN (Not a Number)
@@ -2085,7 +2090,7 @@ public static class zz_Extensions_Numeric
 		}
 	}
 
-	public static T _SubtractTowardsZero<T>(this T value, T amount) where T: INumber<T>
+	public static T _SubtractTowardsZero<T>(this T value, T amount) where T : INumber<T>
 	{
 		amount = T.Abs(amount);
 		//if (Y < 0)
@@ -2521,7 +2526,7 @@ public static class zz_Extensions_Dictionary
 	/// <summary>
 	/// like _GetOrAdd(), but will create a new value via the default ctor() if the key doesn't exist. 
 	/// </summary>
-	public static TValue _GetOrNew<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key) where TValue: new()
+	public static TValue _GetOrNew<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key) where TValue : new()
 		where TKey : notnull
 	{
 		if (!dict.TryGetValue(key, out var value))

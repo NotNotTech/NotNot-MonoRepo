@@ -70,21 +70,23 @@ public partial class LoLoRoot
 
 	}
 
-	private HashSet<string> _todoWarnOnceCache = new();
+	//private HashSet<string> _todoWarnOnceCache = new();
 	/// <summary>
 	/// shows log message (once per callsite), and will throw in RELEASE builds
 	/// </summary>
+	[Obsolete("use __.placeholder.ToDo() instead")]
 	public void Todo(string message = "", [CallerLineNumber] int sourceLineNumber = 0, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "")
 	{
-#if DEBUG
-		var warnOnceKey = $"{sourceFilePath}:{sourceLineNumber}";
-		if (_todoWarnOnceCache.Add(warnOnceKey))
-		{
-			__.GetLogger()._EzWarn($"TODO: {message}", sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
-		}
-		return;
-#endif
-		throw __.Throw(message, sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
+		__.placeholder.ToDo(message, memberName, sourceFilePath, sourceLineNumber);
+//#if DEBUG
+//		var warnOnceKey = $"{sourceFilePath}:{sourceLineNumber}";
+//		if (_todoWarnOnceCache.Add(warnOnceKey))
+//		{
+//			__.GetLogger()._EzWarn($"TODO: {message}", sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
+//		}
+//		return;
+//#endif
+//		throw __.Throw(message, sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
 	}
 
 	//public void Todo([CallerLineNumber] int sourceLineNumber = 0, [CallerMemberName] string memberName = "",
