@@ -1951,9 +1951,9 @@ public static class zz_Extensions_Numeric
 	//}
 
 
-	public static bool _BetweenInclusive<T>(this T value, T lowerInclusive, T upperInclusive) where T : INumber<T>
+	public static bool _Between<T>(this T value, T lowerInclusive, T upperExclusive) where T : INumber<T>
 	{
-		return value >= lowerInclusive && value <= upperInclusive;
+		return value >= lowerInclusive && value < upperExclusive;
 	}
 	public static bool _AproxEqual<T>(this T value, T other, T tolerance) where T : IFloatingPoint<T>
 	{
@@ -1986,29 +1986,19 @@ public static class zz_Extensions_Numeric
 		return T.Round(value, digits, mode);
 	}
 
-	public static double _Round(this double value, int digits, MidpointRounding mode = MidpointRounding.AwayFromZero)
-	{
-		return Math.Round(value, digits, mode);
-	}
-
-
-	public static float _Round(this float value, int digits, MidpointRounding mode = MidpointRounding.AwayFromZero)
-	{
-		return MathF.Round(value, digits, mode);
-	}
-
 	/// <summary>
 	/// Extension method to round the float to the nearest specified increment
 	/// </summary>
-	public static float _RoundToNearest(this float number, float increment)
+	public static T _RoundToNearest<T>(this T number, T increment)
+		where T : IFloatingPoint<T>
 	{
-		if (increment == 0)
+		if (increment == T.Zero)
 		{
-			return MathF.Round(number);
+			return T.Round(number);
 		}
 
-		float multiplier = 1 / increment;
-		return (float)MathF.Round(number * multiplier) / multiplier;
+		T multiplier = T.One / increment;
+		return T.Round(number * multiplier) / multiplier;
 	}
 
 	public static T _Abs<T>(this T value)
