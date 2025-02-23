@@ -913,11 +913,13 @@ public static class zz_Extensions_Task
 						case OperationCanceledException:
 							break;
 						default:
-							throw __.Throw(ex);
+							__.Throw(ex);
+							break;
 					}
 					break;
 				default:
-					throw __.Throw(ex);
+					__.Throw(ex);
+					break;
 			}
 		}
 

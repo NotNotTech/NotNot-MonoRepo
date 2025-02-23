@@ -175,7 +175,7 @@ public static class DebuggableTimeoutCancelTokenHelper
 		}
 		catch (Exception ex)
 		{
-			throw __.Throw(ex);
+			__.Throw(ex);
 		}
 	}
 

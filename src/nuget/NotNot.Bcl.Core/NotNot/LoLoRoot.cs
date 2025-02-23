@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
@@ -353,20 +354,20 @@ public partial class LoLoRoot
 		}
 		Assert(false, message, memberName, sourceFilePath, sourceLineNumber, conditionName);
 		var ex = new LoLoDiagnosticsException(message._FormatAppendArgs(conditionName, objToLog0Name: "condition"), memberName, sourceFilePath, sourceLineNumber);
-		throw ex;
+		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
 	}
 	/// <summary>
 	/// Log, assert, throw throw an Exception.
 	/// </summary>
 	/// <param name="condition"></param>
-	/// <exception cref="NotImplementedException"></exception>
 	[DoesNotReturn]
-	public Exception Throw(Exception ex, [CallerMemberName] string memberName = "",
+	public void Throw(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
 		Assert(ex, memberName, sourceFilePath, sourceLineNumber);
-		throw ex;
+		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
+
 	}
 
 	[DoesNotReturn]
