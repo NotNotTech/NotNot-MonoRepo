@@ -35,8 +35,8 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")] string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")] string? objToLog2Name = null,
 		Exception? ex = null,
-		[CallerArgumentExpression("ex")] string? exName = null
-	)
+		[CallerArgumentExpression("ex")] string? exName = null,
+		Span<string> tags = default)
 	{
 		//store all (objToLog,objToLogName) pairs in a list, discarding any pairs with an objToLogName of null
 		//create a finalLogMessage combining the message with the names from each pair, showing the values from each pair      
@@ -153,6 +153,10 @@ public static class zz_Extensions_ILogger
 					argValues[i] = argPairs[i].value;
 				}
 
+				if (tags.Length > 0)
+				{
+					message += $"\n\ttags:[{string.Join(", ", tags)}]";
+				}
 
 				//invoke base ILogger functionality with our ez message/objsToLogg/Callsite            
 				if (ex is null)
@@ -190,12 +194,13 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		logger._Ez(LogLevel.Trace, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name,tags:tags);
 	}
 
 	public static void _EzDebug(this ILogger logger, string? message, object? objToLog0 = null, object? objToLog1 = null,
@@ -208,12 +213,13 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		logger._Ez(LogLevel.Debug, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name, tags: tags);
 	}
 
 	public static void _EzWarn(this ILogger logger, string? message, object? objToLog0 = null, object? objToLog1 = null,
@@ -226,11 +232,12 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null)
+		string? objToLog2Name = null,
+		Span<string> tags = default)
 	{
 		logger._Ez(LogLevel.Warning, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name, tags: tags);
 	}
 
 	public static void _EzInfo(this ILogger logger, string? message, object? objToLog0 = null, object? objToLog1 = null,
@@ -243,12 +250,13 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		logger._Ez(LogLevel.Information, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name, tags: tags);
 	}
 
 	[DebuggerNonUserCode]
@@ -262,12 +270,13 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		logger._Ez(LogLevel.Error, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name, tags: tags);
 	}
 
 	public static void _EzTrace(this ILogger logger, bool condition, string? message = null, object? objToLog0 = null, object? objToLog1 = null,
@@ -280,7 +289,8 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		if (condition)
@@ -289,7 +299,7 @@ public static class zz_Extensions_ILogger
 		}
 		logger._Ez(LogLevel.Trace, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name, tags: tags);
 	}
 
 	public static void _EzDebug(this ILogger logger, bool condition, string? message = null, object? objToLog0 = null, object? objToLog1 = null,
@@ -302,7 +312,8 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		if (condition)
@@ -311,7 +322,7 @@ public static class zz_Extensions_ILogger
 		}
 		logger._Ez(LogLevel.Debug, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name,tags:tags);
 	}
 
 	public static void _EzWarn(this ILogger logger, bool condition, string? message = null, object? objToLog0 = null, object? objToLog1 = null,
@@ -324,11 +335,12 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null)
+		string? objToLog2Name = null,
+		Span<string> tags = default)
 	{
 		logger._Ez(LogLevel.Warning, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name,tags:tags);
 	}
 
 	public static void _EzInfo(this ILogger logger, bool condition, string? message = null, object? objToLog0 = null, object? objToLog1 = null,
@@ -341,7 +353,8 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		if (condition)
@@ -350,7 +363,7 @@ public static class zz_Extensions_ILogger
 		}
 		logger._Ez(LogLevel.Information, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name,tags:tags);
 	}
 
 	public static void _EzError(this ILogger logger, bool condition, string? message = null, object? objToLog0 = null, object? objToLog1 = null,
@@ -363,7 +376,8 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		if (condition)
@@ -372,7 +386,7 @@ public static class zz_Extensions_ILogger
 		}
 		logger._Ez(LogLevel.Error, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name,tags:tags);
 	}
 
 	[DoesNotReturn]
@@ -386,12 +400,13 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		logger._EzErrorThrow(false, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name,tags:tags);
 	}
 	public static void _EzErrorThrow(this ILogger logger, [DoesNotReturnIf(false)] bool condition, string message = "_EzErrorThrow", object? objToLog0 = null, object? objToLog1 = null,
 		object? objToLog2 = null,
@@ -403,7 +418,8 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	)
 	{
 		if (condition)
@@ -412,7 +428,11 @@ public static class zz_Extensions_ILogger
 		}
 		logger._Ez(LogLevel.Error, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name,tags:tags);
+		if (tags.Length > 0)
+		{
+			message += $"\n\ttags:[{string.Join(", ", tags)}]";
+		}
 		throw new LoLoDiagnosticsException(message._FormatAppendArgs(objToLog0, objToLog1, objToLog2, objToLog0Name, objToLog1Name, objToLog2Name), memberName, sourceFilePath, sourceLineNumber);
 	}
 
@@ -428,7 +448,8 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog2")]
 		string? objToLog2Name = null,
 		[CallerArgumentExpression("condition")]
-		string? conditionName = null
+		string? conditionName = null,
+		Span<string> tags = default
 	) where TException : Exception, new()
 	{
 		if (condition)
@@ -437,7 +458,12 @@ public static class zz_Extensions_ILogger
 		}
 		logger._Ez(LogLevel.Error, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name);
+			objToLog1Name, objToLog2Name,tags:tags);
+
+		if (tags.Length > 0)
+		{
+			message += $"\n\ttags:[{string.Join(", ", tags)}]";
+		}
 
 		TException ex = null;
 		try
@@ -464,10 +490,11 @@ public static class zz_Extensions_ILogger
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = null
+		string? objToLog2Name = null,
+		Span<string> tags = default
 	) where TException : Exception, new()
 	{
-		logger._EzErrorThrow<TException>(condition, message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name);
+		logger._EzErrorThrow<TException>(condition, message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name,tags:tags);
 
 	}
 
@@ -482,12 +509,13 @@ public static class zz_Extensions_ILogger
 		string? objToLog1Name = null,
 	[CallerArgumentExpression("objToLog2")]
 		string? objToLog2Name = null,
-	[CallerArgumentExpression("ex")] string? exName = null
+	[CallerArgumentExpression("ex")] string? exName = null,
+	Span<string> tags = default
 ) where TException : Exception
 	{
 		logger._Ez(LogLevel.Trace, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name, ex, exName);
+			objToLog1Name, objToLog2Name, ex, exName,tags:tags);
 		return ex;
 	}
 
@@ -502,12 +530,13 @@ public static class zz_Extensions_ILogger
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
 		string? objToLog2Name = null,
-		[CallerArgumentExpression("ex")] string? exName = null
+		[CallerArgumentExpression("ex")] string? exName = null,
+		Span<string> tags = default
 	) where TException : Exception
 	{
 		logger._Ez(LogLevel.Information, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name, ex, exName);
+			objToLog1Name, objToLog2Name, ex, exName, tags);
 		return ex;
 	}
 
@@ -523,12 +552,13 @@ public static class zz_Extensions_ILogger
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
 		string? objToLog2Name = null,
-		[CallerArgumentExpression("ex")] string? exName = null
+		[CallerArgumentExpression("ex")] string? exName = null,
+		Span<string> tags = default
 	) where TException : Exception
 	{
 		logger._Ez(LogLevel.Debug, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name, ex, exName);
+			objToLog1Name, objToLog2Name, ex, exName, tags: tags);
 		return ex;
 	}
 
@@ -544,12 +574,13 @@ public static class zz_Extensions_ILogger
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
 		string? objToLog2Name = null,
-		[CallerArgumentExpression("ex")] string? exName = null
+		[CallerArgumentExpression("ex")] string? exName = null,
+		Span<string> tags = default
 	) where TException : Exception
 	{
 		logger._Ez(LogLevel.Warning, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name, ex, exName);
+			objToLog1Name, objToLog2Name, ex, exName, tags: tags);
 		return ex;
 	}
 	public static TException _EzError<TException>(this ILogger logger, TException ex, string? message = null, object? objToLog0 = null,
@@ -563,12 +594,13 @@ public static class zz_Extensions_ILogger
 		string? objToLog1Name = null,
 		[CallerArgumentExpression("objToLog2")]
 		string? objToLog2Name = null,
-		[CallerArgumentExpression("ex")] string? exName = null
+		[CallerArgumentExpression("ex")] string? exName = null,
+		Span<string> tags = default
 	) where TException : Exception
 	{
 		logger._Ez(LogLevel.Error, message, objToLog0, objToLog1, objToLog2
 			, memberName: memberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber, objToLog0Name,
-			objToLog1Name, objToLog2Name, ex, exName);
+			objToLog1Name, objToLog2Name, ex, exName, tags: tags);
 		return ex;
 	}
 

@@ -61,12 +61,13 @@ public partial class LoLoRoot
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = "null",
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = "null")
+		string? objToLog2Name = "null",
+		Span<string> tags = default)
 	{
 
 		var _devTraceLogger = __.GetLogger(sourceFilePath);
 
-		_devTraceLogger._EzTrace(message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name);
+		_devTraceLogger._EzTrace(message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name,tags);
 
 	}
 
@@ -108,6 +109,7 @@ public partial class LoLoRoot
 		return true;
 	}
 
+
 	/// <summary>
 	/// logs message and triggers a breakpoint.  (also Prompts to attach a debugger if not already attached)
 	/// </summary>
@@ -120,11 +122,19 @@ public partial class LoLoRoot
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = "null",
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = "null")
+		string? objToLog2Name = "null",
+		Span<string> tags=default)
 	{
+		
 		if (condition is false)
 		{
 			var finalMessage = message._FormatAppendArgs(conditionName, objToLog0Name: "condition")._FormatAppendArgs(objToLog0, objToLog1, objToLog2, objToLog0Name, objToLog1Name, objToLog2Name)._FormatAppendArgs(memberName, sourceFilePath, sourceLineNumber);
+
+			if (tags.Length > 0)
+			{
+				finalMessage += $" tags:[{string.Join(", ", tags)}]";
+			}
+
 			Debug.Assert(false, finalMessage);
 			_Debugger.LaunchOnce();
 
@@ -148,9 +158,10 @@ public partial class LoLoRoot
 		[CallerArgumentExpression("objToLog1")]
 		string? objToLog1Name = "null",
 		[CallerArgumentExpression("objToLog2")]
-		string? objToLog2Name = "null")
+		string? objToLog2Name = "null",
+		Span<string> tags = default)
 	{
-		Assert(false, message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name);
+		Assert(false, message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name,tags:tags);
 	}
 
 

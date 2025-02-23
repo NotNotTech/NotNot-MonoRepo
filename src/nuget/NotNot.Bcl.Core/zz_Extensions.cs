@@ -25,6 +25,13 @@ using NotNot;
 //using CommunityToolkit.HighPerformance;
 //using DotNext;
 
+public static class zz_Extensions_Char
+{
+	public static string _Repeat(this char c, int count)
+	{
+		return new string(c, count);
+	}
+}
 
 public static class zz_Extensions_Regex
 {
@@ -2689,6 +2696,17 @@ public static class zz_Extensions_Span
 {
 	[ThreadStatic] private static Random _rand = new();
 
+	public static bool _Overlaps<T>(this Span<T> span, HashSet<T> other)
+	{
+		foreach (var value in span)
+		{
+			if (other.Contains(value))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
 
 	public static Span<T> _Reverse<T>(this Span<T> span)
 	{
