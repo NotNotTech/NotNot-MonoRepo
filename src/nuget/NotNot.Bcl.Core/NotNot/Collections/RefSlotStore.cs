@@ -131,18 +131,34 @@ namespace NotNot.Collections
 		/// </summary>
 		public SlotHandle Alloc(T data)
 		{
-			var slot = Alloc();
-			_storage[slot.Index] = (slot, data);
-			return slot;
+			lock (_lock)
+			{
+				var toReturn = Alloc();
+				_storage[toReturn.Index] = (toReturn, data);
+
+
+				if (OnAlloc is not null)
+				{
+					OnAlloc(toReturn);
+				}
+
+				return toReturn;
+			}
 		}
 		public SlotHandle Alloc(ref T data)
 		{
-			var handle = Alloc();
-			ref var p_element = ref _storage._AsSpan_Unsafe()[handle.Index];
-			//p_element.handle = handle;
-			p_element.data = data;
+			lock (_lock)
+			{
+				var toReturn = Alloc();
+				ref var p_element = ref _storage._AsSpan_Unsafe()[toReturn.Index];
+				//p_element.handle = handle;
+				p_element.data = data;
 
-			return handle;
+
+				OnAlloc.Invoke(toReturn);
+
+				return toReturn;
+			}
 		}
 
 
@@ -153,7 +169,7 @@ namespace NotNot.Collections
 		/// - If no free slot is available, expands the storage.
 		/// - **DEBUG mode:** tracks allocation via _CHECKED_allocationTracker.
 		/// </summary>
-		public SlotHandle Alloc()
+		private SlotHandle Alloc()
 		{
 			lock (_lock)
 			{
@@ -201,6 +217,17 @@ namespace NotNot.Collections
 			}
 		}
 
+		/// <summary>
+		/// invoked immediately after slot is alloc'd.
+		/// <para>The slot is fully allocated (and populated), and the callback occurs within the lock.</para>
+		/// </summary>
+		public ActionEvent<SlotHandle> OnAlloc=new();
+		/// <summary>
+		/// invoked immediately before slot is freed
+		/// <para>The slot is still fully allocated (and populated), and the callback occurs within the lock.</para>
+		/// </summary>
+		public ActionEvent<SlotHandle> OnFree = new();
+
 		public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle slot)
 		{
 
@@ -238,8 +265,12 @@ namespace NotNot.Collections
 		{
 			__.DebugAssert(_IsHandleValid(slot).isValid);
 
+
+
 			lock (_lock)
 			{
+				OnFree.Invoke(slot);
+
 				_freeSlots.Push(slot.Index); // **Mark slot as free**
 				_storage[slot.Index] = default; // **Clear the slot's data**
 			}

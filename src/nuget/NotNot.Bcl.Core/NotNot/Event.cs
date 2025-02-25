@@ -141,6 +141,11 @@ public class ActionEvent<TArgs>
    /// </summary>
    public void Invoke(TArgs args)
    {
+	   if (_storage.Count == 0)
+	   {
+			//nothing registered to listen
+		   return;
+	   }
       __.GetLogger()._EzError(_isInvoking is false, "multiple invokes occuring.  danger?  investigate.");
       _isInvoking = true;
 
