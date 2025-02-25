@@ -361,13 +361,14 @@ public partial class LoLoRoot
 	/// </summary>
 	/// <param name="condition"></param>
 	[DoesNotReturn]
-	public void Throw(Exception ex, [CallerMemberName] string memberName = "",
+	public Exception Throw(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
 		Assert(ex, memberName, sourceFilePath, sourceLineNumber);
 		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
-
+		//never gets here because of throw
+		return null;
 	}
 
 	[DoesNotReturn]
