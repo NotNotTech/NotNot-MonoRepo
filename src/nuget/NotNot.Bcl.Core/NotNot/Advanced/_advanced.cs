@@ -252,6 +252,40 @@ public static class Unsafe2
    }
 }
 
+
+/// <summary>
+/// Initializes a new instance of the <see cref="T:CommunityToolkit.HighPerformance.Ref`1" /> struct.
+/// </summary>
+/// <param name="value">The reference to the target <typeparamref name="T" /> value.</param>
+[method: MethodImpl(MethodImplOptions.AggressiveInlining)]
+public readonly unsafe ref struct ByRef<T>(ref T value)
+{
+	/// <summary>
+	/// The reference to the target <typeparamref name="T" /> value.
+	/// </summary>
+	private readonly ref T value = ref value;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="T:CommunityToolkit.HighPerformance.Ref`1" /> struct.
+	/// </summary>
+	/// <param name="pointer">The pointer to the target value.</param>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public unsafe ByRef(void* pointer)
+		: this(ref Unsafe.AsRef<T>(pointer))
+	{
+	}
+
+	/// <summary>
+	/// Gets the <typeparamref name="T" /> reference represented by the current <see cref="T:CommunityToolkit.HighPerformance.Ref`1" /> instance.
+	/// </summary>
+	public ref T Value
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => ref this.value;
+	}
+}
+
+
 ///// <summary>Contains generic, low-level functionality for manipulating pointers.</summary>
 //public static class SRC_Unsafe
 //{

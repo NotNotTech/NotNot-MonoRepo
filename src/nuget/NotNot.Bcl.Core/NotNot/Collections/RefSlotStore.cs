@@ -4,7 +4,13 @@
 // [!!] See the LICENSE.md file in the project root for more info. 
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
+using System.Collections;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using CommunityToolkit.HighPerformance;
+using NotNot.Advanced;
+using NotNot.Collections;
 
 namespace NotNot.Collections
 {
@@ -42,7 +48,7 @@ namespace NotNot.Collections
 	/// for doing reads/edits in bulk, use the `_AsSpan_Unsafe()` method.
 	/// </summary>
 	/// <typeparam name="T">The type of item to store.</typeparam>
-	public class RefSlotStore<T>
+	public class RefSlotStore<T> 
 	{
 		/// <summary>
 		/// used to ensure SlotHandle not used across different collections
@@ -62,13 +68,14 @@ namespace NotNot.Collections
 		/// <summary>
 		/// storage for the data and their handles (for tracking lifetime)
 		/// </summary>
-		private List<(SlotHandle handle, T data)> _storage;
+		private List<(SlotHandle handle, T slotData)> _storage;
 
 		/// <summary>
 		/// for use when reading/writing existing elements in bulk.  be sure not to allocate when using this (but free is ok)
+		/// <para>skip items with `handle.IsAllocated==false</para>
 		/// </summary>
 		/// <returns></returns>
-		public Span<(SlotHandle handle, T data)> _AsSpan_Unsafe() => _storage._AsSpan_Unsafe();
+		public Span<(SlotHandle handle, T slotData)> _AsSpan_Unsafe() => _storage._AsSpan_Unsafe();
 
 		/// <summary>
 		/// Used slots count: calculated as total allocated minus free slots.
@@ -117,7 +124,7 @@ namespace NotNot.Collections
 			{
 				var currentVersion = _nextVersion;
 				__.DebugAssert(_IsHandleValid(slot).isValid);
-				ref var toReturn  = ref _storage._AsSpan_Unsafe()[slot.Index].data; // **Non-blocking read**
+				ref var toReturn  = ref _storage._AsSpan_Unsafe()[slot.Index].slotData; // **Non-blocking read**
 				__.DebugAssert(currentVersion==_nextVersion,"race condition: an allocation occured during entity read/write.  Don't do this, as the array could be resized during allocation, causing you to loose write data");
 
 				return ref toReturn;
@@ -139,7 +146,7 @@ namespace NotNot.Collections
 
 				if (OnAlloc is not null)
 				{
-					OnAlloc(toReturn);
+					OnAlloc.Invoke(toReturn);
 				}
 
 				return toReturn;
@@ -152,7 +159,7 @@ namespace NotNot.Collections
 				var toReturn = Alloc();
 				ref var p_element = ref _storage._AsSpan_Unsafe()[toReturn.Index];
 				//p_element.handle = handle;
-				p_element.data = data;
+				p_element.slotData = data;
 
 
 				OnAlloc.Invoke(toReturn);
@@ -275,5 +282,12 @@ namespace NotNot.Collections
 				_storage[slot.Index] = default; // **Clear the slot's data**
 			}
 		}
+
 	}
+}
+
+public ref struct RefTuple<T>
+{
+	public ref SlotHandle handle;
+	public ref T data;
 }

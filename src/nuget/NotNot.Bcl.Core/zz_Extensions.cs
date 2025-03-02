@@ -82,6 +82,26 @@ public static class zz_Extensions_Regex
 public static class zz_Extensions_IList
 {
 	/// <summary>
+	/// allows adding new, or removing the current item while enumerating.  Does not impact the enumeration.
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="list"></param>
+	/// <returns></returns>
+	public static IEnumerable<T> _ForEachReverse<T>(this IList<T> list)
+	{
+		if (list is null)
+		{
+			yield break;
+		}
+		for (var i = list.Count - 1; i >= 0; i--)
+		{
+			yield return list[i];
+		}
+	}
+
+
+
+	/// <summary>
 	/// remove the first occurance and return it
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
@@ -1536,6 +1556,12 @@ public static class zz_Extensions_List
 	public static Span<T> _AsSpan_Unsafe<T>(this List<T> list)
 	{
 		return CollectionsMarshal.AsSpan(list);
+	}
+
+	public static ref T _GetRef<T>(this List<T> list, int index)
+	{
+		var span = list._AsSpan_Unsafe();
+		return ref span[index];
 	}
 }
 
