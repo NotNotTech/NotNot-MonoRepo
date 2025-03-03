@@ -20,6 +20,8 @@ using CommunityToolkit.HighPerformance.Helpers;
 using Newtonsoft.Json.Linq;
 using Nito.AsyncEx.Synchronous;
 using NotNot;
+using NotNot.Collections.Advanced;
+
 //using Xunit.Sdk;
 
 //using CommunityToolkit.HighPerformance;
@@ -1349,6 +1351,17 @@ public static class zz_Extensions_HashSet
 }
 public static class zz_Extensions_List
 {
+	public static MemoryOwner_Custom<T> _MemoryOwnerCopy<T>(this List<T> list)
+	{
+		if (list is null)
+		{
+			return MemoryOwner_Custom<T>.Empty;
+		}
+		var toReturn = MemoryOwner_Custom<T>.Allocate(list.Count);
+		list._AsSpan_Unsafe().CopyTo(toReturn.Span);
+		return toReturn;
+	}
+
 	private static ThreadLocal<Random> _rand = new(() => new Random());
 
 	public static T _PickRandom<T>(this IList<T> target, Random? randomInstance = null)

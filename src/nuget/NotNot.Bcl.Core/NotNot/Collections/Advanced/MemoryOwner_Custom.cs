@@ -7,6 +7,7 @@
 using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Buffers;
 using System.Buffers;
+using System.Collections;
 using System.Diagnostics.Contracts;
 using System.Runtime.CompilerServices;
 #if NETCORE_RUNTIME || NET5_0
@@ -22,12 +23,13 @@ namespace NotNot.Collections.Advanced;
 ///       This <see cref="MemoryOwner_Custom{T}" /> is different from <see cref="MemoryOwner{T}" /> in that this adds a
 ///       <see cref="ClearOnDispose" /> property.
 ///    </para>
+/// <para>use the `.Allocate()` static method </para>
 /// </summary>
 /// <typeparam name="T">The type of items to store in the current instance.</typeparam>
 //[DebuggerTypeProxy(typeof(CollectionDebugView<>))]
 //[DebuggerDisplay("{ToString(),raw}")]
 //[DebuggerDisplay("{raw}")]
-public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>
+public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 {
 #pragma warning disable IDE0032
    /// <summary>
@@ -85,15 +87,18 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>
       this.array = array;
    }
 
-   /// <summary>
-   ///    set to true if you want the memory cleared upon disposal/collection.
-   /// </summary>
-   private static bool ClearOnDispose { get; } = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+	private static bool _clearOnDisposeDefault = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
-   /// <summary>
-   ///    Gets an empty <see cref="MemoryOwner_Custom{T}" /> instance.
-   /// </summary>
-   [Pure]
+	/// <summary>
+	///    set to true if you want the memory cleared upon disposal/collection.
+	/// <para>defaults to true if T is a reference type or contains references.</para>
+	/// </summary>
+	public bool ClearOnDispose { get; set; } = _clearOnDisposeDefault;
+
+	/// <summary>
+	///    Gets an empty <see cref="MemoryOwner_Custom{T}" /> instance.
+	/// </summary>
+	[Pure]
    public static MemoryOwner_Custom<T> Empty
    {
       [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -185,6 +190,11 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>
       if (ClearOnDispose) { array.AsSpan(0, length).Clear(); }
 
       pool.Return(array);
+   }
+
+   public IEnumerator<T> GetEnumerator()
+   {
+	   return this.DangerousGetArray().GetEnumerator();
    }
 
    /// <summary>
@@ -356,6 +366,11 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>
    public override string ToString()
    {
       return $"{GetType().Name}<{typeof(T).Name}>[{length}]";
+   }
+
+   IEnumerator IEnumerable.GetEnumerator()
+   {
+	   return GetEnumerator();
    }
    ///// <inheritdoc/>
    //[Pure]
