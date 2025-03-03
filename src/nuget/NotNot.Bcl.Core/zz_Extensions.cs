@@ -1351,6 +1351,12 @@ public static class zz_Extensions_HashSet
 }
 public static class zz_Extensions_List
 {
+	/// <summary>
+	/// get a copy of the list in a MemoryOwner_Custom, used to reduce allocations
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="list"></param>
+	/// <returns></returns>
 	public static MemoryOwner_Custom<T> _MemoryOwnerCopy<T>(this List<T> list)
 	{
 		if (list is null)
