@@ -182,6 +182,23 @@ public static class zz_Extensions_IList
 
 public static class zz_Extensions_Exception
 {
+	/// <summary>
+	///   returns true if the exception is a routine control flow exception (like TaskCanceledException, OperationCanceledException)
+	/// </summary>
+	/// <param name="ex"></param>
+	/// <returns></returns>
+	public static bool _IsRoutineControlFlow(this Exception ex, params Span<Type> othersToIgnore)
+	{
+		switch (ex)
+		{
+			case System.Net.Sockets.SocketException:
+			case TaskCanceledException:
+			case OperationCanceledException:
+				return true;
+		}
+
+		return false;
+	}
 
 	/// <summary>
 	/// search self and inner exceptions for the exception type.  if found, return true and set found to the exception.
@@ -729,8 +746,14 @@ public static class zz_Extensions_Task
 			while (spinCt.IsCancellationRequested is false && ct.IsCancellationRequested is false)
 			{
 				loop++;
-				//var waitMs = loop / 10;
-				task.Wait(spinCt);
+				var waitMs = loop / 10;
+				var result = task.Wait(waitMs);
+				if (result)
+				{
+					//task completed
+					return;
+				}
+				//task.Wait(spinCt);
 				if (task.Status != TaskStatus.WaitingForActivation)
 				{
 					break;
@@ -4399,6 +4422,199 @@ public static class zz_Extensions_Type
 
 		var fieldInfo = type.GetField(fieldName, bindingFlags);
 		return (T)fieldInfo.GetValue(instance);
+	}
+
+	/// <summary>
+	/// Gets the value of a property or field from an instance of an object using reflection.
+	/// Works with both public and non-public (private, protected, internal) members.
+	/// </summary>
+	/// <typeparam name="T">The expected type of the property or field value.</typeparam>
+	/// <param name="type">The type that contains the property or field definition.</param>
+	/// <param name="instance">The object instance from which to get the property or field value.</param>
+	/// <param name="memberName">The name of the property or field to get.</param>
+	/// <returns>The value of the property or field cast to type T.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when type, instance, or memberName is null.</exception>
+	/// <exception cref="ArgumentException">Thrown when the member cannot be found or is not a property or field.</exception>
+	/// <exception cref="InvalidCastException">Thrown when the member value cannot be cast to the expected type.</exception>
+	public static T _GetInstanceMember<T>(this Type type, object instance, string memberName)
+	{
+		if (type == null) throw new ArgumentNullException(nameof(type));
+		if (instance == null) throw new ArgumentNullException(nameof(instance));
+		if (string.IsNullOrEmpty(memberName)) throw new ArgumentNullException(nameof(memberName));
+
+		var bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+		// First try to find a property with the given name
+		var propertyInfo = type.GetProperty(memberName, bindingFlags);
+		if (propertyInfo != null)
+		{
+			return (T)propertyInfo.GetValue(instance);
+		}
+
+		// If not a property, try to find a field with the given name
+		var fieldInfo = type.GetField(memberName, bindingFlags);
+		if (fieldInfo != null)
+		{
+			return (T)fieldInfo.GetValue(instance);
+		}
+
+		// If we reach here, no matching property or field was found
+		throw new ArgumentException($"No property or field named '{memberName}' found on type '{type.FullName}'.", nameof(memberName));
+	}
+
+	/// <summary>
+	/// Sets a property or field value on an instance of an object using reflection.
+	/// Works with both public and non-public (private, protected, internal) members.
+	/// </summary>
+	/// <param name="type">The type that contains the property or field definition.</param>
+	/// <param name="instance">The object instance on which to set the property or field.</param>
+	/// <param name="memberName">The name of the property or field to set.</param>
+	/// <param name="value">The value to set the property or field to.</param>
+	/// <exception cref="ArgumentNullException">Thrown when type, instance, or memberName is null.</exception>
+	/// <exception cref="ArgumentException">Thrown when the member cannot be found or is not a property or field.</exception>
+	/// <exception cref="TargetException">Thrown when the instance doesn't match the target type.</exception>
+	public static void _SetInstanceMember(this Type type, object instance, string memberName, object value)
+	{
+		// Validate inputs
+		if (type == null) throw new ArgumentNullException(nameof(type));
+		if (instance == null) throw new ArgumentNullException(nameof(instance));
+		if (string.IsNullOrEmpty(memberName)) throw new ArgumentNullException(nameof(memberName));
+
+		// Define binding flags for instance members (both public and non-public)
+		const BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+		// First try to find a property with the given name
+		var propertyInfo = type.GetProperty(memberName, bindingFlags);
+		if (propertyInfo != null)
+		{
+			// Check if the property is writable
+			if (!propertyInfo.CanWrite)
+			{
+				throw new ArgumentException($"Property '{memberName}' on type '{type.FullName}' is read-only.", nameof(memberName));
+			}
+
+			// Set the property value
+			propertyInfo.SetValue(instance, value);
+			return;
+		}
+
+		// If not a property, try to find a field with the given name
+		var fieldInfo = type.GetField(memberName, bindingFlags);
+		if (fieldInfo != null)
+		{
+			// Set the field value
+			fieldInfo.SetValue(instance, value);
+			return;
+		}
+
+		// If we reach here, no matching property or field was found
+		throw new ArgumentException($"No property or field named '{memberName}' found on type '{type.FullName}'.", nameof(memberName));
+	}
+
+	/// <summary>
+	/// Invokes a method on a target object by name using reflection.
+	/// </summary>
+	/// <param name="type">The type that contains the method definition.</param>
+	/// <param name="instance">The instance on which to invoke the method. Use null for static methods.</param>
+	/// <param name="methodName">The name of the method to invoke.</param>
+	/// <param name="parameters">Optional parameters to pass to the method.</param>
+	/// <returns>The result of the method invocation.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when type or methodName is null.</exception>
+	/// <exception cref="ArgumentException">Thrown when the method cannot be found on the specified type.</exception>
+	/// <exception cref="TargetException">Thrown when the instance doesn't match the target type for instance methods.</exception>
+	public static object? _InvokeInstanceMethod(this Type type, object instance, string methodName, params object[] parameters)
+	{
+		// Validate inputs
+		if (type == null) throw new ArgumentNullException(nameof(type));
+		if (methodName == null) throw new ArgumentNullException(nameof(methodName));
+
+		// Determine binding flags based on whether we're invoking a static or instance method
+		var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic;
+		if (instance == null)
+		{
+			bindingFlags |= BindingFlags.Static;
+		}
+		else
+		{
+			bindingFlags |= BindingFlags.Instance;
+		}
+
+		// Find the method on the type
+		var methodInfo = type.GetMethod(methodName, bindingFlags);
+		if (methodInfo == null)
+		{
+			throw new ArgumentException($"Method '{methodName}' not found on type '{type.FullName}'.", nameof(methodName));
+		}
+
+		// Invoke the method and return the result
+		return methodInfo.Invoke(instance, parameters);
+	}
+
+	/// <summary>
+	/// Invokes a method on a target object by name using reflection with a specific parameter types signature.
+	/// </summary>
+	/// <param name="type">The type that contains the method definition.</param>
+	/// <param name="instance">The instance on which to invoke the method. Use null for static methods.</param>
+	/// <param name="methodName">The name of the method to invoke.</param>
+	/// <param name="parameterTypes">An array of parameter types that define the method signature.</param>
+	/// <param name="parameters">Parameters to pass to the method.</param>
+	/// <returns>The result of the method invocation.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when type or methodName is null.</exception>
+	/// <exception cref="ArgumentException">Thrown when the method cannot be found on the specified type.</exception>
+	public static object? _InvokeInstanceMethod(this Type type, object instance, string methodName, Type[] parameterTypes, params object[] parameters)
+	{
+		// Validate inputs
+		if (type == null) throw new ArgumentNullException(nameof(type));
+		if (methodName == null) throw new ArgumentNullException(nameof(methodName));
+		if (parameterTypes == null) throw new ArgumentNullException(nameof(parameterTypes));
+
+		// Determine binding flags
+		var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic;
+		if (instance == null)
+		{
+			bindingFlags |= BindingFlags.Static;
+		}
+		else
+		{
+			bindingFlags |= BindingFlags.Instance;
+		}
+
+		// Get the method with the specific parameter types
+		var methodInfo = type.GetMethod(methodName, bindingFlags, null, parameterTypes, null);
+		if (methodInfo == null)
+		{
+			throw new ArgumentException($"Method '{methodName}' with the specified parameter types not found on type '{type.FullName}'.", nameof(methodName));
+		}
+
+		// Invoke the method and return the result
+		return methodInfo.Invoke(instance, parameters);
+	}
+
+	/// <summary>
+	/// Invokes a method on a target object by name using reflection and returns a strongly-typed result.
+	/// </summary>
+	/// <typeparam name="TResult">The expected return type of the method.</typeparam>
+	/// <param name="type">The type that contains the method definition.</param>
+	/// <param name="instance">The instance on which to invoke the method. Use null for static methods.</param>
+	/// <param name="methodName">The name of the method to invoke.</param>
+	/// <param name="parameters">Optional parameters to pass to the method.</param>
+	/// <returns>The result of the method invocation cast to the specified type.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when type or methodName is null.</exception>
+	/// <exception cref="ArgumentException">Thrown when the method cannot be found on the specified type.</exception>
+	/// <exception cref="InvalidCastException">Thrown when the result cannot be cast to the expected type.</exception>
+	public static TResult _InvokeInstanceMethod<TResult>(this Type type, object instance, string methodName, params object[] parameters)
+	{
+		// Call the non-generic version and cast the result
+		var result = _InvokeInstanceMethod(type, instance, methodName, parameters);
+
+		// Handle null result for value types
+		if (result == null && typeof(TResult).IsValueType)
+		{
+			return default;
+		}
+
+		// Cast to the expected return type
+		return (TResult)result;
 	}
 
 	//[Conditional("DEBUG")]
