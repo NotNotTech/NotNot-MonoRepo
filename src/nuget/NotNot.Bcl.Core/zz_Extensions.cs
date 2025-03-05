@@ -20,6 +20,7 @@ using CommunityToolkit.HighPerformance.Helpers;
 using Newtonsoft.Json.Linq;
 using Nito.AsyncEx.Synchronous;
 using NotNot;
+using NotNot._internal.Threading;
 using NotNot.Collections.Advanced;
 
 //using Xunit.Sdk;
@@ -280,6 +281,31 @@ public static class zz_Extensions_CancellationToken
 		cancellationToken.ThrowIfCancellationRequested();
 		other.ThrowIfCancellationRequested();
 		return CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, other).Token;
+	}
+	/// <summary>
+	/// create a new ct that cancels when the original ct cancels, or after a delay.  debuggable, in that it will pause the timeout from counting-down while the application is paused in a debugger.
+	/// </summary>
+	/// <param name="linked"></param>
+	/// <param name="delay"></param>
+	/// <returns></returns>
+	public static CancellationToken _TimeoutDebuggable(this CancellationToken linked, TimeSpan delay)
+	{
+		return DebuggableTimeoutCancelTokenHelper.Timeout(linked, delay);
+	}
+
+
+}
+
+public static class zz_Extensions_CancellationTokenSource
+{
+	/// <summary>
+	/// cancels after a delay, but will pause the timeout from counting-down while the application is paused in a debugger.
+	/// </summary>
+	/// <param name="cts"></param>
+	/// <param name="delay"></param>
+	public static void _CancelAfterDebuggable(this CancellationTokenSource cts, TimeSpan delay)
+	{
+		DebuggableTimeoutCancelTokenHelper.CancelAfter(cts, delay);
 	}
 }
 

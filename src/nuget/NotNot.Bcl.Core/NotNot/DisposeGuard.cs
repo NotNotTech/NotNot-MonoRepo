@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace NotNot;
 
 /// <summary>
@@ -131,17 +133,19 @@ public class AsyncDisposeGuard : IAsyncDisposable
 	public AsyncDisposeGuard()
 	{
 #if DEBUG
-
-		var traceStr = Environment.StackTrace;
-		//CtorStackTrace = EnhancedStackTrace.Current();
-		CtorStackTrace = FixStackTraceForDisposeGuardLogging(traceStr);
+		
+		//var traceStr = Environment.StackTrace;
+		////CtorStackTrace = EnhancedStackTrace.Current();
+		//CtorStackTrace = FixStackTraceForDisposeGuardLogging(traceStr);
+		CtorStackTrace = EnhancedStackTrace.Current();
 #endif
 	}
 
 	protected bool IsDisposed { get => _IsDisposed; init => _IsDisposed = value; }
 
 
-	private List<string> CtorStackTrace { get; set; } //= "Callstack is only set in #DEBUG";
+	//private List<string> CtorStackTrace { get; set; } //= "Callstack is only set in #DEBUG";
+	private EnhancedStackTrace CtorStackTrace; //= "Callstack is only set in #DEBUG";
 
 	public async ValueTask DisposeAsync()
 	{
@@ -179,12 +183,10 @@ public class AsyncDisposeGuard : IAsyncDisposable
 		if (!IsDisposed)
 		{
 			var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) properly.  Stack=\n\t\t";
-
+			msg += (CtorStackTrace is null ? "Callstack is only set in #DEBUG" : string.Join("\n\t\t", CtorStackTrace.ToString()));
 			//Debug.WriteLine(msg);
-
-			__.GetLogger()._EzError(false,
-				msg + (CtorStackTrace is null ? "Callstack is only set in #DEBUG" : string.Join("\n\t\t", CtorStackTrace)));
-
+			//__.Assert(false, msg);
+			__.GetLogger()._EzError(false, msg);
 			OnDispose(false)._SyncWait();
 		}
 	}

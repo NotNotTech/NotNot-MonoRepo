@@ -15,8 +15,6 @@ namespace NotNot._internal.Threading;
 /// </summary>
 public static class DebuggableTimeoutCancelTokenHelper
 {
-
-
 	public static void CancelAfter(CancellationTokenSource cts, TimeSpan timeout)
 	{
 		if (__.Config.IsCtsDebuggableCancelTimeoutEnabled is not true)

@@ -20,6 +20,7 @@ namespace NotNot.Collections
 	/// </summary>
 	public record struct SlotHandle
 	{
+		public static SlotHandle Empty { get; } = default;
 		/// <summary>
 		/// for internal use only:  internal reference to the array/list location of the data
 		/// </summary>

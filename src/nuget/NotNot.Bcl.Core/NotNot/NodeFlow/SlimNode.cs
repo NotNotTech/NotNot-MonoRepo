@@ -24,6 +24,8 @@ public abstract class SlimNode : AsyncDisposeGuard
 	private List<SlimNode>? _children;
 	public bool HasChildren => _children is not null && _children.Count > 0;
 
+	protected CancellationToken _lifecycleCt;
+
 	public ReadOnlySpan<SlimNode> Children
 	{
 		get
@@ -36,8 +38,11 @@ public abstract class SlimNode : AsyncDisposeGuard
 		}
 	}
 
-	protected async ValueTask Initialize()
+	protected async ValueTask Initialize(CancellationToken lifecycleCt)
 	{
+		_lifecycleCt = lifecycleCt;
+
+		__.Throw((IsRoot && Parent is null)||(!IsRoot && Parent is not null),"either should be root, or no parent");
 
 		if (IsInitialized)
 		{
@@ -48,12 +53,14 @@ public abstract class SlimNode : AsyncDisposeGuard
 		}
 
 		await OnInitialize();
+		lifecycleCt.ThrowIfCancellationRequested();
 		__.Assert(IsInitialized);
 	}
 
 	/// <summary>
 	/// override to perform initialization logic
 	/// <para>generally you want to call `base.OnInitialize() first, then do your logic, as then each item will be initialized line-by-line.</para>
+	/// <para>added children init inside the base call, and children added after this will initialize immediately.</para>
 	/// <para></para>
 	/// </summary>
 	/// <returns></returns>
@@ -63,7 +70,8 @@ public abstract class SlimNode : AsyncDisposeGuard
 		using var copy = _children._MemoryOwnerCopy();
 		foreach (var child in copy)
 		{
-			await child.Initialize();
+			await child.Initialize(_lifecycleCt);
+			_lifecycleCt.ThrowIfCancellationRequested();
 		}
 	}
 
@@ -73,8 +81,12 @@ public abstract class SlimNode : AsyncDisposeGuard
 		var tempCounter = _callCounter;
 		await OnUpdate(currentTick);
 		__.Assert(_callCounter > tempCounter, "didn't call base method?");
+		_lifecycleCt.ThrowIfCancellationRequested();
 	}
 
+	/// <summary>
+	/// <para>children are updated inside the base call, so you can execute before/after.</para>
+	/// </summary>
 	protected virtual async ValueTask OnUpdate(TickState currentTick)
 	{
 
@@ -86,6 +98,7 @@ public abstract class SlimNode : AsyncDisposeGuard
 		foreach (var child in copy)
 		{
 			await child.OnUpdate(currentTick);
+			_lifecycleCt.ThrowIfCancellationRequested();
 		}
 	}
 
@@ -101,7 +114,8 @@ public abstract class SlimNode : AsyncDisposeGuard
 
 		if (IsInitialized)
 		{
-			await child.Initialize();
+			await child.Initialize(_lifecycleCt);
+			_lifecycleCt.ThrowIfCancellationRequested();
 		}
 
 		var childCounter = child._callCounter;
@@ -140,11 +154,15 @@ public abstract class SlimNode : AsyncDisposeGuard
 		_callCounter++;
 	}
 
+	/// <summary>
+	/// don't check _lifecycleCt when disposing, as we are already in a dispose state.
+	/// </summary>
+	/// <param name="managedDisposing"></param>
+	/// <returns></returns>
 	protected override async ValueTask OnDispose(bool managedDisposing)
 	{
 
 		await base.OnDispose(managedDisposing);
-
 		if (managedDisposing)
 		{
 			using var copy = _children._MemoryOwnerCopy();

@@ -613,37 +613,47 @@ public partial class LoLoRoot
 			return _GetFallbackLogger();
 		}
 
-		var typeOrName = _knownLoggerTypes.GetOrAdd(callerFilePath_for_reflection_optimization_do_not_use, (key) =>
+		try
 		{
-			var fileInfo = new FileInfo(key);
-			var toReturn = fileInfo.Name + fileInfo.Extension;
-			//var toReturn = key._GetAfter(Path.DirectorySeparatorChar);
-			__.Assert(toReturn is not null);
-			return toReturn;
-			////////////  the following is brittle/doesn't work right so just returning the file name.
-			//__.Assert("test");
-			//var trace = new StackTrace(3, false);
-			//var categoryType = trace.GetFrame(0)?.GetMethod()?.DeclaringType?.DeclaringType;
-			//if (categoryType is null)
-			//{
-			//	var targetAssembly = Assembly.GetCallingAssembly();
-			//	var loggerName = $"{targetAssembly.GetName().Name ?? "UNNAMED_ASSEMBLY"}_Logger";
+			var typeOrName = _knownLoggerTypes.GetOrAdd(callerFilePath_for_reflection_optimization_do_not_use, (key) =>
+			{
+				var fileInfo = new FileInfo(key);
+				var toReturn = fileInfo.Name + fileInfo.Extension;
+				//var toReturn = key._GetAfter(Path.DirectorySeparatorChar);
+				__.Assert(toReturn is not null);
+				return toReturn;
+				////////////  the following is brittle/doesn't work right so just returning the file name.
+				//__.Assert("test");
+				//var trace = new StackTrace(3, false);
+				//var categoryType = trace.GetFrame(0)?.GetMethod()?.DeclaringType?.DeclaringType;
+				//if (categoryType is null)
+				//{
+				//	var targetAssembly = Assembly.GetCallingAssembly();
+				//	var loggerName = $"{targetAssembly.GetName().Name ?? "UNNAMED_ASSEMBLY"}_Logger";
 
-			//	return loggerName;
-			//	//var toReturn = Services!.GetRequiredService<ILoggerFactory>().CreateLogger(loggerName);           
-			//	//var loggerType = typeof(ILogger<>).MakeGenericType(targetAssembly);
-			//}
-			//return categoryType;
-		});
-		switch (typeOrName)
+				//	return loggerName;
+				//	//var toReturn = Services!.GetRequiredService<ILoggerFactory>().CreateLogger(loggerName);           
+				//	//var loggerType = typeof(ILogger<>).MakeGenericType(targetAssembly);
+				//}
+				//return categoryType;
+			});
+			switch (typeOrName)
+			{
+				case Type categoryType:
+					return Services!.GetRequiredService<ILoggerFactory>().CreateLogger(categoryType);
+				//return GetLogger(type);
+				case string categoryName:
+					return Services!.GetRequiredService<ILoggerFactory>().CreateLogger(categoryName);
+				default:
+					throw new Exception("unexpected");
+			}
+		}
+		catch (Exception ex)
 		{
-			case Type categoryType:
-				return Services!.GetRequiredService<ILoggerFactory>().CreateLogger(categoryType);
-			//return GetLogger(type);
-			case string categoryName:
-				return Services!.GetRequiredService<ILoggerFactory>().CreateLogger(categoryName);
-			default:
-				throw new Exception("unexpected");
+			//if we can't get a logger, just return the fallback logger
+			//__.Assert(ex);
+			_GetFallbackLogger()._EzError(ex, "failed to get logger: ");
+			return _GetFallbackLogger();
 		}
 	}
 
