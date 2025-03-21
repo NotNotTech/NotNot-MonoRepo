@@ -1,20 +1,49 @@
 # NotNot-MonoRepo
 
-This is a monoRepo of open source C# Nuget packages.  MonoRepo because:
-- easier to maintain/debug multiple Nugets when they are part of the same solution
+This is a monoRepo of open source C# Nuget packages.  
   
 
-## Nuget Packages
+## Nuget Packages (you can use)
 
-### [`NotNot.AppSettings`](./src/nuget/NotNot.AppSettings/)
-Strongly-Typed `appSettings.json` via source-generator  (Also a high quality example of how to write a source-generator)
+### [`NotNot.AppSettings`](./src/nuget/NotNot.AppSettings/)  
+- Strongly-Typed `appSettings.json` via source-generator
+- A high quality example of how to write a production-capable source-generator (includes inline docs)
+  
+_This project was formerly found at https://github.com/jasonswearingen/NotNot.AppSettings_
 
-### [`NotNot.Bcl`](./src/nuget/NotNot.Bcl/) [***WIP***: Not Ready for public use]
-Base Class Library for My personal projects.  ***Kitchen Sink Included***
 
-### Examples
+## Example Projects
+- see [./src/example/](./src/example/) for listing of example projects using the Nuget Packages
 
-- see [./src/example/](./src/example/) for listing of example projects
+## Other Projects
+_These projects are not in Nuget yet, and likely not ready for public use_
+
+### [`NotNot.Bcl`](./src/nuget/NotNot.Bcl/)
+- Base Class Library  ***Kitchen Sink Included***
+- includes a huge amount of extension methods usable in any project
+- focuses on supporting projects with support for `Microsoft.Extensions.DependencyInjection`
+  - if you don't use DI, most the library features are also found in `NotNot.Bcl.Core`
+
+###  [`NotNot.Bcl.Core`]
+- functionality of `NotNot.Bcl` that doesn't require platform specific features (ex: no DI)
+
+###  [`NotNot.Analyzers`]
+- A couple code analazyers and some examples for making more.
+
+
+###  [`NotNot.GodotNet.SourceGen`]
+- Source Generators for Godot Engine specific functionality.
+- For use with the `NotNot.GodotNet` library, which is currently private because Godot doesn't properly support libraries (lib code needs to be in the same project as the propritary game)
+- TODO:
+  - Needs a mirrored copy workflow setup to be able to checkin the libcode
+
+## Why MonoRepo?
+
+MonoRepo because:
+- easier to maintain/debug multiple Nugets when they are part of the same solution (build breaks are noticeable)
+- can share the same build workflows
+  - see `src/CommonSettings.targets`
+  - also see `Debug` vs `LocalProjectsDebug` Build Configurations for how to easily switch between nuget dev/release builds
 
 ### MonoRepo weirdness
 
