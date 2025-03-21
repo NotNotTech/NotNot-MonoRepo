@@ -6,6 +6,7 @@ This is a monoRepo of open source C# Nuget packages.
 ## Nuget Packages (you can use)
 
 ### [`NotNot.AppSettings`](./src/nuget/NotNot.AppSettings/)  
+- **Get it on Nuget: https://www.nuget.org/packages/NotNot.AppSettings**
 - Strongly-Typed `appSettings.json` via source-generator
 - A high quality example of how to write a production-capable source-generator (includes inline docs)
   
