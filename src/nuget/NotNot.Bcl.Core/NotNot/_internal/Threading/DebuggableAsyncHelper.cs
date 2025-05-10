@@ -1,38 +1,52 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
+
 
 namespace NotNot._internal.Threading;
 
 public class DebuggableAsyncHelper
 {
-   private DebuggableTaskFactory _DebuggableTaskFactory;
+	private DebuggableTaskFactory _DebuggableTaskFactory;
 
-   public DebuggableAsyncHelper(bool isSingleThreadedFactory)
-   {
-      _DebuggableTaskFactory = new DebuggableTaskFactory(isSingleThreadedFactory);
-   }
+	public DebuggableAsyncHelper(bool isSingleThreadedFactory)
+	{
+		_DebuggableTaskFactory = new DebuggableTaskFactory(isSingleThreadedFactory);
+	}
 
-   /// <summary>
-   ///    run tasks on this, such as Factory.Run()
-   /// </summary>
-   public TaskFactory Factory => _DebuggableTaskFactory.Factory;
+	/// <summary>
+	///    run tasks on this, such as Factory.Run()
+	/// </summary>
+	public TaskFactory Factory => _DebuggableTaskFactory.Factory;
 
-   public CancellationToken CancelAfter(CancellationToken linked, TimeSpan delay)
-   {
-      return DebuggableTimeoutCancelTokenHelper.Timeout(linked, delay);
-   }
+	public CancellationToken CancelAfter(CancellationToken linked, TimeSpan delay)
+	{
+		return DebuggableTimeoutCancelTokenHelper.Timeout(linked, delay);
+	}
 
-   public CancellationToken CancelAfter(TimeSpan delay)
-   {
-      return DebuggableTimeoutCancelTokenHelper.Timeout(delay);
-   }
+	public CancellationToken CancelAfter(TimeSpan delay)
+	{
+		return DebuggableTimeoutCancelTokenHelper.Timeout(delay);
+	}
 
-   public void CancelAfter(CancellationTokenSource cts, TimeSpan delay)
-   {
-      DebuggableTimeoutCancelTokenHelper.CancelAfter(cts, delay);
-   }
+	public void CancelAfter(CancellationTokenSource cts, TimeSpan delay)
+	{
+		DebuggableTimeoutCancelTokenHelper.CancelAfter(cts, delay);
+	}
+
+	/// <summary>
+	/// app lifetime events from Microsoft.Extensions.Hosting
+	/// </summary>
+	public Microsoft.Extensions.Hosting.IHostApplicationLifetime AppLifetime
+	{
+		get
+		{
+			var appLifetime = __.Services.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+			return appLifetime;
+		}
+	}
 
 
-   public Task Delay(TimeSpan duration)
+
+	public Task Delay(TimeSpan duration)
    {
       var ct = CancelAfter(duration);
       var tcs = new TaskCompletionSource();
