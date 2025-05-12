@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
@@ -54,7 +54,7 @@ internal class AppSettingsGen : IIncrementalGenerator
 			});
 
 			//get appsettings*.json via AdditionalFiles
-			var regex = new Regex(@"\\appsettings\..*json$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+			var regex = new Regex(@"[/\\]appsettings\..*json$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 			var additionalFiles = context.AdditionalTextsProvider.Where(file =>
 			{
 				var result = regex.IsMatch(file.Path);
