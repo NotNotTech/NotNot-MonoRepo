@@ -51,6 +51,29 @@ public record class Maybe : Maybe<OperationResult>
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0) => Maybe<T>.Success(value, memberName, sourceFilePath, sourceLineNumber);
 
+	/// <summary>
+	/// an ez hack for development:  throw a ProblemException if the condition fails.  This is fast and easy but throwing exceptions is low performance.  should replace with a no-throw solution for hot paths
+	/// <para>this is different from __.Throw() in that it isn't logged as an error</para>
+	/// </summary>
+	public static void Throw(bool condition, string category, HttpStatusCode errorCode,[CallerArgumentExpression("condition")] string conditionExpression="", [CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		if (condition)
+		{
+			return;
+		}
+		var problem = new Problem(memberName, sourceFilePath, sourceLineNumber)
+		{
+			category = category,
+			Detail = $"condition failed: {conditionExpression}",
+			Status = errorCode,
+			Title = $"{category} condition failed"
+		};
+
+		throw problem.ToException();
+
+	}
 }
 
 /// <summary>
