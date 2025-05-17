@@ -25,7 +25,7 @@ public class Placeholder
    [DebuggerHidden]
    [DebuggerNonUserCode]
    [DoesNotReturn]
-   public void NotImplemented([CallerMemberName] string memberName = "",
+   public NotImplementedException NotImplemented([CallerMemberName] string memberName = "",
       [CallerFilePath] string sourceFilePath = "",
       [CallerLineNumber] int sourceLineNumber = 0)
    {
