@@ -16,7 +16,7 @@
 
 	<!--disable warnings for libraries in DEBUG-->
 	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
-		<NoWarn>$(NoWarn);$(WarningsNotAsErrors)</NoWarn>
+		<WarningLevel>0</WarningLevel>
 	</PropertyGroup>
 
 
@@ -51,6 +51,7 @@
 	 <!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
 	<Version>0.0.0-0.invalidMinverProcess</Version>
 </PropertyGroup>
+
 
 	<ItemGroup>
 		<PackageReference Include="Ben.Demystifier" Version="0.4.1" />

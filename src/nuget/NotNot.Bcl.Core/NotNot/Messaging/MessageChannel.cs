@@ -1,4 +1,4 @@
-﻿// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
+// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
 // [!!] Copyright ©️ NotNot Project and Contributors. 
 // [!!] This file is licensed to you under the MPL-2.0.
 // [!!] See the LICENSE.md file in the project root for more info. 
@@ -13,7 +13,7 @@ namespace NotNot.Messaging;
 ///    Only one kind of message may be sent per MessageChannel.
 /// </summary>
 /// <typeparam name="TMessage">must be struct (to prevent GC allocations).  Pass a tuple if you want to pass an object</typeparam>
-[Obsolete("Use 'LoLo.Event' instead")]
+[Obsolete("Use 'NotNot.Event' instead")]
 public class MessageChannel<TMessage> where TMessage : struct
 {
    /// <summary>
