@@ -103,6 +103,10 @@
 	<Version>0.0.0-0.invalidMinverProcess</Version>
 </PropertyGroup>
 
-	
+	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
+		<!--ignore netstandard2 ref warning-->
+		<NoWarn>$(NoWarn);NU5128</NoWarn>
+		<DebugType>embedded</DebugType>
+	</PropertyGroup>
 
 </Project>
