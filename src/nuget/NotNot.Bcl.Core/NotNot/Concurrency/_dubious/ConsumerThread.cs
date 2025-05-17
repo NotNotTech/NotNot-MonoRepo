@@ -1,4 +1,4 @@
-﻿using NotNot.Advanced;
+using NotNot.Advanced;
 
 namespace NotNot.Concurrency._dubious;
 
@@ -9,7 +9,6 @@ namespace NotNot.Concurrency._dubious;
 [ThreadSafe]
 public class ConsumerThread<TItem>
 {
-   private bool _isAborted;
    private AsyncProducerConsumerQueue<TItem> _queue = new();
 
 
@@ -19,7 +18,7 @@ public class ConsumerThread<TItem>
 
    public CancellationToken CT { get; private set; }
 
-   public bool IsAborted => _isAborted || CT.IsCancellationRequested;
+   public bool IsAborted =>  CT.IsCancellationRequested;
 
    public bool IsStarted => startTask is not null;
 

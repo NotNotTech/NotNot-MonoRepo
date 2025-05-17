@@ -1,4 +1,4 @@
-﻿# Template coppied from https://github.com/LanguageDev/Yoakke/tree/master/Sources, mostly for the header example.   
+# Template coppied from https://github.com/LanguageDev/Yoakke/tree/master/Sources, mostly for the header example.   
 # help/hints: https://editorconfig.org/#supported-properties
 # full docs here: https://docs.microsoft.com/en-us/visualstudio/ide/create-portable-custom-editor-options?view=vs-2022
 
@@ -15,3 +15,9 @@ dotnet_diagnostic.RCS1169.severity = none
 
 # IDE0044: Add readonly modifier
 dotnet_style_readonly_field = false
+
+# RCS1263: Invalid reference in a documentation comment
+dotnet_diagnostic.RCS1263.severity = none
+
+# RCS1141: Add 'param' element to documentation comment
+dotnet_diagnostic.RCS1141.severity = none

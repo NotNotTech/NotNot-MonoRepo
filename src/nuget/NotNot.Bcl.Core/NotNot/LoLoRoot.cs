@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -141,7 +141,8 @@ public partial class LoLoRoot
 
 			if (__.Test.IsTestingActive)
 			{
-				Todo("setup test runner logger");
+				
+				__.placeholder.ToDo("setup test runner logger");
 				//Xunit.Assert.Fail(finalMessage);
 			}
 		}
@@ -179,7 +180,7 @@ public partial class LoLoRoot
 
 		if (__.Test.IsTestingActive)
 		{
-			Todo("setup test runner logger");
+			__.placeholder.ToDo("setup test runner logger");
 			//Xunit.Assert.Fail(finalMessage);
 		}
 	}

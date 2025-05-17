@@ -146,6 +146,11 @@ public class HeadlessUpdater : DisposeGuard, IUpdatePump
 				}
 
 				sw.Restart();
+
+				if (AvgElapsed > lastElapsed * 2)
+				{
+					await OnRunningLate();
+				}
 				//Console.WriteLine($" ======================== {loop} ({Math.Round(TimeSpan.FromTicks(lastElapsed).TotalMilliseconds,1)}ms) ============================================== ");
 				await OnUpdate(lastElapsed);
 				//Console.WriteLine($"last Elapsed = {lastElapsed}");

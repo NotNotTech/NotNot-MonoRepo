@@ -235,7 +235,7 @@ public class DiagHelper
    [DebuggerHidden]
    public void Log(EnvLevel level, string message, object? objToLog1 = null, object? objToLog2 = null,
       object? objToLog3 = null,
-      [CallerArgumentExpression("condition")]
+      //[CallerArgumentExpression("condition")]
       string? conditionName = null,
       [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "",
       [CallerLineNumber] int sourceLineNumber = 0,

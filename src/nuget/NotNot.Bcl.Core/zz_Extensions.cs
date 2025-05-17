@@ -4750,7 +4750,7 @@ public static class zz_Extensions_Type
 		{
 			//if (attribute is TAttribute)
 			{
-				attributeFound = attribute as TAttribute;
+				attributeFound =(TAttribute) attribute;
 				return true;
 			}
 		}

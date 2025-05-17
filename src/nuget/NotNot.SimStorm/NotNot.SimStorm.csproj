@@ -14,6 +14,12 @@
 		<RootNamespace></RootNamespace>
 	</PropertyGroup>
 
+
+	<!--disable warnings for libraries in DEBUG-->
+	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
+		<NoWarn>$(NoWarn);$(WarningsNotAsErrors)</NoWarn>
+	</PropertyGroup>
+
 	<ItemGroup>
 	  <ProjectReference Include="..\NotNot.Bcl\NotNot.Bcl.csproj" />
 	</ItemGroup>

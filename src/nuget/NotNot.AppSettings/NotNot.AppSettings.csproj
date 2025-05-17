@@ -20,6 +20,12 @@
 		<InvariantGlobalization>true</InvariantGlobalization>
 	</PropertyGroup>
 
+
+	<!--disable warnings for libraries in DEBUG-->
+	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
+		<NoWarn>$(NoWarn);$(WarningsNotAsErrors)</NoWarn>
+	</PropertyGroup>
+
 	<!--LOCAL DEV NOTES:  To reference `.csproj`, not Nuget: Add ` OutputItemType="Analyzer" ReferenceOutputAssembly="false"` to the `ProjectReference`-->
 
 	<!--BS scafolding needed for sourcegen to reference nuget packages, see: https://github.com/dotnet/roslyn/discussions/47517#discussioncomment-5787288

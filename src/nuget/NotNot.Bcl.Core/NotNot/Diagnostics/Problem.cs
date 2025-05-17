@@ -13,18 +13,18 @@ namespace NotNot;
 /// </summary>
 public record class Problem
 {
-	/// <summary>
-	/// A URI reference [RFC3986] that identifies the problem type. This specification encourages that, when
-	/// dereferenced, it provide human-readable documentation for the problem type
-	/// (e.g., using HTML [W3C.REC-html5-20141028]). When this member is not present, its value is assumed to be
-	/// "about:blank".
-	/// </summary>
+	///// <summary>
+	///// A URI reference [RFC3986] that identifies the problem type. This specification encourages that, when
+	///// dereferenced, it provide human-readable documentation for the problem type
+	///// (e.g., using HTML [W3C.REC-html5-20141028]). When this member is not present, its value is assumed to be
+	///// "about:blank".
+	///// </summary>
 
-	[Obsolete("not important?")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	[JsonPropertyOrder(-5)]
-	[JsonPropertyName("type")]
-	public string? Type { get; set; }
+	//[Obsolete("not important?")]
+	//[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	//[JsonPropertyOrder(-5)]
+	//[JsonPropertyName("type")]
+	//public string? Type { get; set; }
 
 	/// <summary>
 	/// A short, human-readable summary of the problem type. It SHOULD NOT change from occurrence to occurrence
@@ -52,14 +52,14 @@ public record class Problem
 	[JsonPropertyName("detail")]
 	public string? Detail { get; set; }
 
-	[Obsolete("not important?")]
-	/// <summary>
-	/// A URI reference that identifies the specific occurrence of the problem. It may or may not yield further information if dereferenced.
-	/// </summary>
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	[JsonPropertyOrder(-1)]
-	[JsonPropertyName("instance")]
-	public string? Instance { get; set; }
+	//[Obsolete("not important?")]
+	///// <summary>
+	///// A URI reference that identifies the specific occurrence of the problem. It may or may not yield further information if dereferenced.
+	///// </summary>
+	//[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	//[JsonPropertyOrder(-1)]
+	//[JsonPropertyName("instance")]
+	//public string? Instance { get; set; }
 
 	/// <summary>
 	/// Gets the <see cref="IDictionary{TKey, TValue}"/> for extension members.
@@ -151,9 +151,9 @@ public record class Problem
 	{
 		Status = problemBase.Status;
 		Title = problemBase.Title;
-		Type = problemBase.Type;
+		//Type = problemBase.Type;
 		Detail = problemBase.Detail;
-		Instance = problemBase.Instance;
+		//Instance = problemBase.Instance;
 
 		foreach (var pair in problemBase.Extensions)
 		{
@@ -218,7 +218,6 @@ public record class Problem
 				{
 					case bool toReturn:
 						return toReturn;
-						break;
 					default:
 						__.GetLogger()._EzError("problem.IsRecoverable is not a bool", result);
 						break;

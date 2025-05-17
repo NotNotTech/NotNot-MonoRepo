@@ -1,19 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-	  <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-	  <LangVersion>preview</LangVersion>
-	  <EnablePreviewFeatures>true</EnablePreviewFeatures>
-  </PropertyGroup>
-
-
 	<!--shared common .csproj settings-->
 	<Import Project="..\..\CommonSettings.targets" />
+	
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+	</PropertyGroup>
 
-  <ItemGroup>
+
+
+
+	<!--disable warnings for libraries in DEBUG-->
+	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
+		<NoWarn>$(NoWarn);$(WarningsNotAsErrors)</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
     <Compile Remove="bin\**" />
     <EmbeddedResource Remove="bin\**" />
     <None Remove="bin\**" />

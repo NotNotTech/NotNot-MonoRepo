@@ -7,7 +7,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-
+#pragma warning disable CS8963
 namespace NotNot._graveyard
 {
    /// <summary>

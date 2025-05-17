@@ -1,4 +1,4 @@
-﻿// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
+// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
 // [!!] Copyright ©️ NotNot Project and Contributors. 
 // [!!] This file is licensed to you under the MPL-2.0.
 // [!!] See the LICENSE.md file in the project root for more info. 
@@ -16,13 +16,13 @@ public struct StructRingBuffer100<T> where T : unmanaged
 	public const int _SIZEOF = 100;
 
 	[InlineArray(_SIZEOF)]
-	public struct StructArray100<T> where T : unmanaged
+	public struct StructArray100
 	{
 		private T _element0;
 	}
 
 
-	public StructArray100<T> _storage;
+	public StructArray100 _storage;
 	public int _currentIndex = 0;
 	public int _count = 0;
 
