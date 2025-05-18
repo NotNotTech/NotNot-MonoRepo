@@ -357,6 +357,13 @@ public partial class LoLoRoot
 		var ex = new LoLoDiagnosticsException(message._FormatAppendArgs(conditionName, objToLog0Name: "condition"), memberName, sourceFilePath, sourceLineNumber);
 		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
 	}
+	public void ThrowNotNull(object value, string? message = null, [CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("value")] string valueName = "")
+	{
+		Throw(value is not null, message, memberName, sourceFilePath, sourceLineNumber, $"{valueName} is not null");
+	}
+
 	/// <summary>
 	/// Log, assert, throw throw an Exception.
 	/// </summary>
