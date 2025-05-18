@@ -97,7 +97,9 @@ public partial class LoLoRoot
 	//	Todo("Todo", sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
 	//}
 
-
+	/// <summary> 
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+	/// </summary>
 	public bool AssertNotNull([NotNullWhen(true)] object? obj, string? message = null, [CallerArgumentExpression("obj")]
 		string? objName = "null")
 	{
@@ -113,11 +115,12 @@ public partial class LoLoRoot
 
 	/// <summary>
 	/// logs message and triggers a breakpoint.  (also Prompts to attach a debugger if not already attached)
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
-	public void Assert(bool condition, string? message = "", object? objToLog0 = null, object? objToLog1 = null,
+	public void Assert(bool? _condition, string? message = "", object? objToLog0 = null, object? objToLog1 = null,
 		object? objToLog2 = null, [CallerMemberName] string memberName = "",
 			  [CallerFilePath] string sourceFilePath = "",
-					 [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("condition")] string conditionName = "",
+					 [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_condition")] string conditionName = "",
 		[CallerArgumentExpression("objToLog0")]
 		string? objToLog0Name = "null",
 		[CallerArgumentExpression("objToLog1")]
@@ -126,6 +129,7 @@ public partial class LoLoRoot
 		string? objToLog2Name = "null",
 		Span<string> tags = default)
 	{
+		var condition = _condition.GetValueOrDefault();
 
 		if (condition is false)
 		{
@@ -150,6 +154,7 @@ public partial class LoLoRoot
 
 	/// <summary>
 	/// logs message and triggers a breakpoint.  (also Prompts to attach a debugger if not already attached)
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
 	public void Assert(string? message = null, object? objToLog0 = null, object? objToLog1 = null,
 		object? objToLog2 = null, [CallerMemberName] string memberName = "",
@@ -169,6 +174,7 @@ public partial class LoLoRoot
 
 	/// <summary>
 	/// logs message and triggers a breakpoint.  (also Prompts to attach a debugger if not already attached)
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
 	public void Assert(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
@@ -198,7 +204,10 @@ public partial class LoLoRoot
 		return false;
 
 	}
-
+	/// <summary>
+	/// if the condition is false, assert once per callsite+message.
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+	/// </summary>
 	public void AssertOnce(bool condition, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -215,6 +224,10 @@ public partial class LoLoRoot
 
 	}
 
+	/// <summary>
+	/// if the condition is false, assert once per callsite+message.
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+	/// </summary>
 	public void AssertOnce(string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -227,6 +240,10 @@ public partial class LoLoRoot
 	}
 
 
+	/// <summary>
+	/// if the condition is false, assert once per callsite+message.
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+	/// </summary>
 	public void AssertOnce(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -252,12 +269,8 @@ public partial class LoLoRoot
 
 	/// <summary>
 	/// assert, but only in DEBUG builds
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
-	/// <param name="condition"></param>
-	/// <param name="message"></param>
-	/// <param name="memberName"></param>
-	/// <param name="sourceFilePath"></param>
-	/// <param name="sourceLineNumber"></param>
 	[Conditional("DEBUG")]
 	public void DebugAssert(bool condition, string? message = null, [CallerMemberName] string memberName = "",
 			  [CallerFilePath] string sourceFilePath = "",
@@ -266,6 +279,10 @@ public partial class LoLoRoot
 		Assert(condition, message, memberName, sourceFilePath, sourceLineNumber);
 	}
 
+	/// <summary>
+	/// assert, but only in DEBUG builds
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+	/// </summary>
 	[Conditional("DEBUG")]
 	public void DebugAssert(string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
@@ -275,6 +292,10 @@ public partial class LoLoRoot
 	}
 
 
+	/// <summary>
+	/// assert, but only in DEBUG builds
+	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+	/// </summary>
 	public void DebugAssert(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
