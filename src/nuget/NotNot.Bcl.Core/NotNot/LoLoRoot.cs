@@ -68,7 +68,7 @@ public partial class LoLoRoot
 
 		var _devTraceLogger = __.GetLogger(sourceFilePath);
 
-		_devTraceLogger._EzTrace(message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name,tags);
+		_devTraceLogger._EzTrace(message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name, tags);
 
 	}
 
@@ -80,15 +80,15 @@ public partial class LoLoRoot
 	public void Todo(string message = "", [CallerLineNumber] int sourceLineNumber = 0, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "")
 	{
 		__.placeholder.ToDo(message, memberName, sourceFilePath, sourceLineNumber);
-//#if DEBUG
-//		var warnOnceKey = $"{sourceFilePath}:{sourceLineNumber}";
-//		if (_todoWarnOnceCache.Add(warnOnceKey))
-//		{
-//			__.GetLogger()._EzWarn($"TODO: {message}", sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
-//		}
-//		return;
-//#endif
-//		throw __.Throw(message, sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
+		//#if DEBUG
+		//		var warnOnceKey = $"{sourceFilePath}:{sourceLineNumber}";
+		//		if (_todoWarnOnceCache.Add(warnOnceKey))
+		//		{
+		//			__.GetLogger()._EzWarn($"TODO: {message}", sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
+		//		}
+		//		return;
+		//#endif
+		//		throw __.Throw(message, sourceLineNumber: sourceLineNumber, memberName: memberName, sourceFilePath: sourceFilePath);
 	}
 
 	//public void Todo([CallerLineNumber] int sourceLineNumber = 0, [CallerMemberName] string memberName = "",
@@ -124,9 +124,9 @@ public partial class LoLoRoot
 		string? objToLog1Name = "null",
 		[CallerArgumentExpression("objToLog2")]
 		string? objToLog2Name = "null",
-		Span<string> tags=default)
+		Span<string> tags = default)
 	{
-		
+
 		if (condition is false)
 		{
 			var finalMessage = message._FormatAppendArgs(conditionName, objToLog0Name: "condition")._FormatAppendArgs(objToLog0, objToLog1, objToLog2, objToLog0Name, objToLog1Name, objToLog2Name)._FormatAppendArgs(memberName, sourceFilePath, sourceLineNumber);
@@ -141,7 +141,7 @@ public partial class LoLoRoot
 
 			if (__.Test.IsTestingActive)
 			{
-				
+
 				__.placeholder.ToDo("setup test runner logger");
 				//Xunit.Assert.Fail(finalMessage);
 			}
@@ -163,7 +163,7 @@ public partial class LoLoRoot
 		string? objToLog2Name = "null",
 		Span<string> tags = default)
 	{
-		Assert(false, message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name,tags:tags);
+		Assert(false, message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name, tags: tags);
 	}
 
 
@@ -357,9 +357,16 @@ public partial class LoLoRoot
 		var ex = new LoLoDiagnosticsException(message._FormatAppendArgs(conditionName, objToLog0Name: "condition"), memberName, sourceFilePath, sourceLineNumber);
 		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
 	}
-	public void ThrowNotNull(object value, string? message = null, [CallerMemberName] string memberName = "",
+
+	/// <summary>
+	/// Ensures value is not null, throws an exception if it is.
+	/// </summary>
+	public void NotNull<T>(
+		[NotNull]
+		T? value, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("value")] string valueName = "")
+	where T : class
 	{
 		Throw(value is not null, message, memberName, sourceFilePath, sourceLineNumber, $"{valueName} is not null");
 	}
@@ -375,7 +382,7 @@ public partial class LoLoRoot
 	{
 		Assert(ex, memberName, sourceFilePath, sourceLineNumber);
 		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
-		//never gets here because of throw
+												   //never gets here because of throw
 		return null;
 	}
 
