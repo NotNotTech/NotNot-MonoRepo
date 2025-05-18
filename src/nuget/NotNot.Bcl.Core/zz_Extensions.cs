@@ -3741,6 +3741,16 @@ public static class zz_Extensions_Boolean
 [SuppressMessage("Microsoft.Design", "CA1050:DeclareTypesInNamespaces")]
 public static class zz_Extensions_Object
 {
+	/// <summary>
+	/// Ensures value is not null, also returning it.  If null, throws an exception.
+	/// <para>shortcut to `__.NotNull(value);`</para>
+	/// </summary>
+	public static T _NotNull<T>([NotNull] this T? value, string? message = null, [CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("value")] string valueName = "") where T : class
+	{
+		return __.NotNull(value, message, memberName, sourceFilePath, sourceLineNumber, valueName);
+	}
 
 
 	//	public static bool _Is<T>(this T value, params Type[] types)

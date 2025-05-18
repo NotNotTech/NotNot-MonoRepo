@@ -366,10 +366,11 @@ public partial class LoLoRoot
 	/// </summary>
 	/// <param name="condition"></param>
 	/// <exception cref="NotImplementedException"></exception>
-	public void Throw([DoesNotReturnIf(false)] bool condition, string? message = null, [CallerMemberName] string memberName = "",
+	public void Throw([DoesNotReturnIf(false)] bool? _condition, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
-		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("condition")] string conditionName = "")
+		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_condition")] string conditionName = "")
 	{
+		var condition = _condition.GetValueOrDefault();
 		if (condition)
 		{
 			return;
@@ -380,9 +381,9 @@ public partial class LoLoRoot
 	}
 
 	/// <summary>
-	/// Ensures value is not null, throws an exception if it is.
+	/// Ensures value is not null, also returning it.  If null, throws an exception.
 	/// </summary>
-	public void NotNull<T>(
+	public T NotNull<T>(
 		[NotNull]
 		T? value, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
@@ -390,6 +391,7 @@ public partial class LoLoRoot
 	where T : class
 	{
 		Throw(value is not null, message, memberName, sourceFilePath, sourceLineNumber, $"{valueName} is not null");
+		return value!;
 	}
 
 	/// <summary>
