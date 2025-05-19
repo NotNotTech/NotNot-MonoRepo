@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -455,6 +456,7 @@ public partial class LoLoRoot
 	private bool? _isProduction;
 	/// <summary>
 	/// returns true if we are running in production environment.  false otherwise
+	/// <para>Note: production==true when no ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT is specified</para>
 	/// </summary>
 	public bool IsProduction
 	{
@@ -462,8 +464,10 @@ public partial class LoLoRoot
 		{
 			if (_isProduction is null)
 			{
-				_isProduction = (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")._AproxEqual("production"))
-					|| (Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")._AproxEqual("production"));
+				_isProduction = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")._AproxEqual("production")
+					|| Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")._AproxEqual("production")
+					//if both are empty, we are in production
+					|| (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")._IsNullOrEmpty() && Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")._IsNullOrEmpty());
 			}
 			return _isProduction.Value;
 		}
@@ -476,10 +480,11 @@ public partial class LoLoRoot
 	{
 		get
 		{
-			if (__.IsProduction)
-			{
-				throw new LoLoDiagnosticsException("TestHelper should only be accessed when not in production.  why is this not true?");
-			}
+			//disabling because yes soemtimes we would want to test in production.
+			//if (__.IsProduction)
+			//{
+			//	throw new LoLoDiagnosticsException("TestHelper should only be accessed when not in production.  why is this not true?");
+			//}
 			return _test;
 		}
 	}
