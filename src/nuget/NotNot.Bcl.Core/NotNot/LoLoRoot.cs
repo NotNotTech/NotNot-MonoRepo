@@ -107,7 +107,7 @@ public partial class LoLoRoot
 		if (obj is null)
 		{
 			message ??= $"AssertNotNull failed.  {objName} is null";
-			Assert(obj is not null, message, conditionName: $"{objName} is not null");
+			Assert(obj is not null, message, expectedConditionName: $"{objName} is not null");
 			return false;
 		}
 		return true;
@@ -118,10 +118,10 @@ public partial class LoLoRoot
 	/// logs message and triggers a breakpoint.  (also Prompts to attach a debugger if not already attached)
 	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
-	public void Assert(bool? _condition, string? message = "", object? objToLog0 = null, object? objToLog1 = null,
+	public void Assert(bool? _expectedCondition, string? message = "", object? objToLog0 = null, object? objToLog1 = null,
 		object? objToLog2 = null, [CallerMemberName] string memberName = "",
 			  [CallerFilePath] string sourceFilePath = "",
-					 [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_condition")] string conditionName = "",
+					 [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_expectedCondition")] string expectedConditionName = "",
 		[CallerArgumentExpression("objToLog0")]
 		string? objToLog0Name = "null",
 		[CallerArgumentExpression("objToLog1")]
@@ -130,11 +130,11 @@ public partial class LoLoRoot
 		string? objToLog2Name = "null",
 		Span<string> tags = default)
 	{
-		var condition = _condition.GetValueOrDefault();
+		var expectedCondition = _expectedCondition.GetValueOrDefault();
 
-		if (condition is false)
+		if (expectedCondition is false)
 		{
-			var finalMessage = message._FormatAppendArgs(conditionName, objToLog0Name: "condition")._FormatAppendArgs(objToLog0, objToLog1, objToLog2, objToLog0Name, objToLog1Name, objToLog2Name)._FormatAppendArgs(memberName, sourceFilePath, sourceLineNumber);
+			var finalMessage = message._FormatAppendArgs(expectedConditionName, objToLog0Name: "expectedCondition")._FormatAppendArgs(objToLog0, objToLog1, objToLog2, objToLog0Name, objToLog1Name, objToLog2Name)._FormatAppendArgs(memberName, sourceFilePath, sourceLineNumber);
 
 			if (tags.Length > 0)
 			{
@@ -206,14 +206,14 @@ public partial class LoLoRoot
 
 	}
 	/// <summary>
-	/// if the condition is false, assert once per callsite+message.
+	/// if the expectedCondition is false, assert once per callsite+message.
 	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
-	public void AssertOnce(bool condition, string? message = null, [CallerMemberName] string memberName = "",
+	public void AssertOnce(bool expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-		if (condition is true)
+		if (expectedCondition is true)
 		{
 			return;
 		}
@@ -226,7 +226,7 @@ public partial class LoLoRoot
 	}
 
 	/// <summary>
-	/// if the condition is false, assert once per callsite+message.
+	/// if the expectedCondition is false, assert once per callsite+message.
 	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
 	public void AssertOnce(string? message = null, [CallerMemberName] string memberName = "",
@@ -242,7 +242,7 @@ public partial class LoLoRoot
 
 
 	/// <summary>
-	/// if the condition is false, assert once per callsite+message.
+	/// if the expectedCondition is false, assert once per callsite+message.
 	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
 	public void AssertOnce(Exception ex, [CallerMemberName] string memberName = "",
@@ -273,11 +273,11 @@ public partial class LoLoRoot
 	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
 	[Conditional("DEBUG")]
-	public void DebugAssert(bool condition, string? message = null, [CallerMemberName] string memberName = "",
+	public void DebugAssert(bool expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
 			  [CallerFilePath] string sourceFilePath = "",
 					 [CallerLineNumber] int sourceLineNumber = 0)
 	{
-		Assert(condition, message, memberName, sourceFilePath, sourceLineNumber);
+		Assert(expectedCondition, message, memberName, sourceFilePath, sourceLineNumber);
 	}
 
 	/// <summary>
@@ -307,11 +307,11 @@ public partial class LoLoRoot
 
 
 	[Conditional("DEBUG")]
-	public void DebugAssertOnce(bool condition, string? message = null, [CallerMemberName] string memberName = "",
+	public void DebugAssertOnce(bool expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-		if (condition is true)
+		if (expectedCondition is true)
 		{
 			return;
 		}
@@ -349,9 +349,9 @@ public partial class LoLoRoot
 	}
 
 	/// <summary>
-	/// throw an Exception if condition is false
+	/// throw an Exception if expectedCondition is false
 	/// </summary>
-	/// <param name="condition"></param>
+	/// <param name="expectedCondition"></param>
 	/// <exception cref="NotImplementedException"></exception>
 	[DoesNotReturn]
 	public Exception Throw(string? message = null, [CallerMemberName] string memberName = "",
@@ -363,21 +363,21 @@ public partial class LoLoRoot
 		return null;
 	}
 	/// <summary>
-	/// throw an Exception if condition is false
+	/// throw an Exception if expectedCondition is false
 	/// </summary>
-	/// <param name="condition"></param>
+	/// <param name="expectedCondition"></param>
 	/// <exception cref="NotImplementedException"></exception>
-	public void Throw([DoesNotReturnIf(false)] bool? _condition, string? message = null, [CallerMemberName] string memberName = "",
+	public void Throw([DoesNotReturnIf(false)] bool? _expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
-		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_condition")] string conditionName = "")
+		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_expectedCondition")] string expectedConditionName = "")
 	{
-		var condition = _condition.GetValueOrDefault();
-		if (condition)
+		var expectedCondition = _expectedCondition.GetValueOrDefault();
+		if (expectedCondition)
 		{
 			return;
 		}
-		Assert(false, message, memberName, sourceFilePath, sourceLineNumber, conditionName);
-		var ex = new LoLoDiagnosticsException(message._FormatAppendArgs(conditionName, objToLog0Name: "condition"), memberName, sourceFilePath, sourceLineNumber);
+		Assert(false, message, memberName, sourceFilePath, sourceLineNumber, expectedConditionName);
+		var ex = new LoLoDiagnosticsException(message._FormatAppendArgs(expectedConditionName, objToLog0Name: "expectedCondition"), memberName, sourceFilePath, sourceLineNumber);
 		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
 	}
 
@@ -398,7 +398,7 @@ public partial class LoLoRoot
 	/// <summary>
 	/// Log, assert, throw throw an Exception.
 	/// </summary>
-	/// <param name="condition"></param>
+	/// <param name="expectedCondition"></param>
 	[DoesNotReturn]
 	public Exception Throw(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
