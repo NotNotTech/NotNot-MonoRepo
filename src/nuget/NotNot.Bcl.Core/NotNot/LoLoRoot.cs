@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using NotNot._internal;
@@ -470,6 +471,17 @@ public partial class LoLoRoot
 					|| (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")._IsNullOrEmpty() && Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")._IsNullOrEmpty());
 			}
 			return _isProduction.Value;
+		}
+	}
+
+	/// <summary>
+	/// shortcut to return the DI IHostEnvironment.  This should be the source of truth for determining runtime environment, not looking up envvars
+	/// </summary>
+	public IHostEnvironment HostEnvironment
+	{
+		get
+		{
+			return Services.GetRequiredService<IHostEnvironment>();
 		}
 	}
 
