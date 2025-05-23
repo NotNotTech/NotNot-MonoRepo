@@ -454,7 +454,19 @@ public partial class LoLoRoot
 	public StaticPool pool = new();
 
 
-	private bool? _isProduction;
+	/// <summary>
+	/// the current runtime $ENVIRONMENT, usually "Development", "Testing", "Production"
+	/// <para>determined by reading ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT</para>
+	/// <para>returns "Production" if nothing set</para>
+	/// </summary>
+	public string RuntimeEnv
+	{
+		get
+		{
+			return Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
+				   Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
+		}
+	}
 	/// <summary>
 	/// returns true if we are running in production environment.  false otherwise
 	/// <para>Note: production==true when no ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT is specified</para>
@@ -463,27 +475,36 @@ public partial class LoLoRoot
 	{
 		get
 		{
-			if (_isProduction is null)
-			{
-				_isProduction = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")._AproxEqual("production")
-					|| Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")._AproxEqual("production")
-					//if both are empty, we are in production
-					|| (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")._IsNullOrEmpty() && Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")._IsNullOrEmpty());
-			}
-			return _isProduction.Value;
+			return RuntimeEnv._AproxEqual("production");
 		}
 	}
 
-	/// <summary>
-	/// shortcut to return the DI IHostEnvironment.  This should be the source of truth for determining runtime environment, not looking up envvars
-	/// </summary>
-	public IHostEnvironment HostEnvironment
+	public bool IsTesting
 	{
 		get
 		{
-			return Services.GetRequiredService<IHostEnvironment>();
+			return RuntimeEnv._AproxEqual("testing");
 		}
 	}
+
+
+	public bool IsDevelopment
+	{
+		get
+		{
+			return RuntimeEnv._AproxEqual("development");
+		}
+	}
+	///// <summary>
+	///// shortcut to return the DI IHostEnvironment.  This should be the source of truth for determining runtime environment, not looking up envvars
+	///// </summary>
+	//public IHostEnvironment HostEnvironment
+	//{
+	//	get
+	//	{
+	//		return Services.GetRequiredService<IHostEnvironment>();
+	//	}
+	//}
 
 
 	private TestHelper _test = new();
