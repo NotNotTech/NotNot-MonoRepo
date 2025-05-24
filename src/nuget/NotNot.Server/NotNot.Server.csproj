@@ -12,8 +12,11 @@
 		<LangVersion>preview</LangVersion>
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 		<RootNamespace></RootNamespace>
-		<!--needed for openApi to read xml intellisense for docgen-->
-		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<!--disable warnings for libraries in DEBUG-->
+	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
+		<WarningLevel>0</WarningLevel>
 	</PropertyGroup>
 
 
