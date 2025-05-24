@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -169,12 +169,12 @@ IFusionCache _fusionCache
 
    public async ValueTask<TValue?> GetOrSetAsync<TValue>(string key, TValue? defaultValue, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
    {
-      return await _fusionCacheImplementation.GetOrSetAsync(key, defaultValue, options, token);
+      return await _fusionCacheImplementation.GetOrSetAsync(key, defaultValue, options,token: token);
    }
 
    public TValue? GetOrSet<TValue>(string key, TValue? defaultValue, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
    {
-      return _fusionCacheImplementation.GetOrSet(key, defaultValue, options, token);
+      return _fusionCacheImplementation.GetOrSet(key, defaultValue, options, token: token);
    }
 
    public async ValueTask<TValue?> GetOrDefaultAsync<TValue>(string key, TValue? defaultValue = default, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())

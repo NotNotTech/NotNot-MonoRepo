@@ -1,15 +1,15 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using NotNot.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi.Models;
 using NotNot.Data;
-using NotNot.SwaggerGen;
 
 namespace NotNot;
 
@@ -53,6 +53,7 @@ public record class Maybe : Maybe<OperationResult>
 /// <para>Needed because C# doesn't support true Monad. to handle results from api calls that might return your expected value, or a strongly-typed error.</para>
 /// </summary>
 /// <typeparam name="TValue"></typeparam>
+[JsonConverter(typeof(MaybeJsonConverter))]
 public record class Maybe<TValue> : IResult, IStatusCodeHttpResult, IValueHttpResult, IValueHttpResult<TValue>, IEndpointMetadataProvider
 {
    int? IStatusCodeHttpResult.StatusCode => StatusCode;
@@ -61,7 +62,7 @@ public record class Maybe<TValue> : IResult, IStatusCodeHttpResult, IValueHttpRe
    object? IValueHttpResult.Value => _Value;
    TValue? IValueHttpResult<TValue>.Value => _Value;
 
-   
+
    [MemberNotNullWhen(true, "IsSuccess")]
    protected TValue? _Value { get; init; }
 
@@ -166,8 +167,8 @@ public record class Maybe<TValue> : IResult, IStatusCodeHttpResult, IValueHttpRe
    // Operator overloads for implicit conversion
    //public static implicit operator Maybe<TValue>(TValue value) => Success(value,"op_Success");
    public static implicit operator Maybe<TValue>(Problem problem) {
-      var source =  problem.DecomposeSource();      
-      return new (problem,source.memberName,source.sourceFilePath, source.sourceLineNumber); 
+      var source =  problem.DecomposeSource();
+      return new (problem,source.memberName,source.sourceFilePath, source.sourceLineNumber);
    }
 
 
@@ -396,7 +397,7 @@ public record class Maybe<TValue> : IResult, IStatusCodeHttpResult, IValueHttpRe
    }
 
    /// <summary>
-   /// 
+   ///
    /// </summary>
    /// <param name="httpContext"></param>
    /// <returns></returns>
@@ -503,5 +504,91 @@ public record class Maybe<TValue> : IResult, IStatusCodeHttpResult, IValueHttpRe
          value = default;
          return false;
       }
+   }
+}
+
+/// <summary>
+/// JSON converter for Maybe<T> to support deserialization from Content.ReadFromJsonAsync
+/// </summary>
+public class MaybeJsonConverter : JsonConverterFactory
+{
+   public override bool CanConvert(Type typeToConvert)
+   {
+      return typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(Maybe<>);
+   }
+
+   public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+   {
+      var valueType = typeToConvert.GetGenericArguments()[0];
+      var converterType = typeof(MaybeJsonConverter<>).MakeGenericType(valueType);
+      return (JsonConverter)Activator.CreateInstance(converterType)!;
+   }
+}
+
+/// <summary>
+/// Typed JSON converter for Maybe<T>
+/// </summary>
+public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
+{
+   public override Maybe<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+   {
+      using var doc = JsonDocument.ParseValue(ref reader);
+      var root = doc.RootElement;
+
+      // Check if it's a success response with Value property
+      if (root.TryGetProperty("Value", out var valueElement) && !valueElement.ValueKind.Equals(JsonValueKind.Null))
+      {
+         var value = JsonSerializer.Deserialize<T>(valueElement, options);
+         return Maybe<T>.Success(value!);
+      }
+
+      // Check if it's an error response with Problem property
+      if (root.TryGetProperty("Problem", out var problemElement))
+      {
+         var problem = JsonSerializer.Deserialize<Problem>(problemElement, options);
+         return Maybe<T>.Error(problem!);
+      }
+
+      // Check if it's a direct value (for simple cases)
+      if (root.ValueKind != JsonValueKind.Object || !root.EnumerateObject().Any())
+      {
+         var directValue = JsonSerializer.Deserialize<T>(root, options);
+         return Maybe<T>.Success(directValue!);
+      }
+
+      // Default to error if structure doesn't match expected patterns
+      var defaultProblem = new Problem("JsonDeserialization", "", 0)
+      {
+         category = "Deserialization",
+         Title = "Invalid Maybe JSON structure",
+         Detail = "JSON does not match expected Maybe<T> format",
+         Status = HttpStatusCode.BadRequest
+      };
+      return Maybe<T>.Error(defaultProblem);
+   }
+
+   public override void Write(Utf8JsonWriter writer, Maybe<T> value, JsonSerializerOptions options)
+   {
+      writer.WriteStartObject();
+
+      if (value.IsSuccess)
+      {
+         writer.WritePropertyName("Value");
+         JsonSerializer.Serialize(writer, value.Value, options);
+         writer.WriteBoolean("IsSuccess", true);
+         writer.WriteNull("Problem");
+      }
+      else
+      {
+         writer.WriteNull("Value");
+         writer.WriteBoolean("IsSuccess", false);
+         writer.WritePropertyName("Problem");
+         JsonSerializer.Serialize(writer, value.Problem, options);
+      }
+
+      writer.WriteString("ValueName", value.ValueName);
+      writer.WriteString("TraceId", value.TraceId.ToString());
+
+      writer.WriteEndObject();
    }
 }

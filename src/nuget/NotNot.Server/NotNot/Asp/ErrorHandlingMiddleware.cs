@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Http;
 
 namespace NotNot.Asp;
@@ -47,7 +48,7 @@ public class ErrorHandlingMiddleware(RequestDelegate _next)
                {
                   problem = new()
                   {
-                     Status = StatusCodes.Status400BadRequest,
+                     Status = HttpStatusCode.BadRequest,// StatusCodes.Status400BadRequest,
                      Title = $"Malformed Request: {ex.TargetSite.Name}",
                      Detail = ex.Message,
                      category = Problem.CategoryNames.Validation,
@@ -59,7 +60,7 @@ public class ErrorHandlingMiddleware(RequestDelegate _next)
                {
                   problem = new()
                   {
-                     Status = StatusCodes.Status500InternalServerError,
+                     Status = HttpStatusCode.InternalServerError,// StatusCodes.Status500InternalServerError,
                      Title = $"Malformed Request: {ex.GetType().Name}",
                      Detail = ex.Message,
                      category = Problem.CategoryNames.Validation,

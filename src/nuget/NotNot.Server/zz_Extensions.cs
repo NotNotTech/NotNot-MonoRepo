@@ -1,13 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NotNot.SwaggerGen.Advanced;
 using ZiggyCreatures.Caching.Fusion;
 
 
@@ -159,7 +159,7 @@ public static class zz_Extensions_HostApplicationBuilder
       await builder._NotNotEzSetup(ct, scanAssemblies, scanIgnore);
 
 
-      await _NotNotUtils_ConfigureSwaggerGen(builder, ct);
+     // await _NotNotUtils_ConfigureSwaggerGen(builder, ct);
 
 
    }
@@ -199,27 +199,32 @@ public static class zz_Extensions_HostApplicationBuilder
 
    }
 
-   /// <summary>
-   /// does general swaggergen configs:  adding xml docs, adding [SwaggerIgnore] or [SwaggerExample] attributes
-   /// </summary>
-   /// <param name="builder"></param>
-   /// <param name="ct"></param>
-   /// <returns></returns>
-   internal static async Task _NotNotUtils_ConfigureSwaggerGen(this IHostApplicationBuilder builder, CancellationToken ct)
+   ///// <summary>
+   ///// does general swaggergen configs:  adding xml docs, adding [SwaggerIgnore] or [SwaggerExample] attributes
+   ///// </summary>
+   ///// <param name="builder"></param>
+   ///// <param name="ct"></param>
+   ///// <returns></returns>
+   //internal static async Task _NotNotUtils_ConfigureSwaggerGen(this IHostApplicationBuilder builder, CancellationToken ct)
+   //{
+   //   builder.Services.ConfigureSwaggerGen((options) =>
+   //   {
+
+   //      //use globbing to load xml docs from all assemblies, to be used for swagger request/response examples docgen
+   //      var xmlFiles = Directory.GetFiles(AppContext.BaseDirectory, "*.xml", SearchOption.TopDirectoryOnly).ToList();
+   //      xmlFiles.ForEach(xmlFile => options.IncludeXmlComments(xmlFile));
+
+
+   //      //Add custom SwaggerGen filters so you can decorate properties with [SwaggerIgnore] or [SwaggerExample] attributes
+   //      options.SchemaFilter<SwaggerSchemaFilter_ApplyAttributes>();
+   //      options.OperationFilter<SwaggerOperationFilter_DiscoverUsedSchemas>();
+
+   //      options.DocumentFilter<SwaggerDocumentFilter_RebuildSchema>();
+   //   });
+   //}
+
+   public static Problem _ToProblem(this ValidationProblemDetails problemDetails)
    {
-      builder.Services.ConfigureSwaggerGen((options) =>
-      {
-
-         //use globbing to load xml docs from all assemblies, to be used for swagger request/response examples docgen
-         var xmlFiles = Directory.GetFiles(AppContext.BaseDirectory, "*.xml", SearchOption.TopDirectoryOnly).ToList();
-         xmlFiles.ForEach(xmlFile => options.IncludeXmlComments(xmlFile));
-
-
-         //Add custom SwaggerGen filters so you can decorate properties with [SwaggerIgnore] or [SwaggerExample] attributes
-         options.SchemaFilter<SwaggerSchemaFilter_ApplyAttributes>();
-         options.OperationFilter<SwaggerOperationFilter_DiscoverUsedSchemas>();
-
-         options.DocumentFilter<SwaggerDocumentFilter_RebuildSchema>();
-      });
+	   throw __.placeholder.NotImplemented("need to populate a problem with this, MAYBE, if we end up using the related validation code.");
    }
 }
