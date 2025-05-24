@@ -423,7 +423,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 ");
 
 		var source = SourceText.From(builder.ToString(), Encoding.UTF8);
-		toReturn.Add("_BinderShims.cs", source);
+		toReturn.Add("_BinderShims.g.cs", source);
 
 	}
 
@@ -492,7 +492,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 	{
 		//build currentNode into file
 		var currentClassName = currentNodeName._ConvertToAlphanumericCaps();
-		var filename = $"{currentNamespace}.{currentClassName}.cs";
+		var filename = $"{currentNamespace}.{currentClassName}.g.cs";
 
 		var propertyBuilder = new StringBuilder();
 		foreach (var kvp in currentNode)
