@@ -172,7 +172,10 @@ A summary from [TldrLegal](https://www.tldrlegal.com/license/mozilla-public-lice
 
 ## Notable Changes
 
-- **`2.0.2`** : bugfix: regex wouldn't find `appSettings.json` on linux (dir seperator)
+- **`2.0.2`** :
+  - Generated code files now use the `.g.cs` suffix (a7dc012)
+  - Added an extension method for faster Dependency Injection acquisition (7fd7f1f)
+  - Improved Linux compatibility for finding `appsettings.json` files (a29270f)
 - **`2.0.0`** : generated code is now `internal` by default.  Make it public by adding `<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>` to your `.csproj`
 - **`1.2.1`** : improve doc for missing appSettings.json, handle projects with blank default namespace. move to new repository.
 - **`1.1.1`** : make the nuget package `<PrivateAsset>` so only the project that directly references it uses it. 
