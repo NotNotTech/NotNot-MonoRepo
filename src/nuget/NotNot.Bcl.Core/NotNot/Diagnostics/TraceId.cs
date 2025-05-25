@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
@@ -101,7 +101,8 @@ public record TraceId
       public override TraceId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
       {
          // Deserialization logic if needed
-         throw new NotImplementedException();
+         //throw new NotImplementedException();
+         return new TraceId("not_available_From_json_rountrip", "", 0);
       }
 
       public override void Write(Utf8JsonWriter writer, TraceId value, JsonSerializerOptions options)
