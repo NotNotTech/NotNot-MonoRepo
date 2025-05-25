@@ -460,62 +460,147 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 {
 	public override Maybe<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 	{
-		using var doc = JsonDocument.ParseValue(ref reader);
-		var root = doc.RootElement;
-
-		// Check if it's a success response with Value property
-		if (root.TryGetProperty("Value", out var valueElement) && !valueElement.ValueKind.Equals(JsonValueKind.Null))
+		if (reader.TokenType != JsonTokenType.StartObject)
 		{
-			var value = JsonSerializer.Deserialize<T>(valueElement, options);
-			return Maybe<T>.Success(value!);
+			throw new JsonException("Expected StartObject token");
 		}
 
-		// Check if it's an error response with Problem property
-		if (root.TryGetProperty("Problem", out var problemElement))
-		{
-			var problem = JsonSerializer.Deserialize<Problem>(problemElement, options);
-			return Maybe<T>.Error(problem!);
-		}
+		T? value = default;
+		Problem? problem = null;
+		bool? isSuccess = null;
+		TraceId? traceId = null;
+		string? intentSummary = null; // Added to store IntentSummary
+		bool valuePropertyExists = false;
 
-		// Check if it's a direct value (for simple cases)
-		if (root.ValueKind != JsonValueKind.Object || !root.EnumerateObject().Any())
+		while (reader.Read())
 		{
-			var directValue = JsonSerializer.Deserialize<T>(root, options);
-			return Maybe<T>.Success(directValue!);
-		}
+			if (reader.TokenType == JsonTokenType.EndObject)
+			{
+				if (!isSuccess.HasValue)
+				{
+					throw new JsonException("IsSuccess property is missing.");
+				}
 
-		// Default to error if structure doesn't match expected patterns
-		var defaultProblem = new Problem("JsonDeserialization", "", 0)
-		{
-			category = "Deserialization",
-			Title = "Invalid Maybe JSON structure",
-			Detail = "JSON does not match expected Maybe<T> format",
-			Status = HttpStatusCode.BadRequest
-		};
-		return Maybe<T>.Error(defaultProblem);
+				Maybe<T> result;
+				if (isSuccess.Value)
+				{
+					if (!valuePropertyExists && default(T) != null) // If T is non-nullable and Value property wasn't in JSON
+					{
+						throw new JsonException("Value property is missing for successful Maybe.");
+					}
+					result = Maybe<T>.Success(value!);
+				}
+				else
+				{
+					if (problem == null)
+					{
+						throw new JsonException("Problem property is missing for failed Maybe.");
+					}
+					result = Maybe<T>.Error(problem);
+				}
+				
+				// Assign deserialized IntentSummary if present
+				if (intentSummary != null)
+				{
+					result.IntentSummary = intentSummary;
+				}
+				
+				// Note: The deserialized 'traceId' is read but not used to reconstruct 'result'
+				// because Maybe<T>'s constructors always generate a new TraceId.
+				// If preserving TraceId on deserialization is required, Maybe<T> would need modification.
+
+				return result;
+			}
+
+			if (reader.TokenType == JsonTokenType.PropertyName)
+			{
+				string? propertyName = reader.GetString();
+				reader.Read(); // Move to the property value
+
+				switch (propertyName)
+				{
+					case "IsSuccess":
+					case "isSuccess":
+						isSuccess = reader.GetBoolean();
+						break;
+					case "Value":
+					case "value":
+						valuePropertyExists = true;
+						if (reader.TokenType == JsonTokenType.Null && default(T) != null)
+						{
+							// This case might still be problematic if T is a non-nullable value type,
+							// as Deserialize<T> for a null token with a value type T will throw.
+							// However, the original logic is preserved.
+							value = JsonSerializer.Deserialize<T>(ref reader, options); 
+						}
+						else if (reader.TokenType != JsonTokenType.Null)
+						{
+							value = JsonSerializer.Deserialize<T>(ref reader, options);
+						}
+						else 
+						{
+						    value = default; 
+						}
+						break;
+					case "Problem":
+					case "problem":
+						problem = JsonSerializer.Deserialize<Problem>(ref reader, options);
+						break;
+					case "TraceId":
+					case "traceId":
+						traceId = JsonSerializer.Deserialize<TraceId>(ref reader, options);
+						break;
+					case "IntentSummary": // Added case for IntentSummary
+					case "intentSummary":
+						intentSummary = reader.GetString();
+						break;
+					case "ValueName": // Ignored during deserialization
+					case "valueName":
+					case "StatusCode": // StatusCode is derived, ignore on read
+					case "statusCode":
+						reader.Skip();
+						break;
+				}
+			}
+		}
+		throw new JsonException("Unexpected end of JSON.");
 	}
 
 	public override void Write(Utf8JsonWriter writer, Maybe<T> value, JsonSerializerOptions options)
 	{
 		writer.WriteStartObject();
 
-		if (value.IsSuccess)
+		writer.WriteBoolean("isSuccess", value.IsSuccess);
+
+		//if (value.IsSuccess)
 		{
-			writer.WritePropertyName("Value");
+			writer.WritePropertyName("value");
 			JsonSerializer.Serialize(writer, value.Value, options);
-			writer.WriteBoolean("IsSuccess", true);
-			writer.WriteNull("Problem");
 		}
-		else
+		//else
 		{
-			writer.WriteNull("Value");
-			writer.WriteBoolean("IsSuccess", false);
-			writer.WritePropertyName("Problem");
+			//if (default(T) == null) 
+			//{
+			//    writer.WriteNull("value");
+			//}
+			writer.WritePropertyName("problem");
 			JsonSerializer.Serialize(writer, value.Problem, options);
+			
+		}
+		
+		writer.WritePropertyName("traceId");
+		JsonSerializer.Serialize(writer, value.TraceId, options);
+
+		writer.WriteString("valueName", value.ValueName);
+		
+		// Serialize IntentSummary if it exists
+		if (value.IntentSummary != null)
+		{
+			writer.WriteString("intentSummary", value.IntentSummary);
 		}
 
-		writer.WriteString("ValueName", value.ValueName);
-		writer.WriteString("TraceId", value.TraceId.ToString());
+		// Serialize StatusCode
+		writer.WriteNumber("statusCode", (int)value.StatusCode);
 
 		writer.WriteEndObject();
 	}
