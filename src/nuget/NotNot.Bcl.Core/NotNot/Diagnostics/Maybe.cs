@@ -118,10 +118,10 @@ public record class Maybe<TValue> : IMaybe
 	 /// <summary>
 	 /// useful for debugging to see where in code this 'Maybe' was generated from
 	 /// </summary>
-	 public TraceId TraceId { get; protected init; }
+	 public TraceId TraceId { get; protected internal init; }
 
 	 [MemberNotNullWhen(false, "IsSuccess")]
-	 public Problem? Problem { get; protected init; }
+	 public Problem? Problem { get; protected internal init; }
 
 	 /// <summary>
 	 /// If true, .Value is set.  otherwise .Problem is set.
@@ -471,6 +471,7 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 		  TraceId? traceId = null;
 		  string? intentSummary = null; // Added to store IntentSummary
 		  bool valuePropertyExists = false;
+		  string? valueName = null;
 
 		  while (reader.Read())
 		  {
@@ -488,7 +489,12 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 						  {
 								throw new JsonException("Value property is missing for successful Maybe.");
 						  }
-						  result = Maybe<T>.Success(value!);
+						  //result = Maybe<T>.Success(value!);
+						  result = new Maybe<T>(value!)
+						  {
+							  TraceId = traceId,
+							  IntentSummary = intentSummary,
+						  };
 					 }
 					 else
 					 {
@@ -496,14 +502,32 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 						  {
 								throw new JsonException("Problem property is missing for failed Maybe.");
 						  }
-						  result = Maybe<T>.Error(problem);
+
+						  result =new Maybe<T>(problem)
+						  {
+							  TraceId = traceId,
+							  IntentSummary = intentSummary,
+						  } ;
+
+
+
 					 }
 
-					 // Assign deserialized IntentSummary if present
-					 if (intentSummary != null)
+					 //// Assign deserialized IntentSummary if present
+					 //if (intentSummary != null)
+					 //{
+						//  result.IntentSummary = intentSummary;
+					 //}
+
+					 if (valueName != null)
 					 {
-						  result.IntentSummary = intentSummary;
+						 __.Throw(result.ValueName == valueName, $"Maybe<T> Type mismatch.   expected deserialization target to be T='{valueName}' but was provided '{result.ValueName}'");
 					 }
+
+
+
+
+
 
 					 // Note: The deserialized 'traceId' is read but not used to reconstruct 'result'
 					 // because Maybe<T>'s constructors always generate a new TraceId.
@@ -555,8 +579,10 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 						  case "intentSummary":
 								intentSummary = reader.GetString();
 								break;
-						  case "ValueName": // Ignored during deserialization
+						  case "ValueName": // used for verification of deserialized type
 						  case "valueName":
+							  valueName = reader.GetString();
+							  break;
 						  case "StatusCode": // StatusCode is derived, ignore on read
 						  case "statusCode":
 								reader.Skip();

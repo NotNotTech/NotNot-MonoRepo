@@ -102,7 +102,7 @@ public record TraceId
       {
          // Deserialization logic if needed
          //throw new NotImplementedException();
-         return new TraceId("not_available_From_json_rountrip", "", 0);
+         return new TraceId("traceId_from_json_roundtrip_not_implemented", "", 0);
       }
 
       public override void Write(Utf8JsonWriter writer, TraceId value, JsonSerializerOptions options)

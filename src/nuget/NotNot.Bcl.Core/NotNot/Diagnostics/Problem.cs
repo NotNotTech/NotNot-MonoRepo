@@ -124,7 +124,7 @@ public record class Problem
 		public static string Timeout => nameof(Timeout);
 		public static string Unknown => nameof(Unknown);
 
-		
+
 	}
 
 	public (string memberName, string sourceFilePath, int sourceLineNumber) DecomposeSource()
@@ -170,7 +170,7 @@ public record class Problem
 	{
 		Status = HttpStatusCode.InternalServerError;
 		Title = ex.GetType().Name;
-		
+
 		category = CategoryNames.Unknown;
 		//Type = Problem.CategoryNames.;
 		Detail = ex.Message;
@@ -180,7 +180,7 @@ public record class Problem
 		//foreach (DictionaryEntry pair in ex.Data)
 		//{
 		//	Extensions[pair.Key.ToString()] = pair.Value;
-	
+
 		//}
 
 		//foreach (var pair in problemBase.Extensions)
@@ -277,7 +277,7 @@ public record class Problem
 	/// </summary>
 	/// <param name="value"><para>If you don't provide a key, the current variable-name of the `value` will be used</para></param>
 	/// <param name="key"><para>If you don't provide a key, the current variable-name of the `value` will be used</para></param>
-	public void SetExtension(object value,[CallerMemberName] string key="")
+	public void SetExtension(object value, [CallerMemberName] string key = "")
 	{
 		Extensions[key] = value;
 	}
@@ -292,7 +292,7 @@ public record class Problem
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-		if(ct.IsCancellationRequested is false)
+		if (ct.IsCancellationRequested is false)
 		{
 			throw new Exception("ct not cancelled");
 		}
@@ -310,10 +310,10 @@ public record class Problem
 	/// helper to create a problem if the condition ends up being false.
 	/// <para>the condition statement will be used as the problem.detail.  it's not pretty for users, but it's convenient for development.</para>
 	/// </summary>
-	public static bool TryFrom(bool validCondition,[NotNullWhen(true)] out Problem? problem, [CallerMemberName] string memberName = "",
+	public static bool TryFrom(bool validCondition, [NotNullWhen(true)] out Problem? problem, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("validCondition")] string conditionArgumentName="")
+		[CallerArgumentExpression("validCondition")] string conditionArgumentName = "")
 	{
 		if (validCondition is false)
 		{
@@ -413,15 +413,18 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 				if (categoryValue == null)
 				{
 					// Attempt to get category from extensions if it was put there by default handling
-					if (extensions.TryGetValue("category", out var catObj) && catObj is string catStr) {
+					if (extensions.TryGetValue("category", out var catObj) && catObj is string catStr)
+					{
 						categoryValue = catStr;
-					} else {
+					}
+					else
+					{
 						throw new JsonException("Required property 'category' is missing or not a string.");
 					}
 				}
-				
-				string tempSourceForDefaultProblem = new Problem{ category = categoryValue }.source; // Create a temporary problem to get default source
-				
+
+				string tempSourceForDefaultProblem = new Problem { category = categoryValue }.source; // Create a temporary problem to get default source
+
 				// Initialize Problem with required category and potentially source from JSON
 				var problem = new Problem() // Default constructor sets a default source
 				{
@@ -429,8 +432,8 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 					Status = status,
 					Detail = detail,
 					category = categoryValue, // This is required
-					// If sourceValue was read from JSON, it will be used to initialize the source property.
-					// Otherwise, the default source from the Problem constructor remains.
+											  // If sourceValue was read from JSON, it will be used to initialize the source property.
+											  // Otherwise, the default source from the Problem constructor remains.
 					source = sourceValue ?? tempSourceForDefaultProblem // Use deserialized source if available, else default
 				};
 
@@ -469,7 +472,7 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 							if (Enum.TryParse<HttpStatusCode>(reader.GetString(), true, out var parsedStatus))
 							{
 								status = parsedStatus;
-								}
+							}
 						}
 						break;
 					case "detail":
@@ -522,31 +525,31 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 		{
 			writer.WriteString("detail", value.Detail);
 		}
-		
+
 		writer.WriteString("category", value.category); // category is required
-		// source is an extension, but often treated as a primary property in logs/output
-		// The Problem record ensures 'source' is in Extensions via its constructor.
-		// We explicitly write it for clarity, though JsonExtensionData would also pick it up.
+														// source is an extension, but often treated as a primary property in logs/output
+														// The Problem record ensures 'source' is in Extensions via its constructor.
+														// We explicitly write it for clarity, though JsonExtensionData would also pick it up.
 		writer.WriteString("source", value.source);
 
 
-	   foreach (var extension in value.Extensions)
-	   {
-		   // Avoid re-serializing 'source' and 'category' if they are in extensions,
-		   // as we've handled them as top-level properties for serialization.
-		   if (extension.Key.Equals("source", StringComparison.OrdinalIgnoreCase) || 
-			   extension.Key.Equals("category", StringComparison.OrdinalIgnoreCase))
-		   {
-			   continue;
-		   }
-		   writer.WritePropertyName(extension.Key);
-		   // Always serialize extension values using the log serialization options for safety
-		   string logJson = NotNot.Serialization.SerializationHelper.ToJson_Log(extension.Value);
-		   using (var doc = System.Text.Json.JsonDocument.Parse(logJson))
-		   {
-			   doc.RootElement.WriteTo(writer);
-		   }
-	   }
+		foreach (var extension in value.Extensions)
+		{
+			// Avoid re-serializing 'source' and 'category' if they are in extensions,
+			// as we've handled them as top-level properties for serialization.
+			if (extension.Key.Equals("source", StringComparison.OrdinalIgnoreCase) ||
+				extension.Key.Equals("category", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+			writer.WritePropertyName(extension.Key);
+			// Always serialize extension values using the log serialization options for safety
+			string logJson = NotNot.Serialization.SerializationHelper.ToJson_Log(extension.Value);
+			using (var doc = System.Text.Json.JsonDocument.Parse(logJson))
+			{
+				doc.RootElement.WriteTo(writer);
+			}
+		}
 
 		writer.WriteEndObject();
 	}
