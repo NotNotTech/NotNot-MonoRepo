@@ -439,7 +439,7 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 				{
 					// Skip source and category as they are handled by init setters or already set
 					if (ext.Key.Equals("source", StringComparison.OrdinalIgnoreCase) ||
-					    ext.Key.Equals("category", StringComparison.OrdinalIgnoreCase))
+						ext.Key.Equals("category", StringComparison.OrdinalIgnoreCase))
 					{
 						continue;
 					}
@@ -530,18 +530,23 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 		writer.WriteString("source", value.source);
 
 
-		foreach (var extension in value.Extensions)
-		{
-			// Avoid re-serializing 'source' and 'category' if they are in extensions,
-			// as we've handled them as top-level properties for serialization.
-			if (extension.Key.Equals("source", StringComparison.OrdinalIgnoreCase) || 
-				extension.Key.Equals("category", StringComparison.OrdinalIgnoreCase))
-			{
-				continue;
-			}
-			writer.WritePropertyName(extension.Key);
-			JsonSerializer.Serialize(writer, extension.Value, options);
-		}
+	   foreach (var extension in value.Extensions)
+	   {
+		   // Avoid re-serializing 'source' and 'category' if they are in extensions,
+		   // as we've handled them as top-level properties for serialization.
+		   if (extension.Key.Equals("source", StringComparison.OrdinalIgnoreCase) || 
+			   extension.Key.Equals("category", StringComparison.OrdinalIgnoreCase))
+		   {
+			   continue;
+		   }
+		   writer.WritePropertyName(extension.Key);
+		   // Always serialize extension values using the log serialization options for safety
+		   string logJson = NotNot.Serialization.SerializationHelper.ToJson_Log(extension.Value);
+		   using (var doc = System.Text.Json.JsonDocument.Parse(logJson))
+		   {
+			   doc.RootElement.WriteTo(writer);
+		   }
+	   }
 
 		writer.WriteEndObject();
 	}
