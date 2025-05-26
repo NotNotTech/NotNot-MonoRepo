@@ -133,7 +133,6 @@ public record class Maybe<TValue> : IMaybe
 	 /// </summary>
 	 public string? IntentSummary { get; set; }
 
-	 public bool IsProblem => !IsSuccess;
 	 public HttpStatusCode StatusCode
 	 {
 		  get
@@ -609,7 +608,6 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 public interface IMaybe
 {
 	 public bool IsSuccess { get; }
-	 public bool IsProblem { get; }
 	 public HttpStatusCode StatusCode { get; }
 	 public string ValueName { get; }
 	 public TraceId TraceId { get; }
