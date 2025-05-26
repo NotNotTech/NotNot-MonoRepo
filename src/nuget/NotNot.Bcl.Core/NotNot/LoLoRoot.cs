@@ -455,7 +455,7 @@ public partial class LoLoRoot
 
 
 	/// <summary>
-	/// the current runtime $ENVIRONMENT, usually "Development", "Testing", "Production"
+	/// the current runtime $ENVIRONMENT, usually "Development", "Test", "Production"
 	/// <para>determined by reading ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT</para>
 	/// <para>returns "Production" if nothing set</para>
 	/// </summary>
@@ -479,11 +479,11 @@ public partial class LoLoRoot
 		}
 	}
 
-	public bool IsTesting
+	public bool IsTest
 	{
 		get
 		{
-			return RuntimeEnv._AproxEqual("testing");
+			return RuntimeEnv._AproxEqual("test");
 		}
 	}
 
