@@ -531,7 +531,8 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 									 // This case might still be problematic if T is a non-nullable value type,
 									 // as Deserialize<T> for a null token with a value type T will throw.
 									 // However, the original logic is preserved.
-									 value = JsonSerializer.Deserialize<T>(ref reader, options);
+									 //value = JsonSerializer.Deserialize<T>(ref reader, options);
+									 //skip
 								}
 								else if (reader.TokenType != JsonTokenType.Null)
 								{

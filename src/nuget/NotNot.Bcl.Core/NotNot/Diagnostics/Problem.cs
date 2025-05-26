@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http;
 
@@ -11,6 +12,7 @@ namespace NotNot;
 /// <summary>
 /// wrapper around ProblemDetails to include details we care about
 /// </summary>
+[JsonConverter(typeof(ProblemJsonConverterFactory))]
 public record class Problem
 {
 	///// <summary>
@@ -359,10 +361,6 @@ public record class Problem
 
 	}
 
-
-
-
-
 	public static Problem From(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -371,4 +369,180 @@ public record class Problem
 		return toReturn;
 	}
 
+}
+
+/// <summary>
+/// JSON converter for Problem to support deserialization
+/// </summary>
+public class ProblemJsonConverterFactory : JsonConverterFactory
+{
+	public override bool CanConvert(Type typeToConvert)
+	{
+		return typeToConvert == typeof(Problem);
+	}
+
+	public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+	{
+		return (JsonConverter)Activator.CreateInstance(typeof(ProblemJsonConverter))!;
+	}
+}
+
+/// <summary>
+/// Typed JSON converter for Problem
+/// </summary>
+public class ProblemJsonConverter : JsonConverter<Problem>
+{
+	public override Problem? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+	{
+		if (reader.TokenType != JsonTokenType.StartObject)
+		{
+			throw new JsonException("Expected StartObject token");
+		}
+
+		string? title = null;
+		HttpStatusCode? status = null;
+		string? detail = null;
+		string? sourceValue = null; // Renamed to avoid conflict with 'source' variable in Problem
+		string? categoryValue = null; // Renamed to avoid conflict
+		IDictionary<string, object?> extensions = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+		while (reader.Read())
+		{
+			if (reader.TokenType == JsonTokenType.EndObject)
+			{
+				if (categoryValue == null)
+				{
+					// Attempt to get category from extensions if it was put there by default handling
+					if (extensions.TryGetValue("category", out var catObj) && catObj is string catStr) {
+						categoryValue = catStr;
+					} else {
+						throw new JsonException("Required property 'category' is missing or not a string.");
+					}
+				}
+				
+				string tempSourceForDefaultProblem = new Problem{ category = categoryValue }.source; // Create a temporary problem to get default source
+				
+				// Initialize Problem with required category and potentially source from JSON
+				var problem = new Problem() // Default constructor sets a default source
+				{
+					Title = title,
+					Status = status,
+					Detail = detail,
+					category = categoryValue, // This is required
+					// If sourceValue was read from JSON, it will be used to initialize the source property.
+					// Otherwise, the default source from the Problem constructor remains.
+					source = sourceValue ?? tempSourceForDefaultProblem // Use deserialized source if available, else default
+				};
+
+				// Apply other deserialized extensions
+				foreach (var ext in extensions)
+				{
+					// Skip source and category as they are handled by init setters or already set
+					if (ext.Key.Equals("source", StringComparison.OrdinalIgnoreCase) ||
+					    ext.Key.Equals("category", StringComparison.OrdinalIgnoreCase))
+					{
+						continue;
+					}
+					problem.Extensions[ext.Key] = ext.Value;
+				}
+
+				return problem;
+			}
+
+			if (reader.TokenType == JsonTokenType.PropertyName)
+			{
+				string? propertyName = reader.GetString();
+				reader.Read(); // Move to the property value
+
+				switch (propertyName?.ToLowerInvariant())
+				{
+					case "title":
+						title = reader.GetString();
+						break;
+					case "status":
+						if (reader.TokenType == JsonTokenType.Number)
+						{
+							status = (HttpStatusCode)reader.GetInt32();
+						}
+						else if (reader.TokenType == JsonTokenType.String)
+						{
+							if (Enum.TryParse<HttpStatusCode>(reader.GetString(), true, out var parsedStatus))
+							{
+								status = parsedStatus;
+								}
+						}
+						break;
+					case "detail":
+						detail = reader.GetString();
+						break;
+					case "source":
+						sourceValue = reader.GetString();
+						break;
+					case "category":
+						categoryValue = reader.GetString();
+						break;
+					default:
+						// Deserialize into extensions dictionary
+						if (propertyName != null)
+						{
+							// Using JsonElement allows to defer parsing of complex extension values if necessary
+							var value = JsonSerializer.Deserialize<JsonElement>(ref reader, options);
+							extensions[propertyName] = value.ValueKind switch
+							{
+								JsonValueKind.String => value.GetString(),
+								JsonValueKind.Number => value.GetDouble(), // Or GetInt32, GetInt64 etc. based on expected types
+								JsonValueKind.True => true,
+								JsonValueKind.False => false,
+								JsonValueKind.Null => null,
+								JsonValueKind.Object => value.Clone(), // Clone to allow multiple reads or keep as JsonElement
+								JsonValueKind.Array => value.Clone(),  // Clone to allow multiple reads or keep as JsonElement
+								_ => value.ToString() // Fallback for other types
+							};
+						}
+						break;
+				}
+			}
+		}
+		throw new JsonException("Unexpected end of JSON.");
+	}
+
+	public override void Write(Utf8JsonWriter writer, Problem value, JsonSerializerOptions options)
+	{
+		writer.WriteStartObject();
+
+		if (value.Title != null)
+		{
+			writer.WriteString("title", value.Title);
+		}
+		if (value.Status.HasValue)
+		{
+			writer.WriteNumber("status", (int)value.Status.Value);
+		}
+		if (value.Detail != null)
+		{
+			writer.WriteString("detail", value.Detail);
+		}
+		
+		writer.WriteString("category", value.category); // category is required
+		// source is an extension, but often treated as a primary property in logs/output
+		// The Problem record ensures 'source' is in Extensions via its constructor.
+		// We explicitly write it for clarity, though JsonExtensionData would also pick it up.
+		writer.WriteString("source", value.source);
+
+
+		foreach (var extension in value.Extensions)
+		{
+			// Avoid re-serializing 'source' and 'category' if they are in extensions,
+			// as we've handled them as top-level properties for serialization.
+			if (extension.Key.Equals("source", StringComparison.OrdinalIgnoreCase) || 
+				extension.Key.Equals("category", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+			writer.WritePropertyName(extension.Key);
+			JsonSerializer.Serialize(writer, extension.Value, options);
+		}
+
+		writer.WriteEndObject();
+	}
 }
