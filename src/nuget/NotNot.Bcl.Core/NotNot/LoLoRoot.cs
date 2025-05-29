@@ -454,17 +454,34 @@ public partial class LoLoRoot
 	public StaticPool pool = new();
 
 
-	/// <summary>
-	/// the current runtime $ENVIRONMENT, usually "Development", "Test", "Production"
-	/// <para>determined by reading ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT</para>
-	/// <para>returns "Production" if nothing set</para>
-	/// </summary>
-	public string RuntimeEnv
+	private string? _runtimeEnv;
+	 /// <summary>
+	 /// the current runtime $ENVIRONMENT, usually "Development", "Test", "Production"
+	 /// <para>determined by reading ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT</para>
+	 /// <para>returns "Production" if nothing set</para>
+	 /// <para>can be set ONCE, only if not set by anything else.  such as in your Program.cs: ` __.RuntimeEnv = builder.Environment.EnvironmentName;` </para>
+	 /// </summary>
+	 public string RuntimeEnv
 	{
 		get
 		{
-			return Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
+			if(_runtimeEnv is not null)
+			{
+				return _runtimeEnv;
+			}
+
+
+			_runtimeEnv =  Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
 				   Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
+			return _runtimeEnv;
+		}
+		set
+		{
+			if (_runtimeEnv is not null)
+			{
+				throw new LoLoException("RuntimeEnv is already set, cannot set it again.  Use __.RuntimeEnv = \"Development\"; only once, at startup, otherwise let it be set by ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT envvars");
+				}
+			_runtimeEnv = value;
 		}
 	}
 	/// <summary>
