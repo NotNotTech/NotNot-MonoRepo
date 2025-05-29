@@ -70,7 +70,7 @@
 			<PropertyGroup>
 				<MinVerVersionOverride>0.0.0-0.localDebug</MinVerVersionOverride>
 				<!--root of drive, eg: V:\.nuget-debug-packages\$(AssemblyName)-->
-				<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-debug-packages\$(AssemblyName)</PackageOutputPath>
+				<!--<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-debug-packages\$(AssemblyName)</PackageOutputPath>-->
 			</PropertyGroup>
 		</When>
 		<Otherwise>
