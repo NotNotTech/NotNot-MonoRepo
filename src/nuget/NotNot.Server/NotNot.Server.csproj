@@ -12,6 +12,7 @@
 		<LangVersion>preview</LangVersion>
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 		<RootNamespace></RootNamespace>
+		<Configurations>Debug;Release</Configurations>
 	</PropertyGroup>
 
 	<!--disable warnings for libraries in DEBUG-->
