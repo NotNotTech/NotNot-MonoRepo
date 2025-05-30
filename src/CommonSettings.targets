@@ -7,7 +7,8 @@
 	<!--to the file system so you may track changes/debug-->
 	<!--but also ignore the output from the build, as it is automatically included from memory-->
 	<PropertyGroup>
-		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+	<!-- disabling the gen output for now, re-enable by setting to true -->
+		<EmitCompilerGeneratedFiles>false</EmitCompilerGeneratedFiles>
 		<CompilerGeneratedFilesOutputPath>.Generated</CompilerGeneratedFilesOutputPath>
 	</PropertyGroup>
 	<ItemGroup>
