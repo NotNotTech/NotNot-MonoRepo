@@ -23,7 +23,7 @@
 
 
 	<!-- for all build configurations, don't need conditional, so just commenting conditions out  -->
-	<!-- <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'"> -->
+	<!-- <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNuget|AnyCPU'"> -->
 	<PropertyGroup>
 		<NoWarn>$(NoWarn);1701;1702;1591;0168;0219;0414;1572;1573;1998;8321;8765</NoWarn>		
 		<DebugType>embedded</DebugType>
@@ -43,9 +43,9 @@
 		<NoWarn>$(NoWarn);PH_B009;PH_P007;PH_P008;PH_B010</NoWarn>
 		<DebugType>embedded</DebugType>
 	</PropertyGroup>
-	<!-- include our LocalProjectsDebug build configuration -->
+	<!-- include our Debug build configuration -->
 	<PropertyGroup>
-		<Configurations>Debug;Release;LocalProjectsDebug</Configurations>
+		<Configurations>Debug;Release;Debug</Configurations>
 	</PropertyGroup>
 
 
@@ -70,13 +70,13 @@
 			<PropertyGroup>
 				<MinVerVersionOverride>0.0.0-0.localDebug</MinVerVersionOverride>
 				<!--root of drive, eg: V:\.nuget-debug-packages\$(AssemblyName)-->
-				<!--<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-debug-packages\$(AssemblyName)</PackageOutputPath>-->
+				<!--<PackageOutputPath>$(SolutionDir).nuget-debug-packages\$(AssemblyName)</PackageOutputPath>-->
 			</PropertyGroup>
 		</When>
 		<Otherwise>
 			<PropertyGroup>
 				<!--root of drive, eg: V:\.nuget-release-packages\$(AssemblyName)-->
-				<PackageOutputPath>$(SolutionDir)..\..\..\..\..\..\..\..\.nuget-release-packages\$(AssemblyName)</PackageOutputPath>
+				<PackageOutputPath>$(SolutionDir).nuget-release-packages\$(AssemblyName)</PackageOutputPath>
 			</PropertyGroup>
 		</Otherwise>
 	</Choose>

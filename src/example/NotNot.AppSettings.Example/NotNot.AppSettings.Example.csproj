@@ -40,14 +40,14 @@
 
 
 	<Choose>
-		<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
-		<When Condition="'$(Configuration)'=='LocalProjectsDebug'">
+		<!--only use project references when in Debug, otherwise use the nuget package references-->
+		<When Condition="'$(Configuration)'=='Debug'">
 			<ItemGroup>
 				<ProjectReference
 					OutputItemType="Analyzer" ReferenceOutputAssembly="false" Include="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.csproj" />
 			</ItemGroup>
 		</When>
-		<When Condition="'$(Configuration)'=='Debug'">
+		<When Condition="'$(Configuration)'=='DebugNuget'">
 			<ItemGroup>
 				<PackageReference Include="NotNot.AppSettings" Version="0.0.0-0.localDebug" />
 			</ItemGroup>

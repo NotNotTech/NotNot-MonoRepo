@@ -30,13 +30,13 @@
 
 
 	<Choose>
-		<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
-		<When Condition="'$(Configuration)'=='LocalProjectsDebug'">
+		<!--only use project references when in Debug, otherwise use the nuget package references-->
+		<When Condition="'$(Configuration)'=='Debug'">
 			<ItemGroup>
 				<ProjectReference Include="..\..\nuget\NotNot.Bcl\NotNot.Bcl.csproj" />
 			</ItemGroup>
 		</When>
-		<When Condition="'$(Configuration)'=='Debug'">
+		<When Condition="'$(Configuration)'=='DebugNuget'">
 			<ItemGroup>
 				<PackageReference Include="NotNot.Bcl" Version="0.0.0-0.localDebug"/>
 			</ItemGroup>
