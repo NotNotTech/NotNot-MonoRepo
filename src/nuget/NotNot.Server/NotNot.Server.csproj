@@ -59,13 +59,6 @@
 		<NoWarn>1701;1702;1591</NoWarn>
 	</PropertyGroup>
 	<ItemGroup>
-		<!--Exclude the output of source generators from the compilation-->
-		<Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
-		<Compile Remove=".graveyard\**" />
-		<EmbeddedResource Remove=".graveyard\**" />
-		<None Remove=".graveyard\**" />
-	</ItemGroup>
-	<ItemGroup>
 	  <ProjectReference Include="..\NotNot.Bcl.Core\NotNot.Bcl.Core.csproj" />
 	  <ProjectReference Include="..\NotNot.Bcl\NotNot.Bcl.csproj" />
 	</ItemGroup>
