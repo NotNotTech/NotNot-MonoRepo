@@ -8,7 +8,7 @@
 # using the nuget packages in other local repo projects
 
 when these projects are built, the generated nuget package will differ based on the release mode:
-- LocalProjectsDebug: no nuget will be published or referenced locally.  instead a local project reference is used, for rapid dev feedback.   
+- Debug: no nuget will be published or referenced locally.  instead a local project reference is used, for rapid dev feedback.   
 - Debug: also for local use, but as a nuget.   local project using version moniker `0.0.0-0.localDebug` is used.  Your VS instance should point to the build 
 - Release:  the normal, public nuget should be referenced.   The local built package should not be auto-picked up by VS, only use the actual nuget.org repo to ensure full public roundtrip of nuget package consumption is used.
   
@@ -72,8 +72,8 @@ If you need to debug/edit the nuget:
 - here's an example of what it should look like:
 	```xml
 	<Choose>
-		<!--only use project references when in LocalProjectsDebug, otherwise use the nuget package references-->
-		<When Condition="'$(Configuration)'=='LocalProjectsDebug'">
+		<!--only use project references when in Debug, otherwise use the nuget package references-->
+		<When Condition="'$(Configuration)'=='Debug'">
 			<ItemGroup>
 				<ProjectReference OutputItemType="Analyzer" ReferenceOutputAssembly="false" Include="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.csproj" />
 			</ItemGroup>
@@ -98,7 +98,7 @@ If you need to debug/edit the nuget:
 		</Otherwise>
 	</Choose>
 	```
-	-	this will cause the projectReference to be used in `LocalProjectsDebug` builds, the latest local debug nuget for `Debug` and the latest nuget package from `nuget.org` otherwise.
+	-	this will cause the projectReference to be used in `Debug` builds, the latest local debug nuget for `Debug` and the latest nuget package from `nuget.org` otherwise.
 	- see also: https://stackoverflow.com/a/79403643/1115220
 
 

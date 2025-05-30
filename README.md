@@ -56,13 +56,13 @@ MonoRepo because:
 - easier to maintain/debug multiple Nugets when they are part of the same solution (build breaks are noticeable)
 - can share the same build workflows
   - see `src/CommonSettings.targets`
-  - also see `Debug` vs `LocalProjectsDebug` Build Configurations for how to easily switch between nuget dev/release builds
+  - also see `Debug` vs `Debug` Build Configurations for how to easily switch between nuget dev/release builds
 
 ### MonoRepo weirdness
 
 Because this repo is focused on the development of multiple Nuget projects, there are a few weird "quality of life" tweaks to aid development:
 - `MinVer` used for nuget versioning ()
--`LocalProjectsDebug`: used to run examples referencing the local library project source code instead of their nuget packages (useful for debugging and development)
+-`Debug`: used to run examples referencing the local library project source code instead of their nuget packages (useful for debugging and development)
   - This requires modifying `.csproj` for nuget references
 
 see `./contrib/creating-nuget-packages.md` for some more details on the above.
