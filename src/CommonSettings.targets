@@ -57,7 +57,7 @@
 	</PropertyGroup>
 	<!--async ignored warnings-->
 	<PropertyGroup>
-		<NoWarn>$(NoWarn);1998;</NoWarn>
+		<NoWarn>$(NoWarn);1998;TaskAsyncInsteadAnalyzer</NoWarn>
 		<DebugType>embedded</DebugType>
 	</PropertyGroup>
 

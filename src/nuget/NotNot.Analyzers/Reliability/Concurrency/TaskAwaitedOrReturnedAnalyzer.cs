@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace LoLo.Analyzers.Reliability.Concurrency;
+namespace NotNot.Analyzers.Reliability.Concurrency;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
