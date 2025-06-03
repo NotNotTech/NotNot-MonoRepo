@@ -44,7 +44,7 @@ public record class Problem
 	 [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	 [JsonPropertyOrder(-3)]
 	 [JsonPropertyName("status")]
-	 public HttpStatusCode? Status { get; set; }
+	 public HttpStatusCode Status { get; set; }
 
 	 /// <summary>
 	 /// A human-readable explanation specific to this occurrence of the problem.
@@ -400,7 +400,7 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 		  }
 
 		  string? title = null;
-		  HttpStatusCode? status = null;
+		  HttpStatusCode status = HttpStatusCode.InternalServerError;
 		  string? detail = null;
 		  string? sourceValue = null; // Renamed to avoid conflict with 'source' variable in Problem
 		  string? categoryValue = null; // Renamed to avoid conflict
@@ -517,9 +517,9 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 		  {
 				writer.WriteString("title", value.Title);
 		  }
-		  if (value.Status.HasValue)
+		  //if (value.Status.HasValue)
 		  {
-				writer.WriteNumber("status", (int)value.Status.Value);
+				writer.WriteNumber("status", (int)value.Status);
 		  }
 		  if (value.Detail != null)
 		  {

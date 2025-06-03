@@ -4,9 +4,9 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using NotNot.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using NotNot.Data;
+using NotNot.Diagnostics;
 
 namespace NotNot;
 
@@ -143,7 +143,7 @@ public record class Maybe<TValue> : IMaybe
 				}
 				else
 				{
-					 return Problem!.Status ?? HttpStatusCode.InternalServerError;
+					 return Problem!.Status;
 				}
 		  }
 	 }
@@ -492,8 +492,8 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 						  //result = Maybe<T>.Success(value!);
 						  result = new Maybe<T>(value!)
 						  {
-							  TraceId = traceId,
-							  IntentSummary = intentSummary,
+								TraceId = traceId,
+								IntentSummary = intentSummary,
 						  };
 					 }
 					 else
@@ -503,11 +503,11 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 								throw new JsonException("Problem property is missing for failed Maybe.");
 						  }
 
-						  result =new Maybe<T>(problem)
+						  result = new Maybe<T>(problem)
 						  {
-							  TraceId = traceId,
-							  IntentSummary = intentSummary,
-						  } ;
+								TraceId = traceId,
+								IntentSummary = intentSummary,
+						  };
 
 
 
@@ -516,12 +516,12 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 					 //// Assign deserialized IntentSummary if present
 					 //if (intentSummary != null)
 					 //{
-						//  result.IntentSummary = intentSummary;
+					 //  result.IntentSummary = intentSummary;
 					 //}
 
 					 if (valueName != null)
 					 {
-						 __.Throw(result.ValueName == valueName, $"Maybe<T> Type mismatch.   expected deserialization target to be T='{valueName}' but was provided '{result.ValueName}'");
+						  __.Throw(result.ValueName == valueName, $"Maybe<T> Type mismatch.   expected deserialization target to be T='{valueName}' but was provided '{result.ValueName}'");
 					 }
 
 
@@ -581,8 +581,8 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 								break;
 						  case "ValueName": // used for verification of deserialized type
 						  case "valueName":
-							  valueName = reader.GetString();
-							  break;
+								valueName = reader.GetString();
+								break;
 						  case "StatusCode": // StatusCode is derived, ignore on read
 						  case "statusCode":
 								reader.Skip();

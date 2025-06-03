@@ -24,25 +24,45 @@
 
 	<!-- for all build configurations, don't need conditional, so just commenting conditions out  -->
 	<!-- <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNuget|AnyCPU'"> -->
-	<PropertyGroup>
+	<!--<PropertyGroup>
 		<NoWarn>$(NoWarn);1701;1702;1591;0168;0219;0414;1572;1573;1998;8321;8765</NoWarn>
 		<DebugType>embedded</DebugType>
-	</PropertyGroup>
-	<PropertyGroup>
-		<!--nullable type stuff-->
+	</PropertyGroup>-->
+	<!--nullable type stuff-->
+	<!--<PropertyGroup>
 		<NoWarn>$(NoWarn);8600;8601;8602;8603;8618;8625;8620;8629;8604;8714</NoWarn>
 		<DebugType>embedded</DebugType>
-	</PropertyGroup>
-	<PropertyGroup>
-		<!--control flow-->
+	</PropertyGroup>-->
+	<!--control flow-->
+	<!--<PropertyGroup>
 		<NoWarn>$(NoWarn);8763</NoWarn>
 		<DebugType>embedded</DebugType>
-	</PropertyGroup>
-	<PropertyGroup>
-		<!--concurency-->
+	</PropertyGroup>-->
+	<!--concurency-->
+	<!--<PropertyGroup>
 		<NoWarn>$(NoWarn);PH_B009;PH_P007;PH_P008;PH_B010</NoWarn>
 		<DebugType>embedded</DebugType>
+	</PropertyGroup>-->
+
+
+	<!--xml doc ignored warnings-->
+	<PropertyGroup>
+		<NoWarn>$(NoWarn);1591;1573;</NoWarn>
+		<DebugType>embedded</DebugType>
 	</PropertyGroup>
+	<!--nullability ignored warnings-->
+	<PropertyGroup>
+		<NoWarn>$(NoWarn);8620;</NoWarn>
+		<DebugType>embedded</DebugType>
+	</PropertyGroup>
+	<!--async ignored warnings-->
+	<PropertyGroup>
+		<NoWarn>$(NoWarn);1998;</NoWarn>
+		<DebugType>embedded</DebugType>
+	</PropertyGroup>
+
+
+
 	<!-- include our Debug build configuration -->
 	<PropertyGroup>
 		<Configurations>Debug;Release;Debug</Configurations>
