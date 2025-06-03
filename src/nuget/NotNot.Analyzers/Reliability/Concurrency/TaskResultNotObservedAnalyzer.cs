@@ -22,11 +22,11 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
 		 id: DiagnosticId,
 		 title: "Task<T> result is not observed",
 		 messageFormat:
-		 "Task<T> '{0}' is awaited but its result is not observed. Consider using the return value or change method to return Task instead of Task<T>.",
+		 "Task<T> '{0}' is awaited but its result is not observed. Use the return value or assign to the '_' discard variable instead.",
 		 category: "NotNot_Reliability_Concurrency",
 		 defaultSeverity: DiagnosticSeverity.Error,
 		 isEnabledByDefault: true,
-		 helpLinkUri: $"https://github.com/NotNotTech/NotNot.Analyzers/#{DiagnosticId}"
+		 helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#{DiagnosticId}"
 	 );
 
 	 /// <summary>
@@ -44,10 +44,10 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
 		  context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 
 		  context.RegisterSyntaxNodeAction(AnalyzeAwaitExpression, SyntaxKind.AwaitExpression);
-	 }	 /// <summary>
-	 ///    Analyzes await expressions to detect when Task<T> results are not observed.
-	 /// </summary>
-	 /// <param name="context">The syntax node analysis context.</param>
+	 }  /// <summary>
+		 ///    Analyzes await expressions to detect when Task<T> results are not observed.
+		 /// </summary>
+		 /// <param name="context">The syntax node analysis context.</param>
 	 private void AnalyzeAwaitExpression(SyntaxNodeAnalysisContext context)
 	 {
 		  var awaitExpression = (AwaitExpressionSyntax)context.Node;
@@ -92,7 +92,7 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
 
 		  // Check if the type is constructed from Task<T> or ValueTask<T>
 		  return (genericTaskType != null && type.ConstructedFrom.Equals(genericTaskType)) ||
-				   (genericValueTaskType != null && type.ConstructedFrom.Equals(genericValueTaskType));
+					(genericValueTaskType != null && type.ConstructedFrom.Equals(genericValueTaskType));
 	 }
 
 	 /// <summary>

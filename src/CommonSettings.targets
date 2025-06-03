@@ -55,6 +55,11 @@
 		<NoWarn>$(NoWarn);8620;</NoWarn>
 		<DebugType>embedded</DebugType>
 	</PropertyGroup>
+	<!--controll flow ignored warnings-->
+	<PropertyGroup>
+		<NoWarn>$(NoWarn);ERP022;RCS1102;</NoWarn>
+		<DebugType>embedded</DebugType>
+	</PropertyGroup>
 	<!--async ignored warnings-->
 	<PropertyGroup>
 		<NoWarn>$(NoWarn);1998;TaskAsyncInsteadAnalyzer</NoWarn>
