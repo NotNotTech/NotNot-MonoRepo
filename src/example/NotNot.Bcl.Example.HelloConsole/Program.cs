@@ -13,7 +13,7 @@ internal class Program
 	{
 		Console.Clear();
 		
-		var logger = __.GetLogger();
+		var logger = NotNot.LoLoRoot.__.GetLogger();
 		logger._EzTrace("starting app scafolding (Microsoft.Extensions.Hosting)");
 
 		logger._EzTrace("running DI setup. (builder)....");
@@ -41,7 +41,7 @@ internal class Program
 		logger._EzTrace("performing final DI Build step....");
 		//build all di services
 		var host = builder.Build();
-		__.Services = host.Services;
+		NotNot.LoLoRoot.__.Services = host.Services;
 
 		logger._EzTrace("run app (runs our hosted service)...  (next line blocks until app exits)");
 		await host.RunAsync();

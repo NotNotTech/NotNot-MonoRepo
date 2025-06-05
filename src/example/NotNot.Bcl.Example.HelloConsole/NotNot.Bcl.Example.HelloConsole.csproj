@@ -29,6 +29,10 @@
 	</ItemGroup>
 
 
+	<ItemGroup>
+		<ProjectReference Include="..\..\nuget\NotNot.Bcl.Core\NotNot.Bcl.Core.csproj" />
+	</ItemGroup>
+
 	<Choose>
 		<!--only use project references when in Debug, otherwise use the nuget package references-->
 		<When Condition="'$(Configuration)'=='Debug'">
