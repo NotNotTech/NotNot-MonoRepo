@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
@@ -157,15 +157,29 @@ public static object ToLogPoCo(object obj)
 	/// </summary>
 	/// <param name="obj"></param>
 	/// <returns></returns>
-	public static string ToJson_Log(object obj)
+	public static string ToJsonLog(object obj)
 	{
-		var roundTrip = ToLogPoCo(obj);
-		return JsonSerializer.Serialize(roundTrip, _logJsonOptions);
+		//var roundTrip = ToLogPoCo(obj);
+		return JsonSerializer.Serialize(obj, _logJsonOptions);
+	}
+	public static JsonDocument ToJsonLogDocument(object obj)
+	{
+		return JsonSerializer.SerializeToDocument(obj, _logJsonOptions);
 	}
 
-	public static string ToJson_New(object obj)
+	/// <summary>
+	/// round-trippable json serialization of an object.
+	/// </summary>
+	/// <param name="obj"></param>
+	/// <returns></returns>
+	public static string ToJson(object obj)
 	{
-		return JsonSerializer.Serialize(obj, _logJsonOptions);
+		return JsonSerializer.Serialize(obj, _roundtripJsonOptions);
+	}
+
+	public static JsonDocument ToJsonDocument(object obj)
+	{
+		return JsonSerializer.SerializeToDocument(obj, _roundtripJsonOptions);
 	}
 
 	/// <summary>
