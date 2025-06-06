@@ -407,7 +407,7 @@ public partial class LoLoRoot
 	{
 		Assert(ex, memberName, sourceFilePath, sourceLineNumber);
 		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
-												   //never gets here because of throw
+																 //never gets here because of throw
 		return null;
 	}
 
@@ -455,24 +455,24 @@ public partial class LoLoRoot
 
 
 	private string? _runtimeEnv;
-	 /// <summary>
-	 /// the current runtime $ENVIRONMENT, usually "Development", "Test", "Production"
-	 /// <para>determined by reading ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT</para>
-	 /// <para>returns "Production" if nothing set</para>
-	 /// <para>can be set ONCE, only if not set by anything else.  such as in your Program.cs: ` __.RuntimeEnv = builder.Environment.EnvironmentName;` </para>
-	 /// </summary>
-	 public string RuntimeEnv
+	/// <summary>
+	/// the current runtime $ENVIRONMENT, usually "Development", "Test", "Production"
+	/// <para>IMPORTANT: where is this set from? check launchSettings.json, ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT envvars</para>
+	/// <para>returns "Production" if nothing set</para>
+	/// <para>can be set ONCE, only if not set by anything else.  such as in your Program.cs: ` __.RuntimeEnv = builder.Environment.EnvironmentName;` </para>
+	/// </summary>
+	public string RuntimeEnv
 	{
 		get
 		{
-			if(_runtimeEnv is not null)
+			if (_runtimeEnv is not null)
 			{
 				return _runtimeEnv;
 			}
 
 
-			_runtimeEnv =  Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
-				   Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
+			_runtimeEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
+					Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
 			return _runtimeEnv;
 		}
 		set
@@ -480,7 +480,7 @@ public partial class LoLoRoot
 			if (_runtimeEnv is not null)
 			{
 				throw new LoLoException("RuntimeEnv is already set, cannot set it again.  Use __.RuntimeEnv = \"Development\"; only once, at startup, otherwise let it be set by ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT envvars");
-				}
+			}
 			_runtimeEnv = value;
 		}
 	}
