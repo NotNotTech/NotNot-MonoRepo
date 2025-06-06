@@ -105,7 +105,7 @@ public class DisposeGuard : IDisposable
 			}
 
 			//reverse so line details come in front
-			var split = line.Split(" in ").Reverse().ToList();
+			var split = line.Split(" in ")._Reverse()._ToList();
 			line = string.Join(" in ", split).TrimEnd();
 			lines[i] = line;
 
@@ -227,7 +227,7 @@ public class AsyncDisposeGuard : IAsyncDisposable
 			}
 
 			//reverse so line details come in front
-			var split = line.Split(" in ").Reverse().ToList();
+			var split = line.Split(" in ")._Reverse()._ToList();
 			line = string.Join(" in ", split).TrimEnd();
 			lines[i] = line;
 
