@@ -4760,7 +4760,7 @@ public static class zz_Extensions_Type
 		{
 			//if (attribute is TAttribute)
 			{
-				attributeFound =(TAttribute) attribute;
+				attributeFound = (TAttribute)attribute;
 				return true;
 			}
 		}
@@ -6672,43 +6672,49 @@ public static class zz_Extensions_String
 	///    default is underscore '_'
 	/// </param>
 	/// <returns></returns>
-	public static string _ConvertToAlphanumericCaps(this string toConvert, char? whiteSpace = '_')
+	public static string _ConvertToAlphanumericCapitalize(this string toConvert, char? whiteSpace = '_')
 	{
-		var sb = new StringBuilder(toConvert.Length);
-
-		bool includeWhitespace = whiteSpace.HasValue;
-		bool isWhitespace = false;
-		foreach (var c in toConvert)
-		{
-			if (c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')
-			{
-				sb.Append(c);
-				isWhitespace = false;
-			}
-			else
-			{
-				if (!isWhitespace && includeWhitespace)
-				{
-					sb.Append(whiteSpace.Value);
-				}
-
-				isWhitespace = true;
-			}
-		}
-
-
-
-		string toReturn = sb.ToString();
-
-		if (includeWhitespace)
-		{
-			toReturn = toReturn.Trim(whiteSpace.Value);
-		}
+		var toReturn = _ConvertToAlphanumeric(toConvert, whiteSpace);
 		if (toReturn.Length > 0)
 		{
 			toReturn = char.ToUpper(toReturn[0]) + toReturn.Substring(1);
 		}
 		return toReturn;
+		//var sb = new StringBuilder(toConvert.Length);
+
+		//bool includeWhitespace = whiteSpace.HasValue;
+		//bool isWhitespace = false;
+		//foreach (var c in toConvert)
+		//{
+		//	if (c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')
+		//	{
+		//		sb.Append(c);
+		//		isWhitespace = false;
+		//	}
+		//	else
+		//	{
+		//		if (!isWhitespace && includeWhitespace)
+		//		{
+		//			sb.Append(whiteSpace.Value);
+		//		}
+
+		//		isWhitespace = true;
+		//	}
+		//}
+
+
+
+		//string toReturn = sb.ToString();
+
+		//if (includeWhitespace)
+		//{
+		//	toReturn = toReturn.Trim(whiteSpace.Value);
+		//}
+		//if (toReturn.Length > 0)
+		//{
+		//	toReturn = char.ToUpper(toReturn[0]) + toReturn.Substring(1);
+		//}
+		//return toReturn;
 	}
 
 	#endregion
