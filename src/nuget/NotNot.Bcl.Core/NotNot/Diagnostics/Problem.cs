@@ -54,6 +54,19 @@ public record class Problem
 	[JsonPropertyName("detail")]
 	public string? Detail { get; set; }
 
+	/// <summary>
+	/// sometimes a problem may be handled (attempt to recover).  If so and the recovery failed, this would be the original problem.
+	/// </summary>
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	[JsonPropertyOrder(-1)]
+	[JsonPropertyName("innerProblem")]
+	public Problem? InnerProblem { get; set; }
+
+
+
+
+
+
 	//[Obsolete("not important?")]
 	///// <summary>
 	///// A URI reference that identifies the specific occurrence of the problem. It may or may not yield further information if dereferenced.
@@ -370,6 +383,22 @@ public record class Problem
 	}
 
 }
+
+
+
+/// <summary>
+/// a problem that may be retried, needs custom handling at the callsite
+/// </summary>
+public record class RetryProblem : Problem
+{
+	public required int RetryCount
+	{
+		get => Extensions._GetOrDefault<int>("RetryCount");
+		set => Extensions["RetryCount"] = value;
+	}
+}
+
+
 
 /// <summary>
 /// JSON converter for Problem to support deserialization

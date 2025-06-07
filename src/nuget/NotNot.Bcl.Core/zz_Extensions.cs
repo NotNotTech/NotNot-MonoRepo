@@ -4,6 +4,7 @@
 // [!!] See the LICENSE.md file in the project root for more info. 
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -2675,6 +2676,7 @@ public static class zz_Extensions_Dictionary
 
 	/// <summary>
 	/// if key doesn't exist, returns default of TDerived without adding to the dict.
+	/// <para>default value is determined by the TDerived generic you pass in</para>
 	/// </summary>
 	public static TDerived _GetOrDefault<TDerived>(this IDictionary<string, object> dict, string key)
 	{
@@ -2688,6 +2690,7 @@ public static class zz_Extensions_Dictionary
 
 	/// <summary>
 	/// if key doesn't exist, returns default of TDerived without adding to the dict.
+	/// <para>default value is determined by the TDerived generic you pass in</para>
 	/// </summary>
 	public static TDerived _GetOrDefault<TDerived>(this IDictionary<object, object> dict, object key)
 	{
@@ -2695,6 +2698,20 @@ public static class zz_Extensions_Dictionary
 		{
 			value = default(TDerived);
 		}
+		return ((TDerived)value!);
+	}
+	/// <summary>
+	/// if key doesn't exist, returns default of TDerived without adding to the dict.
+	/// <para>default value is defined by the func you pass in</para>
+	/// </summary>
+	public static TDerived _GetOrDefault<TKey, TValue, TDerived>(this IDictionary<TKey, TValue> dict, TKey key, Func<TDerived> _default) where TDerived : TValue
+		where TKey : notnull
+	{
+		if (!dict.TryGetValue(key, out var value))
+		{
+			value = _default();
+		}
+
 		return ((TDerived)value!);
 	}
 
@@ -5661,6 +5678,22 @@ public static class zz_Extensions_String
 	public static bool _Contains(this string value, params char[] toFind)
 	{
 		return value.IndexOfAny(toFind) != -1;
+	}
+
+	public static bool _ContainsAny(this string value, ReadOnlySpan<string> stringsToFind, StringComparison comparisonType = StringComparison.InvariantCultureIgnoreCase)
+	{
+		if (value is null || value.Length == 0)
+		{
+			return false;
+		}
+		foreach (var span in stringsToFind)
+		{
+			if (value.IndexOf(span, comparisonType) != -1)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 
