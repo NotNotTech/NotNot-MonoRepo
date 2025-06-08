@@ -477,7 +477,7 @@ public partial class LoLoRoot
 		}
 		set
 		{
-			if (_runtimeEnv is not null)
+			if (_runtimeEnv is not null && _runtimeEnv != value)
 			{
 				throw new LoLoException("RuntimeEnv is already set, cannot set it again.  Use __.RuntimeEnv = \"Development\"; only once, at startup, otherwise let it be set by ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT envvars");
 			}
