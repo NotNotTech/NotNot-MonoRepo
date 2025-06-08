@@ -554,7 +554,11 @@ public partial class LoLoRoot
 	{
 
 		Config = config ?? new LoLoConfig();
-		_services = services;
+		//_services = services;
+		if (services is not null)
+		{
+			Initialize(services);
+		}
 
 		Async = new DebuggableAsyncHelper(Config.IsDebuggableTaskFactorySingleThreaded);
 	}
@@ -591,27 +595,27 @@ public partial class LoLoRoot
 	public LoLoConfig Config { get; private set; }
 
 
-	private IServiceProvider _services;
-	public IServiceProvider? Services
-	{
-		get
-		{
-			if (_services is null)
-			{
-				throw new NullReferenceException("lolo.Services is not set.  You must call '__.Services=app.Services;' immediately after calling 'app = builder.Build();'");
-			}
-			return _services;
-		}
-		set
-		{
-			if (_services is not null)
-			{
-				throw new LoLoException("lolo.Services is already set");
-			}
+	//private IServiceProvider _services;
+	//public IServiceProvider? Services
+	//{
+	//	get
+	//	{
+	//		if (_services is null)
+	//		{
+	//			throw new NullReferenceException("lolo.Services is not set.  You must call '__.Services=app.Services;' immediately after calling 'app = builder.Build();'");
+	//		}
+	//		return _services;
+	//	}
+	//	set
+	//	{
+	//		if (_services is not null)
+	//		{
+	//			throw new LoLoException("lolo.Services is already set");
+	//		}
 
-			_services = value;
-		}
-	}
+	//		_services = value;
+	//	}
+	//}
 
 
 
@@ -620,7 +624,7 @@ public partial class LoLoRoot
 	/// </summary>
 	public void Dispose()
 	{
-		_services = null;
+		_loggerFactory.Dispose();
 	}
 
 }
@@ -647,7 +651,7 @@ public class FallbackConsoleFormatter : ConsoleFormatter
 				var logLevel = logEntry.LogLevel.ToString().ToUpperInvariant();
 				var message = logEntry.Formatter(logEntry.State, logEntry.Exception);
 
-				textWriter.Write($"[{timestamp} {logLevel}] {message}  <NoDIServices_Fallback>");
+				textWriter.Write($"[{timestamp} {logLevel}] {message}  <NN_NoInit_Fallback>");
 
 				if (logEntry.Exception != null)
 				{
@@ -701,12 +705,12 @@ public partial class LoLoRoot
 	/// <exception cref="Exception"></exception>
 	public ILogger GetLogger([CallerFilePath] string callerFilePath_for_reflection_optimization_do_not_use = "")
 	{
-		if (_services is null)
-		{
-			return _GetFallbackLogger();
-		}
+		//if (_services is null)
+		//{
+		//	return _GetFallbackLogger();
+		//}
 
-		try
+		//try
 		{
 			var typeOrName = _knownLoggerTypes.GetOrAdd(callerFilePath_for_reflection_optimization_do_not_use, (key) =>
 			{
@@ -733,21 +737,21 @@ public partial class LoLoRoot
 			switch (typeOrName)
 			{
 				case Type categoryType:
-					return Services!.GetRequiredService<ILoggerFactory>().CreateLogger(categoryType);
+					return _loggerFactory.CreateLogger(categoryType);
 				//return GetLogger(type);
 				case string categoryName:
-					return Services!.GetRequiredService<ILoggerFactory>().CreateLogger(categoryName);
+					return _loggerFactory.CreateLogger(categoryName);
 				default:
 					throw new Exception("unexpected");
 			}
 		}
-		catch (Exception ex)
-		{
-			//if we can't get a logger, just return the fallback logger
-			//__.Assert(ex);
-			_GetFallbackLogger()._EzError(ex, "failed to get logger: ");
-			return _GetFallbackLogger();
-		}
+		//catch (Exception ex)
+		//{
+		//	//if we can't get a logger, just return the fallback logger
+		//	//__.Assert(ex);
+		//	_GetFallbackLogger()._EzError(ex, "failed to get logger: ");
+		//	return _GetFallbackLogger();
+		//}
 	}
 
 	public ILogger GetLogger(object categoryFromType)
@@ -764,41 +768,56 @@ public partial class LoLoRoot
 
 	public ILogger GetLogger(Type categoryType)
 	{
-		if (_services is null)
-		{
-			return _GetFallbackLogger();
-		}
+		//if (_services is null)
+		//{
+		//	return _GetFallbackLogger();
+		//}
 
 		//return (ILogger)Services!.GetRequiredService(loggerType);
-		return Services!.GetRequiredService<ILoggerFactory>().CreateLogger(categoryType);
+		return _loggerFactory.CreateLogger(categoryType);
 
 
 	}
 
-
-	private ILogger _GetFallbackLogger()
+	/// <summary>
+	/// logger factory.  defaults to a simple console logger factory until DI services have registered.
+	/// </summary>
+	private static ILoggerFactory _loggerFactory = LoggerFactory.Create(builder =>
 	{
-		if (_DiMissingConsoleLoggerFallback is null)
-		{
-			_DiMissingConsoleLoggerFallback = LoggerFactory.Create(logging =>
-			{
-				logging.ClearProviders();
-				logging.SetMinimumLevel(LogLevel.Trace);
+		builder.ClearProviders();
+		builder.SetMinimumLevel(LogLevel.Trace);
 
-				logging.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
-			}).CreateLogger("NoDIServices_Fallback");
-		}
+		builder.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
+	});
 
-		if (_hasWarnedServicesMissing is false)
-		{
-			_hasWarnedServicesMissing = true;
-			_DiMissingConsoleLoggerFallback._EzWarn(
-				"NoDIServices_Fallback IS BEING USED.  __.Services is null. It must be set to log properly (do so as soon as DI Services are available).  a simple console-only logger will be used until DI Services are available");
-			//Serilog.Log.Logger.Warning("__.Services is null. It must be set to log properly (do so as soon as DI Services are available).  a simple console-only logger will be used until DI Services are available");
-		}
-
-		return _DiMissingConsoleLoggerFallback;
+	public void Initialize(IServiceProvider serviceProvider)
+	{
+		//_loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
 	}
+
+	//private ILogger _GetFallbackLogger()
+	//{
+	//	if (_DiMissingConsoleLoggerFallback is null)
+	//	{
+	//		_DiMissingConsoleLoggerFallback = LoggerFactory.Create(logging =>
+	//		{
+	//			logging.ClearProviders();
+	//			logging.SetMinimumLevel(LogLevel.Trace);
+
+	//			logging.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
+	//		}).CreateLogger("NoDIServices_Fallback");
+	//	}
+
+	//	if (_hasWarnedServicesMissing is false)
+	//	{
+	//		_hasWarnedServicesMissing = true;
+	//		_DiMissingConsoleLoggerFallback._EzWarn(
+	//			"NoDIServices_Fallback IS BEING USED.  __.Services is null. It must be set to log properly (do so as soon as DI Services are available).  a simple console-only logger will be used until DI Services are available");
+	//		//Serilog.Log.Logger.Warning("__.Services is null. It must be set to log properly (do so as soon as DI Services are available).  a simple console-only logger will be used until DI Services are available");
+	//	}
+
+	//	return _DiMissingConsoleLoggerFallback;
+	//}
 
 
 	///// <summary>
@@ -847,12 +866,12 @@ public partial class LoLoRoot
 	/// </summary>
 	public ILogger GetLogger<TCategory>()
 	{
-		if (_services is null)
-		{
-			return _GetFallbackLogger();
-		}
+		//if (_services is null)
+		//{
+		//	return _GetFallbackLogger();
+		//}
 		//return GetLogger(typeof(TCategory));
-		return Services._GetService<ILoggerFactory>().CreateLogger<TCategory>();
+		return _loggerFactory.CreateLogger<TCategory>();
 	}
 
 

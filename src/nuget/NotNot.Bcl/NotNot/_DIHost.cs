@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Hosting;
@@ -6,54 +6,54 @@ using Microsoft.Extensions.Hosting;
 public static class AssemblyReflectionHelper
 {
 
-   /// <summary>
-   /// 
-   /// </summary>
-   /// <param name="scanAssemblies">assemblies you want to scan for automapper and scrutor types.  default is everything: AppDomain.CurrentDomain.GetAssemblies()</param>
-   /// <param name="scanIgnore">assemblies to not scan for DI types.   by default this is 'Microsoft.*' because ASP NetCore IHostedService internal registrations conflict.</param>
-   /// <param name="matcher"></param>
-   /// <returns></returns>
-   public static List<Assembly> _FilterAssemblies(IEnumerable<Assembly>? scanAssemblies, IEnumerable<string>? scanIgnore=null, IEnumerable<string>? keepRegardless=null)
-   {
-      scanAssemblies ??= AppDomain.CurrentDomain.GetAssemblies();
-      var targetAssemblies = new List<Assembly>(scanAssemblies);
-      scanIgnore ??= new[] { "Microsoft.*" };//, "System.*", "netstandard", "AutoMapper.*", "Serilog.*" }; // by default microsoft so we don't step on it's internal DI registrations
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="scanAssemblies">assemblies you want to scan for automapper and scrutor types.  default is everything: AppDomain.CurrentDomain.GetAssemblies()</param>
+	/// <param name="scanIgnore">assemblies to not scan for DI types.   by default this is 'Microsoft.*' because ASP NetCore IHostedService internal registrations conflict.</param>
+	/// <param name="matcher"></param>
+	/// <returns></returns>
+	public static List<Assembly> _FilterAssemblies(IEnumerable<Assembly>? scanAssemblies, IEnumerable<string>? scanIgnore = null, IEnumerable<string>? keepRegardless = null)
+	{
+		scanAssemblies ??= AppDomain.CurrentDomain.GetAssemblies();
+		var targetAssemblies = new List<Assembly>(scanAssemblies);
+		scanIgnore ??= new[] { "Microsoft.*" };//, "System.*", "netstandard", "AutoMapper.*", "Serilog.*" }; // by default microsoft so we don't step on it's internal DI registrations
 
-      //ensure this assembly is included in targetAssemblies
-      //this is so various DI services inside this assembly can be auto-registered
-      var thisAssembly = Assembly.GetExecutingAssembly();
-      if (!targetAssemblies.Contains(thisAssembly))
-      {
-         targetAssemblies.Add(thisAssembly);
-      }
-      //remove ignored assemblies. 
-      var removeMatcher = new Matcher();
-      removeMatcher.AddIncludePatterns(scanIgnore);
+		//ensure this assembly is included in targetAssemblies
+		//this is so various DI services inside this assembly can be auto-registered
+		var thisAssembly = Assembly.GetExecutingAssembly();
+		if (!targetAssemblies.Contains(thisAssembly))
+		{
+			targetAssemblies.Add(thisAssembly);
+		}
+		//remove ignored assemblies. 
+		var removeMatcher = new Matcher();
+		removeMatcher.AddIncludePatterns(scanIgnore);
 
-      var keepMatcher = new Matcher();
-      if(keepRegardless is not null)
-      {
-         keepMatcher.AddIncludePatterns(keepRegardless);
-      }
+		var keepMatcher = new Matcher();
+		if (keepRegardless is not null)
+		{
+			keepMatcher.AddIncludePatterns(keepRegardless);
+		}
 
-      for (var i = targetAssemblies.Count - 1; i >= 0; i--)
-      {
-         var current = targetAssemblies[i];
-         var name = current.FullName;
-         var removeResults = removeMatcher.Match(name);         
-         if (removeResults.HasMatches)
-         {
-            var keepResults = keepMatcher.Match(name);
-            if (keepResults.HasMatches is false)
-            {
-               targetAssemblies.RemoveAt(i);
-            }
-         }
+		for (var i = targetAssemblies.Count - 1; i >= 0; i--)
+		{
+			var current = targetAssemblies[i];
+			var name = current.FullName;
+			var removeResults = removeMatcher.Match(name);
+			if (removeResults.HasMatches)
+			{
+				var keepResults = keepMatcher.Match(name);
+				if (keepResults.HasMatches is false)
+				{
+					targetAssemblies.RemoveAt(i);
+				}
+			}
 
-      }
+		}
 
-      return targetAssemblies;
-   }
+		return targetAssemblies;
+	}
 }
 
 /// <summary>
@@ -102,42 +102,42 @@ public interface IAutoInitialize
 /// </summary>
 public class LoLoRunner(IServiceProvider _services) : IHostedLifecycleService, IAutoInitialize
 {
-   public async Task StartAsync(CancellationToken cancellationToken)
-   {
-      //  _logger._EzTrace("in");
-      //  __.Services = _services;
-   }
+	public async Task StartAsync(CancellationToken cancellationToken)
+	{
+		//  _logger._EzTrace("in");
+		//  __.Services = _services;
+	}
 
-   public async Task StopAsync(CancellationToken cancellationToken)
-   {
-      //  _logger._EzTrace("in");
-   }
+	public async Task StopAsync(CancellationToken cancellationToken)
+	{
+		//  _logger._EzTrace("in");
+	}
 
-   public async Task StartingAsync(CancellationToken cancellationToken)
-   {
-      //  _logger._EzTrace("in");
-      // __.Services = _services;
-   }
+	public async Task StartingAsync(CancellationToken cancellationToken)
+	{
+		//  _logger._EzTrace("in");
+		// __.Services = _services;
+	}
 
-   public async Task StartedAsync(CancellationToken cancellationToken)
-   {
-      // _logger._EzTrace("in");
-   }
+	public async Task StartedAsync(CancellationToken cancellationToken)
+	{
+		// _logger._EzTrace("in");
+	}
 
-   public async Task StoppingAsync(CancellationToken cancellationToken)
-   {
-   }
+	public async Task StoppingAsync(CancellationToken cancellationToken)
+	{
+	}
 
-   public async Task StoppedAsync(CancellationToken cancellationToken)
-   {
-      //   _logger._EzTrace("in");
-   }
+	public async Task StoppedAsync(CancellationToken cancellationToken)
+	{
+		//   _logger._EzTrace("in");
+	}
 
-   public async ValueTask AutoInitialize(IServiceProvider services, CancellationToken ct)
-   {
-      if (__.Services is null)
-      {
-         __.Services = _services;
-      }
-   }
+	public async ValueTask AutoInitialize(IServiceProvider services, CancellationToken ct)
+	{
+		//if (__.Services is null)
+		{
+			__.Initialize(services);
+		}
+	}
 }
