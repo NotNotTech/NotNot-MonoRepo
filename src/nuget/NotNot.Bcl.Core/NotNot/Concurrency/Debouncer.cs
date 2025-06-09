@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 
 namespace NotNot.Concurrency;
 
@@ -39,9 +39,9 @@ public partial class Debouncer
    {
       _slots = new AsyncSlots(MinimumParallel);
 
-      __.Throw(MinimumParallel >= 1);
-      __.Throw(ParallelGrowthMultiplier >= 0 && ParallelGrowthMultiplier <= 1);
-      __.Throw(MinDelay >= TimeSpan.Zero);
+      __.ThrowIfNot(MinimumParallel >= 1);
+      __.ThrowIfNot(ParallelGrowthMultiplier >= 0 && ParallelGrowthMultiplier <= 1);
+      __.ThrowIfNot(MinDelay >= TimeSpan.Zero);
 
    }
 
@@ -144,7 +144,7 @@ public partial class Debouncer
             {
                //remove our infinite delay
                var result = _nextExecutionTimes.TryRemove(debounceKey, out var _);
-               __.Assert(result);
+               __.AssertIfNot(result);
                ct.ThrowIfCancellationRequested();
 				}
          }

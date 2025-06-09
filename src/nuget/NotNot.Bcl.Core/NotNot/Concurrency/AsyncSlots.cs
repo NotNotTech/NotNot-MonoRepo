@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -40,7 +40,7 @@ public class AsyncSlots
 
    public AsyncSlots(int initialAvailable)
    {
-      __.Throw(initialAvailable >= 0);
+      __.ThrowIfNot(initialAvailable >= 0);
       _slotsAvailable = initialAvailable;
       _maxSlots = initialAvailable;
 
@@ -94,7 +94,7 @@ public class AsyncSlots
    /// <param name="newMax"></param>
    public void ChangeMax(int newMax)
    {
-      __.Throw(newMax >= 0);
+      __.ThrowIfNot(newMax >= 0);
       lock (_lock)
       {
          //__.Test.Write($"ChangeMaxSlots {_maxSlots},{newMax}");

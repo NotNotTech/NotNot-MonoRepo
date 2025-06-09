@@ -1,4 +1,4 @@
-﻿// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
+// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
 // [!!] Copyright ©️ NotNot Project and Contributors. 
 // [!!] This file is licensed to you under the MPL-2.0.
 // [!!] See the LICENSE.md file in the project root for more info. 
@@ -42,19 +42,19 @@ public abstract class SlimNode : AsyncDisposeGuard
 	{
 		_lifecycleCt = lifecycleCt;
 
-		__.Throw((IsRoot && Parent is null)||(!IsRoot && Parent is not null),"either should be root, or no parent");
+		__.ThrowIfNot((IsRoot && Parent is null)||(!IsRoot && Parent is not null),"either should be root, or no parent");
 
 		if (IsInitialized)
 		{
 			__.GetLogger()._EzError(false, "why is Initialize called twice?", GetType().Name);
-			__.Assert(false);
+			__.AssertIfNot(false);
 
 			return;
 		}
 
 		await OnInitialize();
 		lifecycleCt.ThrowIfCancellationRequested();
-		__.Assert(IsInitialized);
+		__.AssertIfNot(IsInitialized);
 	}
 
 	/// <summary>
@@ -80,7 +80,7 @@ public abstract class SlimNode : AsyncDisposeGuard
 	{
 		var tempCounter = _callCounter;
 		await OnUpdate(currentTick);
-		__.Assert(_callCounter > tempCounter, "didn't call base method?");
+		__.AssertIfNot(_callCounter > tempCounter, "didn't call base method?");
 		_lifecycleCt.ThrowIfCancellationRequested();
 	}
 
@@ -90,8 +90,8 @@ public abstract class SlimNode : AsyncDisposeGuard
 	protected virtual async ValueTask OnUpdate(TickState currentTick)
 	{
 
-		__.Assert(IsInitialized);
-		__.Assert(IsDisposed is false);
+		__.AssertIfNot(IsInitialized);
+		__.AssertIfNot(IsDisposed is false);
 		_callCounter++;
 
 		using var copy = _children._MemoryOwnerCopy();
@@ -120,7 +120,7 @@ public abstract class SlimNode : AsyncDisposeGuard
 
 		var childCounter = child._callCounter;
 		child.OnAdded();
-		__.Assert(child._callCounter > childCounter, "didn't call base method?");
+		__.AssertIfNot(child._callCounter > childCounter, "didn't call base method?");
 	}
 	/// <summary>
 	/// a private guard to ensure that the base method is called.
@@ -138,10 +138,10 @@ public abstract class SlimNode : AsyncDisposeGuard
 
 	public virtual void RemoveChild(SlimNode child)
 	{
-		__.Assert(_children is not null && _children.Contains(child));
+		__.AssertIfNot(_children is not null && _children.Contains(child));
 		var childCounter = child._callCounter;
 		child.OnRemove();
-		__.Assert(child._callCounter > childCounter, "didn't call base method?");
+		__.AssertIfNot(child._callCounter > childCounter, "didn't call base method?");
 
 		_children.Remove(child);
 	}

@@ -1,4 +1,4 @@
-﻿namespace NotNot.Security;
+namespace NotNot.Security;
 
 public static class KeyGen
 {
@@ -12,7 +12,7 @@ public static class KeyGen
    /// <returns></returns>
    public static string CreateApiKey_Legacy(int randomDigits, int? digitGrouping)
    {
-      __.Throw(randomDigits >= 20, "must be minimum 20 digits as there is a deterministic (timestamp) component");
+      __.ThrowIfNot(randomDigits >= 20, "must be minimum 20 digits as there is a deterministic (timestamp) component");
 
       var encoder = SimpleBase.Base32.Crockford;
 
@@ -50,7 +50,7 @@ public static class KeyGen
       {
          encodedBytes = encodedBytes.Substring(0, randomDigits);
       }
-      __.Assert(encodedBytes.Length == randomDigits, "base58.Length == randomDigits");
+      __.AssertIfNot(encodedBytes.Length == randomDigits, "base58.Length == randomDigits");
 
       //group digits
       if (digitGrouping is not null)
@@ -74,7 +74,7 @@ public static class KeyGen
    /// <returns></returns>
    public static string CreateApiKey(int randomDigits = 25, int? digitGrouping = 5, bool timestamp = true)
    {
-      __.Throw(randomDigits >= 15, "must be minimum 15 digits as there is a deterministic (timestamp) component");
+      __.ThrowIfNot(randomDigits >= 15, "must be minimum 15 digits as there is a deterministic (timestamp) component");
       //switch to base58 as it provides same protections as base32, but also uses capital letters
       //var encoder = SimpleBase.Base32.Crockford;
       var encoder = SimpleBase.Base58.Bitcoin;
@@ -113,7 +113,7 @@ public static class KeyGen
       {
          encodedBytes = encodedBytes.Substring(0, randomDigits);
       }
-      __.Assert(encodedBytes.Length == randomDigits);
+      __.AssertIfNot(encodedBytes.Length == randomDigits);
 
       //group digits
       if (digitGrouping is not null)

@@ -1,4 +1,4 @@
-﻿// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
+// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
 // [!!] Copyright ©️ NotNot Project and Contributors. 
 // [!!] This file is licensed to you under the MPL-2.0.
 // [!!] See the LICENSE.md file in the project root for more info. 
@@ -124,9 +124,9 @@ namespace NotNot.Collections
 			get
 			{
 				var currentVersion = _nextVersion;
-				__.DebugAssert(_IsHandleValid(slot).isValid);
+				__.DebugAssertIfNot(_IsHandleValid(slot).isValid);
 				ref var toReturn  = ref _storage._AsSpan_Unsafe()[slot.Index].slotData; // **Non-blocking read**
-				__.DebugAssert(currentVersion==_nextVersion,"race condition: an allocation occured during entity read/write.  Don't do this, as the array could be resized during allocation, causing you to loose write data");
+				__.DebugAssertIfNot(currentVersion==_nextVersion,"race condition: an allocation occured during entity read/write.  Don't do this, as the array could be resized during allocation, causing you to loose write data");
 
 				return ref toReturn;
 
@@ -197,14 +197,14 @@ namespace NotNot.Collections
 					// **Grow storage:** no free slot available, so allocate a new slot.
 					index = _storage.Count;
 					_storage.Add(default);
-					__.DebugAssert(index == _storage.Count - 1, "race condition: something else allocating even though we are in a lock?");
+					__.DebugAssertIfNot(index == _storage.Count - 1, "race condition: something else allocating even though we are in a lock?");
 				}
 				ref var p_element = ref _storage._AsSpan_Unsafe()[index];
 
 
 
 				//verify allocated but unused
-				__.DebugAssert(_storage.Count > index && _storage[index].handle.IsAllocated is false);
+				__.DebugAssertIfNot(_storage.Count > index && _storage[index].handle.IsAllocated is false);
 
 
 				var toReturn = new SlotHandle()
@@ -218,7 +218,7 @@ namespace NotNot.Collections
 				p_element.handle = toReturn;
 
 				//verify allocated and ref ok
-				__.DebugAssert(_storage[index].handle.IsAllocated);
+				__.DebugAssertIfNot(_storage[index].handle.IsAllocated);
 
 
 				return toReturn;
@@ -271,7 +271,7 @@ namespace NotNot.Collections
 		/// </summary>
 		public void Free(SlotHandle slot)
 		{
-			__.DebugAssert(_IsHandleValid(slot).isValid);
+			__.DebugAssertIfNot(_IsHandleValid(slot).isValid);
 
 
 

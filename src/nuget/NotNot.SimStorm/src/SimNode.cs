@@ -324,8 +324,8 @@ public abstract partial class SimNode //tree logic
 
 		if (HierarchyDepth != -1)
 		{
-			__.AssertOnce(this is RootNode, "expect only root node to have it's hiearchy depth preset.");
-			__.AssertOnce(parent == null,
+			__.AssertOnceIfNot(this is RootNode, "expect only root node to have it's hiearchy depth preset.");
+			__.AssertOnceIfNot(parent == null,
 				"expect only root node to have it's hiearchy depth preset, and it to not have a parent");
 			//no op
 		}

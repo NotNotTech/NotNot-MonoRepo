@@ -101,7 +101,7 @@ public class Cache<TValue> : ISingletonService //, IAutoInitialize //Scrutor bug
    {
       key = _NamespaceKey(key);
       var toReturn = await _fusionCache.GetOrSetAsync(key, async (ct) => await factory(ct), Duration, token);
-      __.Assert(toReturn is not null);
+      __.AssertIfNot(toReturn is not null);
       return toReturn!;
    }
 
@@ -110,7 +110,7 @@ public class Cache<TValue> : ISingletonService //, IAutoInitialize //Scrutor bug
    {
       key = _NamespaceKey(key);
       var toReturn = await _fusionCache.GetOrSetAsync(key, defaultValue, Duration, token);
-      __.Assert(toReturn is not null);
+      __.AssertIfNot(toReturn is not null);
       return toReturn!;
    }
 
@@ -118,7 +118,7 @@ public class Cache<TValue> : ISingletonService //, IAutoInitialize //Scrutor bug
    {
       key = _NamespaceKey(key);
       var toReturn = await _fusionCache.GetOrDefaultAsync(key, defaultValue, options => options.SetDuration(Duration), token);
-      __.Assert(toReturn is not null);
+      __.AssertIfNot(toReturn is not null);
       return toReturn!;
    }
 

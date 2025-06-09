@@ -108,7 +108,7 @@ public partial class LoLoRoot
 		if (obj is null)
 		{
 			message ??= $"AssertNotNull failed.  {objName} is null";
-			Assert(obj is not null, message, expectedConditionName: $"{objName} is not null");
+			AssertIfNot(obj is not null, message, expectedConditionName: $"{objName} is not null");
 			return false;
 		}
 		return true;
@@ -119,7 +119,7 @@ public partial class LoLoRoot
 	/// logs message and triggers a breakpoint.  (also Prompts to attach a debugger if not already attached)
 	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
-	public void Assert(bool? _expectedCondition, string? message = "", object? objToLog0 = null, object? objToLog1 = null,
+	public void AssertIfNot(bool? _expectedCondition, string? message = "", object? objToLog0 = null, object? objToLog1 = null,
 		object? objToLog2 = null, [CallerMemberName] string memberName = "",
 			  [CallerFilePath] string sourceFilePath = "",
 					 [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_expectedCondition")] string expectedConditionName = "",
@@ -170,7 +170,7 @@ public partial class LoLoRoot
 		string? objToLog2Name = "null",
 		Span<string> tags = default)
 	{
-		Assert(false, message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name, tags: tags);
+		AssertIfNot(false, message, objToLog0, objToLog1, objToLog2, memberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name, tags: tags);
 	}
 
 
@@ -210,7 +210,7 @@ public partial class LoLoRoot
 	/// if the expectedCondition is false, assert once per callsite+message.
 	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
-	public void AssertOnce(bool expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
+	public void AssertOnceIfNot(bool expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
@@ -222,7 +222,7 @@ public partial class LoLoRoot
 		{
 			return;
 		}
-		Assert(false, message, memberName, sourceFilePath, sourceLineNumber);
+		AssertIfNot(false, message, memberName, sourceFilePath, sourceLineNumber);
 
 	}
 
@@ -238,7 +238,7 @@ public partial class LoLoRoot
 		{
 			return;
 		}
-		Assert(false, message, memberName, sourceFilePath, sourceLineNumber);
+		AssertIfNot(false, message, memberName, sourceFilePath, sourceLineNumber);
 	}
 
 
@@ -274,11 +274,11 @@ public partial class LoLoRoot
 	/// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
 	/// </summary>
 	[Conditional("DEBUG")]
-	public void DebugAssert(bool expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
+	public void DebugAssertIfNot(bool expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
 			  [CallerFilePath] string sourceFilePath = "",
 					 [CallerLineNumber] int sourceLineNumber = 0)
 	{
-		Assert(expectedCondition, message, memberName, sourceFilePath, sourceLineNumber);
+		AssertIfNot(expectedCondition, message, memberName, sourceFilePath, sourceLineNumber);
 	}
 
 	/// <summary>
@@ -290,7 +290,7 @@ public partial class LoLoRoot
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-		Assert(false, message, memberName, sourceFilePath, sourceLineNumber);
+		AssertIfNot(false, message, memberName, sourceFilePath, sourceLineNumber);
 	}
 
 
@@ -308,7 +308,7 @@ public partial class LoLoRoot
 
 
 	[Conditional("DEBUG")]
-	public void DebugAssertOnce(bool expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
+	public void DebugAssertOnceIfNot(bool expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
@@ -320,7 +320,7 @@ public partial class LoLoRoot
 		{
 			return;
 		}
-		Assert(false, message, memberName, sourceFilePath, sourceLineNumber);
+		AssertIfNot(false, message, memberName, sourceFilePath, sourceLineNumber);
 
 	}
 
@@ -333,7 +333,7 @@ public partial class LoLoRoot
 		{
 			return;
 		}
-		Assert(false, message, memberName, sourceFilePath, sourceLineNumber);
+		AssertIfNot(false, message, memberName, sourceFilePath, sourceLineNumber);
 	}
 
 
@@ -359,7 +359,7 @@ public partial class LoLoRoot
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-		Throw(false, message, memberName, sourceFilePath, sourceLineNumber);
+		ThrowIfNot(false, message, memberName, sourceFilePath, sourceLineNumber);
 		//never gets here because of throw
 		return null;
 	}
@@ -368,7 +368,7 @@ public partial class LoLoRoot
 	/// </summary>
 	/// <param name="expectedCondition"></param>
 	/// <exception cref="NotImplementedException"></exception>
-	public void Throw([DoesNotReturnIf(false)] bool? _expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
+	public void ThrowIfNot([DoesNotReturnIf(false)] bool? _expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_expectedCondition")] string expectedConditionName = "")
 	{
@@ -377,7 +377,7 @@ public partial class LoLoRoot
 		{
 			return;
 		}
-		Assert(false, message, memberName, sourceFilePath, sourceLineNumber, expectedConditionName);
+		AssertIfNot(false, message, memberName, sourceFilePath, sourceLineNumber, expectedConditionName);
 		var ex = new LoLoDiagnosticsException(message._FormatAppendArgs(expectedConditionName, objToLog0Name: "expectedCondition"), memberName, sourceFilePath, sourceLineNumber);
 		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
 	}
@@ -393,7 +393,7 @@ public partial class LoLoRoot
 		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("value")] string valueName = "")
 	where T : class
 	{
-		Throw(value is not null, message, memberName, sourceFilePath, sourceLineNumber, $"{valueName} is not null");
+		ThrowIfNot(value is not null, message, memberName, sourceFilePath, sourceLineNumber, $"{valueName} is not null");
 		return value!;
 	}
 
@@ -718,7 +718,7 @@ public partial class LoLoRoot
 				var fileInfo = new FileInfo(key);
 				var toReturn = fileInfo.Name + fileInfo.Extension;
 				//var toReturn = key._GetAfter(Path.DirectorySeparatorChar);
-				__.Assert(toReturn is not null);
+				__.AssertIfNot(toReturn is not null);
 				return toReturn;
 				////////////  the following is brittle/doesn't work right so just returning the file name.
 				//__.Assert("test");

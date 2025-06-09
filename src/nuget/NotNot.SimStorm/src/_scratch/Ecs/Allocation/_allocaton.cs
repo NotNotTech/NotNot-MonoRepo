@@ -134,7 +134,7 @@ public class EntityRegistry
 
 	public void Free(Span<EntityHandle> handles)
 	{
-      __.DebugAssertOnce(handles._IsSorted(), "sort first"); 
+      __.DebugAssertOnceIfNot(handles._IsSorted(), "sort first"); 
 		using var freeSpanOwner = SpanGuard<int>.Allocate(handles.Length);
 		var freeSpan = freeSpanOwner.Span;
 		for (var i = 0; i < handles.Length; i++)
@@ -1180,7 +1180,7 @@ public partial class Page : IDisposable //init logic
 	{
 		if (IsDisposed == false)
 		{
-			__.AssertOnce(false, "need to have parent page dispose page for proper cleanup");
+			__.AssertOnceIfNot(false, "need to have parent page dispose page for proper cleanup");
 			Dispose();
 		}
 	}

@@ -160,7 +160,7 @@ public record class Maybe<TValue> : IMaybe
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
 
-		__.Throw(value is not null, null, memberName, sourceFilePath, sourceLineNumber);
+		__.ThrowIfNot(value is not null, null, memberName, sourceFilePath, sourceLineNumber);
 
 		_Value = value;
 		IsSuccess = true;
@@ -170,7 +170,7 @@ public record class Maybe<TValue> : IMaybe
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-		__.Throw(problem is not null, null, memberName, sourceFilePath, sourceLineNumber);
+		__.ThrowIfNot(problem is not null, null, memberName, sourceFilePath, sourceLineNumber);
 		Problem = problem;
 		TraceId = TraceId.Generate(memberName, sourceFilePath, sourceLineNumber);
 	}
@@ -522,7 +522,7 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 
 				if (valueName != null)
 				{
-					__.Throw(result.ValueName == valueName, $"Maybe<T> Type mismatch.   expected deserialization target to be T='{valueName}' but was provided '{result.ValueName}'");
+					__.ThrowIfNot(result.ValueName == valueName, $"Maybe<T> Type mismatch.   expected deserialization target to be T='{valueName}' but was provided '{result.ValueName}'");
 				}
 
 

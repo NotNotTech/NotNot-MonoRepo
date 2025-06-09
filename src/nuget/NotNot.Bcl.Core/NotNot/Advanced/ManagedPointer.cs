@@ -37,14 +37,14 @@ public record struct ManagedPointer<T> where T : class
 					_idVersion = freeOwnerSlot,
 				};
 				var result = _targets.TryAdd(toReturn, new WeakReference<T>(target));
-				__.Assert(result);
+				__.AssertIfNot(result);
 				return toReturn;
 			}
 
 			//allocate new owner slot
 			{
 				var ownerSlot = Interlocked.Increment(ref _nextNewTargetSlot);
-				__.Throw(ownerSlot > 0, "can not allocate a handle.  consumed all possible handle owners, need a different implementation");
+				__.ThrowIfNot(ownerSlot > 0, "can not allocate a handle.  consumed all possible handle owners, need a different implementation");
 
 				ManagedPointer<T> toReturn = new()
 				{
@@ -55,7 +55,7 @@ public record struct ManagedPointer<T> where T : class
 					},
 				};
 				var result = _targets.TryAdd(toReturn, new WeakReference<T>(target));
-				__.Assert(result);
+				__.AssertIfNot(result);
 				return toReturn;
 			}
 		}
@@ -65,7 +65,7 @@ public record struct ManagedPointer<T> where T : class
 		//lock (_ownerLock)
 		{
 			var result = _targets.TryRemove(managedPointer, out _);
-			__.Throw(result, "did not unregister handle owner");
+			__.ThrowIfNot(result, "did not unregister handle owner");
 			_freePointers.Enqueue(managedPointer._idVersion);
 		}
 	}
@@ -80,7 +80,7 @@ public record struct ManagedPointer<T> where T : class
 
 	public void AssertIsAlive()
 	{
-		__.Assert(IsAllocated);
+		__.AssertIfNot(IsAllocated);
 
 		if (_targets.TryGetValue(this, out var weakRef) is false)
 		{

@@ -789,7 +789,7 @@ public static class zz_Extensions_Task
 
 			if (ct.IsCancellationRequested is false)
 			{
-				__.Assert(task.Status != TaskStatus.WaitingForActivation,
+				__.AssertIfNot(task.Status != TaskStatus.WaitingForActivation,
 					"task not yet scheduled.  likely you attempt to execute the task manually via function signature ex:'YourAsyncMethod()._SyncWait()'.  If you really need to run async code and wait Synchronously, use '__.Async.Run(YourAsyncMethod)._SyncWait()'  ");
 			}
 		}
@@ -904,7 +904,7 @@ public static class zz_Extensions_Task
 
 			if (ct.IsCancellationRequested is false)
 			{
-				__.Assert(task.Status != TaskStatus.WaitingForActivation,
+				__.AssertIfNot(task.Status != TaskStatus.WaitingForActivation,
 					"task not yet scheduled.  likely you attempt to execute the task manually via function signature ex:'YourAsyncMethod()._SyncWait()'.  If you really need to run async code and wait Synchronously, use '__.Async.Run(YourAsyncMethod)._SyncWait()'  ");
 			}
 		}
@@ -5935,7 +5935,7 @@ public static class zz_Extensions_String
 	public static string _GetBefore(this string value, string right, bool? fullIfRightMissing = null)
 	{
 		var xPos = value.IndexOf(right, StringComparison.Ordinal);
-		__.Throw(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
+		__.ThrowIfNot(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
 		return xPos == -1 ? fullIfRightMissing.Value ? value : string.Empty : value.Substring(0, xPos);
 	}
 
@@ -5948,7 +5948,7 @@ public static class zz_Extensions_String
 	public static string _GetBefore(this string value, char right, bool? fullIfRightMissing = null)
 	{
 		var xPos = value.IndexOf(right);
-		__.Throw(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
+		__.ThrowIfNot(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
 		return xPos == -1 ? fullIfRightMissing.Value ? value : string.Empty : value.Substring(0, xPos);
 	}
 
@@ -5962,7 +5962,7 @@ public static class zz_Extensions_String
 	public static string _GetBeforeLast(this string value, string right, bool? fullIfRightMissing = null)
 	{
 		var xPos = value.LastIndexOf(right, StringComparison.Ordinal);
-		__.Throw(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
+		__.ThrowIfNot(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
 		return xPos == -1 ? fullIfRightMissing.Value ? value : string.Empty : value.Substring(0, xPos);
 	}
 
@@ -5976,7 +5976,7 @@ public static class zz_Extensions_String
 	public static string _GetBeforeLast(this string value, char right, bool? fullIfRightMissing = null)
 	{
 		var xPos = value.LastIndexOf(right);
-		__.Throw(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
+		__.ThrowIfNot(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
 		return xPos == -1 ? fullIfRightMissing.Value ? value : string.Empty : value.Substring(0, xPos);
 	}
 

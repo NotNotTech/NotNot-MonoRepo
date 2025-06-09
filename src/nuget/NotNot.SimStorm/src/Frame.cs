@@ -76,7 +76,7 @@ public partial class Frame ////node graph setup and execution
 			{
 				if (!node.FindNode(afterName, out var afterNode))
 				{
-					__.AssertOnce(false,
+					__.AssertOnceIfNot(false,
 						$"'{afterName}' node is listed as an updateAfter dependency in '{node.GetHierarchyName()}' node.  target node not registered");
 					continue;
 				}
@@ -98,7 +98,7 @@ public partial class Frame ////node graph setup and execution
 			{
 				if (!node.FindNode(beforeName, out var beforeNode))
 				{
-					__.AssertOnce(false,
+					__.AssertOnceIfNot(false,
 						$"'{beforeName}' node is listed as an updateBefore dependency in '{node.Name}' node.  target node not registered");
 					continue;
 				}
@@ -288,7 +288,7 @@ public partial class Frame ////node graph setup and execution
             }
             catch (TimeoutException ex)
             {
-					__.Assert(false);
+					__.AssertIfNot(false);
                __.GetLogger()._EzErrorThrow<SimStormException>(DebuggerInfo.IsPaused,
                   "SimPipeline appears deadlocked, as no executing task has completed in less than 2 seconds.");
             }
