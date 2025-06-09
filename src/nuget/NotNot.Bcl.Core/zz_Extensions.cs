@@ -5682,15 +5682,39 @@ public static class zz_Extensions_String
 		return value.IndexOfAny(toFind) != -1;
 	}
 
-	public static bool _ContainsAny(this string value, ReadOnlySpan<string> stringsToFind, StringComparison comparisonType = StringComparison.InvariantCultureIgnoreCase)
+	/// <summary>
+	/// true if target contains any of the substrings.
+	/// <para>note: a null/empty substring/target will never match</para>
+	/// </summary>
+	public static bool _ContainsAny(this string? value, ReadOnlySpan<string> stringsToFind, StringComparison comparisonType = StringComparison.InvariantCultureIgnoreCase)
 	{
-		if (value is null || value.Length == 0)
+		if (value._IsNullOrEmpty())
 		{
 			return false;
 		}
 		foreach (var span in stringsToFind)
 		{
+			if (span._IsNullOrEmpty())
+			{
+				continue; //skip empty strings
+			}
+
 			if (value.IndexOf(span, comparisonType) != -1)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/// <summary>
+	/// true if any matches the target
+	/// </summary>
+	public static bool _EqualsAny(this string? value, ReadOnlySpan<string> stringsToFind, StringComparison comparisonType = StringComparison.InvariantCultureIgnoreCase)
+	{
+		foreach (var span in stringsToFind)
+		{
+			if (String.Equals(value, span, comparisonType))
 			{
 				return true;
 			}
