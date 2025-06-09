@@ -385,6 +385,7 @@ public partial class LoLoRoot
 	/// <summary>
 	/// Ensures value is not null, also returning it.  If null, throws an exception.
 	/// </summary>
+	[return: NotNull]
 	public T NotNull<T>(
 		[NotNull]
 		T? value, string? message = null, [CallerMemberName] string memberName = "",

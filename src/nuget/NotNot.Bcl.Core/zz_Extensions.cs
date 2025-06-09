@@ -3762,11 +3762,13 @@ public static class zz_Extensions_Object
 	/// Ensures value is not null, also returning it.  If null, throws an exception.
 	/// <para>shortcut to `__.NotNull(value);`</para>
 	/// </summary>
+
+	[return: NotNull]
 	public static T _NotNull<T>([NotNull] this T? value, string? message = null, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("value")] string valueName = "") where T : class
 	{
-		return __.NotNull(value, message, memberName, sourceFilePath, sourceLineNumber, valueName);
+		return __.NotNull(value, message, memberName, sourceFilePath, sourceLineNumber, valueName)!;
 	}
 
 
@@ -5414,7 +5416,7 @@ public static class zz_Extensions_String
 	/// <param name="value"></param>
 	/// <param name="other"></param>
 	/// <returns></returns>
-	public static bool _AproxEqual(this string value, string other)
+	public static bool _AproxEqual(this string value, string? other)
 	{
 		if (string.IsNullOrWhiteSpace(value) && string.IsNullOrWhiteSpace(other))
 		{
