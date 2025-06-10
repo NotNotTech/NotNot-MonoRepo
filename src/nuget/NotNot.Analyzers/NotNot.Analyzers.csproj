@@ -11,14 +11,12 @@
 		<LangVersion>preview</LangVersion>
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 		<Configurations>Debug;Release;DebugNuget</Configurations>
-	</PropertyGroup>
-
-
-
-
-	<!--disable warnings for libraries in DEBUG-->
-	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
-		<WarningLevel>0</WarningLevel>
+		
+		<!-- Analyzer-specific settings -->
+		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<Deterministic>true</Deterministic>
+		<IncludeBuildOutput>false</IncludeBuildOutput>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -28,101 +26,69 @@
   </ItemGroup>
 
 
+	<!-- Core analyzer dependencies -->
 	<ItemGroup>
-
-		<!--analyzers-->
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0">
-			<!--<PrivateAssets>all</PrivateAssets>-->
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="Roslynator.Analyzers" Version="4.13.1">
-			<!--<PrivateAssets>all</PrivateAssets>-->
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0">
-			<!--<PrivateAssets>all</PrivateAssets>-->
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.4.0-beta.1">
-			<!--<PrivateAssets>all</PrivateAssets>-->
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="editorconfig" Version="0.15.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-
-		<PackageReference Include="MinVer" Version="6.0.0">
-			<PrivateAssets>all</PrivateAssets>
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all" />
+		<!-- Code Fix Provider dependencies -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" PrivateAssets="all" />
+		<PackageReference Include="System.Composition" Version="9.0.0" PrivateAssets="all" />
+	</ItemGroup>
+	
+	<!-- Development-time analyzers -->
+	<ItemGroup>
+		<PackageReference Include="Roslynator.Analyzers" Version="4.13.1" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-
-		<!--gitversion: version automatically.  but it has a bug when .sln is in a subrepo?  (test1.sln is in a code-only subrepo)-->
-		<!--<PackageReference Include="GitVersion.MsBuild" Version="6.0.0">
-			<PrivateAssets>All</PrivateAssets>
-		</PackageReference>-->
+		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.4.0-beta.1" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 	</ItemGroup>
-
-	<PropertyGroup>
-		<PackageId>$(AssemblyName)</PackageId>
-	</PropertyGroup>
-
+	
+	<!-- Build tools -->
 	<ItemGroup>
-	  <None Remove="bin\Debug\netstandard2.0\\$(AssemblyName).dll" />
+		<PackageReference Include="editorconfig" Version="0.15.0" PrivateAssets="all" />
+		<PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 	</ItemGroup>
 
+	<!-- Analyzer packaging configuration -->
 	<ItemGroup>
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
 
+	<!-- NuGet package metadata -->
+	<PropertyGroup>
+		<PackageId>$(AssemblyName)</PackageId>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>
+		<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+		<OutputType>Library</OutputType>
+		<Authors>Novaleaf</Authors>
+		<Copyright>$(Authors)</Copyright>
+		<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/$(AssemblyName)/</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
+		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageTags>NotNot; Novaleaf; analyzers; roslyn; code-analysis</PackageTags>
+		<Description>Code analyzers for reliability and best practices in .NET applications</Description>
+		<Version>0.0.0-0.invalidMinverProcess</Version>
+	</PropertyGroup>
+	
+	<!-- Package assets -->
 	<ItemGroup>
-	  <Folder Include="Concurrency\" />
+		<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png" Pack="True" PackagePath="\" />
+		<None Include=".\README.md" Pack="True" PackagePath="\" />
 	</ItemGroup>
 
-
-	<PropertyGroup>
-		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-		<Deterministic>true</Deterministic>
-		<!--for other macro properties, see https://learn.microsoft.com/en-us/visualstudio/msbuild/common-msbuild-project-properties?view=vs-2022 -->
-	  <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-
-	  <IncludeBuildOutput>false</IncludeBuildOutput>
-	  <UserSecretsId>fabf5a14-bb71-4048-a595-afef95740429</UserSecretsId>
-	</PropertyGroup>
-
-	<!-- standard nuget package details -->
-<ItemGroup>
-	<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png">
-		<Pack>True</Pack>
-		<PackagePath>\</PackagePath>
-	</None>
-	<None Include=".\README.md">
-		<Pack>True</Pack>
-		<PackagePath>\</PackagePath>
-	</None>
-</ItemGroup>
-<!-- standard nuget package details -->
-<PropertyGroup>
-	<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-	<GenerateDocumentationFile>true</GenerateDocumentationFile>
-	<!--see https://github.com/adamralph/minver?tab=readme-ov-file#can-i-version-multiple-projects-in-a-single-repository-independently -->
-	<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>	
-	<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
-	<OutputType>Library</OutputType>
-	<Authors>Novaleaf</Authors>
-	<Copyright>$(Authors)</Copyright>
-	<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/$(AssemblyName)/</PackageProjectUrl>
-	<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
-	<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
-	<PackageReadmeFile>README.md</PackageReadmeFile>
-	<PackageTags>NotNot; Novaleaf;</PackageTags>
-	<Description>$(AssemblyName) see Project URL or the README</Description>
-	 <!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
-	<Version>0.0.0-0.invalidMinverProcess</Version>
-</PropertyGroup>
-
+	<!-- Debug configuration -->
 	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
-		<!--ignore netstandard2 ref warning-->
+		<WarningLevel>0</WarningLevel>
 		<NoWarn>$(NoWarn);NU5128</NoWarn>
 		<DebugType>embedded</DebugType>
 	</PropertyGroup>

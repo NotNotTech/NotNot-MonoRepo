@@ -18,15 +18,18 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
 	 /// <summary>
 	 ///    The diagnostic rule for this analyzer.
 	 /// </summary>
-	 private static DiagnosticDescriptor Rule = new(
+	 private static readonly DiagnosticDescriptor Rule = new(
 		 id: DiagnosticId,
-		 title: "Task<T> result is not observed",
-		 messageFormat:
-		 "Task<T> '{0}' is awaited but its result is not observed. Use the return value or assign to the '_' discard variable instead.",
-		 category: "NotNot_Reliability_Concurrency",
+		 title: "Task<T> result should be observed or explicitly discarded",
+		 messageFormat: "Task<T> '{0}' is awaited but its result is not observed. The returned value should be used, assigned to a variable, or explicitly discarded with '_'.",
+		 category: "Reliability",
 		 defaultSeverity: DiagnosticSeverity.Error,
 		 isEnabledByDefault: true,
-		 helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#{DiagnosticId}"
+		 description: "Tasks that return values (Task<T> or ValueTask<T>) should have their results observed when awaited. " +
+		              "Ignoring return values can indicate a logic error where the result was intended to be used. " +
+		              "If the result is intentionally unused, assign it to the discard variable '_' to make this explicit.",
+		 helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#{DiagnosticId}",
+		 customTags: new[] { "Concurrency", "Reliability", "AsyncUsage", "ReturnValue" }
 	 );
 
 	 /// <summary>
@@ -40,11 +43,15 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
 	 /// <param name="context">The analysis context.</param>
 	 public override void Initialize(AnalysisContext context)
 	 {
+		  // Modern analyzer configuration
 		  context.EnableConcurrentExecution();
 		  context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 
+		  // Register for await expressions only for better performance
 		  context.RegisterSyntaxNodeAction(AnalyzeAwaitExpression, SyntaxKind.AwaitExpression);
-	 }  /// <summary>
+	 }
+
+	 /// <summary>
 		 ///    Analyzes await expressions to detect when Task<T> results are not observed.
 		 /// </summary>
 		 /// <param name="context">The syntax node analysis context.</param>

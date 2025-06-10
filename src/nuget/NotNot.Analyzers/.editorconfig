@@ -1,0 +1,28 @@
+# NotNot.Analyzers Configuration
+# This file demonstrates how to configure NotNot.Analyzers rules
+# Copy this to your project root and modify as needed
+
+root = true
+
+[*.cs]
+# NotNot.Analyzers Rule Configuration
+
+# NN_R001: Task should be awaited, assigned, or returned
+# Controls whether unawaited tasks should be flagged as errors
+# Severity levels: error, warning, suggestion, silent, none
+dotnet_diagnostic.NN_R001.severity = error
+
+# NN_R002: Task<T> result should be observed or explicitly discarded  
+# Controls whether unobserved Task<T> results should be flagged as errors
+dotnet_diagnostic.NN_R002.severity = error
+
+# Category-based configuration
+# Disable all NotNot reliability rules
+# dotnet_analyzer_diagnostic.category-reliability.severity = none
+
+# Performance configuration
+# Enable concurrent execution (recommended)
+notNot_analyzers_enable_concurrent_execution = true
+
+# Skip generated code analysis (recommended)
+notNot_analyzers_skip_generated_code = true

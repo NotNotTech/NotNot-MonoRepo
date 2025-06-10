@@ -18,16 +18,18 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
 	 /// <summary>
 	 ///    The diagnostic rule for this analyzer.
 	 /// </summary>
-	 private static DiagnosticDescriptor Rule = new(
+	 private static readonly DiagnosticDescriptor Rule = new(
 		 id: DiagnosticId,
-		 title: "Task is not awaited or used",
-		 messageFormat:
-		 "Task '{0}' is not awaited or used. Fire and forget tasks are likely an error.  If this is intentional, assign to the '_' discard variable instead.",
-		 category: "NotNot_Reliability_Concurrency",
+		 title: "Task should be awaited, assigned, or returned",
+		 messageFormat: "Task '{0}' is not awaited, assigned, or returned. This creates a fire-and-forget pattern that can lead to unhandled exceptions and unpredictable behavior.",
+		 category: "Reliability",
 		 defaultSeverity: DiagnosticSeverity.Error,
 		 isEnabledByDefault: true,
-		 helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#{DiagnosticId}"
-	 //,customTags: new[] { "Concurrency" }
+		 description: "Tasks that are not awaited, assigned to a variable, or returned from a method create fire-and-forget patterns. " +
+		              "This can lead to unhandled exceptions being swallowed and unpredictable timing behavior. " +
+		              "Either await the task, assign it to a variable for later use, return it from the method, or explicitly assign to '_' to indicate intentional fire-and-forget.",
+		 helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#{DiagnosticId}",
+		 customTags: new[] { "Concurrency", "Reliability", "AsyncUsage" }
 	 );
 
 	 /// <summary>
@@ -51,9 +53,11 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
 	 /// <param name="context">The analysis context.</param>
 	 public override void Initialize(AnalysisContext context)
 	 {
+		  // Modern analyzer configuration
 		  context.EnableConcurrentExecution();
 		  context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-
+		  
+		  // Only analyze syntax nodes for better performance
 		  context.RegisterSyntaxNodeAction(AnalyzeMethodDeclaration, SyntaxKind.MethodDeclaration);
 		  context.RegisterSyntaxNodeAction(AnalyzeMemberDeclaration, SyntaxKind.FieldDeclaration);
 		  context.RegisterSyntaxNodeAction(AnalyzeMemberDeclaration, SyntaxKind.PropertyDeclaration);
