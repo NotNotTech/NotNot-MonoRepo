@@ -29,41 +29,16 @@
 
 	<!--LOCAL DEV NOTES:  To reference `.csproj`, not Nuget: Add ` OutputItemType="Analyzer" ReferenceOutputAssembly="false"` to the `ProjectReference`-->
 
-	<!--BS scafolding needed for sourcegen to reference nuget packages, see: https://github.com/dotnet/roslyn/discussions/47517#discussioncomment-5787288
-	ALL the dlls in the package need to be referenced, not just the one you want to use (System.Text.Json) due to it's dependencies
-	-->
+	<!--Using SourceGenerator.Foundations for automatic dependency management-->
 	<ItemGroup>
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="C:\repos\vUnified\dev\public\NotNot.SourceGenerator.AppSettings\.editorconfig" />
-		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" GeneratePathProperty="true" PrivateAssets="all" />
-		<PackageReference Include="System.Buffers" Version="4.5.1" GeneratePathProperty="true" PrivateAssets="all" />
-		<PackageReference Include="System.Memory" Version="4.5.5" GeneratePathProperty="true" PrivateAssets="all" />
-		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" GeneratePathProperty="true" PrivateAssets="all" />
-		<PackageReference Include="System.Text.Encodings.Web" Version="8.0.0" GeneratePathProperty="true" PrivateAssets="all" />
-		<PackageReference Include="System.Text.Json" Version="8.0.5" PrivateAssets="all" GeneratePathProperty="true" />
-		<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" GeneratePathProperty="true" PrivateAssets="all" />
-
-		<None Include="$(PKGSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="$(PKGMicrosoft_Bcl_AsyncInterfaces)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="$(PKGSystem_Buffers)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="$(PKGSystem_Memory)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="$(PKGSystem_Runtime_CompilerServices_Unsafe)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="$(PKGSystem_Text_Encodings_Web)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="$(PKGMSystem_Threading_Tasks_Extensions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<!--removed hardcoded path reference-->
+		<PackageReference Include="SourceGenerator.Foundations" Version="2.0.13" PrivateAssets="all" />
+		<PackageReference Include="System.Text.Json" Version="8.0.5" PrivateAssets="all" />
 	</ItemGroup>
 
 
-	<Target Name="GetDependencyTargetPaths">
-		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Text_Json)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Bcl_AsyncInterfaces)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Buffers)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Memory)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Runtime_CompilerServices_Unsafe)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Text_Encodings_Web)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGMSystem_Threading_Tasks_Extensions)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
-		</ItemGroup>
-	</Target>
+	<!--Removed GetDependencyTargetPaths target - SourceGenerator.Foundations handles this automatically-->
 
 
 	<!-- standard nuget package details -->
@@ -100,7 +75,7 @@
 
 	<!--stuff for nuget package publishing-->
 	<ItemGroup>
-		<EditorConfigFiles Remove="C:\repos\vUnified\dev\public\NotNot.SourceGenerator.AppSettings\.editorconfig" />
+		<!--removed hardcoded path reference-->
 
 		<PackageReference Include="MinVer" Version="6.0.0">
 			<PrivateAssets>all</PrivateAssets>
@@ -119,7 +94,7 @@
 
 	<!--project specific nuget settings-->
 	<PropertyGroup>
-		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
+		<!--Removed GetDependencyTargetPaths dependency - SourceGenerator.Foundations handles this-->
 		<Title>NotNot.AppSettings</Title>
 		<Authors>Jason Swearingen</Authors>
 		<PackageTags>AppSettings; Source Generator; SourceGenerator; Json; NotNot; Novaleaf;</PackageTags>
