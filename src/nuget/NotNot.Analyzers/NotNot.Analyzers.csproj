@@ -21,8 +21,11 @@
 
 	<ItemGroup>
 	<Compile Remove="bin\**" />
+	<Compile Remove="Documentation\**" />
 	<EmbeddedResource Remove="bin\**" />
+	<EmbeddedResource Remove="Documentation\**" />
 	<None Remove="bin\**" />
+	<None Remove="Documentation\**" />
   </ItemGroup>
 
 
