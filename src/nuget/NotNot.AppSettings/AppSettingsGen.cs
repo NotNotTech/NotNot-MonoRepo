@@ -1,15 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using NotNot.AppSettings;
+using SGF;
 
 [assembly: InternalsVisibleTo("NotNot.AppSettings.Tests")]
 
@@ -18,18 +17,16 @@ namespace NotNot;
 /// <summary>
 /// generate settings classes from appsettings.json files.  These will be namespaced as [TargetProjectNamespaceRoot].AppSettings.[ConfigName]
 /// </summary>
-[Generator]
-internal class AppSettingsGen : IIncrementalGenerator
+[IncrementalGenerator]
+internal class AppSettingsGen : IncrementalGenerator
 {
-	public void Initialize(IncrementalGeneratorInitializationContext context)
+	public AppSettingsGen() : base("AppSettingsGen")
 	{
-#if DEBUG
-		////if enabled, this will allow you to attach and debug sourcegen when building the target project.
-		//if (!Debugger.IsAttached)
-		//{
-		//	Debugger.Launch();
-		//}
-#endif
+	}
+	
+	public override void OnInitialize(SgfInitializationContext context)
+	{
+		// SGF handles debugging automatically via SGF_DEBUGGER_LAUNCH environment variable
 
 
 		/////////////  NEW ADDITIONAL FILES WORKFLOW
@@ -144,31 +141,23 @@ internal class AppSettingsGen : IIncrementalGenerator
 		//}
 	}
 
-	public void ExecuteGenerator(SourceProductionContext spc, AppSettingsGenConfig config)
+	public void ExecuteGenerator(SgfSourceProductionContext spc, AppSettingsGenConfig config)
 	{
-		var diagReports = new List<Diagnostic>();
+		var results = GenerateSourceFiles(config);
 
-		var results = GenerateSourceFiles(config, diagReports);
-
-		foreach (var report in diagReports)
-		{
-			spc.ReportDiagnostic(report);
-		}
 		foreach (var result in results)
 		{
 			spc.AddSource(result.Key, result.Value);
 		}
-		spc._Info("done");
+		Logger.Information("Source generation completed successfully with " + results.Count + " files");
 	}
 	
 	/// <summary>
 	/// will generate strongly typed c# classes for each matched (appsettings).json
 	/// </summary>
-	/// <param name="diagReport">helper for accumulating diag messages.  caller should relay them to appropriate log writer afterwards.</param>
-	/// <param name="appSettingsJsonSourceFiles">the appsettings.json files</param>
-	/// <param name="rootNamespace">{rootNamespace}.AppSettingsGen is used as the namespace of generated files</param>
+	/// <param name="config">Configuration containing source files and generation settings</param>
 	/// <returns>the "output" C#, source generated files</returns>
-	public Dictionary<string, SourceText> GenerateSourceFiles(AppSettingsGenConfig config, List<Diagnostic> diagReport)
+	public Dictionary<string, SourceText> GenerateSourceFiles(AppSettingsGenConfig config)
 	{
 
 		var toReturn = new Dictionary<string, SourceText>();
@@ -180,21 +169,21 @@ internal class AppSettingsGen : IIncrementalGenerator
 		//}
 		if (config.CombinedSourceTexts.Count == 0)
 		{
-			diagReport._Error($"No appSettings.json files were found in your project.  SourceGen aborted. In Project Properties, Make sure it's BuildAction=C# Analyzer, and copy-to-output=ALWAYS.");
+			Logger.Error("No appSettings.json files were found in your project. SourceGen aborted. In Project Properties, Make sure it's BuildAction=C# Analyzer, and copy-to-output=ALWAYS.");
 			return toReturn;
 		}
 
-		diagReport._Info($"rootNamespace={config.RootNamespace}, appSettingsJsonSourceFiles.Count={config.CombinedSourceTexts.Count}");
+		Logger.Information("Processing source generation: rootNamespace=" + config.RootNamespace + ", appSettingsJsonSourceFiles.Count=" + config.CombinedSourceTexts.Count);
 
 
 
 		//merge into one big json
-		var allJsonDict = JsonMerger.MergeJsonFiles(config.CombinedSourceTexts, diagReport);
+		var allJsonDict = JsonMerger.MergeJsonFiles(config.CombinedSourceTexts);
 
 		//generate classes for the entire json hiearchy
-		GenerateFilesWorker(diagReport, toReturn, allJsonDict, "AppSettings", $"{config.StartingNamespace}", config);
+		GenerateFilesWorker(toReturn, allJsonDict, "AppSettings", $"{config.StartingNamespace}", config);
 
-		AddBinderShims(diagReport, toReturn, config);
+		AddBinderShims(toReturn, config);
 
 		return toReturn;
 
@@ -203,10 +192,9 @@ internal class AppSettingsGen : IIncrementalGenerator
 	/// <summary>
 	/// add helper service to automatically populate appsettings from disk
 	/// </summary>
-	/// <param name="diagReport"></param>
-	/// <param name="toReturn"></param>
-	/// <param name="startingNamespace"></param>
-	private void AddBinderShims(List<Diagnostic> diagReport, Dictionary<string, SourceText> toReturn, AppSettingsGenConfig config)
+	/// <param name="toReturn">Dictionary to add generated source files to</param>
+	/// <param name="config">Configuration for the generation</param>
+	private void AddBinderShims(Dictionary<string, SourceText> toReturn, AppSettingsGenConfig config)
 	{
 		var builder = new StringBuilder();
 		builder.Append(@$"
@@ -491,7 +479,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 	/// <summary>
 	/// generate files for the given json hierarchy, recursively calling itself for each child node
 	/// </summary>
-	protected void GenerateFilesWorker(List<Diagnostic> diagReport, Dictionary<string, SourceText> generatedSourceFiles, Dictionary<string, JsonElement> currentNode, string currentNodeName, string currentNamespace, AppSettingsGenConfig config)
+	protected void GenerateFilesWorker(Dictionary<string, SourceText> generatedSourceFiles, Dictionary<string, JsonElement> currentNode, string currentNodeName, string currentNamespace, AppSettingsGenConfig config)
 	{
 		//build currentNode into file
 		var currentClassName = currentNodeName._ConvertToAlphanumericCaps();
@@ -544,7 +532,7 @@ namespace {currentNamespace};
 				case JsonValueKind.Object:
 					{
 						var childNode = kvp.Value.Deserialize<Dictionary<string, JsonElement>>(JsonMerger._serializerOptions)!;
-						GenerateFilesWorker(diagReport, generatedSourceFiles, childNode, propertyName, propertyNamespace,config);
+						GenerateFilesWorker(generatedSourceFiles, childNode, propertyName, propertyNamespace, config);
 					}
 					break;
 				case JsonValueKind.Array:
@@ -568,7 +556,7 @@ namespace {currentNamespace};
 								{
 									JsonMerger.MergeJson(squashedChildren, child);
 								}
-								GenerateFilesWorker(diagReport, generatedSourceFiles, squashedChildren, propertyName, propertyNamespace, config);
+								GenerateFilesWorker(generatedSourceFiles, squashedChildren, propertyName, propertyNamespace, config);
 								break;
 						}
 

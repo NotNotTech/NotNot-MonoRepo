@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using System.Collections.Generic;
 
 namespace NotNot.AppSettings;
 
@@ -30,7 +30,7 @@ internal static class JsonMerger
       WriteIndented = true,
    };
 
-   public static Dictionary<string, JsonElement> MergeJsonFiles(Dictionary<string, SourceText> sourceTexts, List<Diagnostic> diagReport)
+   public static Dictionary<string, JsonElement> MergeJsonFiles(Dictionary<string, SourceText> sourceTexts)
    {
 	   var mergedObject = new Dictionary<string, JsonElement>();
 
@@ -39,7 +39,7 @@ internal static class JsonMerger
 			var fileName = pair.Key;
 			var sourceText = pair.Value;
 
-		   diagReport._Info($"obtaining settings from {fileName}");
+		   // SGF logging would be used here if needed: Logger.Information("obtaining settings from {FileName}", fileName);
 		   
 			using var jsonDoc = JsonDocument.Parse(sourceText.ToString(), _options);
 
