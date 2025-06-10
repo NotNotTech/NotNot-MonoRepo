@@ -301,7 +301,7 @@ public record class Problem
 		return ex as Exception;
 	}
 
-	public static Problem From(CancellationToken ct, [CallerMemberName] string memberName = "",
+	public static Problem FromCancelledToken(CancellationToken ct, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
@@ -374,7 +374,7 @@ public record class Problem
 
 	}
 
-	public static Problem From(Exception ex, [CallerMemberName] string memberName = "",
+	public static Problem FromEx(Exception ex, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
