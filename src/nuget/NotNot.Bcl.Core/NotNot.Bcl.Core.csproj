@@ -85,8 +85,8 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="SimpleBase" Version="4.0.2" />
-		<PackageReference Include="ZstdSharp.Port" Version="0.8.4" />
+		<PackageReference Include="SimpleBase" Version="5.4.1" />
+		<PackageReference Include="ZstdSharp.Port" Version="0.8.5" />
 	</ItemGroup>
 
 
