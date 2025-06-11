@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace NotNot.Example.HelloConsole;
@@ -28,6 +28,7 @@ public class HelloHostedService(ILogger<HelloHostedService> _logger)
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
+		stoppingToken.ThrowIfCancellationRequested();
 		while (!stoppingToken.IsCancellationRequested)
 		{
 			_logger._EzError($"Background task running at: {DateTimeOffset.Now}");

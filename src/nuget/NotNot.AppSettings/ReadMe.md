@@ -150,6 +150,12 @@ This way you can check it into source control and have a backup of the generated
 ### Local Development (Reference `.csproj`, not Nuget)
 
 - Add ` OutputItemType="Analyzer" ReferenceOutputAssembly="false"` to the `<ProjectReference/>`
+- **IMPORTANT**: When using Project References, you must manually import the targets file to expose MSBuild properties to the source generator:
+```xml
+<!-- Import NotNot.AppSettings targets to expose MSBuild properties to source generator -->
+<Import Project="path/to/NotNot.AppSettings.targets" />
+```
+Without this import, properties like `<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>` will be ignored.
 - beware when attempting to update nuget packages, it will likely break the Source Generator.  Default to just leaving them as is, unless you want to spend time troubleshooting sourcegen thrown exceptions.
 
 ### Nuget

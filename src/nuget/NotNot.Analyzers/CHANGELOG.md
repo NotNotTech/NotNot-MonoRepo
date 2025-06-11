@@ -31,7 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Performance monitoring** with built-in telemetry
 - **Advanced analyzers**:
   - `NN_R003`: UI thread blocking detection
-  - `NN_R004`: ConfigureAwait(false) suggestions for library code
 - **EditorConfig integration** for rule customization
 
 ### Enhanced
@@ -88,12 +87,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 3. **Advanced Rules**
    - Enable UI context detection for NN_R003
-   - Enable library code analysis for NN_R004
    - Configure suppressions for test projects
 
 #### Recommended Actions
 1. **Update .editorconfig** to configure new rules
-2. **Review new diagnostics** NN_R003 and NN_R004
+2. **Review new diagnostics** NN_R003
 3. **Enable auto-fixes** in your IDE settings
 4. **Consider bulk fixes** for existing violations
 

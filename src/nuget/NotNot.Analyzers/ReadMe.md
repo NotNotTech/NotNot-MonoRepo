@@ -82,26 +82,6 @@ await HttpClient.GetAsync(url); // May deadlock
 await HttpClient.GetAsync(url).ConfigureAwait(false);
 ```
 
-### NN_R004: Missing ConfigureAwait(false) in library code
-**Severity:** Info  
-**Category:** Reliability
-
-Suggests using ConfigureAwait(false) in library code to avoid deadlocks.
-
-```csharp
-// ❌ Library code without ConfigureAwait
-public async Task<string> GetDataAsync()
-{
-    return await httpClient.GetStringAsync(url);
-}
-
-// ✅ With ConfigureAwait(false)
-public async Task<string> GetDataAsync()
-{
-    return await httpClient.GetStringAsync(url).ConfigureAwait(false);
-}
-```
-
 ## ⚙️ Configuration
 
 Configure rules using `.editorconfig`:
@@ -112,7 +92,6 @@ Configure rules using `.editorconfig`:
 dotnet_diagnostic.NN_R001.severity = error
 dotnet_diagnostic.NN_R002.severity = error
 dotnet_diagnostic.NN_R003.severity = warning
-dotnet_diagnostic.NN_R004.severity = suggestion
 
 # Disable specific rules
 dotnet_diagnostic.NN_R003.severity = none
