@@ -34,7 +34,7 @@
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<!--removed hardcoded path reference-->
 		<PackageReference Include="SourceGenerator.Foundations" Version="2.0.13" PrivateAssets="all" />
-		<PackageReference Include="System.Text.Json" Version="8.0.5" PrivateAssets="all" />
+		<PackageReference Include="System.Text.Json" Version="9.0.6" PrivateAssets="all" />
 	</ItemGroup>
 
 
@@ -105,16 +105,16 @@
 
 	<ItemGroup>
 		<!--required for sourcegen-->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4">
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0">
 			<PrivateAssets>all</PrivateAssets>
 			<!--required so that the .props file is included in the target project build-->
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<!--required for json IConfiguration.Bind()  _BinderShims.cs-->
-		<PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.6" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.6" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.6" />
 
 	</ItemGroup>
 
