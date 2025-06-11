@@ -52,6 +52,12 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 		var awaitExpression = (AwaitExpressionSyntax)context.Node;
 		var semanticModel = context.SemanticModel;
 
+		// Skip server contexts - they don't have UI thread blocking concerns
+		if (IsInServerContext(awaitExpression, semanticModel))
+		{
+			return;
+		}
+
 		// Check for UI context blocking potential
 		if (IsInUiContext(awaitExpression, semanticModel))
 		{
@@ -83,11 +89,23 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
 	private static bool IsInUiContext(SyntaxNode node, SemanticModel semanticModel)
 	{
+		// Early exit: if this is already identified as server context, it's not UI
+		if (IsInServerContext(node, semanticModel))
+		{
+			return false;
+		}
+
 		// Check if we're in a class that likely represents a UI component
 		var containingClass = node.FirstAncestorOrSelf<ClassDeclarationSyntax>();
 		if (containingClass != null)
 		{
 			var className = containingClass.Identifier.ValueText;
+
+			// Exclude server-side controller patterns from UI detection
+			if (className.EndsWith("Controller") || className.Contains("Controller"))
+			{
+				return false;
+			}
 
 			// Common UI class patterns
 			if (className.EndsWith("Page") ||
@@ -107,6 +125,16 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 			if (classSymbol?.BaseType != null)
 			{
 				var baseTypeName = classSymbol.BaseType.Name;
+				
+				// Exclude server base classes
+				if (baseTypeName == "ControllerBase" || 
+					 baseTypeName == "Controller" || 
+					 baseTypeName == "ApiController")
+				{
+					return false;
+				}
+
+				// UI base classes
 				if (baseTypeName.Contains("Page") ||
 					 baseTypeName.Contains("Window") ||
 					 baseTypeName.Contains("Form") ||
@@ -116,6 +144,26 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 				{
 					return true;
 				}
+			}
+		}
+
+		// Check namespace patterns to exclude server namespaces
+		var namespaceDeclaration = node.FirstAncestorOrSelf<NamespaceDeclarationSyntax>() ??
+									node.FirstAncestorOrSelf<FileScopedNamespaceDeclarationSyntax>() as BaseNamespaceDeclarationSyntax;
+
+		if (namespaceDeclaration != null)
+		{
+			var namespaceName = namespaceDeclaration.Name.ToString();
+
+			// Exclude server-side namespaces from UI detection
+			if (namespaceName.Contains(".Api") ||
+				 namespaceName.Contains(".Controllers") ||
+				 namespaceName.Contains(".WebApi") ||
+				 namespaceName.Contains(".Server") ||
+				 namespaceName.Contains(".Services") ||
+				 namespaceName.Contains(".Infrastructure"))
+			{
+				return false;
 			}
 		}
 
@@ -199,6 +247,120 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 				 namespaceName.Contains(".Library") ||
 				 namespaceName.Contains(".Core") ||
 				 namespaceName.Contains(".Infrastructure"))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Determines if the code is executing in a server context where ConfigureAwait(false) is unnecessary
+	/// </summary>
+	/// <param name="node">The syntax node to analyze</param>
+	/// <param name="semanticModel">The semantic model for symbol analysis</param>
+	/// <returns>True if in server context, false otherwise</returns>
+	private static bool IsInServerContext(SyntaxNode node, SemanticModel semanticModel)
+	{
+		// Check if we're in a Web API controller class
+		var containingClass = node.FirstAncestorOrSelf<ClassDeclarationSyntax>();
+		if (containingClass != null)
+		{
+			var className = containingClass.Identifier.ValueText;
+
+			// ASP.NET Core controller patterns
+			if (className.EndsWith("Controller") || 
+				 className.Contains("Controller"))
+			{
+				return true;
+			}
+
+			// Check for controller base classes
+			var classSymbol = semanticModel.GetDeclaredSymbol(containingClass);
+			if (classSymbol?.BaseType != null)
+			{
+				var baseTypeName = classSymbol.BaseType.Name;
+				if (baseTypeName.Contains("Controller") ||
+					 baseTypeName == "ControllerBase" ||
+					 baseTypeName == "ApiController")
+				{
+					return true;
+				}
+
+				// Check inheritance chain for controller base types
+				var baseType = classSymbol.BaseType;
+				while (baseType != null)
+				{
+					if (baseType.Name == "ControllerBase" || 
+						 baseType.Name == "Controller" ||
+						 baseType.Name == "ApiController")
+					{
+						return true;
+					}
+					baseType = baseType.BaseType;
+				}
+			}
+		}
+
+		// Check namespace patterns for server/API code
+		var namespaceDeclaration = node.FirstAncestorOrSelf<NamespaceDeclarationSyntax>() ??
+									node.FirstAncestorOrSelf<FileScopedNamespaceDeclarationSyntax>() as BaseNamespaceDeclarationSyntax;
+
+		if (namespaceDeclaration != null)
+		{
+			var namespaceName = namespaceDeclaration.Name.ToString();
+
+			// Server-side namespace patterns
+			if (namespaceName.Contains(".Api") ||
+				 namespaceName.Contains(".Controllers") ||
+				 namespaceName.Contains(".WebApi") ||
+				 namespaceName.Contains(".Server") ||
+				 namespaceName.Contains(".Services") ||
+				 namespaceName.Contains(".Core") ||
+				 namespaceName.Contains(".Infrastructure") ||
+				 namespaceName.Contains(".Background") ||
+				 namespaceName.Contains(".Workers"))
+			{
+				return true;
+			}
+		}
+
+		// Check for common server framework attributes
+		var containingMethod = node.FirstAncestorOrSelf<MethodDeclarationSyntax>();
+		if (containingMethod != null)
+		{
+			var hasServerAttributes = containingMethod.AttributeLists
+				.SelectMany(al => al.Attributes)
+				.Any(attr =>
+				{
+					var attrName = attr.Name.ToString();
+					return attrName.Contains("Http") ||  // HttpGet, HttpPost, etc.
+						   attrName == "Route" ||
+						   attrName == "ApiController" ||
+						   attrName == "Authorize";
+				});
+
+			if (hasServerAttributes)
+			{
+				return true;
+			}
+		}
+
+		// Check class-level attributes for server indicators
+		if (containingClass != null)
+		{
+			var hasServerClassAttributes = containingClass.AttributeLists
+				.SelectMany(al => al.Attributes)
+				.Any(attr =>
+				{
+					var attrName = attr.Name.ToString();
+					return attrName == "ApiController" ||
+						   attrName == "Route" ||
+						   attrName == "Authorize";
+				});
+
+			if (hasServerClassAttributes)
 			{
 				return true;
 			}
