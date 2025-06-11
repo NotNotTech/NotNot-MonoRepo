@@ -155,6 +155,6 @@
 	
 		<ItemGroup>
 			<!--attaches this .targets file to the target project.  (this file make this package a private asset).  Can't be rolled into the above .props sadly-->
-			<None Include="NotNot.GodotNet.SourceGen.targets" Pack="true" PackagePath="build\" />
+			<None Include="NotNot.GodotNet.SourceGen.targets" Pack="true" PackagePath="build" />
 		</ItemGroup>
 </Project>
