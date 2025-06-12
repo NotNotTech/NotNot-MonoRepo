@@ -24,7 +24,7 @@ public static class zz_Extensions_HostApplicationBuilder
 	/// </summary>
 	/// <param name="services"></param>
 	/// <param name="ct"></param>
-	/// <param name="scanAssemblies">assemblies you want to scan for automapper and scrutor types.  default is everything: AppDomain.CurrentDomain.GetAssemblies()</param>
+	/// <param name="scanAssemblies">assemblies you want to scan for scrutor types.  default is everything: AppDomain.CurrentDomain.GetAssemblies()</param>
 	/// <param name="scanIgnore">assemblies to not scan for DI types.   if null is passed, the default will be ["Microsoft.*", "netstandard*", "Serilog*", "System*"] because ASP NetCore IHostedService internal registrations conflict, and others are internal packages.</param>
 	/// <returns></returns>
 	public static async Task _NotNotEzSetup(this IHostApplicationBuilder builder, CancellationToken ct, IEnumerable<Assembly>? scanAssemblies = null
@@ -43,9 +43,7 @@ public static class zz_Extensions_HostApplicationBuilder
 
 		try
 		{
-			//add automapper type mappings found in all assemblies
-			builder.Services.AddAutoMapper(targetAssemblies);
-
+			//add scutor found in all assemblies
 			await _ScrutorRegisterServiceInterfaces(builder, ct, targetAssemblies);
 
 		}
