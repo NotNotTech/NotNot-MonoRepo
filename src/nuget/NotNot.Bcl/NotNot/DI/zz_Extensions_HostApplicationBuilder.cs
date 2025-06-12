@@ -1,10 +1,10 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
-using NotNot.Collections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NotNot.Collections;
 using NotNot.DI.Advanced;
 using Scrutor;
 using Serilog;
@@ -30,7 +30,7 @@ public static class zz_Extensions_HostApplicationBuilder
 	public static async Task _NotNotEzSetup(this IHostApplicationBuilder builder, CancellationToken ct, IEnumerable<Assembly>? scanAssemblies = null
 		, IEnumerable<string>? scanIgnore = null, Action<IConfiguration, LoggerConfiguration> extraLoggerConfig = null)
 	{
-		scanIgnore ??= ["Microsoft.*", "netstandard*", "Serilog*", "System*"];
+		scanIgnore ??= ["Microsoft.*", "netstandard*", "Serilog*", "System*", "Azure*"];
 		await _NotNotUtils_ConfigureLogging(builder, ct, extraLoggerConfig);
 
 		var targetAssemblies = AssemblyReflectionHelper._FilterAssemblies(
