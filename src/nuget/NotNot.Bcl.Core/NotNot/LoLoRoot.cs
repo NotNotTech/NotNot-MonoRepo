@@ -472,8 +472,7 @@ public partial class LoLoRoot
 			}
 
 
-			_runtimeEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
-					Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
+			_runtimeEnv = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
 			return _runtimeEnv;
 		}
 		set
