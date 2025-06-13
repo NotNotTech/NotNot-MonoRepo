@@ -94,10 +94,10 @@ public static class zz_Extensions_HostApplicationBuilder
 				}
 
 				// Add Application Insights sink if connection string available
-				var aiConnectionString = builder.Configuration.GetConnectionString("ApplicationInsights") 
+				var aiConnectionString = builder.Configuration.GetConnectionString("ApplicationInsights")
 					?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
 
-				if (!string.IsNullOrEmpty(aiConnectionString) && !aiConnectionString.Contains("{azureSecret:"))
+				if (!string.IsNullOrEmpty(aiConnectionString))
 				{
 					try
 					{
