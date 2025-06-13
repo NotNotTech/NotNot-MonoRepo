@@ -78,6 +78,41 @@ public static class zz_Extensions_HostApplicationBuilder
 #endif
 					;
 
+				// Add Azure App Service file sink if running on Azure
+				var isAzure = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME"));
+				if (isAzure)
+				{
+					loggerConfiguration = loggerConfiguration.WriteTo.File(
+						path: @"D:\home\LogFiles\Application\cleartrix-app-.log",
+						rollingInterval: Serilog.RollingInterval.Day,
+						fileSizeLimitBytes: 10_000_000,
+						retainedFileCountLimit: 7,
+						shared: true,
+						flushToDiskInterval: TimeSpan.FromSeconds(5),
+						outputTemplate: "<{Timestamp:HH:mm:ss.fff}> [{Level:u}] {Message:w} <s:{SourceContext}>{NewLine}{Exception}"
+					);
+				}
+
+				// Add Application Insights sink if connection string available
+				var aiConnectionString = builder.Configuration.GetConnectionString("ApplicationInsights") 
+					?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+
+				if (!string.IsNullOrEmpty(aiConnectionString) && !aiConnectionString.Contains("{azureSecret:"))
+				{
+					try
+					{
+						loggerConfiguration = loggerConfiguration.WriteTo.ApplicationInsights(
+							connectionString: aiConnectionString,
+							telemetryConverter: new Serilog.Sinks.ApplicationInsights.TelemetryConverters.TraceTelemetryConverter(),
+							restrictedToMinimumLevel: LogEventLevel.Information
+						);
+					}
+					catch (Exception ex)
+					{
+						// Log error but don't fail application startup if AI is misconfigured
+						Console.WriteLine($"Warning: Failed to configure Application Insights logging: {ex.Message}");
+					}
+				}
 
 				if (extraLoggerConfig != null)
 				{
