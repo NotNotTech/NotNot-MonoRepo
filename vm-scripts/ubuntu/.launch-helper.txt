@@ -1,0 +1,6 @@
+#!/bin/bash
+# .devcontainer/scripts/launch-helper.txt
+# this script is what can be pasted into the VM bootstrap section of the devcontainer.json
+set -euxo pipefail
+
+source ./.devcontainer/scripts/vm-bootstrap.sh
