@@ -78,20 +78,20 @@ public static class zz_Extensions_HostApplicationBuilder
 #endif
 					;
 
-				// Add Azure App Service file sink if running on Azure
-				var isAzure = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME"));
-				if (isAzure)
-				{
-					loggerConfiguration = loggerConfiguration.WriteTo.File(
-						path: @"D:\home\LogFiles\Application\cleartrix-app-.log",
-						rollingInterval: Serilog.RollingInterval.Day,
-						fileSizeLimitBytes: 10_000_000,
-						retainedFileCountLimit: 7,
-						shared: true,
-						flushToDiskInterval: TimeSpan.FromSeconds(5),
-						outputTemplate: "<{Timestamp:HH:mm:ss.fff}> [{Level:u}] {Message:w} <s:{SourceContext}>{NewLine}{Exception}"
-					);
-				}
+				//// Add Azure App Service file sink if running on Azure
+				//var isAzure = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME"));
+				//if (isAzure)
+				//{
+				//	loggerConfiguration = loggerConfiguration.WriteTo.File(
+				//		path: @"D:\home\LogFiles\Application\cleartrix-app-.log",
+				//		rollingInterval: Serilog.RollingInterval.Day,
+				//		fileSizeLimitBytes: 10_000_000,
+				//		retainedFileCountLimit: 7,
+				//		shared: true,
+				//		flushToDiskInterval: TimeSpan.FromSeconds(5),
+				//		outputTemplate: "<{Timestamp:HH:mm:ss.fff}> [{Level:u}] {Message:w} <s:{SourceContext}>{NewLine}{Exception}"
+				//	);
+				//}
 
 				// Add Application Insights sink if connection string available
 				var aiConnectionString = builder.Configuration.GetConnectionString("ApplicationInsights")
