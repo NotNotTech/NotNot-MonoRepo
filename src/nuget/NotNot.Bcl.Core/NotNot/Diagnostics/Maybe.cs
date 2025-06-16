@@ -45,7 +45,10 @@ public record class Maybe : Maybe<OperationResult>
 	//   }
 	//}
 
-	public static Maybe Success([CallerMemberName] string memberName = "",
+	/// <summary>
+	/// shortcut to `.Success(OperationResult.Success)`
+	/// </summary>
+	public static Maybe SuccessResult([CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0) => new(OperationResult.Success, memberName, sourceFilePath, sourceLineNumber);
 
