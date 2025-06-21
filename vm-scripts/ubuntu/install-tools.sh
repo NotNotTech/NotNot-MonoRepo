@@ -18,19 +18,35 @@ echo %%%%%%%%%%%%%%%  START: ${BASH_SOURCE[0]}
 # node -v   #verify install
 
 
-
 npm install -g @anthropic-ai/claude-code
+
 
 sudo chmod 777 -R .
 
 # install az cli
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
+# install 
 
 
 # then claude: https://docs.anthropic.com/en/docs/claude-code/getting-started
 # sudo npm install -g @anthropic-ai/claude-code
 
+
+
+# claude code monitor
+sudo apt install -y pip pipx python3-venv
+pushd /workspaces
+git clone https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor.git  # fetches entire history
+cd Claude-Code-Usage-Monitor
+git checkout 4aa84a96f2e634e231e9538d83b59a6bcedf3297 # moves HEAD into detached‐HEAD at that SHA
+python3 -m venv venv
+source venv/bin/activate
+pip install pytz
+chmod +x ccusage_monitor.py
+# # run monitor
+# python ccusage_monitor.py
+popd
 
 # sudo apt update -y
 
