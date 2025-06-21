@@ -35,6 +35,8 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 
 # claude code monitor
+# https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor
+# https://news.ycombinator.com/item?id=44317012
 sudo apt install -y pip pipx python3-venv
 pushd /workspaces
 git clone https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor.git  # fetches entire history
