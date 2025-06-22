@@ -4828,6 +4828,31 @@ public static class zz_Extensions_Type
 	}
 
 	/// <summary>
+	///    Discovers all concrete, non-abstract types in the current AppDomain that inherit from or implement the specified base type.
+	/// </summary>
+	/// <param name="baseType">The base type or interface to find derived types for.</param>
+	/// <returns>A list of all derived types.</returns>
+	public static List<Type> _GetDerivedTypes(this Type baseType)
+	{
+		return AppDomain.CurrentDomain.GetAssemblies()
+			.SelectMany(assembly =>
+			{
+				try
+				{
+					return assembly.GetTypes();
+				}
+				catch (ReflectionTypeLoadException)
+				{
+					// In case of a type load exception, just return an empty array.
+					// This can happen with dynamic or problematic assemblies.
+					return Type.EmptyTypes;
+				}
+			})
+			.Where(type => type != baseType && !type.IsAbstract && !type.IsInterface && baseType.IsAssignableFrom(type))
+			.ToList();
+	}
+
+	/// <summary>
 	///    Creates and returns an instance of the desired type
 	/// </summary>
 	/// <param name="type">The type to be instanciated.</param>
