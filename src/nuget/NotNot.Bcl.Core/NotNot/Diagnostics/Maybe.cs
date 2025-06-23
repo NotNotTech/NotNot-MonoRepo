@@ -15,42 +15,42 @@ namespace NotNot;
 /// </summary>
 public record class Maybe : Maybe<OperationResult>
 {
-	   /// <summary>
-	   /// Initializes a new instance of the <see cref="Maybe"/> class with a successful <see cref="OperationResult"/> value.
-	   /// </summary>
-	   /// <param name="value">The operation result value. Defaults to <see cref="OperationResult.Success"/>.</param>
-	   /// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
-	   /// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
-	   /// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
-	   public Maybe(OperationResult value = Data.OperationResult.Success, [CallerMemberName] string memberName = "",
-			   [CallerFilePath] string sourceFilePath = "",
-			   [CallerLineNumber] int sourceLineNumber = 0) : base(value, memberName, sourceFilePath, sourceLineNumber)
-	   {
-	   }
+	/// <summary>
+	/// Initializes a new instance of the <see cref="Maybe"/> class with a successful <see cref="OperationResult"/> value.
+	/// </summary>
+	/// <param name="value">The operation result value. Defaults to <see cref="OperationResult.Success"/>.</param>
+	/// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
+	/// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
+	/// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
+	public Maybe(OperationResult value = Data.OperationResult.Success, [CallerMemberName] string memberName = "",
+			[CallerFilePath] string sourceFilePath = "",
+			[CallerLineNumber] int sourceLineNumber = 0) : base(value, memberName, sourceFilePath, sourceLineNumber)
+	{
+	}
 
-	   /// <summary>
-	   /// Initializes a new instance of the <see cref="Maybe"/> class with a <see cref="Problem"/>.
-	   /// </summary>
-	   /// <param name="problem">The problem instance.</param>
-	   /// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
-	   /// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
-	   /// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
-	   public Maybe(Problem problem, [CallerMemberName] string memberName = "",
-			   [CallerFilePath] string sourceFilePath = "",
-			   [CallerLineNumber] int sourceLineNumber = 0) : base(problem, memberName, sourceFilePath, sourceLineNumber)
-	   {
-	   }
+	/// <summary>
+	/// Initializes a new instance of the <see cref="Maybe"/> class with a <see cref="Problem"/>.
+	/// </summary>
+	/// <param name="problem">The problem instance.</param>
+	/// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
+	/// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
+	/// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
+	public Maybe(Problem problem, [CallerMemberName] string memberName = "",
+			[CallerFilePath] string sourceFilePath = "",
+			[CallerLineNumber] int sourceLineNumber = 0) : base(problem, memberName, sourceFilePath, sourceLineNumber)
+	{
+	}
 
-	   /// <summary>
-	   /// Implicitly converts a <see cref="Problem"/> to a <see cref="Maybe"/> instance, capturing the source location.
-	   /// </summary>
-	   /// <param name="problem">The problem to convert.</param>
-	   /// <returns>A <see cref="Maybe"/> instance representing the problem.</returns>
-	   public static implicit operator Maybe(Problem problem)
-	   {
-			   var source = problem.DecomposeSource();
-			   return new Maybe(problem, source.memberName, source.sourceFilePath, source.sourceLineNumber);
-	   }
+	/// <summary>
+	/// Implicitly converts a <see cref="Problem"/> to a <see cref="Maybe"/> instance, capturing the source location.
+	/// </summary>
+	/// <param name="problem">The problem to convert.</param>
+	/// <returns>A <see cref="Maybe"/> instance representing the problem.</returns>
+	public static implicit operator Maybe(Problem problem)
+	{
+		var source = problem.DecomposeSource();
+		return new Maybe(problem, source.memberName, source.sourceFilePath, source.sourceLineNumber);
+	}
 	//public static implicit operator Maybe(Maybe<OperationResult> maybe)
 	//{
 	//   var trace = maybe.TraceId;
@@ -67,29 +67,29 @@ public record class Maybe : Maybe<OperationResult>
 	/// <summary>
 	/// shortcut to `.Success(OperationResult.Success)`
 	/// </summary>
-	   /// <summary>
-	   /// Returns a <see cref="Maybe"/> representing a successful operation result.
-	   /// </summary>
-	   /// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
-	   /// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
-	   /// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
-	   /// <returns>A <see cref="Maybe"/> instance with <see cref="OperationResult.Success"/>.</returns>
-	   public static Maybe SuccessResult([CallerMemberName] string memberName = "",
-			   [CallerFilePath] string sourceFilePath = "",
-			   [CallerLineNumber] int sourceLineNumber = 0) => new(OperationResult.Success, memberName, sourceFilePath, sourceLineNumber);
+	/// <summary>
+	/// Returns a <see cref="Maybe"/> representing a successful operation result.
+	/// </summary>
+	/// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
+	/// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
+	/// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
+	/// <returns>A <see cref="Maybe"/> instance with <see cref="OperationResult.Success"/>.</returns>
+	public static Maybe SuccessResult([CallerMemberName] string memberName = "",
+			[CallerFilePath] string sourceFilePath = "",
+			[CallerLineNumber] int sourceLineNumber = 0) => new(OperationResult.Success, memberName, sourceFilePath, sourceLineNumber);
 
-	   /// <summary>
-	   /// Returns a <see cref="Maybe{T}"/> representing a successful result with the specified value.
-	   /// </summary>
-	   /// <typeparam name="T">The type of the value.</typeparam>
-	   /// <param name="value">The value to wrap in a successful <see cref="Maybe{T}"/>.</param>
-	   /// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
-	   /// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
-	   /// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
-	   /// <returns>A successful <see cref="Maybe{T}"/> instance.</returns>
-	   public static Maybe<T> Success<T>(T value, [CallerMemberName] string memberName = "",
-			   [CallerFilePath] string sourceFilePath = "",
-			   [CallerLineNumber] int sourceLineNumber = 0) => Maybe<T>.Success(value, memberName, sourceFilePath, sourceLineNumber);
+	/// <summary>
+	/// Returns a <see cref="Maybe{T}"/> representing a successful result with the specified value.
+	/// </summary>
+	/// <typeparam name="T">The type of the value.</typeparam>
+	/// <param name="value">The value to wrap in a successful <see cref="Maybe{T}"/>.</param>
+	/// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
+	/// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
+	/// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
+	/// <returns>A successful <see cref="Maybe{T}"/> instance.</returns>
+	public static Maybe<T> Success<T>(T value, [CallerMemberName] string memberName = "",
+			[CallerFilePath] string sourceFilePath = "",
+			[CallerLineNumber] int sourceLineNumber = 0) => Maybe<T>.Success(value, memberName, sourceFilePath, sourceLineNumber);
 
 	/// <summary>
 	/// an ez hack for development:  throw a ProblemException if the condition fails.  This is fast and easy but throwing exceptions is low performance.  should replace with a no-throw solution for hot paths
@@ -179,6 +179,7 @@ public record class Maybe<TValue> : IMaybe
 	/// </summary>
 	[MemberNotNullWhen(false, "Problem")]
 	public bool IsSuccess { get; private init; }
+
 
 	/// <summary>
 	/// Gets or sets a human-readable explanation of the intent of this Maybe instance.
@@ -278,7 +279,18 @@ public record class Maybe<TValue> : IMaybe
 		return new(problem, source.memberName, source.sourceFilePath, source.sourceLineNumber);
 	}
 
-
+	/// <summary>
+	/// helper to throw an exception if the Maybe is not successful.
+	/// <para> thrown ProblemException if not successful</para>
+	/// </summary>
+	public void ThrowIfProblem()
+	{
+		if (!IsSuccess)
+		{
+			__.AssertNotNull(Problem, "Problem is null, but IsSuccess is false.  This is a bug.");
+			throw Problem.ToException();
+		}
+	}
 
 	// Method to map success value to a different type
 	public Maybe<TNew> Map<TNew>(Func<TValue, TNew> func, [CallerMemberName] string memberName = "",
@@ -524,17 +536,17 @@ public record class Maybe<TValue> : IMaybe
 /// JSON converter for Maybe<T> to support deserialization from Content.ReadFromJsonAsync
 /// </summary>
 public class MaybeJsonConverter : JsonConverterFactory
-	/// <summary>
-	/// Determines whether the specified type can be converted by this factory.
-	/// </summary>
-	/// <param name="typeToConvert">The type to check.</param>
-	/// <returns>True if the type is a Maybe&lt;&gt;; otherwise, false.</returns>
-	/// <summary>
-	/// Creates a JSON converter for the specified type.
-	/// </summary>
-	/// <param name="typeToConvert">The type to convert.</param>
-	/// <param name="options">The serializer options.</param>
-	/// <returns>A JSON converter for the specified type.</returns>
+/// <summary>
+/// Determines whether the specified type can be converted by this factory.
+/// </summary>
+/// <param name="typeToConvert">The type to check.</param>
+/// <returns>True if the type is a Maybe&lt;&gt;; otherwise, false.</returns>
+/// <summary>
+/// Creates a JSON converter for the specified type.
+/// </summary>
+/// <param name="typeToConvert">The type to convert.</param>
+/// <param name="options">The serializer options.</param>
+/// <returns>A JSON converter for the specified type.</returns>
 {
 	public override bool CanConvert(Type typeToConvert)
 	{
@@ -554,19 +566,19 @@ public class MaybeJsonConverter : JsonConverterFactory
 /// Typed JSON converter for Maybe<T>
 /// </summary>
 public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
-	/// <summary>
-	/// Reads and converts the JSON to a <see cref="Maybe{T}"/> object.
-	/// </summary>
-	/// <param name="reader">The reader.</param>
-	/// <param name="typeToConvert">The type to convert.</param>
-	/// <param name="options">The serializer options.</param>
-	/// <returns>The deserialized <see cref="Maybe{T}"/> object.</returns>
-	/// <summary>
-	/// Writes a <see cref="Maybe{T}"/> object as JSON.
-	/// </summary>
-	/// <param name="writer">The writer.</param>
-	/// <param name="value">The value to write.</param>
-	/// <param name="options">The serializer options.</param>
+/// <summary>
+/// Reads and converts the JSON to a <see cref="Maybe{T}"/> object.
+/// </summary>
+/// <param name="reader">The reader.</param>
+/// <param name="typeToConvert">The type to convert.</param>
+/// <param name="options">The serializer options.</param>
+/// <returns>The deserialized <see cref="Maybe{T}"/> object.</returns>
+/// <summary>
+/// Writes a <see cref="Maybe{T}"/> object as JSON.
+/// </summary>
+/// <param name="writer">The writer.</param>
+/// <param name="value">The value to write.</param>
+/// <param name="options">The serializer options.</param>
 {
 	public override Maybe<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 	{

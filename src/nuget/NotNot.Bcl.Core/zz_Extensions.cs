@@ -243,14 +243,12 @@ public static class zz_Extensions_Exception
 
 	public static string _ToUserFriendlyString(this Exception e)
 	{
-		string innerErrorString = null;
-		if (e.InnerException != null)
-		{
-			var innerError = e.InnerException;
-			innerErrorString = $" innerError: {innerError.GetType().Name}: {innerError.Message}";
-		}
+		if (e == null) return string.Empty;
 
-		return $"{e.GetType().Name}: {e.Message}{innerErrorString}";
+		string innerErrorString = e.InnerException._ToUserFriendlyString();
+		string message = e.Message.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+		return $$""" "{{e.GetType().Name}}": {"msg": "{{message}}","inner": {{{innerErrorString}}}""";
 	}
 }
 
