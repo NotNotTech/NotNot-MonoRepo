@@ -177,6 +177,7 @@ public record class Maybe<TValue> : IMaybe
 	/// <summary>
 	/// Gets a value indicating whether the operation was successful.
 	/// </summary>
+	[MemberNotNullWhen(false, "Problem")]
 	public bool IsSuccess { get; private init; }
 
 	/// <summary>
