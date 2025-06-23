@@ -1,10 +1,10 @@
-using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Primitives;
+using Newtonsoft.Json.Linq;
 
 namespace NotNot.Serialization;
 
@@ -87,6 +87,7 @@ public class SerializationHelper
 		ReferenceHandler = ReferenceHandler.IgnoreCycles,
 		Converters =
 		{
+			new ObjConverter<Exception>(value => $"EX={value.GetType().Name}_MSG={value.Message}_INNER={value.InnerException?.Message}"),
 			new ObjConverter<MethodBase>(value => value.Name),
 			new ObjConverter<Type>(value => value.FullName),
 			new ObjConverter<StackTrace>(value => value.GetFrames()),
@@ -125,13 +126,13 @@ public class SerializationHelper
 
 
 
-/// <summary>
-///    converts input object into a "plain old collection object", a nested Dictionary/List structure.
-/// <para>this is useful for logging only, not round-trip</para>
-/// </summary>
-/// <param name="obj"></param>
-/// <returns></returns>
-public static object ToLogPoCo(object obj)
+	/// <summary>
+	///    converts input object into a "plain old collection object", a nested Dictionary/List structure.
+	/// <para>this is useful for logging only, not round-trip</para>
+	/// </summary>
+	/// <param name="obj"></param>
+	/// <returns></returns>
+	public static object ToLogPoCo(object obj)
 	{
 		try
 		{
@@ -275,7 +276,7 @@ public static object ToLogPoCo(object obj)
 
 		// Add leading zero to numbers starting with decimal point (simplified version)
 		json5String = @"([^\w\.])\.(\d+([eE][+\-]?\d+)?)"._ToRegex().Replace(json5String, "$10.$2");
-		
+
 		// Add trailing zero to numbers ending with decimal point (simplified version without negative lookahead)
 		json5String = @"(\d+)\.(\s|,|\}|\])"._ToRegex().Replace(json5String, "$1.0$2");
 
@@ -332,8 +333,8 @@ public static object ToLogPoCo(object obj)
 		//dotnet, doesn't support unquoted keys
 		var jsonString = PreprocessJson5ToJson(json5String);
 
-		
-		
+
+
 
 		//var jsonString = FileAccess.Open(match, FileAccess.ModeFlags.Read).GetAsText();
 		var jsonFile = JsonSerializer.Deserialize<TJsonSerialized>(jsonString, _roundtripJsonOptions);

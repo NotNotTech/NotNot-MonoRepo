@@ -44,7 +44,7 @@ public record class Problem
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	[JsonPropertyOrder(-3)]
 	[JsonPropertyName("status")]
-	public HttpStatusCode Status { get; set; }
+	public required HttpStatusCode Status { get; set; }
 
 	/// <summary>
 	/// A human-readable explanation specific to this occurrence of the problem.
@@ -452,7 +452,7 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 					}
 				}
 
-				string tempSourceForDefaultProblem = new Problem { category = categoryValue }.source; // Create a temporary problem to get default source
+				string tempSourceForDefaultProblem = new Problem { category = categoryValue, Status = status }.source; // Create a temporary problem to get default source
 
 				// Initialize Problem with required category and potentially source from JSON
 				var problem = new Problem() // Default constructor sets a default source
@@ -571,17 +571,15 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 			{
 				continue;
 			}
-			writer.WritePropertyName(extension.Key);
-
-			//serialize with our custom options to handle dotnet types and other types correctly
 			try
 			{
+				writer.WritePropertyName(extension.Key);
 				JsonSerializer.Serialize(writer, extension.Value, NotNot.Serialization.SerializationHelper._logJsonOptions);
 			}
 			catch (Exception ex)
 			{
-				//__.AssertOnce(ex);
-				JsonSerializer.Serialize(writer, $"ERROR_SERIALIZING:{ex.Message}", NotNot.Serialization.SerializationHelper._logJsonOptions);
+				writer.WritePropertyName(extension.Key);
+				writer.WriteStringValue($"ERROR_SERIALIZING:{ex.Message}");
 			}
 		}
 
