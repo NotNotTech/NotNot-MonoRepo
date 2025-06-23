@@ -571,14 +571,17 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 			{
 				continue;
 			}
+			//write key
+			writer.WritePropertyName(extension.Key);
+			//write value
 			try
 			{
-				writer.WritePropertyName(extension.Key);
-				JsonSerializer.Serialize(writer, extension.Value, NotNot.Serialization.SerializationHelper._logJsonOptions);
+				//roundtrip in case errors, which would cause the entire write to fail if we did it directly on the `writer` object.
+				var poco = NotNot.Serialization.SerializationHelper.ToLogPoCo(extension.Value);
+				JsonSerializer.Serialize(writer, poco, NotNot.Serialization.SerializationHelper._logJsonOptions);
 			}
 			catch (Exception ex)
 			{
-				writer.WritePropertyName(extension.Key);
 				writer.WriteStringValue($"ERROR_SERIALIZING:{ex.Message}");
 			}
 		}

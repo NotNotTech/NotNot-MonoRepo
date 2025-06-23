@@ -87,7 +87,7 @@ public class SerializationHelper
 		ReferenceHandler = ReferenceHandler.IgnoreCycles,
 		Converters =
 		{
-			new ObjConverter<Exception>(value => $"EX={value.GetType().Name}_MSG={value.Message}_INNER={value.InnerException?.Message}"),
+			//new ObjConverter<Exception>(value => $"EX={value.GetType().Name}_MSG={value.Message}_INNER={value.InnerException?.Message}"),			
 			new ObjConverter<MethodBase>(value => value.Name),
 			new ObjConverter<Type>(value => value.FullName),
 			new ObjConverter<StackTrace>(value => value.GetFrames()),
