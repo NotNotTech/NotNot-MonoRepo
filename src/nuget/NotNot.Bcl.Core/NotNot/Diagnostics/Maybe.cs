@@ -15,23 +15,42 @@ namespace NotNot;
 /// </summary>
 public record class Maybe : Maybe<OperationResult>
 {
-	public Maybe(OperationResult value = Data.OperationResult.Success, [CallerMemberName] string memberName = "",
-		[CallerFilePath] string sourceFilePath = "",
-		[CallerLineNumber] int sourceLineNumber = 0) : base(value, memberName, sourceFilePath, sourceLineNumber)
-	{
-	}
+	   /// <summary>
+	   /// Initializes a new instance of the <see cref="Maybe"/> class with a successful <see cref="OperationResult"/> value.
+	   /// </summary>
+	   /// <param name="value">The operation result value. Defaults to <see cref="OperationResult.Success"/>.</param>
+	   /// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
+	   /// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
+	   /// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
+	   public Maybe(OperationResult value = Data.OperationResult.Success, [CallerMemberName] string memberName = "",
+			   [CallerFilePath] string sourceFilePath = "",
+			   [CallerLineNumber] int sourceLineNumber = 0) : base(value, memberName, sourceFilePath, sourceLineNumber)
+	   {
+	   }
 
-	public Maybe(Problem problem, [CallerMemberName] string memberName = "",
-		[CallerFilePath] string sourceFilePath = "",
-		[CallerLineNumber] int sourceLineNumber = 0) : base(problem, memberName, sourceFilePath, sourceLineNumber)
-	{
-	}
+	   /// <summary>
+	   /// Initializes a new instance of the <see cref="Maybe"/> class with a <see cref="Problem"/>.
+	   /// </summary>
+	   /// <param name="problem">The problem instance.</param>
+	   /// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
+	   /// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
+	   /// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
+	   public Maybe(Problem problem, [CallerMemberName] string memberName = "",
+			   [CallerFilePath] string sourceFilePath = "",
+			   [CallerLineNumber] int sourceLineNumber = 0) : base(problem, memberName, sourceFilePath, sourceLineNumber)
+	   {
+	   }
 
-	public static implicit operator Maybe(Problem problem)
-	{
-		var source = problem.DecomposeSource();
-		return new Maybe(problem, source.memberName, source.sourceFilePath, source.sourceLineNumber);
-	}
+	   /// <summary>
+	   /// Implicitly converts a <see cref="Problem"/> to a <see cref="Maybe"/> instance, capturing the source location.
+	   /// </summary>
+	   /// <param name="problem">The problem to convert.</param>
+	   /// <returns>A <see cref="Maybe"/> instance representing the problem.</returns>
+	   public static implicit operator Maybe(Problem problem)
+	   {
+			   var source = problem.DecomposeSource();
+			   return new Maybe(problem, source.memberName, source.sourceFilePath, source.sourceLineNumber);
+	   }
 	//public static implicit operator Maybe(Maybe<OperationResult> maybe)
 	//{
 	//   var trace = maybe.TraceId;
@@ -48,13 +67,29 @@ public record class Maybe : Maybe<OperationResult>
 	/// <summary>
 	/// shortcut to `.Success(OperationResult.Success)`
 	/// </summary>
-	public static Maybe SuccessResult([CallerMemberName] string memberName = "",
-		[CallerFilePath] string sourceFilePath = "",
-		[CallerLineNumber] int sourceLineNumber = 0) => new(OperationResult.Success, memberName, sourceFilePath, sourceLineNumber);
+	   /// <summary>
+	   /// Returns a <see cref="Maybe"/> representing a successful operation result.
+	   /// </summary>
+	   /// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
+	   /// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
+	   /// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
+	   /// <returns>A <see cref="Maybe"/> instance with <see cref="OperationResult.Success"/>.</returns>
+	   public static Maybe SuccessResult([CallerMemberName] string memberName = "",
+			   [CallerFilePath] string sourceFilePath = "",
+			   [CallerLineNumber] int sourceLineNumber = 0) => new(OperationResult.Success, memberName, sourceFilePath, sourceLineNumber);
 
-	public static Maybe<T> Success<T>(T value, [CallerMemberName] string memberName = "",
-		[CallerFilePath] string sourceFilePath = "",
-		[CallerLineNumber] int sourceLineNumber = 0) => Maybe<T>.Success(value, memberName, sourceFilePath, sourceLineNumber);
+	   /// <summary>
+	   /// Returns a <see cref="Maybe{T}"/> representing a successful result with the specified value.
+	   /// </summary>
+	   /// <typeparam name="T">The type of the value.</typeparam>
+	   /// <param name="value">The value to wrap in a successful <see cref="Maybe{T}"/>.</param>
+	   /// <param name="memberName">The caller member name. Automatically provided by the compiler.</param>
+	   /// <param name="sourceFilePath">The source file path. Automatically provided by the compiler.</param>
+	   /// <param name="sourceLineNumber">The source line number. Automatically provided by the compiler.</param>
+	   /// <returns>A successful <see cref="Maybe{T}"/> instance.</returns>
+	   public static Maybe<T> Success<T>(T value, [CallerMemberName] string memberName = "",
+			   [CallerFilePath] string sourceFilePath = "",
+			   [CallerLineNumber] int sourceLineNumber = 0) => Maybe<T>.Success(value, memberName, sourceFilePath, sourceLineNumber);
 
 	/// <summary>
 	/// an ez hack for development:  throw a ProblemException if the condition fails.  This is fast and easy but throwing exceptions is low performance.  should replace with a no-throw solution for hot paths
@@ -88,21 +123,27 @@ public record class Maybe : Maybe<OperationResult>
 /// </summary>
 /// <typeparam name="TValue"></typeparam>
 [JsonConverter(typeof(MaybeJsonConverter))]
+
+/// <summary>
+/// Represents the result of an operation that may succeed with a value or fail with a problem.
+/// </summary>
 public record class Maybe<TValue> : IMaybe
 {
-
+	/// <summary>
+	/// The underlying value if the operation was successful; otherwise, null.
+	/// </summary>
 	[MemberNotNullWhen(true, "IsSuccess")]
 	protected TValue? _Value { get; init; }
 
 	/// <summary>
-	/// will throw an exception if IsSuccess is false
+	/// Gets the value if the operation was successful; otherwise, throws an exception.
 	/// </summary>
 	public TValue Value => GetValue();
 
 	/// <summary>
-	/// get the value or throw exception
+	/// Gets the value or throws an exception if not successful.
 	/// </summary>
-	/// <returns></returns>
+	/// <returns>The value if successful.</returns>
 	protected TValue GetValue()
 	{
 		if (!IsSuccess)
@@ -113,29 +154,39 @@ public record class Maybe<TValue> : IMaybe
 		return _Value;
 	}
 
+	/// <summary>
+	/// Gets the value for the IMaybe interface.
+	/// </summary>
+	/// <returns>The value if successful; otherwise, null or throws.</returns>
 	object? IMaybe.GetValue()
 	{
 		return this.GetValue();
 	}
 
 	/// <summary>
-	/// useful for debugging to see where in code this 'Maybe' was generated from
+	/// Gets the trace information for where this Maybe was created.
 	/// </summary>
 	public TraceId TraceId { get; protected internal init; }
 
+	/// <summary>
+	/// Gets the problem if the operation failed; otherwise, null.
+	/// </summary>
 	[MemberNotNullWhen(false, "IsSuccess")]
 	public Problem? Problem { get; protected internal init; }
 
 	/// <summary>
-	/// If true, .Value is set.  otherwise .Problem is set.
+	/// Gets a value indicating whether the operation was successful.
 	/// </summary>
 	public bool IsSuccess { get; private init; }
 
 	/// <summary>
-	/// default null.   lets you write a human readable explanation as to what this Maybe's operational intent was, for inspection by outside systems.
+	/// Gets or sets a human-readable explanation of the intent of this Maybe instance.
 	/// </summary>
 	public string? IntentSummary { get; set; }
 
+	/// <summary>
+	/// Gets the HTTP status code representing the result.
+	/// </summary>
 	public HttpStatusCode StatusCode
 	{
 		get
@@ -152,23 +203,26 @@ public record class Maybe<TValue> : IMaybe
 	}
 
 	/// <summary>
-	/// The type of TValue shown as a string.  mostly used for serialization/debugging
+	/// Gets the name of the value type.
 	/// </summary>
-	/// <example>typeof(TValue).Name</example>
 	public string ValueName => typeof(TValue).Name;
 
-
+	/// <summary>
+	/// Initializes a new instance of the <see cref="Maybe{TValue}"/> class with a value.
+	/// </summary>
 	public Maybe(TValue value, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-
 		__.ThrowIfNot(value is not null, null, memberName, sourceFilePath, sourceLineNumber);
-
 		_Value = value;
 		IsSuccess = true;
 		TraceId = TraceId.Generate(memberName, sourceFilePath, sourceLineNumber);
 	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="Maybe{TValue}"/> class with a problem.
+	/// </summary>
 	public Maybe(Problem problem, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -178,13 +232,23 @@ public record class Maybe<TValue> : IMaybe
 		TraceId = TraceId.Generate(memberName, sourceFilePath, sourceLineNumber);
 	}
 
+	/// <summary>
+	/// Creates a successful <see cref="Maybe{TValue}"/> instance with the specified value.
+	/// </summary>
 	public static Maybe<TValue> Success(TValue value, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0) => new Maybe<TValue>(value, memberName, sourceFilePath, sourceLineNumber);
+
+	/// <summary>
+	/// Creates an error <see cref="Maybe{TValue}"/> instance with the specified problem.
+	/// </summary>
 	public static Maybe<TValue> Error(Problem problem, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0) => new Maybe<TValue>(problem, memberName, sourceFilePath, sourceLineNumber);
 
+	/// <summary>
+	/// Converts a value to a <see cref="Maybe{TValue}"/> instance.
+	/// </summary>
 	public static Maybe<TValue> ConvertFrom(TValue value, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -192,18 +256,21 @@ public record class Maybe<TValue> : IMaybe
 		return new Maybe<TValue>(value, memberName, sourceFilePath, sourceLineNumber);
 	}
 
+	/// <summary>
+	/// Converts a problem to a <see cref="Maybe{TValue}"/> instance.
+	/// </summary>
 	public static Maybe<TValue> ConvertFrom(Problem problem, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-
 		return new Maybe<TValue>(problem, memberName, sourceFilePath, sourceLineNumber);
-
 	}
 
-
-	// Operator overloads for implicit conversion
-	//public static implicit operator Maybe<TValue>(TValue value) => Success(value,"op_Success");
+	/// <summary>
+	/// Implicitly converts a <see cref="Problem"/> to a <see cref="Maybe{TValue}"/> instance.
+	/// </summary>
+	/// <param name="problem">The problem to convert.</param>
+	/// <returns>A <see cref="Maybe{TValue}"/> instance representing the problem.</returns>
 	public static implicit operator Maybe<TValue>(Problem problem)
 	{
 		var source = problem.DecomposeSource();
@@ -231,7 +298,9 @@ public record class Maybe<TValue> : IMaybe
 		//return toReturn with { TraceId = toReturn.TraceId with { From = this.TraceId } };
 
 	}
-
+	/// <summary>
+	/// Map from one one Maybe to another, tracking the current callsite in the trace chain.
+	/// </summary>
 	public Maybe Map([CallerMemberName] string memberName = "",
 	  [CallerFilePath] string sourceFilePath = "",
 	  [CallerLineNumber] int sourceLineNumber = 0)
@@ -252,6 +321,10 @@ public record class Maybe<TValue> : IMaybe
 	}
 
 
+	/// <summary>
+	/// Map from one one Maybe to another, tracking the current callsite in the trace chain.
+	/// <para>if successful, the func will be used to convert Values, otherwise the problem is passed.</para>
+	/// </summary>
 	public Maybe<TNew> Map<TNew>(Func<TValue, Maybe<TNew>> func, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -269,6 +342,10 @@ public record class Maybe<TValue> : IMaybe
 		return toReturn._TryMergeTraceFrom(this);
 		//return toReturn with { TraceId = toReturn.TraceId with { From = this.TraceId } };
 	}
+	/// <summary>
+	/// Map from one one Maybe to another, tracking the current callsite in the trace chain.
+	/// <para>if successful, the func will be used to convert Values, otherwise the problem is passed.</para>
+	/// </summary>
 	public async Task<Maybe<TNew>> Map<TNew>(Func<TValue, Task<TNew>> func, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -287,6 +364,10 @@ public record class Maybe<TValue> : IMaybe
 		//return toReturn with { TraceId = toReturn.TraceId with { From = this.TraceId } };
 	}
 
+	/// <summary>
+	/// Map from one one Maybe to another, tracking the current callsite in the trace chain.
+	/// <para>if successful, the func will be used to convert Values, otherwise the problem is passed.</para>
+	/// </summary>
 	public async Task<Maybe<TNew>> Map<TNew>(Func<TValue, Task<Maybe<TNew>>> func, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -442,6 +523,17 @@ public record class Maybe<TValue> : IMaybe
 /// JSON converter for Maybe<T> to support deserialization from Content.ReadFromJsonAsync
 /// </summary>
 public class MaybeJsonConverter : JsonConverterFactory
+	/// <summary>
+	/// Determines whether the specified type can be converted by this factory.
+	/// </summary>
+	/// <param name="typeToConvert">The type to check.</param>
+	/// <returns>True if the type is a Maybe&lt;&gt;; otherwise, false.</returns>
+	/// <summary>
+	/// Creates a JSON converter for the specified type.
+	/// </summary>
+	/// <param name="typeToConvert">The type to convert.</param>
+	/// <param name="options">The serializer options.</param>
+	/// <returns>A JSON converter for the specified type.</returns>
 {
 	public override bool CanConvert(Type typeToConvert)
 	{
@@ -461,6 +553,19 @@ public class MaybeJsonConverter : JsonConverterFactory
 /// Typed JSON converter for Maybe<T>
 /// </summary>
 public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
+	/// <summary>
+	/// Reads and converts the JSON to a <see cref="Maybe{T}"/> object.
+	/// </summary>
+	/// <param name="reader">The reader.</param>
+	/// <param name="typeToConvert">The type to convert.</param>
+	/// <param name="options">The serializer options.</param>
+	/// <returns>The deserialized <see cref="Maybe{T}"/> object.</returns>
+	/// <summary>
+	/// Writes a <see cref="Maybe{T}"/> object as JSON.
+	/// </summary>
+	/// <param name="writer">The writer.</param>
+	/// <param name="value">The value to write.</param>
+	/// <param name="options">The serializer options.</param>
 {
 	public override Maybe<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 	{
@@ -646,14 +751,38 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 
 public interface IMaybe
 {
-	public bool IsSuccess { get; }
-	public HttpStatusCode StatusCode { get; }
-	public string ValueName { get; }
-	public TraceId TraceId { get; }
-	public Problem? Problem { get; }
+	/// <summary>
+	/// Gets a value indicating whether the operation was successful.
+	/// </summary>
+	bool IsSuccess { get; }
 
-	public object? GetValue();
+	/// <summary>
+	/// Gets the HTTP status code representing the result.
+	/// </summary>
+	HttpStatusCode StatusCode { get; }
 
-	public string? IntentSummary { get; }
+	/// <summary>
+	/// Gets the name of the value type.
+	/// </summary>
+	string ValueName { get; }
 
+	/// <summary>
+	/// Gets the trace information for where this Maybe was created.
+	/// </summary>
+	TraceId TraceId { get; }
+
+	/// <summary>
+	/// Gets the problem if the operation failed; otherwise, null.
+	/// </summary>
+	Problem? Problem { get; }
+
+	/// <summary>
+	/// Gets the value if the operation was successful; otherwise, throws or returns null.
+	/// </summary>
+	object? GetValue();
+
+	/// <summary>
+	/// Gets a human-readable explanation of the intent of this Maybe instance.
+	/// </summary>
+	string? IntentSummary { get; }
 }
