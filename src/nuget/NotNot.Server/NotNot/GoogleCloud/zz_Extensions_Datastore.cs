@@ -30,7 +30,7 @@ public static class zz_Extensions_Datastore
 				var toReturn = new Problem()
 				{
 					Detail = rpcEx.Message,
-					ex = grpcae,
+					Ex = grpcae,
 					isRecoverable = true,
 					category = Problem.CategoryNames.DbIo,
 					Status = System.Net.HttpStatusCode.InternalServerError,

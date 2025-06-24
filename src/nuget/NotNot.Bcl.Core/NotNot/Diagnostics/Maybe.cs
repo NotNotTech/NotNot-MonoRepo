@@ -323,7 +323,7 @@ public record class Maybe<TValue> : IMaybe
 			__.AssertNotNull(Problem, "Problem is null, but IsSuccess is false.  This is a bug.");
 			var rootProblem = Problem.GetRootCause();
 			var (sourceMemberName, sourceFilePath, sourceLineNumber) = rootProblem.DecomposeSource();
-			__.Assert(rootProblem.Detail, sourceMemberName, sourceFilePath, sourceLineNumber);
+			__.Assert(rootProblem.ToException(), sourceMemberName, sourceFilePath, sourceLineNumber);
 
 		}
 	}

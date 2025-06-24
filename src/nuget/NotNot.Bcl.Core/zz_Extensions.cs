@@ -250,6 +250,22 @@ public static class zz_Extensions_Exception
 
 		return $$""" "{{e.GetType().Name}}": {"msg": "{{message}}","inner": {{{innerErrorString}}}""";
 	}
+
+	public static (string sourceMember, string sourceFilePath, int sourceLineNumber) _DecomposeSource(this Exception e)
+	{
+
+		// e = your Exception object
+		var st = new StackTrace(e, true); // 'true' captures file info
+
+		// Get the first stack frame with file info
+		StackFrame frame = st.GetFrames()?.FirstOrDefault(f => f.GetFileLineNumber() > 0) ?? st.GetFrame(0);
+
+		string sourceMember = frame?.GetMethod()?.Name ?? "Unknown";
+		string sourceFilePath = frame?.GetFileName() ?? "Unknown";
+		int sourceLineNum = frame?.GetFileLineNumber() ?? 0;
+
+		return (sourceMember, sourceFilePath, sourceLineNum);
+	}
 }
 
 public static class zz_Extensions_CancellationToken

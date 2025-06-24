@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -175,7 +176,7 @@ public record class Problem
 		Detail = ex.Message;
 		//Instance = ex.Source;
 
-		this.ex = ex;
+		this.Ex = ex;
 		//foreach (DictionaryEntry pair in ex.Data)
 		//{
 		//	Extensions[pair.Key.ToString()] = pair.Value;
@@ -205,8 +206,9 @@ public record class Problem
 
 	/// <summary>
 	/// obtain the root exception or Problem that triggered the problem chain.
-	/// <para>If an exception, it's inner-most exception will be returned as a Problem</para>
+	/// <para>If an exception, it's inner-most exception will be returned along with the inner most Problem's location.</para>
 	/// </summary>
+	/// <remarks>not using ex source because it doesn't roundtrip over HTTP (will be blank)</remarks>
 	/// <returns></returns>
 	public Problem GetRootCause()
 	{
@@ -214,13 +216,19 @@ public record class Problem
 		{
 			return InnerProblem.GetRootCause();
 		}
-		else if (ex is not null)
+		else if (Ex is not null)
 		{
+			var ex = Ex;
 			while (ex.InnerException is not null)
 			{
 				ex = ex.InnerException;
 			}
-			return FromEx(ex);
+			ex = ex.GetBaseException();
+
+			//get the source location of the inner most Problem that carried the innerException
+			var (sourceMember, sourceFilePath, sourceLineNumber) = this.DecomposeSource();// ex._DecomposeSource(); //VIBEGUIDE: 
+
+			return FromEx(ex, sourceMember, sourceFilePath, sourceLineNumber);
 		}
 		else
 		{
@@ -283,11 +291,11 @@ public record class Problem
 	/// <summary>
 	/// only set in DEBUG
 	/// </summary>
-	public Exception? ex
+	public Exception? Ex
 	{
 		get
 		{
-			if (Extensions.TryGetValue(nameof(ex), out var result))
+			if (Extensions.TryGetValue(nameof(Ex).ToLowerInvariant(), out var result))
 			{
 				switch (result)
 				{
@@ -304,11 +312,11 @@ public record class Problem
 		{
 			if (value is null)
 			{
-				Extensions.Remove(nameof(ex));
+				Extensions.Remove(nameof(Ex).ToLowerInvariant());
 			}
 			else
 			{
-				Extensions[nameof(ex)] = value;
+				Extensions[nameof(Ex).ToLowerInvariant()] = value;
 			}
 		}
 	}
@@ -326,7 +334,7 @@ public record class Problem
 
 	public Exception? GetEx()
 	{
-		return ex as Exception;
+		return Ex as Exception;
 	}
 
 	public static Problem FromCancelledToken(CancellationToken ct, [CallerMemberName] string memberName = "",
@@ -449,6 +457,66 @@ public class ProblemJsonConverterFactory : JsonConverterFactory
 /// </summary>
 public class ProblemJsonConverter : JsonConverter<Problem>
 {
+	private static void SerializeException(Utf8JsonWriter writer, Exception exception)
+	{
+		writer.WriteStartObject();
+		writer.WriteString("__type", "Exception");
+		writer.WriteString("typeName", exception.GetType().FullName);
+		writer.WriteString("message", exception.Message);
+		//source and stackTrace doesn't roundtrip
+		//writer.WriteString("stackTrace", exception.StackTrace);
+		//writer.WriteString("source", exception.Source);
+		if (exception.InnerException != null)
+		{
+			writer.WritePropertyName("innerException");
+			SerializeException(writer, exception.InnerException);
+		}
+		writer.WriteEndObject();
+	}
+
+	private static Exception? DeserializeException(JsonElement element)
+	{
+		if (!element.TryGetProperty("__type", out var typeProperty) ||
+			typeProperty.GetString() != "Exception")
+		{
+			return null;
+		}
+
+		var typeName = element.TryGetProperty("typeName", out var typeNameProp) ? typeNameProp.GetString() : null;
+		var message = element.TryGetProperty("message", out var messageProp) ? messageProp.GetString() : "Deserialized exception";
+		//source and stackTrace doesn't roundtrip
+		//var stackTrace = element.TryGetProperty("stackTrace", out var stackProp) ? stackProp.GetString() : null;
+		//var source = element.TryGetProperty("source", out var sourceProp) ? sourceProp.GetString() : null;
+
+		Exception? innerException = null;
+		if (element.TryGetProperty("innerException", out var innerProp))
+		{
+			innerException = DeserializeException(innerProp);
+		}
+
+		// Create a generic exception with the preserved information
+		var exception = innerException != null ? new Exception(message, innerException) : new Exception(message);
+
+		//// Use reflection to set the stack trace and source if possible
+		//try
+		//{
+		//	if (stackTrace != null)
+		//	{
+		//		var stackTraceField = typeof(Exception).GetField("_stackTraceString", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+		//		stackTraceField?.SetValue(exception, stackTrace);
+		//	}
+		//	if (source != null)
+		//	{
+		//		exception.Source = source;
+		//	}
+		//}
+		//catch
+		//{
+		//	// Ignore reflection errors - the core message and inner exception are preserved
+		//}
+
+		return exception;
+	}
 	public override Problem? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 	{
 		if (reader.TokenType != JsonTokenType.StartObject)
@@ -547,6 +615,18 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 						{
 							// Using JsonElement allows to defer parsing of complex extension values if necessary
 							var value = JsonSerializer.Deserialize<JsonElement>(ref reader, options);
+
+							// Check if this is a serialized Exception object
+							if (value.ValueKind == JsonValueKind.Object)
+							{
+								var deserializedException = DeserializeException(value);
+								if (deserializedException != null)
+								{
+									extensions[propertyName] = deserializedException;
+									break;
+								}
+							}
+
 							extensions[propertyName] = value.ValueKind switch
 							{
 								JsonValueKind.String => value.GetString(),
@@ -604,9 +684,17 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 			//write value
 			try
 			{
-				//roundtrip in case errors, which would cause the entire write to fail if we did it directly on the `writer` object.
-				var poco = NotNot.Serialization.SerializationHelper.ToLogPoCo(extension.Value);
-				JsonSerializer.Serialize(writer, poco, NotNot.Serialization.SerializationHelper._logJsonOptions);
+				// Special handling for Exception objects to enable round-tripping
+				if (extension.Value is Exception exception)
+				{
+					SerializeException(writer, exception);
+				}
+				else
+				{
+					//roundtrip in case errors, which would cause the entire write to fail if we did it directly on the `writer` object.
+					var poco = NotNot.Serialization.SerializationHelper.ToLogPoCo(extension.Value);
+					JsonSerializer.Serialize(writer, poco, NotNot.Serialization.SerializationHelper._logJsonOptions);
+				}
 			}
 			catch (Exception ex)
 			{
