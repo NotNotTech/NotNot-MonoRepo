@@ -43,22 +43,34 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Install directly from PyPI with uv (easiest)
 uv tool install claude-monitor
 # Run from anywhere
-claude-monitor
+# claude-monitor
 
 
 
-sudo apt install -y pip pipx python3-venv
-pushd /workspaces
-git clone https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor.git  # fetches entire history
-cd Claude-Code-Usage-Monitor
-git checkout 4aa84a96f2e634e231e9538d83b59a6bcedf3297 # moves HEAD into detached‐HEAD at that SHA
-python3 -m venv venv
-source venv/bin/activate
-pip install pytz
-chmod +x ccusage_monitor.py
-# # run monitor
-# python ccusage_monitor.py
-popd
+# sudo apt install -y pip pipx python3-venv
+# pushd /workspaces
+# git clone https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor.git  # fetches entire history
+# cd Claude-Code-Usage-Monitor
+# git checkout 4aa84a96f2e634e231e9538d83b59a6bcedf3297 # moves HEAD into detached‐HEAD at that SHA
+# python3 -m venv venv
+# source venv/bin/activate
+# pip install pytz
+# chmod +x ccusage_monitor.py
+# # # run monitor
+# # python ccusage_monitor.py
+# popd
+
+## install Starship shell: https://starship.rs/
+curl -sS https://starship.rs/install.sh | sh
+cat << 'EOF' >> ~/.bashrc
+
+# Initialize Starship prompt: https://starship.rs/
+eval "$(starship init bash)"
+EOF
+
+source ~/.bashrc
+
+
 
 # sudo apt update -y
 
