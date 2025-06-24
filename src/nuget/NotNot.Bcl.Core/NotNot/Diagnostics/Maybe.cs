@@ -316,6 +316,9 @@ public record class Maybe<TValue> : IMaybe
 		}
 	}
 
+	/// <summary>
+	/// If the Maybe is not successful, raises an Assert with details from the root-most Problem/exception.  
+	/// </summary>
 	public void AssertRootCauseIfProblem()
 	{
 		if (!IsSuccess)
