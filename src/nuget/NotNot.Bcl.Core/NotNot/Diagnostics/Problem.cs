@@ -140,20 +140,6 @@ public record class Problem
 
 	}
 
-	public (string memberName, string sourceFilePath, int sourceLineNumber) DecomposeSource()
-	{
-		var parts = source?.Split('|') ?? new string[0];
-		if (parts.Length >= 3 && int.TryParse(parts[2], out int lineNumber))
-		{
-			return (parts[0], parts[1], lineNumber);
-		}
-		else
-		{
-			// Handle the error case where the source format is incorrect
-			// You can throw an exception or return a default value based on your requirements
-			throw new InvalidOperationException("Invalid source format");
-		}
-	}
 	public Problem([CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
@@ -201,6 +187,48 @@ public record class Problem
 		//	Extensions[pair.Key] = pair.Value;
 		//}
 	}
+
+	public (string memberName, string sourceFilePath, int sourceLineNumber) DecomposeSource()
+	{
+		var parts = source?.Split('|') ?? new string[0];
+		if (parts.Length >= 3 && int.TryParse(parts[2], out int lineNumber))
+		{
+			return (parts[0], parts[1], lineNumber);
+		}
+		else
+		{
+			// Handle the error case where the source format is incorrect
+			// You can throw an exception or return a default value based on your requirements
+			throw new InvalidOperationException("Invalid source format");
+		}
+	}
+
+	/// <summary>
+	/// obtain the root exception or Problem that triggered the problem chain.
+	/// <para>If an exception, it's inner-most exception will be returned as a Problem</para>
+	/// </summary>
+	/// <returns></returns>
+	public Problem GetRootCause()
+	{
+		if (InnerProblem is not null)
+		{
+			return InnerProblem.GetRootCause();
+		}
+		else if (ex is not null)
+		{
+			while (ex.InnerException is not null)
+			{
+				ex = ex.InnerException;
+			}
+			return FromEx(ex);
+		}
+		else
+		{
+			return this;
+		}
+
+	}
+
 
 	/// <summary>
 	/// Convert this problem to an Exception, preserving details.

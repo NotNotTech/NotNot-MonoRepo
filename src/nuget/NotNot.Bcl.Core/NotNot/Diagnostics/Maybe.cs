@@ -48,8 +48,18 @@ public record class Maybe : Maybe<OperationResult>
 	/// <returns>A <see cref="Maybe"/> instance representing the problem.</returns>
 	public static implicit operator Maybe(Problem problem)
 	{
+		return CastFrom(problem);
+	}
+
+	/// <summary>
+	/// converts a <see cref="Problem"/> to a <see cref="Maybe"/> instance, using the problem's source location to set the trace information.
+	/// </summary>
+	/// <param name="problem">The problem to convert.</param>
+	/// <returns>A <see cref="Maybe"/> instance representing the problem.</returns>
+	public static Maybe CastFrom(Problem problem)
+	{
 		var source = problem.DecomposeSource();
-		return new Maybe(problem, source.memberName, source.sourceFilePath, source.sourceLineNumber);
+		return new(problem, source.memberName, source.sourceFilePath, source.sourceLineNumber);
 	}
 	//public static implicit operator Maybe(Maybe<OperationResult> maybe)
 	//{
@@ -300,7 +310,21 @@ public record class Maybe<TValue> : IMaybe
 		if (!IsSuccess)
 		{
 			__.AssertNotNull(Problem, "Problem is null, but IsSuccess is false.  This is a bug.");
+
+			//var rootProblem = Problem.GetRootCause();
 			throw Problem.ToException();
+		}
+	}
+
+	public void AssertRootCauseIfProblem()
+	{
+		if (!IsSuccess)
+		{
+			__.AssertNotNull(Problem, "Problem is null, but IsSuccess is false.  This is a bug.");
+			var rootProblem = Problem.GetRootCause();
+			var (sourceMemberName, sourceFilePath, sourceLineNumber) = rootProblem.DecomposeSource();
+			__.Assert(rootProblem.Detail, sourceMemberName, sourceFilePath, sourceLineNumber);
+
 		}
 	}
 
