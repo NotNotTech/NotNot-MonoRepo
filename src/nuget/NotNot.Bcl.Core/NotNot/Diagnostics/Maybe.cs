@@ -269,15 +269,27 @@ public record class Maybe<TValue> : IMaybe
 	}
 
 	/// <summary>
-	/// Implicitly converts a <see cref="Problem"/> to a <see cref="Maybe{TValue}"/> instance.
+	/// Implicitly converts a <see cref="Problem"/> to a <see cref="Maybe{TValue}"/> instance, using the problem's source location to set the trace information.
 	/// </summary>
 	/// <param name="problem">The problem to convert.</param>
 	/// <returns>A <see cref="Maybe{TValue}"/> instance representing the problem.</returns>
 	public static implicit operator Maybe<TValue>(Problem problem)
 	{
+		return CastFrom(problem);
+	}
+
+	/// <summary>
+	/// converts a <see cref="Problem"/> to a <see cref="Maybe{TValue}"/> instance, using the problem's source location to set the trace information.
+	/// </summary>
+	/// <param name="problem">The problem to convert.</param>
+	/// <returns>A <see cref="Maybe{TValue}"/> instance representing the problem.</returns>
+	public static Maybe<TValue> CastFrom(Problem problem)
+	{
 		var source = problem.DecomposeSource();
 		return new(problem, source.memberName, source.sourceFilePath, source.sourceLineNumber);
 	}
+
+
 
 	/// <summary>
 	/// helper to throw an exception if the Maybe is not successful.
