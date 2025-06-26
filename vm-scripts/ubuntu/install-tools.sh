@@ -42,6 +42,8 @@ sudo apt install python3-pip
 curl -LsSf https://astral.sh/uv/install.sh | sh
 # Install directly from PyPI with uv (easiest)
 uv tool install claude-monitor
+# update
+# uv tool update claude-monitor
 # Run from anywhere
 # claude-monitor
 
