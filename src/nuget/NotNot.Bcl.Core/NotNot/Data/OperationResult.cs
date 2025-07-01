@@ -1,4 +1,4 @@
-﻿namespace NotNot.Data;
+namespace NotNot.Data;
 
 public enum OperationResult
 {

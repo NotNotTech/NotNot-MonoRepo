@@ -13,8 +13,8 @@ public static class AnalyzerConfiguration
     /// </summary>
     public static bool IsConcurrentExecutionEnabled(AnalyzerConfigOptions options)
     {
-        return options.TryGetValue("notNot_analyzers_enable_concurrent_execution", out var value) 
-            && bool.TryParse(value, out var enabled) 
+        return options.TryGetValue("notNot_analyzers_enable_concurrent_execution", out var value)
+            && bool.TryParse(value, out var enabled)
             && enabled;
     }
 
@@ -23,8 +23,8 @@ public static class AnalyzerConfiguration
     /// </summary>
     public static bool ShouldSkipGeneratedCode(AnalyzerConfigOptions options)
     {
-        return !options.TryGetValue("notNot_analyzers_skip_generated_code", out var value) 
-            || !bool.TryParse(value, out var skip) 
+        return !options.TryGetValue("notNot_analyzers_skip_generated_code", out var value)
+            || !bool.TryParse(value, out var skip)
             || skip; // Default to true
     }
 

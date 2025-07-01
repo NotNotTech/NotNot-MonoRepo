@@ -29,7 +29,7 @@ public class DisposeGuard : IDisposable
 	{
 		if (IsDisposed)
 		{
-			__.GetLogger()._EzError(false, "why is dispose called twice?",GetType().Name);
+			__.GetLogger()._EzError(false, "why is dispose called twice?", GetType().Name);
 			return;
 		}
 
@@ -64,7 +64,7 @@ public class DisposeGuard : IDisposable
 
 			__.GetLogger()._EzError(false, msg, CtorStackTraceMsg);
 			__.Assert(msg);
-			
+
 			OnDispose(false);
 		}
 	}
@@ -133,7 +133,7 @@ public class AsyncDisposeGuard : IAsyncDisposable
 	public AsyncDisposeGuard()
 	{
 #if DEBUG
-		
+
 		//var traceStr = Environment.StackTrace;
 		////CtorStackTrace = EnhancedStackTrace.Current();
 		//CtorStackTrace = FixStackTraceForDisposeGuardLogging(traceStr);

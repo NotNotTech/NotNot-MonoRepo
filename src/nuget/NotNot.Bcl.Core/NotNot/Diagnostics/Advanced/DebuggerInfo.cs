@@ -22,11 +22,11 @@ public static class DebuggerInfo
 
 
 
-   private static bool _isPaused;
+	private static bool _isPaused;
 
-   private static Task _workerThreadTask;
-   private static CancellationTokenSource _cts;
-   private static CancellationToken _ct;
+	private static Task _workerThreadTask;
+	private static CancellationTokenSource _cts;
+	private static CancellationToken _ct;
 
 	///// <summary>
 	///// event that fires when the debugger is paused or unpaused
@@ -35,11 +35,11 @@ public static class DebuggerInfo
 	//public static ActionEvent<bool> OnPause = new();
 
 	static DebuggerInfo()
-   {
-      //TODO: disable DebuggerInfo.IsPaused for release builds
-      __.placeholder.Later("disable DebuggerInfo.IsPaused for release builds");
+	{
+		//TODO: disable DebuggerInfo.IsPaused for release builds
+		__.placeholder.Later("disable DebuggerInfo.IsPaused for release builds");
 
-      _cts = new();
+		_cts = new();
 		_ct = _cts.Token;
 		//_workerThreadTask = __.Async.LongRun(_workerThread,_ct);
 		_workerThreadTask = Task.Factory.Run(_workerThread, _ct, TaskCreationOptions.LongRunning);
@@ -51,36 +51,36 @@ public static class DebuggerInfo
 		};
 
 
-//#pragma warning disable EPC17 // Avoid async-void delegates
-//		new Task(async () =>
-//      {
-//         var heartbeatSw = Stopwatch.StartNew();
-//         while (true)
-//         {
-//            heartbeatSw.Restart();
-//            await Task.Delay(TimeSpan.FromSeconds(0.25));
-//            var elapsed = heartbeatSw.Elapsed;
-//            if (IsPaused is true)
-//            {
-//               //already flagged as debugging, so need to run "fast" to unflag
-//               if (elapsed < TimeSpan.FromSeconds(0.3))
-//               {
-//                  IsPaused = false;
-//               }
-//            }
-//            else
-//            {
-//               //we are not flagged as active debugging, so only if the pause exceeds 1 second we say debugging.
-//               if (elapsed > TimeSpan.FromSeconds(1))
-//               {
-//                  IsPaused = true;
-//                  WasPaused = true;
-//               }
-//            }
-//         }
-//      }, TaskCreationOptions.LongRunning).Start();
-//#pragma warning restore EPC17 // Avoid async-void delegates
-   }
+		//#pragma warning disable EPC17 // Avoid async-void delegates
+		//		new Task(async () =>
+		//      {
+		//         var heartbeatSw = Stopwatch.StartNew();
+		//         while (true)
+		//         {
+		//            heartbeatSw.Restart();
+		//            await Task.Delay(TimeSpan.FromSeconds(0.25));
+		//            var elapsed = heartbeatSw.Elapsed;
+		//            if (IsPaused is true)
+		//            {
+		//               //already flagged as debugging, so need to run "fast" to unflag
+		//               if (elapsed < TimeSpan.FromSeconds(0.3))
+		//               {
+		//                  IsPaused = false;
+		//               }
+		//            }
+		//            else
+		//            {
+		//               //we are not flagged as active debugging, so only if the pause exceeds 1 second we say debugging.
+		//               if (elapsed > TimeSpan.FromSeconds(1))
+		//               {
+		//                  IsPaused = true;
+		//                  WasPaused = true;
+		//               }
+		//            }
+		//         }
+		//      }, TaskCreationOptions.LongRunning).Start();
+		//#pragma warning restore EPC17 // Avoid async-void delegates
+	}
 
 	private static void Dispose()
 	{
@@ -94,7 +94,7 @@ public static class DebuggerInfo
 		while (_ct.IsCancellationRequested is false)
 		{
 			heartbeatSw.Restart();
-			await Task.Delay(TimeSpan.FromSeconds(0.25),_ct);
+			await Task.Delay(TimeSpan.FromSeconds(0.25), _ct);
 			var elapsed = heartbeatSw.Elapsed;
 			if (IsPaused is true)
 			{
@@ -130,20 +130,20 @@ public static class DebuggerInfo
 	///    would trigger because everything runs too long
 	/// </remarks>
 	public static bool IsPaused
-   {
-      get => _isPaused;
-      private set
-      {
-         if (_isPaused != value)
-         {
-            _isPaused = value;
-            //OnPause.Invoke(value);
-         }
-      }
-   }
+	{
+		get => _isPaused;
+		private set
+		{
+			if (_isPaused != value)
+			{
+				_isPaused = value;
+				//OnPause.Invoke(value);
+			}
+		}
+	}
 
-   /// <summary>
-   ///    if a debugger ever stepped through, this will be true
-   /// </summary>
-   public static bool WasPaused { get; private set; }
+	/// <summary>
+	///    if a debugger ever stepped through, this will be true
+	/// </summary>
+	public static bool WasPaused { get; private set; }
 }

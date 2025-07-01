@@ -21,39 +21,39 @@ namespace NotNot.Diagnostics.Advanced;
 /// </summary>
 public sealed class CollectionDebugView<T>
 {
-   public CollectionDebugView(IEnumerable<T>? collection)
-   {
-      Items = collection?.ToArray();
-   }
+	public CollectionDebugView(IEnumerable<T>? collection)
+	{
+		Items = collection?.ToArray();
+	}
 
-   public CollectionDebugView(Mem<T>? collection)
-   {
-      if (collection?.Length == 0)
-      {
-         Items = new T[0];
-      }
-      else
-      {
-         Items = collection?.DangerousGetArray().ToArray();
-      }
-   }
+	public CollectionDebugView(Mem<T>? collection)
+	{
+		if (collection?.Length == 0)
+		{
+			Items = new T[0];
+		}
+		else
+		{
+			Items = collection?.DangerousGetArray().ToArray();
+		}
+	}
 
-   public CollectionDebugView(ReadMem<T> collection)
-   {
-      //this.Items = new T[0];
+	public CollectionDebugView(ReadMem<T> collection)
+	{
+		//this.Items = new T[0];
 
-      if (collection.Length == 0)
-      {
-         Items = new T[0];
-      }
-      else
-      {
-         Items = collection.DangerousGetArray().ToArray();
-      }
-   }
+		if (collection.Length == 0)
+		{
+			Items = new T[0];
+		}
+		else
+		{
+			Items = collection.DangerousGetArray().ToArray();
+		}
+	}
 
-   [DebuggerBrowsable(DebuggerBrowsableState.Collapsed)]
-   public T[]? Items { get; }
+	[DebuggerBrowsable(DebuggerBrowsableState.Collapsed)]
+	public T[]? Items { get; }
 
-   public int Length { get; }
+	public int Length { get; }
 }

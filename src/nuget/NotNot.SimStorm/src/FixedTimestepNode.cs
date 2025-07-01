@@ -68,7 +68,7 @@ public abstract class FixedTimestepNode : SimNode
 
 				frame._slowRunningNodes.Add(this);
 				var nextCatchupRunTime = offset + frame._stats._wallTime._IntervalNext(_targetUpdateInterval) -
-				                         (_targetUpdateInterval * CatchUpMaxFrames);
+												 (_targetUpdateInterval * CatchUpMaxFrames);
 				if (nextCatchupRunTime > _nextRunTime)
 				{
 					//further behind than our CatchUpMaxFrames so ignore missing updates beyond that.

@@ -21,7 +21,7 @@ public class TaskResultNotObservedCodeFixProvider : CodeFixProvider
     /// <summary>
     /// Gets the diagnostic IDs that this code fix provider can fix
     /// </summary>
-    public sealed override ImmutableArray<string> FixableDiagnosticIds => 
+    public sealed override ImmutableArray<string> FixableDiagnosticIds =>
         ImmutableArray.Create(TaskResultNotObservedAnalyzer.DiagnosticId);
 
     /// <summary>

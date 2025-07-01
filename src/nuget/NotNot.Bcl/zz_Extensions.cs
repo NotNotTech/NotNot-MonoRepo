@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,11 +9,11 @@ namespace NotNot;
 
 public static class zz_Extensions_Spectre_Console_Color
 {
-   public static string _MarkupString(this Color color, string? message)
-   {
-      var markup = color.ToMarkup();
-      return $"[{markup}]{message}[/]";
-   }
+	public static string _MarkupString(this Color color, string? message)
+	{
+		var markup = color.ToMarkup();
+		return $"[{markup}]{message}[/]";
+	}
 }
 
 
@@ -186,129 +186,129 @@ public static class zz_Extensions_Spectre_Console_Color
 //}
 public static class zz_Extensions_HttpRequest
 {
-   public static StringValues _GetKeyValues(this HttpRequest request, string key, string? altKey = null)
-   {
-      if (request.Query.TryGetValue(key, out var value))
-      {
-         return value;
-      }
-      if (altKey is not null && request.Query.TryGetValue(altKey, out var altValue))
-      {
-         return altValue;
-      }
-      if (request.Headers.TryGetValue(key, out value))
-      {
-         return value;
-      }
-      if (altKey is not null && request.Headers.TryGetValue(altKey, out altValue))
-      {
-         return altValue;
-      }
-      return StringValues.Empty;
-   }
+	public static StringValues _GetKeyValues(this HttpRequest request, string key, string? altKey = null)
+	{
+		if (request.Query.TryGetValue(key, out var value))
+		{
+			return value;
+		}
+		if (altKey is not null && request.Query.TryGetValue(altKey, out var altValue))
+		{
+			return altValue;
+		}
+		if (request.Headers.TryGetValue(key, out value))
+		{
+			return value;
+		}
+		if (altKey is not null && request.Headers.TryGetValue(altKey, out altValue))
+		{
+			return altValue;
+		}
+		return StringValues.Empty;
+	}
 }
 
 
 
 public static class zz_Extensions_DbSet
 {
-   /// <summary>
-   ///    sets all entities in the dbSet to detached (which allows it's cache to be cleared, freeing GC)
-   ///    BE SURE TO SAVE CHANGES FIRST!
-   /// </summary>
-   /// <typeparam name="T"></typeparam>
-   /// <param name="dbSet"></param>
-   /// <returns></returns>
-   [Obsolete("not working properly, clearing makes dbSet think entity doesn't exist (doesn't reaquire from underlying db)")]
-   public static async Task _ClearCache<T>(this DbSet<T> dbSet) where T : class
-   {
-      //disabling as seems to not work properly
-      foreach (var entity in dbSet.Local)
-      {
-         switch (dbSet.Entry(entity).State)
-         {
-            case EntityState.Deleted:
-            case EntityState.Modified:
-            case EntityState.Added:
-               __.GetLogger()._EzError(false, "should have saved changes before clearing cache");
-               break;
-            case EntityState.Unchanged:
-            case EntityState.Detached:
-               break;
-            default:
-               __.GetLogger()._EzErrorThrow(false, $"unhandled EntityState: {dbSet.Entry(entity).State}");
-               break;
-         }
+	/// <summary>
+	///    sets all entities in the dbSet to detached (which allows it's cache to be cleared, freeing GC)
+	///    BE SURE TO SAVE CHANGES FIRST!
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="dbSet"></param>
+	/// <returns></returns>
+	[Obsolete("not working properly, clearing makes dbSet think entity doesn't exist (doesn't reaquire from underlying db)")]
+	public static async Task _ClearCache<T>(this DbSet<T> dbSet) where T : class
+	{
+		//disabling as seems to not work properly
+		foreach (var entity in dbSet.Local)
+		{
+			switch (dbSet.Entry(entity).State)
+			{
+				case EntityState.Deleted:
+				case EntityState.Modified:
+				case EntityState.Added:
+					__.GetLogger()._EzError(false, "should have saved changes before clearing cache");
+					break;
+				case EntityState.Unchanged:
+				case EntityState.Detached:
+					break;
+				default:
+					__.GetLogger()._EzErrorThrow(false, $"unhandled EntityState: {dbSet.Entry(entity).State}");
+					break;
+			}
 
-         dbSet.Entry(entity).State = EntityState.Detached;
-      }
+			dbSet.Entry(entity).State = EntityState.Detached;
+		}
 
-      //clearing via the changeTracker has the same problem.
-      //dbSet._Context().ChangeTracker.Clear();
-   }
+		//clearing via the changeTracker has the same problem.
+		//dbSet._Context().ChangeTracker.Clear();
+	}
 
-   /// <summary>
-   ///    for reducing memory use.  save all dbContext changes (including other dbsets!), and clears all local cached entities
-   ///    (from ONLY this dbSet).
-   /// </summary>
-   public static async ValueTask _SaveAndClearCache<T>(this DbSet<T> dbSet, DbContext context, CancellationToken ct) where T : class
-   {
-      //var context = dbSet._Context();
-      await context.SaveChangesAsync(ct);
+	/// <summary>
+	///    for reducing memory use.  save all dbContext changes (including other dbsets!), and clears all local cached entities
+	///    (from ONLY this dbSet).
+	/// </summary>
+	public static async ValueTask _SaveAndClearCache<T>(this DbSet<T> dbSet, DbContext context, CancellationToken ct) where T : class
+	{
+		//var context = dbSet._Context();
+		await context.SaveChangesAsync(ct);
 
-      //mark all entities as detached (which allows it's cache to be cleared, freeing GC)
-      foreach (var entity in dbSet.Local)
-      {
-         var entry = dbSet.Entry(entity);
-         switch (entry.State)
-         {
-            case EntityState.Deleted:
-            case EntityState.Modified:
-            case EntityState.Added:
-               __.GetLogger()._EzError("threading race condition?  should have saved changes before clearing cache", entry.State, entity);
-               break;
-            case EntityState.Unchanged:
-            case EntityState.Detached:
-               break;
-            default:
-               __.GetLogger()._EzError("unhandled EntityState", entry.State, entity);
-               break;
-         }
+		//mark all entities as detached (which allows it's cache to be cleared, freeing GC)
+		foreach (var entity in dbSet.Local)
+		{
+			var entry = dbSet.Entry(entity);
+			switch (entry.State)
+			{
+				case EntityState.Deleted:
+				case EntityState.Modified:
+				case EntityState.Added:
+					__.GetLogger()._EzError("threading race condition?  should have saved changes before clearing cache", entry.State, entity);
+					break;
+				case EntityState.Unchanged:
+				case EntityState.Detached:
+					break;
+				default:
+					__.GetLogger()._EzError("unhandled EntityState", entry.State, entity);
+					break;
+			}
 
-         entry.State = EntityState.Detached;
-      }
+			entry.State = EntityState.Detached;
+		}
 
-      //save changes for detach to take effect properly 
-      //otherwise if detatched eneity would be returned, nothing would (it won't re-aquire a new copy from db either)
-      await context.SaveChangesAsync(ct);
-   }
+		//save changes for detach to take effect properly 
+		//otherwise if detatched eneity would be returned, nothing would (it won't re-aquire a new copy from db either)
+		await context.SaveChangesAsync(ct);
+	}
 
 
-   /// <summary>
-   ///    expensive way to get the context.  don't use this method if at all possible
-   /// </summary>
-   public static DbContext _Context<T>(this DbSet<T> dbSet) where T : class
-   {
-      var infrastructureInterface = dbSet as IInfrastructure<IServiceProvider>;
-      var serviceProvider = infrastructureInterface.Instance;
-      var currentDbContext = serviceProvider.GetRequiredService<ICurrentDbContext>();
-      //var currentDbContext = serviceProvider.GetService(typeof(ICurrentDbContext))
-      //   as ICurrentDbContext;
-      return currentDbContext.Context;
-   }
+	/// <summary>
+	///    expensive way to get the context.  don't use this method if at all possible
+	/// </summary>
+	public static DbContext _Context<T>(this DbSet<T> dbSet) where T : class
+	{
+		var infrastructureInterface = dbSet as IInfrastructure<IServiceProvider>;
+		var serviceProvider = infrastructureInterface.Instance;
+		var currentDbContext = serviceProvider.GetRequiredService<ICurrentDbContext>();
+		//var currentDbContext = serviceProvider.GetService(typeof(ICurrentDbContext))
+		//   as ICurrentDbContext;
+		return currentDbContext.Context;
+	}
 
 }
 
 public static class zz_Extensions_DbContext
 {
 
-   /// <summary>
-   ///    for reducing memory use.  save all dbContext changes, and clears all local cached entities (from ALL dbsets).
-   /// </summary>
-   public static async ValueTask _SaveAndClearCache(this DbContext context, CancellationToken ct)
-   {
-      await context.SaveChangesAsync(ct);
-      context.ChangeTracker.Clear();
-      //await context.SaveChangesAsync(ct);
-   }
+	/// <summary>
+	///    for reducing memory use.  save all dbContext changes, and clears all local cached entities (from ALL dbsets).
+	/// </summary>
+	public static async ValueTask _SaveAndClearCache(this DbContext context, CancellationToken ct)
+	{
+		await context.SaveChangesAsync(ct);
+		context.ChangeTracker.Clear();
+		//await context.SaveChangesAsync(ct);
+	}
 }

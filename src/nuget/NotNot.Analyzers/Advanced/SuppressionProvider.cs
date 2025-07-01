@@ -24,7 +24,7 @@ public sealed class NotNotDiagnosticSuppressor : DiagnosticSuppressor
     /// Suppression for NN_R001 when in event handlers
     /// </summary>
     private static readonly SuppressionDescriptor TaskNotAwaitedInEventHandlerSuppression = new(
-        id: "NNS002", 
+        id: "NNS002",
         suppressedDiagnosticId: Reliability.Concurrency.TaskAwaitedOrReturnedAnalyzer.DiagnosticId,
         justification: "Event handlers often use fire-and-forget patterns for non-blocking operations");
 
@@ -64,7 +64,7 @@ public sealed class NotNotDiagnosticSuppressor : DiagnosticSuppressor
 
         var semanticModel = context.GetSemanticModel(syntaxTree);
         var syntaxNode = syntaxTree.GetRoot().FindNode(diagnostic.Location.SourceSpan);
-        
+
         // Check if we're in a test method
         if (IsInTestMethod(syntaxNode, semanticModel))
         {
@@ -110,9 +110,9 @@ public sealed class NotNotDiagnosticSuppressor : DiagnosticSuppressor
                 if (symbolInfo.Symbol is IMethodSymbol attributeMethod)
                 {
                     var attributeTypeName = attributeMethod.ContainingType.Name;
-                    
+
                     // Common test frameworks
-                    if (attributeTypeName.Contains("Test") || 
+                    if (attributeTypeName.Contains("Test") ||
                         attributeTypeName.Contains("Fact") ||
                         attributeTypeName.Contains("Theory") ||
                         attributeTypeName == "TestMethod")
@@ -125,8 +125,8 @@ public sealed class NotNotDiagnosticSuppressor : DiagnosticSuppressor
 
         // Check if the method name suggests it's a test
         var methodName = method.Identifier.ValueText;
-        return methodName.StartsWith("Test") || 
-               methodName.EndsWith("Test") || 
+        return methodName.StartsWith("Test") ||
+               methodName.EndsWith("Test") ||
                methodName.Contains("Should") ||
                methodName.Contains("_Test_");
     }
@@ -137,9 +137,9 @@ public sealed class NotNotDiagnosticSuppressor : DiagnosticSuppressor
         if (method == null) return false;
 
         var methodName = method.Identifier.ValueText;
-        
+
         // Common event handler naming patterns
-        return methodName.StartsWith("On") || 
+        return methodName.StartsWith("On") ||
                methodName.EndsWith("Handler") ||
                methodName.EndsWith("_Click") ||
                methodName.EndsWith("_Changed") ||
@@ -152,7 +152,7 @@ public sealed class NotNotDiagnosticSuppressor : DiagnosticSuppressor
         if (method == null) return false;
 
         var methodName = method.Identifier.ValueText;
-        
+
         // Common cleanup method patterns
         return methodName.Equals("Dispose") ||
                methodName.Equals("DisposeAsync") ||

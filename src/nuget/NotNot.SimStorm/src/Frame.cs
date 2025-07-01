@@ -175,7 +175,7 @@ public partial class Frame ////node graph setup and execution
 		//	//return updateTask;
 		//};
 
-		int outerWhileCount = 0, innerForCount = 0, updateTaskCreates = 0, updateTaskAsyncStarts = 0, updateTaskAsyncFinishes = 0, currentTaskRemoveDones = 0, activeNodesFinishes = 0, okayExecutions = 0, badExecutions = 0, waitForAllCurrentTasks = 0, notifyAllNodesInFrameFinishes =0;
+		int outerWhileCount = 0, innerForCount = 0, updateTaskCreates = 0, updateTaskAsyncStarts = 0, updateTaskAsyncFinishes = 0, currentTaskRemoveDones = 0, activeNodesFinishes = 0, okayExecutions = 0, badExecutions = 0, waitForAllCurrentTasks = 0, notifyAllNodesInFrameFinishes = 0;
 
 		__.GetLogger()._EzInfo(SimNode._DEBUG_PRINT_TRACE != true,
 			$"[[[[[=================------- {_stats._frameId} -------=================]]]]]");
@@ -278,24 +278,24 @@ public partial class Frame ////node graph setup and execution
 
 			//}
 
-         if (currentTasks.Count != 0)
-         {
-            //wait on at least one task	
+			if (currentTasks.Count != 0)
+			{
+				//wait on at least one task	
 #if DEBUG
-            try
-            {
-               await Task.WhenAny(currentTasks).WaitAsync(__.Async.CancelAfter(TimeSpan.FromSeconds(2)));
-            }
-            catch (TimeoutException ex)
-            {
+				try
+				{
+					await Task.WhenAny(currentTasks).WaitAsync(__.Async.CancelAfter(TimeSpan.FromSeconds(2)));
+				}
+				catch (TimeoutException ex)
+				{
 					__.AssertIfNot(false);
-               __.GetLogger()._EzErrorThrow<SimStormException>(DebuggerInfo.IsPaused,
-                  "SimPipeline appears deadlocked, as no executing task has completed in less than 2 seconds.");
-            }
+					__.GetLogger()._EzErrorThrow<SimStormException>(DebuggerInfo.IsPaused,
+						"SimPipeline appears deadlocked, as no executing task has completed in less than 2 seconds.");
+				}
 #else
 				await Task.WhenAny(currentTasks);
 #endif
-         }
+			}
 
 			//remove done
 			for (var i = currentTasks.Count - 1; i >= 0; i--)
@@ -370,7 +370,7 @@ public partial class Frame ////node graph setup and execution
 
 
 			if (DEBUG_startedThisPass > 0 || DEBUG_finishedHierarchy > 0 || currentTasks.Count > 0 ||
-			    DEBUG_finishedNodeUpdate > 0)
+				 DEBUG_finishedNodeUpdate > 0)
 			{
 				//ok
 				okayExecutions++;
@@ -379,13 +379,13 @@ public partial class Frame ////node graph setup and execution
 			{
 				badExecutions++;
 				var errorStr = $"Node execution deadlocked for frame {_stats._frameId}.  " +
-				               $"There are {_allNodesToProcess.Count} nodes that can not execute due to circular dependencies in UpdateBefore/After settings.  " +
-				               $"These are their settings (set in code) and their runtimeUpdateAfter computed values for this frame.  Check any nodes mentioned:\n";
+									$"There are {_allNodesToProcess.Count} nodes that can not execute due to circular dependencies in UpdateBefore/After settings.  " +
+									$"These are their settings (set in code) and their runtimeUpdateAfter computed values for this frame.  Check any nodes mentioned:\n";
 				foreach (var node in _allNodesToProcess)
 				{
 					var nodeState = _frameStates[node];
 					errorStr += $"   {node.GetHierarchyName()} " +
-					            $"updateBefore=[{string.Join(',', node._updateBefore)}] updateAfter=[{string.Join(',', node._updateAfter)}]  calculatedUpdateAfter=[{string.Join(',', nodeState._updateAfter)}]\n";
+									$"updateBefore=[{string.Join(',', node._updateBefore)}] updateAfter=[{string.Join(',', node._updateAfter)}]  calculatedUpdateAfter=[{string.Join(',', nodeState._updateAfter)}]\n";
 				}
 
 				__.GetLogger()._EzErrorThrow<SimStormException>(false, errorStr);
@@ -511,7 +511,7 @@ public partial class Frame //resource locking
 			foreach (var obj in node._registeredReadLocks)
 			{
 				if (_priorFrame._writeRequestsRemaining.TryGetValue(obj, out var nodesRemaining) &&
-				    nodesRemaining.Count > 0)
+					 nodesRemaining.Count > 0)
 				{
 					return false;
 				}
@@ -522,14 +522,14 @@ public partial class Frame //resource locking
 			{
 				{
 					if (_priorFrame._writeRequestsRemaining.TryGetValue(obj, out var nodesRemaining) &&
-					    nodesRemaining.Count > 0)
+						 nodesRemaining.Count > 0)
 					{
 						return false;
 					}
 				}
 				{
 					if (_priorFrame._readRequestsRemaining.TryGetValue(obj, out var nodesRemaining) &&
-					    nodesRemaining.Count > 0)
+						 nodesRemaining.Count > 0)
 					{
 						return false;
 					}

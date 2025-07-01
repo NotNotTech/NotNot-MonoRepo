@@ -1,4 +1,4 @@
-﻿//using System;
+//using System;
 //using System.Collections.Generic;
 //using System.Diagnostics;
 //using System.Linq;
@@ -52,7 +52,7 @@
 
 //		await engine.Updater.Stop();
 
-		
+
 
 //		__.Assert(engine.RootNode._lastUpdate._timeStats._frameId > 30);
 //		engine.Dispose();

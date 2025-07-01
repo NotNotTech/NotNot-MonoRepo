@@ -1,1 +1,1 @@
-﻿global using NotNot;
+global using NotNot;

@@ -23,91 +23,91 @@ namespace NotNot.Diagnostics;
 public record TraceId
 {
 
-   //public readonly static string AssemblyInformationalVersion = ((Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly())
-   //   .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "?");//._ConvertToAlphanumeric();
+	//public readonly static string AssemblyInformationalVersion = ((Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly())
+	//   .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "?");//._ConvertToAlphanumeric();
 
-   public readonly static string AssemblyShortHash = (Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly())._GetGitShortHash();
+	public readonly static string AssemblyShortHash = (Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly())._GetGitShortHash();
 
-   public readonly static string MachineName = Environment.MachineName._ConvertToAlphanumeric();
-   public string TracePrefix { get; protected init; } = AssemblyShortHash + "|" + MachineName;
+	public readonly static string MachineName = Environment.MachineName._ConvertToAlphanumeric();
+	public string TracePrefix { get; protected init; } = AssemblyShortHash + "|" + MachineName;
 
-   private static ulong _traceIdCounter;
-   public ulong CountId { get; protected init; } = Interlocked.Increment(ref _traceIdCounter);
-
-
-   public string SourceMemberName { get; protected init; }
-   public string SourceFile { get; protected init; }
-   public int SourceLineNumber { get; protected init; }
-   public DateTime Timestamp { get; protected init; }
-   public TraceId? From { get; init; }
+	private static ulong _traceIdCounter;
+	public ulong CountId { get; protected init; } = Interlocked.Increment(ref _traceIdCounter);
 
 
-   public static TraceId Generate([CallerMemberName] string sourceMemberName = "",
-      [CallerFilePath] string sourceFilePath = "",
-      [CallerLineNumber] int sourceLineNumber = 0)
-   {
-      return new TraceId(sourceMemberName, sourceFilePath, sourceLineNumber);
-   }
-   public static TraceId Generate(TraceId from, [CallerMemberName] string sourceMemberName = "",
-      [CallerFilePath] string sourceFilePath = "",
-      [CallerLineNumber] int sourceLineNumber = 0)
-   {
-      return new TraceId(from, sourceMemberName, sourceFilePath, sourceLineNumber);
-   }
+	public string SourceMemberName { get; protected init; }
+	public string SourceFile { get; protected init; }
+	public int SourceLineNumber { get; protected init; }
+	public DateTime Timestamp { get; protected init; }
+	public TraceId? From { get; init; }
 
 
-   private TraceId(string sourceMemberName, string sourceFilePath, int sourceLineNumber)
-   {
-      SourceMemberName = sourceMemberName._ConvertToAlphanumeric();
-      SourceFile = sourceFilePath._GetAfter('\\', true)._GetBeforeLast('.', true);
-      SourceLineNumber = sourceLineNumber;
-      Timestamp = DateTime.UtcNow;
-   }
+	public static TraceId Generate([CallerMemberName] string sourceMemberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		return new TraceId(sourceMemberName, sourceFilePath, sourceLineNumber);
+	}
+	public static TraceId Generate(TraceId from, [CallerMemberName] string sourceMemberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		return new TraceId(from, sourceMemberName, sourceFilePath, sourceLineNumber);
+	}
 
-   private TraceId(TraceId from, string memberName, string sourceFilePath, int sourceLineNumber)
-      : this(memberName, sourceFilePath, sourceLineNumber)
-   {
-      From = from;
-   }
 
-   /// <summary>
-   /// Returns a human-readable string representation of the TraceId.
-   /// </summary>
-   public override string ToString()
-   {
-      //var fromPart = From != null ? $"From: {From.ToString()} | " : "";
-      var toReturn = $"{TracePrefix}|{SourceFile}|{SourceMemberName}|{SourceLineNumber}|{Timestamp._ToIso()}|{CountId}";
+	private TraceId(string sourceMemberName, string sourceFilePath, int sourceLineNumber)
+	{
+		SourceMemberName = sourceMemberName._ConvertToAlphanumeric();
+		SourceFile = sourceFilePath._GetAfter('\\', true)._GetBeforeLast('.', true);
+		SourceLineNumber = sourceLineNumber;
+		Timestamp = DateTime.UtcNow;
+	}
 
-      //append minimal trace of ancestors
-      {
-         var loop = 0;
-         var current = From;
-         while (current is not null && loop < 4)
-         {
-            toReturn = $"{From.SourceFile}:{From.SourceLineNumber}>" + toReturn;
-            current = From.From;
-            loop++;
-         }
-         if (loop == 4 && current is not null)
-         {
-            toReturn = "...>" + toReturn;
-         }
-      }
-      return toReturn;
-   }
+	private TraceId(TraceId from, string memberName, string sourceFilePath, int sourceLineNumber)
+		: this(memberName, sourceFilePath, sourceLineNumber)
+	{
+		From = from;
+	}
 
-   public class TraceIdJsonConverter : JsonConverter<TraceId>
-   {
-      public override TraceId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-      {
-         // Deserialization logic if needed
-         //throw new NotImplementedException();
-         return new TraceId("traceId_from_json_roundtrip_not_implemented", "", 0);
-      }
+	/// <summary>
+	/// Returns a human-readable string representation of the TraceId.
+	/// </summary>
+	public override string ToString()
+	{
+		//var fromPart = From != null ? $"From: {From.ToString()} | " : "";
+		var toReturn = $"{TracePrefix}|{SourceFile}|{SourceMemberName}|{SourceLineNumber}|{Timestamp._ToIso()}|{CountId}";
 
-      public override void Write(Utf8JsonWriter writer, TraceId value, JsonSerializerOptions options)
-      {
-         writer.WriteStringValue(value.ToString());
-      }
-   }
+		//append minimal trace of ancestors
+		{
+			var loop = 0;
+			var current = From;
+			while (current is not null && loop < 4)
+			{
+				toReturn = $"{From.SourceFile}:{From.SourceLineNumber}>" + toReturn;
+				current = From.From;
+				loop++;
+			}
+			if (loop == 4 && current is not null)
+			{
+				toReturn = "...>" + toReturn;
+			}
+		}
+		return toReturn;
+	}
+
+	public class TraceIdJsonConverter : JsonConverter<TraceId>
+	{
+		public override TraceId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			// Deserialization logic if needed
+			//throw new NotImplementedException();
+			return new TraceId("traceId_from_json_roundtrip_not_implemented", "", 0);
+		}
+
+		public override void Write(Utf8JsonWriter writer, TraceId value, JsonSerializerOptions options)
+		{
+			writer.WriteStringValue(value.ToString());
+		}
+	}
 }

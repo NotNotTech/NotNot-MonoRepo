@@ -763,7 +763,7 @@ public class EntityQuery
 			var toRemove = false;
 			//apply option filters
 			if (_options.all != null && _options.all.Count > 0 &&
-			    archetype._componentTypes.IsSupersetOf(_options.all) == false)
+				 archetype._componentTypes.IsSupersetOf(_options.all) == false)
 			{
 				toRemove = true;
 			}
@@ -772,7 +772,7 @@ public class EntityQuery
 				toRemove = true;
 			}
 			else if (_options.any != null && _options.any.Count > 0 &&
-			         archetype._componentTypes.Overlaps(_options.any) != true)
+						archetype._componentTypes.Overlaps(_options.any) != true)
 			{
 				toRemove = true;
 			}

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,15 +8,15 @@ namespace NotNot.Data;
 
 public enum DeleteResult
 {
-   Error,
-   /// <summary>
-   /// The deletion was successful
-   /// </summary>
-   Success,
-   /// <summary>
-   /// The item was not found (maybe it was already deleted)
-   /// </summary>
-   NotFound,
+	Error,
+	/// <summary>
+	/// The deletion was successful
+	/// </summary>
+	Success,
+	/// <summary>
+	/// The item was not found (maybe it was already deleted)
+	/// </summary>
+	NotFound,
 }
 
 //public enum CreateResult
@@ -41,17 +41,17 @@ public enum DeleteResult
 
 public enum UpsertResult
 {
-   Error,
-   /// <summary>
-   /// 
-   /// </summary>
-   Create,
-   /// <summary>
-   /// The item was not found (maybe it was already deleted)
-   /// </summary>
-   Update,
-   ///// <summary>
-   ///// The item was found, but it could not be deleted
-   ///// </summary>
-   //Failed
+	Error,
+	/// <summary>
+	/// 
+	/// </summary>
+	Create,
+	/// <summary>
+	/// The item was not found (maybe it was already deleted)
+	/// </summary>
+	Update,
+	///// <summary>
+	///// The item was found, but it could not be deleted
+	///// </summary>
+	//Failed
 }

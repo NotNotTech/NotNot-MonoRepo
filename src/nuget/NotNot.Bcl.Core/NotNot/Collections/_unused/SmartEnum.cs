@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 
 namespace NotNot.Collections._unused;
 
@@ -11,64 +11,64 @@ namespace NotNot.Collections._unused;
 /// <typeparam name="TEnum"></typeparam>
 public abstract class SmartEnum<TEnum> where TEnum : SmartEnum<TEnum>
 {
-   protected SmartEnum([CallerMemberName] string name = "")
-   {
-      Name = name;
-   }
+	protected SmartEnum([CallerMemberName] string name = "")
+	{
+		Name = name;
+	}
 
-   public string Name { get; init; }
+	public string Name { get; init; }
 
-   public override string ToString()
-   {
-      return Name;
-   }
+	public override string ToString()
+	{
+		return Name;
+	}
 
-   //public static implicit operator int(SmartEnum<TEnum> smartEnum) => smartEnum.value;
-   public static implicit operator string(SmartEnum<TEnum> smartEnum)
-   {
-      return smartEnum.Name;
-   }
+	//public static implicit operator int(SmartEnum<TEnum> smartEnum) => smartEnum.value;
+	public static implicit operator string(SmartEnum<TEnum> smartEnum)
+	{
+		return smartEnum.Name;
+	}
 
-   public static bool operator ==(SmartEnum<TEnum> a, SmartEnum<TEnum> b)
-   {
-      if (a is null)
-      {
-         return false;
-      }
+	public static bool operator ==(SmartEnum<TEnum> a, SmartEnum<TEnum> b)
+	{
+		if (a is null)
+		{
+			return false;
+		}
 
-      return a.Equals(b);
-   }
+		return a.Equals(b);
+	}
 
-   public static bool operator !=(SmartEnum<TEnum> a, SmartEnum<TEnum> b)
-   {
-      return !(a == b);
-   }
+	public static bool operator !=(SmartEnum<TEnum> a, SmartEnum<TEnum> b)
+	{
+		return !(a == b);
+	}
 
 
-   public override bool Equals(object? obj)
-   {
-      if (ReferenceEquals(this, obj))
-      {
-         return true;
-      }
+	public override bool Equals(object? obj)
+	{
+		if (ReferenceEquals(this, obj))
+		{
+			return true;
+		}
 
-      if (obj is null)
-      {
-         return false;
-      }
+		if (obj is null)
+		{
+			return false;
+		}
 
-      if (GetType() != obj.GetType())
-      {
-         return false;
-      }
+		if (GetType() != obj.GetType())
+		{
+			return false;
+		}
 
-      var b = obj as TEnum;
+		var b = obj as TEnum;
 
-      return Name == b.Name;
-   }
+		return Name == b.Name;
+	}
 
-   public override int GetHashCode()
-   {
-      return Name.GetHashCode();
-   }
+	public override int GetHashCode()
+	{
+		return Name.GetHashCode();
+	}
 }

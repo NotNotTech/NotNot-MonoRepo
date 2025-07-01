@@ -21,7 +21,7 @@ public class TaskAwaitedOrReturnedCodeFixProvider : CodeFixProvider
     /// <summary>
     /// Gets the diagnostic IDs that this code fix provider can fix
     /// </summary>
-    public sealed override ImmutableArray<string> FixableDiagnosticIds => 
+    public sealed override ImmutableArray<string> FixableDiagnosticIds =>
         ImmutableArray.Create(TaskAwaitedOrReturnedAnalyzer.DiagnosticId);
 
     /// <summary>
@@ -119,7 +119,7 @@ public class TaskAwaitedOrReturnedCodeFixProvider : CodeFixProvider
         if (root == null) return document;
 
         var expression = expressionStatement.Expression;
-        
+
         // Create a variable declaration for the task
         var variableName = "task";
         var variableDeclaration = SyntaxFactory.VariableDeclaration(

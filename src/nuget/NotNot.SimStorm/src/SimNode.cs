@@ -47,7 +47,7 @@ public abstract partial class SimNode //update logic
 
 		if (IsDisabled)
 		{
-			OnFrameSkipped(frame,$"Node ({this.Name}): IsDisabled.  Frame {frame._stats._frameId}");
+			OnFrameSkipped(frame, $"Node ({this.Name}): IsDisabled.  Frame {frame._stats._frameId}");
 		}
 		else
 		{
@@ -82,7 +82,7 @@ public abstract partial class SimNode //update logic
 	{
 		IsSkipped = true;
 		IsSkippedDebugReason = reason;
-		
+
 		foreach (var child in children)
 		{
 			child.OnFrameSkipped(frame, reason);
@@ -383,7 +383,7 @@ public abstract partial class SimNode //tree logic
 	public void AddChild(SimNode child)
 	{
 		__.GetLogger()._EzErrorThrow<SimStormException>(child.IsRegistered == false && child.IsAdded == false &&
-		                                  children.Contains(child) == false);
+													 children.Contains(child) == false);
 		children.Add(child);
 		child.Added(this);
 		OnChildAdded(child);

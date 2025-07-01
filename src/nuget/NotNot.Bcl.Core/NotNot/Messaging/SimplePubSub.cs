@@ -40,24 +40,24 @@ namespace NotNot.Messaging;
 /// </summary>
 public class SimplePubSub
 {
-   /// <summary>
-   ///    key = Pub key (anything).
-   ///    value = List{WeakReference{ConcurrentQueue{V}} (Subscribers)
-   /// </summary>
-   /// <returns></returns>
-   private readonly ConcurrentDictionary<string, object> _storage = new();
+	/// <summary>
+	///    key = Pub key (anything).
+	///    value = List{WeakReference{ConcurrentQueue{V}} (Subscribers)
+	/// </summary>
+	/// <returns></returns>
+	private readonly ConcurrentDictionary<string, object> _storage = new();
 
 
-   /// <summary>
-   ///    obtain a channel for sending and recieving messages.
-   /// </summary>
-   /// <typeparam name="TMessage">must be struct (to prevent GC allocations).  Pass a tuple if you NEED to pass an object</typeparam>
-   /// <param name="key"></param>
-   /// <returns></returns>
-   public MessageChannel<TMessage> GetChannel<TMessage>(string key) where TMessage : struct
-   {
-      var channel = _storage.GetOrAdd(key, _key => new MessageChannel<TMessage>(key));
+	/// <summary>
+	///    obtain a channel for sending and recieving messages.
+	/// </summary>
+	/// <typeparam name="TMessage">must be struct (to prevent GC allocations).  Pass a tuple if you NEED to pass an object</typeparam>
+	/// <param name="key"></param>
+	/// <returns></returns>
+	public MessageChannel<TMessage> GetChannel<TMessage>(string key) where TMessage : struct
+	{
+		var channel = _storage.GetOrAdd(key, _key => new MessageChannel<TMessage>(key));
 
-      return (MessageChannel<TMessage>)channel;
-   }
+		return (MessageChannel<TMessage>)channel;
+	}
 }

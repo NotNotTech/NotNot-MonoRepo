@@ -134,7 +134,7 @@ public class EntityRegistry
 
 	public void Free(Span<EntityHandle> handles)
 	{
-      __.DebugAssertOnceIfNot(handles._IsSorted(), "sort first"); 
+		__.DebugAssertOnceIfNot(handles._IsSorted(), "sort first");
 		using var freeSpanOwner = SpanGuard<int>.Allocate(handles.Length);
 		var freeSpan = freeSpanOwner.Span;
 		for (var i = 0; i < handles.Length; i++)
@@ -1107,7 +1107,9 @@ public partial class Page : IDisposable //init logic
 		//create our next slot alloc tracker
 		_nextSlotTracker = new AllocPositionTracker
 		{
-			chunkSize = ChunkSize, nextAvailable = new SlotRef(0, 0), page = this,
+			chunkSize = ChunkSize,
+			nextAvailable = new SlotRef(0, 0),
+			page = this,
 		};
 
 		//create the first (blank) chunk for each column

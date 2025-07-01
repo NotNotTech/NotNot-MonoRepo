@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis.CSharp;
@@ -104,15 +104,15 @@ public partial class {{className}}
 			switch (extension)
 			{
 				case ".import":
-				{
-					var assetFilePath = importFileName.Replace(".import", "");
-					var assetId = assetFilePath.Replace(config.resRootPath, "");
-					var id = assetId._ConvertToAlphanumericCaps();
-					if (config.TryConvertFilePathToResPath(assetFilePath, out var resPath))
 					{
-						lines.AppendLine($""" public static StringName {id} = "{resPath}";""");
+						var assetFilePath = importFileName.Replace(".import", "");
+						var assetId = assetFilePath.Replace(config.resRootPath, "");
+						var id = assetId._ConvertToAlphanumericCaps();
+						if (config.TryConvertFilePathToResPath(assetFilePath, out var resPath))
+						{
+							lines.AppendLine($""" public static StringName {id} = "{resPath}";""");
+						}
 					}
-				}
 					break;
 				case ".gd":
 				case ".tres":
@@ -122,13 +122,13 @@ public partial class {{className}}
 				case ".model":
 				case ".gdshader":
 					{
-					if (config.TryConvertFilePathToResPath(importFileName, out var resPath))
-					{
-						var assetId = importFileName.Replace(config.resRootPath, "");
-						var id = assetId._ConvertToAlphanumericCaps();
-						lines.AppendLine($""" public static StringName {id} = "{resPath}";""");
+						if (config.TryConvertFilePathToResPath(importFileName, out var resPath))
+						{
+							var assetId = importFileName.Replace(config.resRootPath, "");
+							var id = assetId._ConvertToAlphanumericCaps();
+							lines.AppendLine($""" public static StringName {id} = "{resPath}";""");
+						}
 					}
-				}
 					break;
 			}
 

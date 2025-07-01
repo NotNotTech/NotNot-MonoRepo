@@ -15,45 +15,45 @@ namespace NotNot.Advanced;
 /// </summary>
 public abstract class FramePacketBase
 {
-   /// <summary>
-   ///    internal helper used to track writes, to help catch race conditions (misuse)
-   /// </summary>
-   public int _version;
+	/// <summary>
+	///    internal helper used to track writes, to help catch race conditions (misuse)
+	/// </summary>
+	public int _version;
 
-   public bool IsInitialized { get; private set; }
+	public bool IsInitialized { get; private set; }
 
-   public bool IsSealed { get; private set; }
+	public bool IsSealed { get; private set; }
 
-   public void NotifyWrite()
-   {
-      __.GetLogger()._EzErrorThrow(IsInitialized && _version > 0 && IsSealed == false);
-      _version++;
-   }
+	public void NotifyWrite()
+	{
+		__.GetLogger()._EzErrorThrow(IsInitialized && _version > 0 && IsSealed == false);
+		_version++;
+	}
 
-   public void Seal()
-   {
-      IsSealed = true;
-   }
+	public void Seal()
+	{
+		IsSealed = true;
+	}
 
-   public void Recycle()
-   {
-      __.GetLogger()._EzErrorThrow(IsInitialized && _version > 0);
-      IsInitialized = false;
-      _version = -1;
-      OnRecycle();
-   }
+	public void Recycle()
+	{
+		__.GetLogger()._EzErrorThrow(IsInitialized && _version > 0);
+		IsInitialized = false;
+		_version = -1;
+		OnRecycle();
+	}
 
-   public void Initialize()
-   {
-      __.GetLogger()._EzErrorThrow(IsInitialized == false && _version <= 0);
-      IsInitialized = true;
-      _version = 1;
-      IsSealed = false;
-      OnInitialize();
-   }
+	public void Initialize()
+	{
+		__.GetLogger()._EzErrorThrow(IsInitialized == false && _version <= 0);
+		IsInitialized = true;
+		_version = 1;
+		IsSealed = false;
+		OnInitialize();
+	}
 
-   protected abstract void OnRecycle();
-   protected abstract void OnInitialize();
+	protected abstract void OnRecycle();
+	protected abstract void OnInitialize();
 }
 
 /// <summary>
@@ -65,56 +65,56 @@ public abstract class FramePacketBase
 /// <typeparam name="TValue"></typeparam>
 public struct TypeLocal<TValue>
 {
-   private static volatile int _typeCounter = -1;
+	private static volatile int _typeCounter = -1;
 
 
-   private static class TypeSlot<TType>
-   {
-      internal static readonly int _index = Interlocked.Increment(ref _typeCounter);
-   }
+	private static class TypeSlot<TType>
+	{
+		internal static readonly int _index = Interlocked.Increment(ref _typeCounter);
+	}
 
-   /// <summary>
-   ///    A small inefficiency:  will have 1 slot for each TType ever used for a TypeLocal call, regardless of if it's used in
-   ///    this instance or not
-   /// </summary>
-   private TValue[] _storage;
+	/// <summary>
+	///    A small inefficiency:  will have 1 slot for each TType ever used for a TypeLocal call, regardless of if it's used in
+	///    this instance or not
+	/// </summary>
+	private TValue[] _storage;
 
-   public TypeLocal()
-   {
-      _storage = new TValue[Math.Max(10, _typeCounter + 1)];
-   }
+	public TypeLocal()
+	{
+		_storage = new TValue[Math.Max(10, _typeCounter + 1)];
+	}
 
-   private TValue[] EnsureStorageCapacity<TType>()
-   {
-      if (TypeSlot<TType>._index >= _storage.Length)
-      {
-         Array.Resize(ref _storage, (_typeCounter + 1) * 2);
-      }
+	private TValue[] EnsureStorageCapacity<TType>()
+	{
+		if (TypeSlot<TType>._index >= _storage.Length)
+		{
+			Array.Resize(ref _storage, (_typeCounter + 1) * 2);
+		}
 
-      return _storage;
-   }
+		return _storage;
+	}
 
-   public void Set<TType>(TValue value)
-   {
-      //Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(EnsureStorageCapacity<T>()), TypeSlot<T>.Index) = value;
-      var storage = EnsureStorageCapacity<TType>();
-      storage[TypeSlot<TType>._index] = value;
-   }
+	public void Set<TType>(TValue value)
+	{
+		//Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(EnsureStorageCapacity<T>()), TypeSlot<T>.Index) = value;
+		var storage = EnsureStorageCapacity<TType>();
+		storage[TypeSlot<TType>._index] = value;
+	}
 
-   public TValue Get<TType>()
-   {
-      //return Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(EnsureStorageCapacity<T>()), TypeSlot<T>.Index);
-      //return Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_storage), TypeSlot<T>.Index);
-      return _storage[TypeSlot<TType>._index];
-   }
+	public TValue Get<TType>()
+	{
+		//return Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(EnsureStorageCapacity<T>()), TypeSlot<T>.Index);
+		//return Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_storage), TypeSlot<T>.Index);
+		return _storage[TypeSlot<TType>._index];
+	}
 
-   public ref TValue GetRef<TType>()
-   {
-      //return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_storage), TypeSlot<T>.Index);
-      //return ref _storage[TypeSlot<TType>._index].value;
+	public ref TValue GetRef<TType>()
+	{
+		//return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_storage), TypeSlot<T>.Index);
+		//return ref _storage[TypeSlot<TType>._index].value;
 
-      return ref _storage[TypeSlot<TType>._index];
-   }
+		return ref _storage[TypeSlot<TType>._index];
+	}
 }
 
 /// <summary>
@@ -123,65 +123,65 @@ public struct TypeLocal<TValue>
 [StructLayout(LayoutKind.Explicit)]
 internal struct FloatInspector
 {
-   [FieldOffset(0)] public float val;
+	[FieldOffset(0)] public float val;
 
 
-   [FieldOffset(0)] public int bitfield;
+	[FieldOffset(0)] public int bitfield;
 
 
-   // public FloatInspector(float value)
-   // {
-   // 	this = new FloatInspector();
-   // 	val = value;
-   // }
+	// public FloatInspector(float value)
+	// {
+	// 	this = new FloatInspector();
+	// 	val = value;
+	// }
 
-   public int Sign
-   {
-      get => bitfield >> 31;
-      set => bitfield |= value << 31;
-   }
+	public int Sign
+	{
+		get => bitfield >> 31;
+		set => bitfield |= value << 31;
+	}
 
-   public int Exponent
-   {
-      get => (bitfield & 0x7f800000) >> 23;
-      // var e = bitfield & 0x7f800000;
-      // e >>= 23;
-      // return e;
-      set => bitfield |= value << 23 & 0x7f800000;
-   }
+	public int Exponent
+	{
+		get => (bitfield & 0x7f800000) >> 23;
+		// var e = bitfield & 0x7f800000;
+		// e >>= 23;
+		// return e;
+		set => bitfield |= value << 23 & 0x7f800000;
+	}
 
-   public int Mantissa
-   {
-      get => bitfield & 0x007fffff;
-      set => bitfield |= value & 0x007fffff;
-   }
+	public int Mantissa
+	{
+		get => bitfield & 0x007fffff;
+		set => bitfield |= value & 0x007fffff;
+	}
 
-   public override string ToString()
-   {
-      var floatBytes = BitConverter.GetBytes(val);
-      var bitBytes = BitConverter.GetBytes(bitfield);
-      var floatBytesStr = string.Join(",", floatBytes.Select(b => b.ToString("X")));
-      var bitBytesStr = string.Join(",", bitBytes.Select(b => b.ToString("X")));
+	public override string ToString()
+	{
+		var floatBytes = BitConverter.GetBytes(val);
+		var bitBytes = BitConverter.GetBytes(bitfield);
+		var floatBytesStr = string.Join(",", floatBytes.Select(b => b.ToString("X")));
+		var bitBytesStr = string.Join(",", bitBytes.Select(b => b.ToString("X")));
 
 
-      //return String.Format("FLOAT={0:G9} RT={0:R} FIELD={1:G},  HEXTEST={1:X8}, fBytes={2}, bBytes={3}", this.val, this.bitfield, floatBytesStr, bitBytesStr); //HEXTEST={1:X}, 
-      return string.Format("FLOAT={0:G9} BITFIELD={1:G},  HEX={1:X}, S={2}, E={3:X}, M={4:X}", val, bitfield, Sign,
-         Exponent, Mantissa); //HEXTEST={1:X}, 
-   }
+		//return String.Format("FLOAT={0:G9} RT={0:R} FIELD={1:G},  HEXTEST={1:X8}, fBytes={2}, bBytes={3}", this.val, this.bitfield, floatBytesStr, bitBytesStr); //HEXTEST={1:X}, 
+		return string.Format("FLOAT={0:G9} BITFIELD={1:G},  HEX={1:X}, S={2}, E={3:X}, M={4:X}", val, bitfield, Sign,
+			Exponent, Mantissa); //HEXTEST={1:X}, 
+	}
 }
 
 [StructLayout(LayoutKind.Explicit)]
 internal struct Vector3Inspector
 {
-   [FieldOffset(0)] public Vector3 val;
-   [FieldOffset(0)] public FloatInspector x;
-   [FieldOffset(4)] public FloatInspector y;
-   [FieldOffset(8)] public FloatInspector z;
+	[FieldOffset(0)] public Vector3 val;
+	[FieldOffset(0)] public FloatInspector x;
+	[FieldOffset(4)] public FloatInspector y;
+	[FieldOffset(8)] public FloatInspector z;
 
-   public override string ToString()
-   {
-      return string.Format("x=[{0}], \n\ty=[{1}], \n\tz=[{2}]", x, y, z);
-   }
+	public override string ToString()
+	{
+		return string.Format("x=[{0}], \n\ty=[{1}], \n\tz=[{2}]", x, y, z);
+	}
 }
 
 /// <summary>
@@ -196,60 +196,60 @@ internal struct Vector3Inspector
 /// </remarks>
 public static class Unsafe2
 {
-   /// <summary>
-   ///    use to obtain raw access to a managed object.  allowing `fixed` pinning.
-   ///    <para>
-   ///       Usage:<code>fixed (byte* data = [AND_OPERATOR]GetRawObjectData(managed)){  }</code>
-   ///    </para>
-   /// </summary>
-   public static ref byte GetRawObjectData(object o)
-   {
-      //usage:  fixed (byte* data = &GetRawObjectData(managed)) { }
-      return ref new PinnableUnion(o).Pinnable.Data;
-   }
+	/// <summary>
+	///    use to obtain raw access to a managed object.  allowing `fixed` pinning.
+	///    <para>
+	///       Usage:<code>fixed (byte* data = [AND_OPERATOR]GetRawObjectData(managed)){  }</code>
+	///    </para>
+	/// </summary>
+	public static ref byte GetRawObjectData(object o)
+	{
+		//usage:  fixed (byte* data = &GetRawObjectData(managed)) { }
+		return ref new PinnableUnion(o).Pinnable.Data;
+	}
 
-   /// <summary>
-   ///    list has an array located inside it. this method will return you a reference to it.
-   ///    Keep in mind that if the list is modified, this reference may nolonger be valid.
-   /// </summary>
-   /// <typeparam name="T"></typeparam>
-   /// <param name="list"></param>
-   /// <returns></returns>
-   public static T[] GetArray<T>(List<T> list)
-   {
-      //get span from list
-      var span = CollectionsMarshal.AsSpan(list);
-      //ref to first element of the array
-      ref T r0 = ref MemoryMarshal.GetReference(span);
-      //pointer to location 2 references backward in memory.   This is the location of the method table  (what object references point to).
-      ref T r1 = ref Unsafe.SubtractByteOffset(ref r0, (nuint)(nint.Size * 2));
+	/// <summary>
+	///    list has an array located inside it. this method will return you a reference to it.
+	///    Keep in mind that if the list is modified, this reference may nolonger be valid.
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="list"></param>
+	/// <returns></returns>
+	public static T[] GetArray<T>(List<T> list)
+	{
+		//get span from list
+		var span = CollectionsMarshal.AsSpan(list);
+		//ref to first element of the array
+		ref T r0 = ref MemoryMarshal.GetReference(span);
+		//pointer to location 2 references backward in memory.   This is the location of the method table  (what object references point to).
+		ref T r1 = ref Unsafe.SubtractByteOffset(ref r0, (nuint)(nint.Size * 2));
 
 
-      return Unsafe.As<T, T[]>(ref r1);
-      //fancy coersion if the above fails at runtime
-      //var cast = (delegate*<ref T, T[]>)(delegate*<ref byte, ref byte>)&Unsafe.As<byte, byte>;
-      //return cast(ref r1);
-   }
+		return Unsafe.As<T, T[]>(ref r1);
+		//fancy coersion if the above fails at runtime
+		//var cast = (delegate*<ref T, T[]>)(delegate*<ref byte, ref byte>)&Unsafe.As<byte, byte>;
+		//return cast(ref r1);
+	}
 
-   [StructLayout(LayoutKind.Sequential)]
-   private sealed class Pinnable
-   {
-      public byte Data;
-   }
+	[StructLayout(LayoutKind.Sequential)]
+	private sealed class Pinnable
+	{
+		public byte Data;
+	}
 
-   [StructLayout(LayoutKind.Explicit)]
-   private struct PinnableUnion
-   {
-      [FieldOffset(0)] public object Object;
+	[StructLayout(LayoutKind.Explicit)]
+	private struct PinnableUnion
+	{
+		[FieldOffset(0)] public object Object;
 
-      [FieldOffset(0)] public Pinnable Pinnable;
+		[FieldOffset(0)] public Pinnable Pinnable;
 
-      public PinnableUnion(object o)
-      {
-         Unsafe.SkipInit(out this);
-         Object = o;
-      }
-   }
+		public PinnableUnion(object o)
+		{
+			Unsafe.SkipInit(out this);
+			Object = o;
+		}
+	}
 }
 
 

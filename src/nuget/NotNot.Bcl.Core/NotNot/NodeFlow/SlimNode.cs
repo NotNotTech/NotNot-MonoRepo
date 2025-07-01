@@ -42,7 +42,7 @@ public abstract class SlimNode : AsyncDisposeGuard
 	{
 		_lifecycleCt = lifecycleCt;
 
-		__.ThrowIfNot((IsRoot && Parent is null)||(!IsRoot && Parent is not null),"either should be root, or no parent");
+		__.ThrowIfNot((IsRoot && Parent is null) || (!IsRoot && Parent is not null), "either should be root, or no parent");
 
 		if (IsInitialized)
 		{

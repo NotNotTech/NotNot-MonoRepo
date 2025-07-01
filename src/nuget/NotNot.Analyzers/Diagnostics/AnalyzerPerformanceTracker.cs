@@ -50,7 +50,7 @@ public static class AnalyzerPerformanceTracker
     private static void RecordOperation(string analyzerId, string operation, TimeSpan duration)
     {
         var key = $"{analyzerId}:{operation}";
-        _metrics.AddOrUpdate(key, 
+        _metrics.AddOrUpdate(key,
             new AnalyzerMetrics(analyzerId, operation, duration),
             (_, existing) => existing.AddOperation(duration));
     }
@@ -116,14 +116,14 @@ public sealed class AnalyzerMetrics
         {
             _operationCount++;
             _totalTime = _totalTime.Add(duration);
-            
+
             if (duration < _minTime)
                 _minTime = duration;
-            
+
             if (duration > _maxTime)
                 _maxTime = duration;
         }
-        
+
         return this;
     }
 

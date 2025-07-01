@@ -1,4 +1,4 @@
-﻿//using System;
+//using System;
 //using System.Collections.Generic;
 //using System.Diagnostics;
 //using System.IO;
@@ -29,7 +29,7 @@
 //    {{
 //        public const string {nameAndContent.name} = ""{nameAndContent.content}"";
 //    }}");
-            
+
 //         });
 //      }
 //   }

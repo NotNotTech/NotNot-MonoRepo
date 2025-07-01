@@ -1,4 +1,4 @@
-﻿using NotNot.NodeFlow;
+using NotNot.NodeFlow;
 
 public class RootNode : SlimNode
 {
@@ -15,7 +15,7 @@ public class RootNode : SlimNode
 	/// <returns></returns>
 	public ValueTask RootUpdate(TimeSpan wallTimeDelta)
 	{
-		CurrentTick = TickState.ComputeNext(CurrentTick,wallTimeDelta);
+		CurrentTick = TickState.ComputeNext(CurrentTick, wallTimeDelta);
 		return Update(CurrentTick);
 	}
 

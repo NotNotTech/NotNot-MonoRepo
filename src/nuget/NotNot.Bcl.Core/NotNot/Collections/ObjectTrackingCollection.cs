@@ -1,4 +1,4 @@
-﻿using NotNot;
+using NotNot;
 
 namespace NotNot.Collections;
 
@@ -9,89 +9,89 @@ namespace NotNot.Collections;
 [ThreadSafety(ThreadSituation.Always)]
 public class ObjectTrackingCollection<T> where T : class
 {
-   private List<WeakReference<T>> _storage = new();
+	private List<WeakReference<T>> _storage = new();
 
-   private object _lock = new();
+	private object _lock = new();
 
-   public bool TryAdd(T item)
-   {
-      lock (_lock)
-      {
-         for (var i = _storage.Count - 1; i >= 0; i--)
-         {
-            var wr = _storage[i];
-
-
-            if (wr.TryGetTarget(out var t))
-            {
-               if (t.Equals(item))
-               {
-                  return false;
-               }
-
-               continue;
-            }
-
-            //not alive
-            _storage.RemoveAt(i);
-         }
-
-         _storage.Add(new WeakReference<T>(item));
-         return true;
-      }
-   }
-
-   public bool Contains(T item)
-   {
-      lock (_lock)
-      {
-         for (var i = _storage.Count - 1; i >= 0; i--)
-         {
-            var wr = _storage[i];
+	public bool TryAdd(T item)
+	{
+		lock (_lock)
+		{
+			for (var i = _storage.Count - 1; i >= 0; i--)
+			{
+				var wr = _storage[i];
 
 
-            if (wr.TryGetTarget(out var t))
-            {
-               if (t.Equals(item))
-               {
-                  return true;
-               }
+				if (wr.TryGetTarget(out var t))
+				{
+					if (t.Equals(item))
+					{
+						return false;
+					}
 
-               continue;
-            }
+					continue;
+				}
 
-            //not alive
-            _storage.RemoveAt(i);
-         }
+				//not alive
+				_storage.RemoveAt(i);
+			}
 
-         return false;
-      }
-   }
+			_storage.Add(new WeakReference<T>(item));
+			return true;
+		}
+	}
 
-   public bool TryRemove(T item)
-   {
-      lock (_lock)
-      {
-         for (var i = _storage.Count - 1; i >= 0; i--)
-         {
-            var wr = _storage[i];
+	public bool Contains(T item)
+	{
+		lock (_lock)
+		{
+			for (var i = _storage.Count - 1; i >= 0; i--)
+			{
+				var wr = _storage[i];
 
-            if (wr.TryGetTarget(out var t))
-            {
-               if (t.Equals(item))
-               {
-                  _storage.RemoveAt(i);
-                  return true;
-               }
 
-               continue;
-            }
+				if (wr.TryGetTarget(out var t))
+				{
+					if (t.Equals(item))
+					{
+						return true;
+					}
 
-            //not alive
-            _storage.RemoveAt(i);
-         }
+					continue;
+				}
 
-         return false;
-      }
-   }
+				//not alive
+				_storage.RemoveAt(i);
+			}
+
+			return false;
+		}
+	}
+
+	public bool TryRemove(T item)
+	{
+		lock (_lock)
+		{
+			for (var i = _storage.Count - 1; i >= 0; i--)
+			{
+				var wr = _storage[i];
+
+				if (wr.TryGetTarget(out var t))
+				{
+					if (t.Equals(item))
+					{
+						_storage.RemoveAt(i);
+						return true;
+					}
+
+					continue;
+				}
+
+				//not alive
+				_storage.RemoveAt(i);
+			}
+
+			return false;
+		}
+	}
 }

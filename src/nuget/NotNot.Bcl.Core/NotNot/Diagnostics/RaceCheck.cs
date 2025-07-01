@@ -71,112 +71,112 @@ namespace NotNot.Diagnostics;
 /// <remarks>for diagnostics purposes, doesn't actually help synchronize, just informs when race conditions occur.</remarks>
 public class RaceCheck
 {
-   public volatile int _reads;
-   private volatile int _version;
-   public volatile int _writes;
+	public volatile int _reads;
+	private volatile int _version;
+	public volatile int _writes;
 
-   public RaceCheck(bool singleWriter, bool singleReader = false)
-   {
-      SingleReader = singleReader;
-      SingleWriter = singleWriter;
-   }
+	public RaceCheck(bool singleWriter, bool singleReader = false)
+	{
+		SingleReader = singleReader;
+		SingleWriter = singleWriter;
+	}
 
 
-   public bool IsReadHeld => _reads > 0;
-   public bool IsWriteHeld => _writes > 0;
-   public bool IsAnyHeld => IsReadHeld || IsWriteHeld;
+	public bool IsReadHeld => _reads > 0;
+	public bool IsWriteHeld => _writes > 0;
+	public bool IsAnyHeld => IsReadHeld || IsWriteHeld;
 
-   public bool SingleReader { get; init; }
-   public bool SingleWriter { get; init; }
+	public bool SingleReader { get; init; }
+	public bool SingleWriter { get; init; }
 
-   public WriteDisposable EnterWrite()
-   {
-      var ver = Interlocked.Increment(ref _version);
-      __.GetLogger()._EzError(IsReadHeld is false, "a lock already held");
-      var writes = Interlocked.Increment(ref _writes);
-      if (SingleWriter)
-      {
-         __.GetLogger()._EzError(writes == 1, "writes out of balance");
-         __.GetLogger()._EzError(ver == _version, "single write allowed.  version out of balance");
-      }
+	public WriteDisposable EnterWrite()
+	{
+		var ver = Interlocked.Increment(ref _version);
+		__.GetLogger()._EzError(IsReadHeld is false, "a lock already held");
+		var writes = Interlocked.Increment(ref _writes);
+		if (SingleWriter)
+		{
+			__.GetLogger()._EzError(writes == 1, "writes out of balance");
+			__.GetLogger()._EzError(ver == _version, "single write allowed.  version out of balance");
+		}
 
-      return new WriteDisposable(this);
-   }
+		return new WriteDisposable(this);
+	}
 
-   public void ExitWrite()
-   {
-      var ver = Interlocked.Increment(ref _version);
-      __.GetLogger()._EzError(IsReadHeld is false, "a read lock still held");
+	public void ExitWrite()
+	{
+		var ver = Interlocked.Increment(ref _version);
+		__.GetLogger()._EzError(IsReadHeld is false, "a read lock still held");
 
-      var writes = Interlocked.Decrement(ref _writes);
-      if (SingleWriter)
-      {
-         __.GetLogger()._EzError(writes == 0, "writes out of balance");
-         __.GetLogger()._EzError(ver == _version, "single write allowed.  version out of balance");
-      }
-      else
-      {
-         __.GetLogger()._EzError(writes >= 0, "writes out of balance");
-      }
-   }
+		var writes = Interlocked.Decrement(ref _writes);
+		if (SingleWriter)
+		{
+			__.GetLogger()._EzError(writes == 0, "writes out of balance");
+			__.GetLogger()._EzError(ver == _version, "single write allowed.  version out of balance");
+		}
+		else
+		{
+			__.GetLogger()._EzError(writes >= 0, "writes out of balance");
+		}
+	}
 
-   public ReadDisposable EnterRead()
-   {
-      var ver = Interlocked.Increment(ref _version);
-      __.GetLogger()._EzError(IsWriteHeld == false, "write lock already held");
-      var reads = Interlocked.Increment(ref _reads);
+	public ReadDisposable EnterRead()
+	{
+		var ver = Interlocked.Increment(ref _version);
+		__.GetLogger()._EzError(IsWriteHeld == false, "write lock already held");
+		var reads = Interlocked.Increment(ref _reads);
 
-      if (SingleReader)
-      {
-         __.GetLogger()._EzError(reads == 1, "single reader.  lock already held");
-         __.GetLogger()._EzError(ver == _version, "single read allowed.  version out of balance");
-      }
-      else
-      {
-         __.GetLogger()._EzError(_reads > 0, "reads out of balance");
-      }
+		if (SingleReader)
+		{
+			__.GetLogger()._EzError(reads == 1, "single reader.  lock already held");
+			__.GetLogger()._EzError(ver == _version, "single read allowed.  version out of balance");
+		}
+		else
+		{
+			__.GetLogger()._EzError(_reads > 0, "reads out of balance");
+		}
 
-      return new ReadDisposable(this);
-   }
+		return new ReadDisposable(this);
+	}
 
-   public void ExitRead()
-   {
-      var ver = Interlocked.Increment(ref _version);
-      var reads = Interlocked.Decrement(ref _reads);
-      if (SingleReader)
-      {
-         __.GetLogger()._EzError(IsAnyHeld == false, "single reader.  lock already held");
-         __.GetLogger()._EzError(ver == _version, "single read allowed.  version out of balance");
-      }
-      else
-      {
-         __.GetLogger()._EzError(IsWriteHeld == false, "write lock already held");
-         __.GetLogger()._EzError(reads >= 0, "reads out of balance");
-      }
-   }
+	public void ExitRead()
+	{
+		var ver = Interlocked.Increment(ref _version);
+		var reads = Interlocked.Decrement(ref _reads);
+		if (SingleReader)
+		{
+			__.GetLogger()._EzError(IsAnyHeld == false, "single reader.  lock already held");
+			__.GetLogger()._EzError(ver == _version, "single read allowed.  version out of balance");
+		}
+		else
+		{
+			__.GetLogger()._EzError(IsWriteHeld == false, "write lock already held");
+			__.GetLogger()._EzError(reads >= 0, "reads out of balance");
+		}
+	}
 
-   /// <summary>
-   ///    allows utilization of the `using` pattern to auto exit the Read.  example: `using counter.EnterRead(){  /*your
-   ///    code*/ }`
-   ///    <para>ignore if you manually decrement</para>
-   /// </summary>
-   public record struct ReadDisposable(RaceCheck parent) : IDisposable
-   {
-      public void Dispose()
-      {
-         parent.ExitRead();
-      }
-   }
+	/// <summary>
+	///    allows utilization of the `using` pattern to auto exit the Read.  example: `using counter.EnterRead(){  /*your
+	///    code*/ }`
+	///    <para>ignore if you manually decrement</para>
+	/// </summary>
+	public record struct ReadDisposable(RaceCheck parent) : IDisposable
+	{
+		public void Dispose()
+		{
+			parent.ExitRead();
+		}
+	}
 
-   /// <summary>
-   ///    allows utilization of the `using` pattern to auto exit the Write.
-   ///    <para>ignore if you manually decrement</para>
-   /// </summary>
-   public record struct WriteDisposable(RaceCheck parent) : IDisposable
-   {
-      public void Dispose()
-      {
-         parent.ExitWrite();
-      }
-   }
+	/// <summary>
+	///    allows utilization of the `using` pattern to auto exit the Write.
+	///    <para>ignore if you manually decrement</para>
+	/// </summary>
+	public record struct WriteDisposable(RaceCheck parent) : IDisposable
+	{
+		public void Dispose()
+		{
+			parent.ExitWrite();
+		}
+	}
 }

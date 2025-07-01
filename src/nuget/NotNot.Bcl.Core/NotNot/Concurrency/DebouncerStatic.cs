@@ -1,4 +1,4 @@
-﻿//using NotNot.Concurrency;
+//using NotNot.Concurrency;
 
 //namespace NotNot.GodotNet.Serialization;
 
@@ -21,7 +21,7 @@
 //	{
 //		var debounceKey = $"{action.Method.Name}:{action.Target?.GetHashCode()}";
 
-		
+
 
 //		await _debouncer.EventuallyOnce(action, action, ct);
 //	}

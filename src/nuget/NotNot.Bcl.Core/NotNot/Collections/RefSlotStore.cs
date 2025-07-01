@@ -49,7 +49,7 @@ namespace NotNot.Collections
 	/// for doing reads/edits in bulk, use the `_AsSpan_Unsafe()` method.
 	/// </summary>
 	/// <typeparam name="T">The type of item to store.</typeparam>
-	public class RefSlotStore<T> 
+	public class RefSlotStore<T>
 	{
 		/// <summary>
 		/// used to ensure SlotHandle not used across different collections
@@ -87,7 +87,7 @@ namespace NotNot.Collections
 		/// Total capacity of the storage (used and free slots).
 		/// </summary>
 		public int Capacity => _storage.Capacity;
-		
+
 
 		/// <summary>
 		/// Count of free slots
@@ -99,7 +99,7 @@ namespace NotNot.Collections
 		/// <summary>
 		/// Lock for thread safety when allocating/freeing slots.
 		/// </summary>
-		private readonly Lock _lock = new(); 
+		private readonly Lock _lock = new();
 
 		public RefSlotStore(int initialCapacity = 10)
 		{
@@ -125,8 +125,8 @@ namespace NotNot.Collections
 			{
 				var currentVersion = _nextVersion;
 				__.DebugAssertIfNot(_IsHandleValid(slot).isValid);
-				ref var toReturn  = ref _storage._AsSpan_Unsafe()[slot.Index].slotData; // **Non-blocking read**
-				__.DebugAssertIfNot(currentVersion==_nextVersion,"race condition: an allocation occured during entity read/write.  Don't do this, as the array could be resized during allocation, causing you to loose write data");
+				ref var toReturn = ref _storage._AsSpan_Unsafe()[slot.Index].slotData; // **Non-blocking read**
+				__.DebugAssertIfNot(currentVersion == _nextVersion, "race condition: an allocation occured during entity read/write.  Don't do this, as the array could be resized during allocation, causing you to loose write data");
 
 				return ref toReturn;
 
@@ -229,7 +229,7 @@ namespace NotNot.Collections
 		/// invoked immediately after slot is alloc'd.
 		/// <para>The slot is fully allocated (and populated), and the callback occurs within the lock.</para>
 		/// </summary>
-		public ActionEvent<SlotHandle> OnAlloc=new();
+		public ActionEvent<SlotHandle> OnAlloc = new();
 		/// <summary>
 		/// invoked immediately before slot is freed
 		/// <para>The slot is still fully allocated (and populated), and the callback occurs within the lock.</para>
