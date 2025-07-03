@@ -34,18 +34,18 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 
 
-# claude code monitor
-# https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor
-# https://news.ycombinator.com/item?id=44317012
-sudo apt install python3-pip
-# UV: https://github.com/astral-sh/uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# Install directly from PyPI with uv (easiest)
-uv tool install claude-monitor
-# update
-# uv tool update claude-monitor
-# Run from anywhere
-# claude-monitor
+# # claude code monitor
+# # https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor
+# # https://news.ycombinator.com/item?id=44317012
+# sudo apt install python3-pip
+# # UV: https://github.com/astral-sh/uv
+# curl -LsSf https://astral.sh/uv/install.sh | sh
+# # Install directly from PyPI with uv (easiest)
+# uv tool install claude-monitor
+# # update
+# # uv tool update claude-monitor
+# # Run from anywhere
+# # claude-monitor
 
 
 
