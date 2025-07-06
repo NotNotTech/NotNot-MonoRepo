@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Compression;
+using System.Net.Http.Json;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -1413,6 +1414,86 @@ public static class zz_Extensions_HashSet
 		return new HashSet<T>(set);
 	}
 }
+
+
+/// <summary>
+/// Extension methods for HttpContent to validate and deserialize Maybe<T> responses
+/// </summary>
+public static class zz_Extensions_HttpContent
+{
+	/// <summary>
+	/// Validates that HttpContent can be deserialized as Maybe<T> and throws descriptive errors if not
+	/// </summary>
+	/// <typeparam name="T">The expected inner type of Maybe<T></typeparam>
+	/// <param name="content">The HTTP response content</param>
+	/// <returns>The deserialized Maybe<T> if successful</returns>
+	/// <exception cref="InvalidOperationException">Thrown with descriptive message if content cannot be deserialized as Maybe<T></exception>
+	public static async Task<Maybe<T>> _DeserializeMaybe<T>(this HttpContent content)
+	{
+		__.NotNull(content, "HttpContent cannot be null");
+
+		try
+		{
+			// Check if content is empty
+			var contentLength = content.Headers.ContentLength;
+			if (contentLength == 0)
+			{
+				__.Throw("Content Empty - Expected Maybe<T> response but received empty content");
+			}
+
+			// Read content as string for debugging
+			var contentString = await content.ReadAsStringAsync();
+			if (string.IsNullOrWhiteSpace(contentString))
+			{
+				__.Throw("Content Empty - Expected Maybe<T> response but content string is null or whitespace");
+			}
+
+			// Attempt to deserialize as Maybe<T>
+			try
+			{
+				// Reset the content stream position for JSON deserialization
+				content.Headers.ContentType ??= new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+
+				var result = await content.ReadFromJsonAsync<Maybe<T>>();
+				if (result == null)
+				{
+					__.Throw($"Content not Maybe<{typeof(T).Name}> - Deserialization returned null. Content is: {contentString}");
+				}
+
+				return result;
+			}
+			catch (System.Text.Json.JsonException jsonEx)
+			{
+				__.Throw($"Content not Maybe<{typeof(T).Name}> - JSON deserialization failed: {jsonEx.Message}. Content is: {contentString}");
+			}
+		}
+		catch (Exception ex) when (ex.Message.StartsWith("Content not Maybe<") || ex.Message.StartsWith("Content Empty"))
+		{
+			// Re-throw our custom exceptions
+			throw;
+		}
+		catch (Exception ex)
+		{
+			// Catch any other unexpected exceptions
+			var contentText = "Unable to read content";
+			try
+			{
+				contentText = await content.ReadAsStringAsync();
+			}
+			catch
+			{
+				// Ignore read errors for error message
+			}
+
+			__.Throw($"Content not Maybe<{typeof(T).Name}> - Unexpected error: {ex.Message}. Content is: {contentText}");
+		}
+
+		// This should never be reached due to the throws above, but satisfies compiler
+		throw new InvalidOperationException("Unreachable code");
+	}
+}
+
+
 public static class zz_Extensions_List
 {
 	/// <summary>
