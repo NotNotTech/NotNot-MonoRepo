@@ -32,8 +32,13 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 # then claude: https://docs.anthropic.com/en/docs/claude-code/getting-started
 # sudo npm install -g @anthropic-ai/claude-code
 
+#### register mcp servers
+claude mcp add --scope project --transport sse vscode-mcp-server http://localhost:6010/sse
+claude mcp add --scope project --transport sse claude-debugs-for-you http://localhost:4711/sse
+claude mcp add --scope project --transport http vscode-mcp-server-junhang http://localhost:3000/mcp
 
 
+#############################################
 # # claude code monitor
 # # https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor
 # # https://news.ycombinator.com/item?id=44317012
@@ -46,7 +51,6 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 # # uv tool update claude-monitor
 # # Run from anywhere
 # # claude-monitor
-
 
 
 # sudo apt install -y pip pipx python3-venv
@@ -62,6 +66,7 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 # # python ccusage_monitor.py
 # popd
 
+##################################################################################
 ## install Starship shell: https://starship.rs/
 curl -sS https://starship.rs/install.sh | sh
 cat << 'EOF' >> ~/.bashrc
@@ -73,7 +78,7 @@ EOF
 source ~/.bashrc
 
 
-
+###################################################################################
 # sudo apt update -y
 
 # # postgres
@@ -210,4 +215,17 @@ echo %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # #    disable npm for now
 # #    npm ci
 # # fi
+
+#######################################################
+# ########  webstorm: https://www.jetbrains.com/help/webstorm/installation-guide.html#standalone_linux
+# pushd /workspaces
+# # dl webstorm, from https://www.jetbrains.com/webstorm/download/?section=linux
+# wget https://download.jetbrains.com/webstorm/WebStorm-2025.1.3.tar.gz -O webstorm.tar.gz
+# # extract to `webstorm`
+# mkdir -p webstorm
+# tar -xzf webstorm.tar.gz --strip-components=1 -C webstorm
+# rm webstorm.tar.gz
+
+# # install required packages for gui
+# apt-get install -y  --no-install-recommends libxext6      libxi6        libxrender1   libxtst6      libfreetype6  libfontconfig1 
 
