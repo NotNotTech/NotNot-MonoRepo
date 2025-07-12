@@ -32,7 +32,7 @@ claude mcp add --scope project --transport sse claude-debugs-for-you http://loca
 claude mcp add --scope project --transport http vscode-mcp-server-junhang http://localhost:3000/mcp
 
 
-##### alias to full permissions
+##### `claude-dangerous` alias to full permissions
 echo "alias claude-dangerous='IS_SANDBOX=1 claude --dangerously-skip-permissions'" >> ~/.bashrc
 source ~/.bashrc
 
