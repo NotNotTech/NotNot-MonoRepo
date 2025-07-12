@@ -21,21 +21,20 @@ echo %%%%%%%%%%%%%%%  START: ${BASH_SOURCE[0]}
 npm install -g @anthropic-ai/claude-code
 
 
-sudo chmod 777 -R .
-
-# install az cli
-curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-# install 
-
+# sudo chmod 777 -R .
 
 # then claude: https://docs.anthropic.com/en/docs/claude-code/getting-started
 # sudo npm install -g @anthropic-ai/claude-code
 
-#### register mcp servers
+#### register mcp servers  (plugin for vscode)
 claude mcp add --scope project --transport sse vscode-mcp-server http://localhost:6010/sse
 claude mcp add --scope project --transport sse claude-debugs-for-you http://localhost:4711/sse
 claude mcp add --scope project --transport http vscode-mcp-server-junhang http://localhost:3000/mcp
+
+
+##### alias to full permissions
+echo "alias claude-dangerous='IS_SANDBOX=1 claude --dangerously-skip-permissions'" >> ~/.bashrc
+source ~/.bashrc
 
 
 #############################################
@@ -53,6 +52,7 @@ claude mcp add --scope project --transport http vscode-mcp-server-junhang http:/
 # # claude-monitor
 
 
+
 # sudo apt install -y pip pipx python3-venv
 # pushd /workspaces
 # git clone https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor.git  # fetches entire history
@@ -65,6 +65,18 @@ claude mcp add --scope project --transport http vscode-mcp-server-junhang http:/
 # # # run monitor
 # # python ccusage_monitor.py
 # popd
+
+
+
+##################################################################################
+# install az cli
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+
+
+
+
+
 
 ##################################################################################
 ## install Starship shell: https://starship.rs/
