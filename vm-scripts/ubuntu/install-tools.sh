@@ -18,7 +18,7 @@ echo %%%%%%%%%%%%%%%  START: ${BASH_SOURCE[0]}
 # node -v   #verify install
 
 
-npm install -g @anthropic-ai/claude-code
+npm install -g @anthropic-ai/claude-code --force
 
 
 # sudo chmod 777 -R .
