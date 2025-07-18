@@ -35,7 +35,7 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all" />
 		<!-- Code Fix Provider dependencies -->
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" PrivateAssets="all" />
-		<PackageReference Include="System.Composition" Version="9.0.6" PrivateAssets="all" />
+		<PackageReference Include="System.Composition" Version="9.0.7" PrivateAssets="all" />
 	</ItemGroup>
 	
 	<!-- Development-time analyzers -->
