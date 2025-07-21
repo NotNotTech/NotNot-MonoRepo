@@ -30,6 +30,8 @@ npm install -g @anthropic-ai/claude-code --force
 claude mcp add --scope project --transport sse vscode-mcp-server http://localhost:6010/sse
 claude mcp add --scope project --transport sse claude-debugs-for-you http://localhost:4711/sse
 claude mcp add --scope project --transport http vscode-mcp-server-junhang http://localhost:3000/mcp
+# https://github.com/microsoftdocs/mcp
+claude mcp add -t http microsoft-docs https://learn.microsoft.com/api/mcp 
 
 
 ##### `claude-dangerous` alias to full permissions
