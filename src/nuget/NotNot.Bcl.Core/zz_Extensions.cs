@@ -24,6 +24,7 @@ using Nito.AsyncEx.Synchronous;
 using NotNot;
 using NotNot._internal.Threading;
 using NotNot.Collections.Advanced;
+using NotNot.Diagnostics;
 
 //using Xunit.Sdk;
 
@@ -325,7 +326,7 @@ public static class zz_Extensions_CancellationTokenSource
 	}
 }
 
-public static class zz_Extensions_Task
+public static partial class zz_Extensions_Task
 {
 	/// <summary>
 	///    make a nullable task awaitable
@@ -1011,6 +1012,229 @@ public static class zz_Extensions_Task
 		}
 
 
+	}
+	/// <summary>
+	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// This enables fluent exception handling without try-catch blocks.
+	/// </summary>
+	/// <typeparam name="T">The type of the task result</typeparam>
+	/// <param name="task">The task to convert</param>
+	/// <param name="memberName">The calling member name (auto-captured)</param>
+	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
+	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
+	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	public static async Task<Maybe<T>> _ToMaybe<T>(
+	this Task<Maybe<T>> task,
+	[CallerMemberName] string memberName = "",
+	[CallerFilePath] string sourceFilePath = "",
+	[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		try
+		{
+			Maybe<T> maybeResult = await task.ConfigureAwait(false);
+			return maybeResult;
+		}
+		catch (Exception ex)
+		{
+			NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
+			return Maybe<T>.Error(problem, memberName, sourceFilePath, sourceLineNumber);
+		}
+	}
+	/// <summary>
+	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// This enables fluent exception handling without try-catch blocks.
+	/// </summary>
+	/// <typeparam name="T">The type of the task result</typeparam>
+	/// <param name="task">The task to convert</param>
+	/// <param name="memberName">The calling member name (auto-captured)</param>
+	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
+	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
+	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	public static async Task<Maybe<T>> _ToMaybe<T>(
+	this ValueTask<Maybe<T>> task,
+	[CallerMemberName] string memberName = "",
+	[CallerFilePath] string sourceFilePath = "",
+	[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		try
+		{
+			Maybe<T> maybeResult = await task.ConfigureAwait(false);
+			return maybeResult;
+		}
+		catch (Exception ex)
+		{
+			NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
+			return Maybe<T>.Error(problem, memberName, sourceFilePath, sourceLineNumber);
+		}
+	}
+	/// <summary>
+	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// This enables fluent exception handling without try-catch blocks.
+	/// </summary>
+	/// <typeparam name="T">The type of the task result</typeparam>
+	/// <param name="task">The task to convert</param>
+	/// <param name="memberName">The calling member name (auto-captured)</param>
+	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
+	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
+	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	public static async Task<Maybe> _ToMaybe(
+	this Task<Maybe> task,
+	[CallerMemberName] string memberName = "",
+	[CallerFilePath] string sourceFilePath = "",
+	[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		try
+		{
+			Maybe maybeResult = await task.ConfigureAwait(false);
+			return maybeResult;
+		}
+		catch (Exception ex)
+		{
+			NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
+			return new Maybe(problem, memberName, sourceFilePath, sourceLineNumber);
+		}
+	}
+	/// <summary>
+	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// This enables fluent exception handling without try-catch blocks.
+	/// </summary>
+	/// <typeparam name="T">The type of the task result</typeparam>
+	/// <param name="task">The task to convert</param>
+	/// <param name="memberName">The calling member name (auto-captured)</param>
+	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
+	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
+	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	public static async Task<Maybe> _ToMaybe(
+	this ValueTask<Maybe> task,
+	[CallerMemberName] string memberName = "",
+	[CallerFilePath] string sourceFilePath = "",
+	[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		try
+		{
+			Maybe maybeResult = await task.ConfigureAwait(false);
+			return maybeResult;
+		}
+		catch (Exception ex)
+		{
+			NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
+			return new Maybe(problem, memberName, sourceFilePath, sourceLineNumber);
+		}
+	}
+
+
+	/// <summary>
+	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// This enables fluent exception handling without try-catch blocks.
+	/// </summary>
+	/// <typeparam name="T">The type of the task result</typeparam>
+	/// <param name="task">The task to convert</param>
+	/// <param name="memberName">The calling member name (auto-captured)</param>
+	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
+	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
+	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	[return: NotNull]
+	public static async Task<Maybe<T>> _ToMaybe<T>(
+		this Task<T> task,
+		[CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		try
+		{
+			T result = await task.ConfigureAwait(false);
+			return Maybe<T>.Success(result, memberName, sourceFilePath, sourceLineNumber);
+		}
+		catch (Exception ex)
+		{
+			NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
+			return Maybe<T>.Error(problem, memberName, sourceFilePath, sourceLineNumber);
+		}
+	}
+
+	/// <summary>
+	/// Converts a ValueTask<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// This enables fluent exception handling without try-catch blocks.
+	/// </summary>
+	/// <typeparam name="T">The type of the task result</typeparam>
+	/// <param name="valueTask">The value task to convert</param>
+	/// <param name="memberName">The calling member name (auto-captured)</param>
+	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
+	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
+	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	[return: NotNull]
+	public static async Task<Maybe<T>> _ToMaybe<T>(
+		this ValueTask<T> valueTask,
+		[CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		try
+		{
+			T result = await valueTask.ConfigureAwait(false);
+			return Maybe<T>.Success(result, memberName, sourceFilePath, sourceLineNumber);
+		}
+		catch (Exception ex)
+		{
+			NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
+			return Maybe<T>.Error(problem, memberName, sourceFilePath, sourceLineNumber);
+		}
+	}
+
+	/// <summary>
+	/// Converts a Task (non-generic) to Task<Maybe>, capturing any exceptions as Problems.
+	/// This enables fluent exception handling without try-catch blocks for void-returning async methods.
+	/// </summary>
+	/// <param name="task">The task to convert</param>
+	/// <param name="memberName">The calling member name (auto-captured)</param>
+	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
+	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
+	/// <returns>A Maybe containing either success or a Problem</returns>
+	[return: NotNull]
+	public static async Task<Maybe> _ToMaybe(
+		this Task task,
+		[CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		try
+		{
+			await task.ConfigureAwait(false);
+			return Maybe.SuccessResult(memberName, sourceFilePath, sourceLineNumber);
+		}
+		catch (Exception ex)
+		{
+			NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
+			return new Maybe(problem, memberName, sourceFilePath, sourceLineNumber);
+		}
+	}
+
+	/// <summary>
+	/// Converts a ValueTask (non-generic) to Task<Maybe>, capturing any exceptions as Problems.
+	/// This enables fluent exception handling without try-catch blocks for void-returning async methods.
+	/// </summary>
+	/// <param name="valueTask">The value task to convert</param>
+	/// <param name="memberName">The calling member name (auto-captured)</param>
+	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
+	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
+	/// <returns>A Maybe containing either success or a Problem</returns>
+	[return: NotNull]
+	public static async Task<Maybe> _ToMaybe(
+		this ValueTask valueTask,
+		[CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		try
+		{
+			await valueTask.ConfigureAwait(false);
+			return Maybe.SuccessResult(memberName, sourceFilePath, sourceLineNumber);
+		}
+		catch (Exception ex)
+		{
+			NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
+			return new Maybe(problem, memberName, sourceFilePath, sourceLineNumber);
+		}
 	}
 }
 
