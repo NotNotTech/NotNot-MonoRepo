@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using Microsoft.CodeAnalysis.CSharp;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using NotNot.GodotNet.SourceGen.Helpers;
 using NotNot.GodotNet.SourceGen.Generators.Modular;
+using NotNot.GodotNet.SourceGen.Helpers;
 
 
 /// <summary>
@@ -172,7 +172,7 @@ public partial class {{className}} //[NotNotScene]
 """;
 			}
 
-			config.Context._Error($"No ResPath found for {className}.  Should not be marked with [NotNotScene] attrib if not a .tscn");
+			config.Context._Error($"No ResPath found for {className}.  Should not be marked with [NotNotScene] attrib if not a .tscn, or make sure  to add to .csproj:\n\t\t<AdditionalFiles Include=\"**/*.tscn\" />");
 			return "//ERROR: NO RESPATH FOUND!";
 		})}}
 

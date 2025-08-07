@@ -381,7 +381,17 @@ public partial class LoLoRoot
 		var ex = new LoLoDiagnosticsException(message._FormatAppendArgs(expectedConditionName, objToLog0Name: "expectedCondition"), sourceMemberName, sourceFilePath, sourceLineNumber);
 		ExceptionDispatchInfo.Capture(ex).Throw(); //throw the original exception, preserving the stack trace
 	}
-
+	/// <summary>
+	/// throw an Exception if expectedCondition is false
+	/// </summary>
+	/// <param name="expectedCondition"></param>
+	/// <exception cref="NotImplementedException"></exception>
+	public void Throw([DoesNotReturnIf(false)] bool? _expectedCondition, string? message = null, [CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_expectedCondition")] string expectedConditionName = "")
+	{
+		ThrowIfNot(_expectedCondition, message, memberName, sourceFilePath, sourceLineNumber, expectedConditionName);
+	}
 	/// <summary>
 	/// Ensures value is not null, also returning it.  If null, throws an exception.
 	/// </summary>
@@ -625,6 +635,8 @@ public partial class LoLoRoot
 	public void Dispose()
 	{
 		_loggerFactory.Dispose();
+		LoLoRoot._loggerFactory = null;
+		LoLoRoot._instance = null;
 	}
 
 }
