@@ -4800,6 +4800,63 @@ public static class zz_Extensions_DateTime
 	{
 		return (DateTime.UtcNow - source).TotalDays;
 	}
+
+	/// <summary>
+	/// Truncates DateTime to microsecond precision (6 decimal places) for PostgreSQL compatibility.
+	/// WHY: PostgreSQL timestamp has microsecond precision while .NET DateTime has 100-nanosecond precision.
+	/// This prevents roundtrip test failures and ensures consistent timestamps across database operations.
+	/// </summary>
+	/// <param name="dateTime">The DateTime to truncate</param>
+	/// <returns>DateTime truncated to microsecond precision</returns>
+	/// <example>
+	/// var now = DateTime.UtcNow._ToMicrosecondPrecision();
+	/// // 2025-01-01 12:00:00.1234567 becomes 2025-01-01 12:00:00.123456
+	/// </example>
+	public static DateTime _ToMicrosecondPrecision(this DateTime dateTime)
+	{
+		// PostgreSQL has microsecond precision (6 decimal places after seconds)
+		// 1 tick = 100 nanoseconds
+		// 1 microsecond = 1000 nanoseconds = 10 ticks
+		// We truncate to 10-tick boundaries to match PostgreSQL precision
+		var ticks = dateTime.Ticks;
+		var microsecondTicks = (ticks / 10) * 10; // Truncate to 10-tick boundaries
+		return new DateTime(microsecondTicks, dateTime.Kind);
+	}
+
+	/// <summary>
+	/// Truncates nullable DateTime to microsecond precision for PostgreSQL compatibility.
+	/// WHY: Provides null-safe version of precision truncation for optional timestamp fields.
+	/// </summary>
+	/// <param name="dateTime">The nullable DateTime to truncate</param>
+	/// <returns>Nullable DateTime truncated to microsecond precision, or null if input is null</returns>
+	public static DateTime? _ToMicrosecondPrecision(this DateTime? dateTime)
+	{
+		return dateTime?._ToMicrosecondPrecision();
+	}
+
+	/// <summary>
+	/// Truncates DateTimeOffset to microsecond precision for PostgreSQL compatibility.
+	/// WHY: PostgreSQL timestamptz also has microsecond precision limitation.
+	/// </summary>
+	/// <param name="dateTimeOffset">The DateTimeOffset to truncate</param>
+	/// <returns>DateTimeOffset truncated to microsecond precision</returns>
+	public static DateTimeOffset _ToMicrosecondPrecision(this DateTimeOffset dateTimeOffset)
+	{
+		var ticks = dateTimeOffset.Ticks;
+		var microsecondTicks = (ticks / 10) * 10;
+		return new DateTimeOffset(microsecondTicks, dateTimeOffset.Offset);
+	}
+
+	/// <summary>
+	/// Truncates nullable DateTimeOffset to microsecond precision for PostgreSQL compatibility.
+	/// WHY: Provides null-safe version for optional timestamptz fields.
+	/// </summary>
+	/// <param name="dateTimeOffset">The nullable DateTimeOffset to truncate</param>
+	/// <returns>Nullable DateTimeOffset truncated to microsecond precision, or null if input is null</returns>
+	public static DateTimeOffset? _ToMicrosecondPrecision(this DateTimeOffset? dateTimeOffset)
+	{
+		return dateTimeOffset?._ToMicrosecondPrecision();
+	}
 }
 
 /// <summary>
