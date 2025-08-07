@@ -646,6 +646,20 @@ public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
 				Maybe<T> result;
 				if (isSuccess.Value)
 				{
+					// Check if T is an IResult type (ASP.NET Core result types)
+					// We check by type name since we can't reference IResult directly in Core
+					var typeName = typeof(T).FullName ?? typeof(T).Name;
+					if (typeName.Contains("Microsoft.AspNetCore.Http.HttpResults") ||
+						 typeName.Contains("Microsoft.AspNetCore.Http.Result") ||
+						 (typeof(T).GetInterface("Microsoft.AspNetCore.Http.IResult") != null))
+					{
+						// Cannot deserialize IResult types - they have no public constructors
+						throw new NotSupportedException(
+							$"Cannot deserialize Maybe<{typeof(T).Name}> because {typeof(T).Name} " +
+							$"has no public constructor. IResult types from ASP.NET Core cannot be deserialized. " +
+							$"Use Maybe or Maybe<OperationResult> instead, or consider using the IResult.ToMaybe() extension method.");
+					}
+
 					if (!valuePropertyExists && default(T) != null) // If T is non-nullable and Value property wasn't in JSON
 					{
 						throw new JsonException("Value property is missing for successful Maybe.");
