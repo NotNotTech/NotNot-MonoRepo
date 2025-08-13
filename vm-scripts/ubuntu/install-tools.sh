@@ -38,6 +38,10 @@ claude mcp add -t http microsoft-docs https://learn.microsoft.com/api/mcp
 echo "alias claude-dangerous='IS_SANDBOX=1 claude --dangerously-skip-permissions'" >> ~/.bashrc
 source ~/.bashrc
 
+##########################################################
+# # ccusage, a tool to monitor claude code usage: https://www.npmjs.com/package/ccusage
+npm install -g ccusage
+
 
 #############################################
 # # claude code monitor
