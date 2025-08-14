@@ -11,6 +11,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Compression;
 using System.Linq.Expressions;
+using System.Net;
 using System.Net.Http.Json;
 using System.Numerics;
 using System.Reflection;
@@ -1149,7 +1150,10 @@ public static partial class zz_Extensions_Task
 		catch (Exception ex)
 		{
 			NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
-			return Maybe<T>.Error(problem, memberName, sourceFilePath, sourceLineNumber);
+
+			var toReturn = Maybe<T>.Error(problem, memberName, sourceFilePath, sourceLineNumber);
+
+			return toReturn;
 		}
 	}
 

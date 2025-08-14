@@ -168,7 +168,6 @@ public record class Problem
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0) : this(memberName, sourceFilePath, sourceLineNumber)
 	{
-		Status = HttpStatusCode.InternalServerError;
 		Title = ex.GetType().Name;
 
 		category = CategoryNames.Unknown;
@@ -187,6 +186,19 @@ public record class Problem
 		//{
 		//	Extensions[pair.Key] = pair.Value;
 		//}
+
+		//compute default status from exception type
+		switch (ex)
+		{
+			case UnauthorizedAccessException:
+				Status = HttpStatusCode.Unauthorized;
+				break;
+			default:
+				Status = HttpStatusCode.InternalServerError;
+				break;
+		}
+
+
 	}
 
 	public (string memberName, string sourceFilePath, int sourceLineNumber) DecomposeSource()
