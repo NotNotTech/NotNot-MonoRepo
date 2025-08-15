@@ -23,7 +23,7 @@ public static class MutexUtil
 	/// <summary>
 	/// Execute <paramref name="init"/> exactly once across all callers (and processes) until the process cluster ends (marker cleared manually or temp cleaned).
 	/// </summary>
-	public static Task RunOnce(string name, Func<Task> init, ILogger? logger = null, bool persistent = true)
+	public static Task RunOnce(string name, Func<Task> init, ILogger? logger = null)
 	{
 		// Local fast-path: if we've already scheduled/ran it in this process, return the same Task.
 		var lazy = _inProc.GetOrAdd(name, n => new Lazy<Task>(() => Execute(n, init, logger), LazyThreadSafetyMode.ExecutionAndPublication));
@@ -33,8 +33,8 @@ public static class MutexUtil
 	private static async Task Execute(string name, Func<Task> init, ILogger? logger)
 	{
 		// Named handles — use a consistent prefix to avoid collisions.
-		string mutexName = $"Global\\Cleartrix_{name}_Mtx"; // 'Global' ignored/non-special on non-Windows; safe fallback.
-		string evtName = $"Global\\Cleartrix_{name}_Evt";
+		string mutexName = $"Global\\NotNot_MutexUtil_{name}_Mtx"; // 'Global' ignored/non-special on non-Windows; safe fallback.
+		string evtName = $"Global\\NotNot_MutexUtil_{name}_Evt";
 
 		bool createdNewEvent;
 		// ManualReset: once Set, stays signaled until OS destroys handle when last reference closes.
