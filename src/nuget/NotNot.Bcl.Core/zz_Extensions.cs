@@ -26,6 +26,7 @@ using Nito.AsyncEx.Synchronous;
 using NotNot;
 using NotNot._internal.Threading;
 using NotNot.Collections.Advanced;
+using NotNot.Data;
 using NotNot.Diagnostics;
 
 //using Xunit.Sdk;
@@ -1719,6 +1720,95 @@ public static class zz_Extensions_HttpContent
 
 		// This should never be reached due to the throws above, but satisfies compiler
 		throw new InvalidOperationException("Unreachable code");
+	}
+
+	public static async Task<Maybe> _DeserializeMaybe(this HttpContent content)
+	{
+		__.NotNull(content, "HttpContent cannot be null");
+
+		try
+		{
+			// Check if content is empty
+			var contentLength = content.Headers.ContentLength;
+			if (contentLength == 0)
+			{
+				__.Throw("Content Empty - Expected Maybe<T> response but received empty content");
+			}
+
+			// Read content as string for debugging
+			var contentString = await content.ReadAsStringAsync();
+			if (string.IsNullOrWhiteSpace(contentString))
+			{
+				__.Throw("Content Empty - Expected Maybe<T> response but content string is null or whitespace");
+			}
+
+			// Attempt to deserialize as Maybe<T>
+			try
+			{
+				// Reset the content stream position for JSON deserialization
+				content.Headers.ContentType ??= new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+
+				var result = await content.ReadFromJsonAsync<Maybe>();
+				if (result == null)
+				{
+					__.Throw($"Content not `Maybe` - Deserialization returned null. Content is: {contentString}");
+				}
+
+				return result;
+			}
+			catch (System.Text.Json.JsonException jsonEx)
+			{
+				__.Throw($"Content not `Maybe` - JSON deserialization failed: {jsonEx.Message}. Content is: {contentString}");
+			}
+		}
+		catch (Exception ex) when (ex.Message.StartsWith("Content not `Maybe") || ex.Message.StartsWith("Content Empty"))
+		{
+			// Re-throw our custom exceptions
+			throw;
+		}
+		catch (Exception ex)
+		{
+			// Catch any other unexpected exceptions
+			var contentText = "Unable to read content";
+			try
+			{
+				contentText = await content.ReadAsStringAsync();
+			}
+			catch
+			{
+				// Ignore read errors for error message
+			}
+
+			__.Throw($"Content not `Maybe` - Unexpected error: {ex.Message}. Content is: {contentText}");
+		}
+
+		// This should never be reached due to the throws above, but satisfies compiler
+		throw new InvalidOperationException("Unreachable code");
+
+
+
+		/////////////////////////////////////////
+		var maybeOpResult = await content._DeserializeMaybe<OperationResult>();
+
+		if (maybeOpResult.IsSuccess)
+		{
+			if (maybeOpResult.Value == OperationResult.Success)
+			{
+				// If the operation was successful, return a success Maybe
+				return Maybe.SuccessResult(maybeOpResult.TraceId.SourceMemberName, maybeOpResult.TraceId.SourceFile, maybeOpResult.TraceId.SourceLineNumber);
+			}
+			else
+			{
+				var problem = Problem.FromEx(new InvalidOperationException($"Operation failed with non-maybe result: {maybeOpResult.Value}"),
+					maybeOpResult.TraceId.SourceMemberName, maybeOpResult.TraceId.SourceFile, maybeOpResult.TraceId.SourceLineNumber);
+				return new Maybe(problem, maybeOpResult.TraceId.SourceMemberName, maybeOpResult.TraceId.SourceFile, maybeOpResult.TraceId.SourceLineNumber);
+			}
+		}
+		else
+		{
+			// If we have an error, return it directly
+			return new Maybe(maybeOpResult.Problem, maybeOpResult.TraceId.SourceMemberName, maybeOpResult.TraceId.SourceFile, maybeOpResult.TraceId.SourceLineNumber);
+		}
 	}
 }
 

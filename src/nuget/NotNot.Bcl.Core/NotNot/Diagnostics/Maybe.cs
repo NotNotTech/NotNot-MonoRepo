@@ -13,6 +13,7 @@ namespace NotNot;
 /// <summary>
 /// lite version adapted from NotNot.Server (asp)
 /// </summary>
+[JsonConverter(typeof(MaybeNonGenericJsonConverter))]
 public record class Maybe : Maybe<OperationResult>
 {
 	/// <summary>
@@ -133,7 +134,7 @@ public record class Maybe : Maybe<OperationResult>
 /// <para>Needed because C# doesn't support true Monad. to handle results from api calls that might return your expected value, or a strongly-typed error.</para>
 /// </summary>
 /// <typeparam name="TValue"></typeparam>
-[JsonConverter(typeof(MaybeJsonConverter))]
+[JsonConverter(typeof(MaybeGenericJsonConverter<>))]
 
 /// <summary>
 /// Represents the result of an operation that may succeed with a value or fail with a problem.
@@ -573,14 +574,14 @@ public record class Maybe<TValue> : IMaybe
 }
 
 /// <summary>
-/// JSON converter for Maybe<T> to support deserialization from Content.ReadFromJsonAsync
+/// Factory for creating JSON converters for generic Maybe&lt;T&gt; types
 /// </summary>
-public class MaybeJsonConverter : JsonConverterFactory
+public class MaybeJsonConverterFactory : JsonConverterFactory
 /// <summary>
 /// Determines whether the specified type can be converted by this factory.
 /// </summary>
 /// <param name="typeToConvert">The type to check.</param>
-/// <returns>True if the type is a Maybe&lt;&gt;; otherwise, false.</returns>
+/// <returns>True if the type is a generic Maybe&lt;&gt;; otherwise, false.</returns>
 /// <summary>
 /// Creates a JSON converter for the specified type.
 /// </summary>
@@ -590,6 +591,11 @@ public class MaybeJsonConverter : JsonConverterFactory
 {
 	public override bool CanConvert(Type typeToConvert)
 	{
+		//VIBE_CRITICAL: Exclude non-generic Maybe class to prevent circular dependency
+		// The non-generic Maybe class has its own dedicated converter
+		if (typeToConvert == typeof(Maybe))
+			return false;
+
 		return typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(Maybe<>);
 	}
 
@@ -597,15 +603,41 @@ public class MaybeJsonConverter : JsonConverterFactory
 	{
 
 		var valueType = typeToConvert.GetGenericArguments()[0];
-		var converterType = typeof(MaybeJsonConverter<>).MakeGenericType(valueType);
+		var converterType = typeof(MaybeGenericJsonConverter<>).MakeGenericType(valueType);
 		return (JsonConverter)Activator.CreateInstance(converterType)!;
+	}
+}
+
+/// <summary>
+/// JSON converter specifically for the non-generic Maybe class
+/// </summary>
+public class MaybeNonGenericJsonConverter : JsonConverter<Maybe>
+{
+	public override Maybe Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+	{
+		// Use the existing generic converter for Maybe<OperationResult>
+		// Since Maybe : Maybe<OperationResult>, we can reuse the logic
+		var baseConverter = new MaybeGenericJsonConverter<OperationResult>();
+		var result = baseConverter.Read(ref reader, typeof(Maybe<OperationResult>), options);
+
+		// Cast is safe since Maybe : Maybe<OperationResult>
+		// If cast fails, create new Maybe with the Problem
+		return result as Maybe ?? new Maybe(result.Problem!);
+	}
+
+	public override void Write(Utf8JsonWriter writer, Maybe value, JsonSerializerOptions options)
+	{
+		// Since Maybe : Maybe<OperationResult>, we can serialize directly
+		// using the base converter which handles all the properties
+		var baseConverter = new MaybeGenericJsonConverter<OperationResult>();
+		baseConverter.Write(writer, value, options);
 	}
 }
 
 /// <summary>
 /// Typed JSON converter for Maybe<T>
 /// </summary>
-public class MaybeJsonConverter<T> : JsonConverter<Maybe<T>>
+public class MaybeGenericJsonConverter<T> : JsonConverter<Maybe<T>>
 /// <summary>
 /// Reads and converts the JSON to a <see cref="Maybe{T}"/> object.
 /// </summary>
