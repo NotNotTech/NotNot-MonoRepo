@@ -18,6 +18,8 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Blake3;
 using CommunityToolkit.HighPerformance.Helpers;
@@ -1684,7 +1686,10 @@ public static class zz_Extensions_HttpContent
 				// Reset the content stream position for JSON deserialization
 				content.Headers.ContentType ??= new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
-				var result = await content.ReadFromJsonAsync<Maybe<T>>();
+				//VIBE_CRITICAL: Use shared SerializationHelper options for consistent JSON handling
+				var options = NotNot.Serialization.SerializationHelper._roundtripJsonOptions;
+
+				var result = await content.ReadFromJsonAsync<Maybe<T>>(options);
 				if (result == null)
 				{
 					__.Throw($"Content not Maybe<{typeof(T).Name}> - Deserialization returned null. Content is: {contentString}");
@@ -1748,7 +1753,10 @@ public static class zz_Extensions_HttpContent
 				// Reset the content stream position for JSON deserialization
 				content.Headers.ContentType ??= new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
-				var result = await content.ReadFromJsonAsync<Maybe>();
+				//VIBE_CRITICAL: Use shared SerializationHelper options for consistent JSON handling
+				var options = NotNot.Serialization.SerializationHelper._roundtripJsonOptions;
+
+				var result = await content.ReadFromJsonAsync<Maybe>(options);
 				if (result == null)
 				{
 					__.Throw($"Content not `Maybe` - Deserialization returned null. Content is: {contentString}");
@@ -1812,6 +1820,51 @@ public static class zz_Extensions_HttpContent
 	}
 }
 
+public static class zz_Extensions_JsonSerializerOptions
+{
+	/// <summary>
+	/// Copies all settings from source JsonSerializerOptions to target
+	/// </summary>
+	/// <param name="target">The JsonSerializerOptions to copy settings to</param>
+	/// <param name="source">The JsonSerializerOptions to copy settings from</param>
+	public static void _CopyFrom(this JsonSerializerOptions target, JsonSerializerOptions source)
+	{
+		//VIBE_CRITICAL: Copy all JsonSerializerOptions settings for consistent serialization
+		target.MaxDepth = source.MaxDepth;
+		target.IncludeFields = source.IncludeFields;
+		target.ReferenceHandler = source.ReferenceHandler;
+		target.AllowTrailingCommas = source.AllowTrailingCommas;
+		target.WriteIndented = source.WriteIndented;
+		target.NumberHandling = source.NumberHandling;
+		target.ReadCommentHandling = source.ReadCommentHandling;
+		target.PropertyNameCaseInsensitive = source.PropertyNameCaseInsensitive;
+		target.PropertyNamingPolicy = source.PropertyNamingPolicy;
+		target.DefaultIgnoreCondition = source.DefaultIgnoreCondition;
+		target.DefaultBufferSize = source.DefaultBufferSize;
+		target.IgnoreNullValues = source.IgnoreNullValues;
+		target.IgnoreReadOnlyProperties = source.IgnoreReadOnlyProperties;
+		target.IgnoreReadOnlyFields = source.IgnoreReadOnlyFields;
+		target.UnknownTypeHandling = source.UnknownTypeHandling;
+		target.UnmappedMemberHandling = source.UnmappedMemberHandling;
+
+		// Clear existing converters and copy from source
+		target.Converters.Clear();
+		foreach (var converter in source.Converters)
+		{
+			target.Converters.Add(converter);
+		}
+
+		// Copy other settings if available
+		target.Encoder = source.Encoder;
+		target.DictionaryKeyPolicy = source.DictionaryKeyPolicy;
+		target.PreferredObjectCreationHandling = source.PreferredObjectCreationHandling;
+
+		// CRITICAL: Must set TypeInfoResolver for ASP.NET Core serialization
+		// Use default resolver if source doesn't have one
+		target.TypeInfoResolver = source.TypeInfoResolver ?? JsonSerializerOptions.Default.TypeInfoResolver;
+		// TypeInfoResolverChain is read-only, skip it
+	}
+}
 
 public static class zz_Extensions_List
 {

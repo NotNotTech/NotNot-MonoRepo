@@ -601,7 +601,6 @@ public class MaybeJsonConverterFactory : JsonConverterFactory
 
 	public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
 	{
-
 		var valueType = typeToConvert.GetGenericArguments()[0];
 		var converterType = typeof(MaybeGenericJsonConverter<>).MakeGenericType(valueType);
 		return (JsonConverter)Activator.CreateInstance(converterType)!;
@@ -638,19 +637,6 @@ public class MaybeNonGenericJsonConverter : JsonConverter<Maybe>
 /// Typed JSON converter for Maybe<T>
 /// </summary>
 public class MaybeGenericJsonConverter<T> : JsonConverter<Maybe<T>>
-/// <summary>
-/// Reads and converts the JSON to a <see cref="Maybe{T}"/> object.
-/// </summary>
-/// <param name="reader">The reader.</param>
-/// <param name="typeToConvert">The type to convert.</param>
-/// <param name="options">The serializer options.</param>
-/// <returns>The deserialized <see cref="Maybe{T}"/> object.</returns>
-/// <summary>
-/// Writes a <see cref="Maybe{T}"/> object as JSON.
-/// </summary>
-/// <param name="writer">The writer.</param>
-/// <param name="value">The value to write.</param>
-/// <param name="options">The serializer options.</param>
 {
 	public override Maybe<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 	{

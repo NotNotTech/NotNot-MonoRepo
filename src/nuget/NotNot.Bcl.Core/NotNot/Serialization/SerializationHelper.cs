@@ -111,7 +111,13 @@ public class SerializationHelper
 		IncludeFields = true,
 		ReferenceHandler = ReferenceHandler.IgnoreCycles,
 
-		Converters = { new CaseInsensitiveEnumConverter(), new NumberHandlingConverter() },
+		Converters = {
+			new CaseInsensitiveEnumConverter(),
+			new NumberHandlingConverter(),
+			//VIBE_CRITICAL: Add Maybe converters for proper deserialization
+			new MaybeNonGenericJsonConverter(),
+			new MaybeJsonConverterFactory()
+		},
 
 		AllowTrailingCommas = true,
 		WriteIndented = true,
@@ -120,6 +126,7 @@ public class SerializationHelper
 
 		ReadCommentHandling = JsonCommentHandling.Skip,
 		PropertyNameCaseInsensitive = true,
+		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
 
 	};
 
