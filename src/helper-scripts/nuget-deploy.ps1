@@ -23,7 +23,10 @@ if ($env:NUGET_PACKAGE_PATH) {
 	$NugetPackagePath = $env:NUGET_PACKAGE_PATH
 }
 else {
-	$defaultPath = "V:\.nuget-release-packages"
+	# get current script's folder
+	$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+	# set $defaultPath path to $scriptPath/../.nuget-release-packages
+	$defaultPath = Join-Path -Path $scriptPath -ChildPath "..\.nuget-release-packages"
 	$userPath = Read-Host "Enter path to nuget packages (default: $defaultPath)"
 	$NugetPackagePath = if ($userPath) { $userPath } else { $defaultPath }
 }
