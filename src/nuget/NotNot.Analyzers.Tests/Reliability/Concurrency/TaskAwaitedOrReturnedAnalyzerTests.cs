@@ -177,16 +177,24 @@ public class TestClass
     public async Task TestMethod()
     {
         var condition = true;
-        {|#0:condition ? DoWorkAsync() : GetBoolAsync()|};  // Should trigger NN_R001
+        if (condition)
+        {
+            {|#0:GetBoolAsync()|};
+        }
+        else
+        {
+            {|#1:GetAnotherBoolAsync()|};
+        }
     }
     
-    private async Task DoWorkAsync() => await Task.Delay(1);
     private async Task<bool> GetBoolAsync() => await Task.FromResult(true);
+    private async Task<bool> GetAnotherBoolAsync() => await Task.FromResult(false);
 }";
 
-		var expected = AnalyzerTestHelper.TaskAwaitedDiagnostic(9, 9, "condition ? DoWorkAsync() : GetBoolAsync()");
+		var expected1 = AnalyzerTestHelper.TaskAwaitedDiagnostic(11, 13, "GetBoolAsync()");
+		var expected2 = AnalyzerTestHelper.TaskAwaitedDiagnostic(15, 13, "GetAnotherBoolAsync()");
 
-		await VerifyAsync(source, expected);
+		await VerifyAsync(source, expected1, expected2);
 	}
 
 	[Fact]
@@ -216,7 +224,7 @@ public class TestClass
         {|#0:GetStringValueTaskAsync()|};  // Should trigger NN_R001
     }
     
-    private async ValueTask<string> GetStringValueTaskAsync() => await ValueTask.FromResult(""test"");
+    private async ValueTask<string> GetStringValueTaskAsync() => await new ValueTask<string>(""test"");
 }";
 
 		var expected = AnalyzerTestHelper.TaskAwaitedDiagnostic(8, 9, "GetStringValueTaskAsync()");

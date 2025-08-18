@@ -123,8 +123,17 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
             case ReturnStatementSyntax:
                 return true;
 
+            // Expression-bodied method/property: => await Task<T>
+            case ArrowExpressionClauseSyntax:
+                return true;
+
             // Method argument: SomeMethod(await Task<T>)
             case ArgumentSyntax:
+                return true;
+
+            // Lambda expression body: x => await Task<T>
+            case SimpleLambdaExpressionSyntax:
+            case ParenthesizedLambdaExpressionSyntax:
                 return true;
 
             // Binary expression: if (await Task<T> == something)
@@ -188,6 +197,12 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
                 case ConditionalExpressionSyntax:
                 case InterpolationSyntax:
                 case InitializerExpressionSyntax:
+                case SimpleLambdaExpressionSyntax:
+                case ParenthesizedLambdaExpressionSyntax:
+                    return true;
+
+                // If we're inside a lambda expression body, the result is being used
+                case LambdaExpressionSyntax:
                     return true;
 
                 // If we reach an expression statement, the await result is not used
@@ -228,19 +243,19 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
     ///    Extracts the method name from an invocation expression.
     /// </summary>
     /// <param name="invocation">The invocation expression.</param>
-    /// <returns>The method name.</returns>
+    /// <returns>The method name with parentheses.</returns>
     private string ExtractMethodName(InvocationExpressionSyntax invocation)
     {
         switch (invocation.Expression)
         {
             case MemberAccessExpressionSyntax memberAccess:
-                return memberAccess.Name.Identifier.ValueText;
+                return memberAccess.Name.Identifier.ValueText + "()";
 
             case IdentifierNameSyntax identifier:
-                return identifier.Identifier.ValueText;
+                return identifier.Identifier.ValueText + "()";
 
             default:
-                return invocation.Expression.ToString();
+                return invocation.Expression.ToString() + "()";
         }
     }
 }

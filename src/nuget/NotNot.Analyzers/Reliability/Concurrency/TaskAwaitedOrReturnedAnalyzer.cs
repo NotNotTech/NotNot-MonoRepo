@@ -69,6 +69,81 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
+    ///    Analyzes expression statements within a method for direct task-returning invocations.
+    /// </summary>
+    /// <param name="context">The syntax node analysis context.</param>
+    /// <param name="taskTypeSymbols">The task type symbols to check for.</param>
+    /// <param name="methodDeclaration">The method declaration to analyze.</param>
+    private void AnalyzeDirectTaskExpressions(SyntaxNodeAnalysisContext context, List<INamedTypeSymbol> taskTypeSymbols, SyntaxNode methodDeclaration)
+    {
+        // Find expression statements within this method
+        var expressionStatements = methodDeclaration.DescendantNodes().OfType<ExpressionStatementSyntax>();
+
+        foreach (var expressionStatement in expressionStatements)
+        {
+            // Skip if this is already part of an await expression
+            if (expressionStatement.Expression is AwaitExpressionSyntax)
+                continue;
+
+            // Skip assignments (including discard assignments)
+            if (expressionStatement.Expression is AssignmentExpressionSyntax assignment)
+            {
+                // Discard assignments (_ = task) are intentionally fire-and-forget, so skip them
+                // Regular variable assignments are handled by the variable analysis
+                continue;
+            }
+
+            // Check if the expression returns a task type
+            if (IsTaskReturningExpression(context, taskTypeSymbols, expressionStatement.Expression))
+            {
+                // This is an unawaited task expression - report diagnostic
+                var diagnostic = Diagnostic.Create(Rule, expressionStatement.Expression.GetLocation(), expressionStatement.Expression.ToString());
+                context.ReportDiagnostic(diagnostic);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks if an expression returns a task type, handling various expression types including conditional expressions.
+    /// </summary>
+    private bool IsTaskReturningExpression(SyntaxNodeAnalysisContext context, List<INamedTypeSymbol> taskTypeSymbols, ExpressionSyntax expression)
+    {
+        try
+        {
+            var expressionType = context.SemanticModel.GetTypeInfo(expression).Type as INamedTypeSymbol;
+            if (expressionType != null &&
+                taskTypeSymbols.Any(taskTypeSymbol =>
+                    taskTypeSymbol != null &&
+                    (expressionType.Equals(taskTypeSymbol) ||
+                     (expressionType.IsGenericType && expressionType.ConstructedFrom.Equals(taskTypeSymbol)))))
+            {
+                return true;
+            }
+
+            // Handle conditional expressions (ternary operator) - check if the result type is a task
+            if (expression is ConditionalExpressionSyntax conditionalExpression)
+            {
+                var conditionalType = context.SemanticModel.GetTypeInfo(conditionalExpression).Type as INamedTypeSymbol;
+                if (conditionalType != null &&
+                    taskTypeSymbols.Any(taskTypeSymbol =>
+                        taskTypeSymbol != null &&
+                        (conditionalType.Equals(taskTypeSymbol) ||
+                         (conditionalType.IsGenericType && conditionalType.ConstructedFrom.Equals(taskTypeSymbol)))))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch
+        {
+            // If we can't determine the type, skip analysis
+            return false;
+        }
+    }
+
+    /// <summary>
     ///    analyze member variables, if they are lambdas then we work on them.
     /// </summary>
     /// <param name="context"></param>
@@ -120,6 +195,9 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
             .ToList();
 
         InspectTaskVariables(context, taskVariables, methodDeclaration);
+
+        // Also analyze expression statements for direct task invocations
+        AnalyzeDirectTaskExpressions(context, taskTypeSymbols, methodDeclaration);
     }
 
     private void InspectTaskVariables(SyntaxNodeAnalysisContext context, List<VariableDeclaratorSyntax> taskVariables,

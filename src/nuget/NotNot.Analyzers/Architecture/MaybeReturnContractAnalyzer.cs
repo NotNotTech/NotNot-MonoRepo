@@ -92,10 +92,6 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static bool IsController(INamedTypeSymbol type)
     {
-        // Check class name convention
-        if (type.Name.EndsWith("Controller"))
-            return true;
-
         // Check for [ApiController] attribute
         if (type.GetAttributes().Any(a => a.AttributeClass?.Name == "ApiControllerAttribute"))
             return true;

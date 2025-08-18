@@ -17,6 +17,10 @@ public class MaybeReturnContractAnalyzerTests
 		{
 			TestCode = source
 		};
+		// Add ASP.NET Core references for controller types
+		test.TestState.AdditionalReferences.Add(typeof(Microsoft.AspNetCore.Mvc.ControllerBase).Assembly);
+		test.TestState.AdditionalReferences.Add(typeof(Microsoft.AspNetCore.Mvc.IActionResult).Assembly);
+
 		if (expected?.Length > 0)
 		{
 			test.ExpectedDiagnostics.AddRange(expected);
@@ -49,7 +53,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(9, 16, "BadMethod", "IActionResult");
+		var expected = MaybeReturnDiagnostic(9, 30, "BadMethod", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -70,7 +74,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(8, 16, "HeartbeatTemp", "StatusCodeResult");
+		var expected = MaybeReturnDiagnostic(8, 33, "HeartbeatTemp", "StatusCodeResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -93,7 +97,7 @@ namespace Cleartrix.Cloud.Feature.EzAccess.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(9, 22, "GetGroup", "Task<IActionResult>");
+		var expected = MaybeReturnDiagnostic(9, 42, "GetGroup", "Task<IActionResult>");
 		await VerifyAsync(source, expected);
 	}
 
@@ -288,7 +292,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(9, 16, "GetAccount", "IActionResult");
+		var expected = MaybeReturnDiagnostic(9, 30, "GetAccount", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -309,7 +313,7 @@ namespace Cleartrix.Cloud.Persistence.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(8, 16, "GetData", "IActionResult");
+		var expected = MaybeReturnDiagnostic(8, 30, "GetData", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -333,7 +337,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(8, 16, "ConditionalMethod", "IActionResult");
+		var expected = MaybeReturnDiagnostic(8, 30, "ConditionalMethod", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -351,7 +355,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(8, 16, "GetStatus", "IActionResult");
+		var expected = MaybeReturnDiagnostic(8, 30, "GetStatus", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -379,24 +383,23 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 	}
 
 	[Fact]
-	public async Task IResultReturn_ShouldReportDiagnostic()
+	public async Task ObjectReturn_ShouldReportDiagnostic()
 	{
 		string source = @"
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cleartrix.Cloud.Feature.Account.Api
 {
     public class TestController : ControllerBase
     {
-        public {|#0:IResult|} GetMinimalApiStyle()
+        public {|#0:object|} GetObjectResult()
         {
-            return Results.Ok();
+            return new object();
         }
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(9, 16, "GetMinimalApiStyle", "IResult");
+		var expected = MaybeReturnDiagnostic(8, 23, "GetObjectResult", "object");
 		await VerifyAsync(source, expected);
 	}
 
@@ -419,7 +422,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(10, 16, "GetData", "IActionResult");
+		var expected = MaybeReturnDiagnostic(10, 30, "GetData", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 }

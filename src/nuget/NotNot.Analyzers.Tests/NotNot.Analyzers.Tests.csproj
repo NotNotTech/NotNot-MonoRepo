@@ -43,6 +43,10 @@
 		
 		<!-- DiffPlex for test comparison - required by Microsoft.CodeAnalysis.CSharp.Analyzer.Testing -->
 		<PackageReference Include="DiffPlex" Version="1.7.2" />
+		
+		<!-- ASP.NET Core references for analyzer tests -->
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
+		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
 	</ItemGroup>
 
 	<ItemGroup>

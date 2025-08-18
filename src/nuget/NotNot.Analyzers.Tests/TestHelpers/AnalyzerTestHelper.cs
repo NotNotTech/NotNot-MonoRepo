@@ -35,7 +35,7 @@ public static class AnalyzerTestHelper
 		sb.AppendLine("    private async Task<bool> GetBoolAsync() => await Task.FromResult(true);");
 		sb.AppendLine("    private async Task<int> GetIntAsync() => await Task.FromResult(42);");
 		sb.AppendLine("    private async Task DoWorkAsync() => await Task.Delay(1);");
-		sb.AppendLine("    private async ValueTask<string> GetStringValueTaskAsync() => await ValueTask.FromResult(\"test\");");
+		sb.AppendLine("    private ValueTask<string> GetStringValueTaskAsync() => new ValueTask<string>(\"test\");");
 		sb.AppendLine("}");
 		return sb.ToString();
 	}

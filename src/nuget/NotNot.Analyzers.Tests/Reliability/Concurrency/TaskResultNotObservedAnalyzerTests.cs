@@ -132,6 +132,7 @@ public class TestClass
 	public async Task MultipleTaskResults_SomeNotObserved_ShouldReportOnlyUnobserved()
 	{
 		string source = @"
+using System;
 using System.Threading.Tasks;
 
 public class TestClass
@@ -147,7 +148,7 @@ public class TestClass
     private async Task<bool> GetBoolAsync() => await Task.FromResult(true);
 }";
 
-		var expected = AnalyzerTestHelper.TaskResultNotObservedDiagnostic(9, 9, "GetBoolAsync()");
+		var expected = AnalyzerTestHelper.TaskResultNotObservedDiagnostic(10, 9, "GetBoolAsync()");
 
 		await VerifyAsync(source, expected);
 	}
@@ -191,7 +192,7 @@ public class TestClass
         {|#0:await GetStringValueTaskAsync()|};  // Should trigger NN_R002 - ValueTask result not observed
     }
     
-    private async ValueTask<string> GetStringValueTaskAsync() => await ValueTask.FromResult(""test"");
+    private ValueTask<string> GetStringValueTaskAsync() => new ValueTask<string>(""test"");
 }";
 
 		var expected = AnalyzerTestHelper.TaskResultNotObservedDiagnostic(8, 9, "GetStringValueTaskAsync()");
@@ -236,7 +237,8 @@ public class TestClass
     public async Task TestMethod()
     {
         var numbers = new[] { 1, 2, 3 };
-        var results = numbers.Where(x => x > await GetIntAsync()); // Result used in LINQ - should not trigger
+        var threshold = await GetIntAsync(); // Result used in LINQ - should not trigger
+        var results = numbers.Where(x => x > threshold);
     }
     
     private async Task<int> GetIntAsync() => await Task.FromResult(42);
@@ -249,6 +251,7 @@ public class TestClass
 	public async Task TaskResultInAsyncLocalFunction_ShouldWork()
 	{
 		string source = @"
+using System;
 using System.Threading.Tasks;
 
 public class TestClass
@@ -261,13 +264,14 @@ public class TestClass
             return true;
         }
         
-        await LocalFunction();
+        var result = await LocalFunction();
+        Console.WriteLine(result);
     }
     
     private async Task<bool> GetBoolAsync() => await Task.FromResult(true);
 }";
 
-		var expected = AnalyzerTestHelper.TaskResultNotObservedDiagnostic(10, 13, "GetBoolAsync()");
+		var expected = AnalyzerTestHelper.TaskResultNotObservedDiagnostic(11, 13, "GetBoolAsync()");
 
 		await VerifyAsync(source, expected);
 	}
