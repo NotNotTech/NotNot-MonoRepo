@@ -33,6 +33,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScratchConsole", "scratch\S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotNot.GodotDev", "NotNot.GodotDev\NotNot.GodotDev.csproj", "{F60AA371-18BA-56BB-7205-445E524CA680}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "helper-scripts", "helper-scripts", "{F1D5F077-7F30-48C1-9284-291A957F4776}"
+	ProjectSection(SolutionItems) = preProject
+		helper-scripts\nuget-deploy.ps1 = helper-scripts\nuget-deploy.ps1
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

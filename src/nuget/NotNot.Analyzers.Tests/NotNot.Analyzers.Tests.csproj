@@ -11,6 +11,10 @@
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 		<IsPackable>false</IsPackable>
 		<IsTestProject>true</IsTestProject>
+		<TestProjectType>Unit</TestProjectType>
+		<VSTestRunnerDotnetCLI>true</VSTestRunnerDotnetCLI>
+		<!-- Copy all NuGet dependencies to output directory to fix missing assembly issues -->
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -19,11 +23,13 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" Version="1.1.2" />
 		<!-- Force correct CodeAnalysis versions to match the analyzer project -->
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
 		
-		<!-- Test framework -->
-		<PackageReference Include="xunit" Version="2.9.2" />
-		<PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+		<!-- Test framework - match Cleartrix.Cloud.Tests versions -->
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="3.1.2">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
@@ -34,6 +40,9 @@
 		
 		<!-- Fluent assertions for better test readability -->
 		<PackageReference Include="FluentAssertions" Version="6.12.2" />
+		
+		<!-- DiffPlex for test comparison - required by Microsoft.CodeAnalysis.CSharp.Analyzer.Testing -->
+		<PackageReference Include="DiffPlex" Version="1.7.2" />
 	</ItemGroup>
 
 	<ItemGroup>
