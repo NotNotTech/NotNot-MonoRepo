@@ -48,7 +48,7 @@ public class ToMaybeExceptionAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeMethod(SyntaxNodeAnalysisContext context)
     {
         using var _ = AnalyzerPerformanceTracker.StartTracking(DiagnosticId, "AnalyzeMethod");
-        
+
         if (context.Node is not MethodDeclarationSyntax method) return;
 
         var symbol = context.SemanticModel.GetDeclaredSymbol(method);
@@ -56,7 +56,7 @@ public class ToMaybeExceptionAnalyzer : DiagnosticAnalyzer
 
         // Only analyze public methods in controller classes
         if (symbol.DeclaredAccessibility != Accessibility.Public) return;
-        
+
         var containingType = symbol.ContainingType;
         if (containingType == null || !IsController(containingType)) return;
 
@@ -84,9 +84,10 @@ public class ToMaybeExceptionAnalyzer : DiagnosticAnalyzer
         if (!hasToMaybeCall)
         {
             var returnTypeName = GetSimpleReturnTypeName(symbol.ReturnType);
+            var diagnosticLocation = method.ReturnType?.GetLocation() ?? method.Identifier.GetLocation();
             context.ReportDiagnostic(Diagnostic.Create(
                 Rule,
-                method.Identifier.GetLocation(),
+                diagnosticLocation,
                 symbol.Name,
                 returnTypeName));
         }
@@ -121,16 +122,16 @@ public class ToMaybeExceptionAnalyzer : DiagnosticAnalyzer
         // We want Task<T> or ValueTask<T> where T is not Maybe
         if (returnType is INamedTypeSymbol namedType)
         {
-            if ((namedType.Name == "Task" || namedType.Name == "ValueTask") && 
+            if ((namedType.Name == "Task" || namedType.Name == "ValueTask") &&
                 namedType.TypeArguments.Length == 1)
             {
                 var innerType = namedType.TypeArguments[0];
                 var innerTypeName = innerType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-                
+
                 // Skip if already returns Maybe
                 if (innerTypeName == "Maybe" || innerTypeName.StartsWith("Maybe<"))
                     return false;
-                
+
                 // Analyze non-Maybe Task returns
                 return true;
             }

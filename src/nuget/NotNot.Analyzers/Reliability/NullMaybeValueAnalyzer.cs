@@ -21,7 +21,7 @@ public class NullMaybeValueAnalyzer : DiagnosticAnalyzer
     public const string DiagnosticId = "NN_R003";
 
     private static readonly LocalizableString Title = "Do not pass null to Maybe.Success";
-    private static readonly LocalizableString MessageFormat = "Passing null to Maybe.Success<{0}>() is not allowed - use Maybe.SuccessResult() for null scenarios";
+    private static readonly LocalizableString MessageFormat = "Passing null to Maybe.Success<{0}>() is not allowed - consider using Maybe.Error instead";
     private static readonly LocalizableString Description = "Maybe.Success should not be called with null values as this defeats the purpose of the Maybe pattern for null safety.";
     private const string Category = "Reliability";
 
@@ -48,7 +48,7 @@ public class NullMaybeValueAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
     {
         using var _ = AnalyzerPerformanceTracker.StartTracking(DiagnosticId, "AnalyzeInvocation");
-        
+
         if (context.Node is not InvocationExpressionSyntax invocation) return;
 
         // Check if this is a call to Maybe.Success or Maybe<T>.Success
@@ -71,7 +71,7 @@ public class NullMaybeValueAnalyzer : DiagnosticAnalyzer
 
         // Check if we're passing null
         if (invocation.ArgumentList.Arguments.Count != 1) return;
-        
+
         var argument = invocation.ArgumentList.Arguments[0];
         var argumentExpression = argument.Expression;
 
@@ -79,7 +79,7 @@ public class NullMaybeValueAnalyzer : DiagnosticAnalyzer
         if (argumentExpression is LiteralExpressionSyntax literal &&
             literal.IsKind(SyntaxKind.NullLiteralExpression))
         {
-            ReportDiagnostic(context, argument, containingType);
+            ReportDiagnostic(context, argument, containingType, methodSymbol);
             return;
         }
 
@@ -93,7 +93,7 @@ public class NullMaybeValueAnalyzer : DiagnosticAnalyzer
                 var typeArg = containingType.TypeArguments[0];
                 if (typeArg.IsReferenceType)
                 {
-                    ReportDiagnostic(context, argument, containingType);
+                    ReportDiagnostic(context, argument, containingType, methodSymbol);
                     return;
                 }
             }
@@ -105,7 +105,7 @@ public class NullMaybeValueAnalyzer : DiagnosticAnalyzer
             var typeInfo = context.SemanticModel.GetTypeInfo(defaultExpression);
             if (typeInfo.Type?.IsReferenceType == true)
             {
-                ReportDiagnostic(context, argument, containingType);
+                ReportDiagnostic(context, argument, containingType, methodSymbol);
                 return;
             }
         }
@@ -114,18 +114,58 @@ public class NullMaybeValueAnalyzer : DiagnosticAnalyzer
         var constantValue = context.SemanticModel.GetConstantValue(argumentExpression);
         if (constantValue.HasValue && constantValue.Value == null)
         {
-            ReportDiagnostic(context, argument, containingType);
+            ReportDiagnostic(context, argument, containingType, methodSymbol);
+            return;
+        }
+
+        // Check for nullable variables that might be null
+        if (argumentExpression is IdentifierNameSyntax identifier)
+        {
+            var argSymbolInfo = context.SemanticModel.GetSymbolInfo(argumentExpression);
+
+            // Check if this is a nullable reference type variable that's been assigned null
+            if (argSymbolInfo.Symbol is ILocalSymbol localSymbol && localSymbol.Type.NullableAnnotation == NullableAnnotation.Annotated)
+            {
+                // Get the parent method to search for the variable declaration
+                var parentMethod = invocation.FirstAncestorOrSelf<MethodDeclarationSyntax>();
+                if (parentMethod != null)
+                {
+                    // Check if the variable was assigned a null literal
+                    var variableDeclarator = parentMethod.DescendantNodes()
+                        .OfType<VariableDeclaratorSyntax>()
+                        .FirstOrDefault(v => v.Identifier.Text == identifier.Identifier.Text);
+
+                    if (variableDeclarator?.Initializer?.Value is LiteralExpressionSyntax lit &&
+                        lit.IsKind(SyntaxKind.NullLiteralExpression))
+                    {
+                        ReportDiagnostic(context, argument, containingType, methodSymbol);
+                    }
+                }
+            }
         }
     }
 
     private static void ReportDiagnostic(
         SyntaxNodeAnalysisContext context,
         ArgumentSyntax argument,
-        INamedTypeSymbol containingType)
+        INamedTypeSymbol containingType,
+        IMethodSymbol methodSymbol)
     {
-        var typeArgument = containingType.TypeArguments.Length > 0 
-            ? containingType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
-            : "T";
+        // For static methods like Maybe.Success<T>, get type from method's type arguments
+        // For instance methods like Maybe<T>.Success, get type from containing type's type arguments
+        string typeArgument;
+        if (methodSymbol.IsGenericMethod && methodSymbol.TypeArguments.Length > 0)
+        {
+            typeArgument = methodSymbol.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+        }
+        else if (containingType.TypeArguments.Length > 0)
+        {
+            typeArgument = containingType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+        }
+        else
+        {
+            typeArgument = "T";
+        }
 
         context.ReportDiagnostic(Diagnostic.Create(
             Rule,

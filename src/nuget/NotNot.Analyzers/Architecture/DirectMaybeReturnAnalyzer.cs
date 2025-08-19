@@ -204,13 +204,23 @@ public class DirectMaybeReturnAnalyzer : DiagnosticAnalyzer
                     // Check for Maybe.Success or Maybe.SuccessResult
                     if (expr is InvocationExpressionSyntax invocation)
                     {
-                        if (invocation.Expression is MemberAccessExpressionSyntax maybeAccess &&
-                             maybeAccess.Expression is IdentifierNameSyntax identifier &&
-                             identifier.Identifier.Text == "Maybe" &&
-                             (maybeAccess.Name.Identifier.Text == "Success" ||
-                              maybeAccess.Name.Identifier.Text == "SuccessResult"))
+                        if (invocation.Expression is MemberAccessExpressionSyntax maybeAccess)
                         {
-                            return true;
+                            // Check for Maybe.Success or Maybe.SuccessResult
+                            if (maybeAccess.Expression is IdentifierNameSyntax identifier &&
+                                identifier.Identifier.Text == "Maybe" &&
+                                (maybeAccess.Name.Identifier.Text == "Success" ||
+                                 maybeAccess.Name.Identifier.Text == "SuccessResult"))
+                            {
+                                return true;
+                            }
+                            // Check for Maybe<T>.Success pattern
+                            else if (maybeAccess.Expression is GenericNameSyntax genericName &&
+                                     genericName.Identifier.Text == "Maybe" &&
+                                     maybeAccess.Name.Identifier.Text == "Success")
+                            {
+                                return true;
+                            }
                         }
                     }
                     // Check for new Maybe()

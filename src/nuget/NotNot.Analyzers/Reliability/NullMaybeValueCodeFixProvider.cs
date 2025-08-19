@@ -35,19 +35,19 @@ public class NullMaybeValueCodeFixProvider : CodeFixProvider
         // Find the invocation expression
         var node = root.FindNode(diagnosticSpan);
         var invocation = node.FirstAncestorOrSelf<InvocationExpressionSyntax>();
-        
+
         if (invocation == null) return;
 
-        // Register code action to replace with Maybe.SuccessResult()
+        // Register code action to replace with an error indicating null value
         context.RegisterCodeFix(
             CodeAction.Create(
-                title: "Replace with Maybe.SuccessResult()",
-                createChangedDocument: c => ReplaceWithSuccessResultAsync(context.Document, invocation, c),
-                equivalenceKey: "UseSuccessResult"),
+                title: "Replace with error for null value",
+                createChangedDocument: c => ReplaceWithErrorAsync(context.Document, invocation, c),
+                equivalenceKey: "UseError"),
             diagnostic);
     }
 
-    private async Task<Document> ReplaceWithSuccessResultAsync(
+    private async Task<Document> ReplaceWithErrorAsync(
         Document document,
         InvocationExpressionSyntax invocation,
         CancellationToken cancellationToken)
@@ -55,12 +55,111 @@ public class NullMaybeValueCodeFixProvider : CodeFixProvider
         var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
         if (root == null) return document;
 
-        // Create Maybe.SuccessResult() call
-        var newInvocation = SyntaxFactory.InvocationExpression(
-            SyntaxFactory.MemberAccessExpression(
-                SyntaxKind.SimpleMemberAccessExpression,
-                SyntaxFactory.IdentifierName("Maybe"),
-                SyntaxFactory.IdentifierName("SuccessResult")));
+        var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+        if (semanticModel == null) return document;
+
+        // Get the type argument from the method
+        var symbolInfo = semanticModel.GetSymbolInfo(invocation);
+        var methodSymbol = symbolInfo.Symbol as IMethodSymbol;
+
+        if (methodSymbol == null) return document;
+
+        // Determine the type argument and how to build the replacement
+        string typeArg;
+        bool isStaticMethod = false;
+
+        // Check if this is a generic method (static like Maybe.Success<T>)
+        if (methodSymbol.IsGenericMethod && methodSymbol.TypeArguments.Length > 0)
+        {
+            typeArg = methodSymbol.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+            isStaticMethod = true;
+        }
+        // Check if this is an instance method (like Maybe<T>.Success)
+        else if (methodSymbol.ContainingType?.TypeArguments.Length > 0)
+        {
+            typeArg = methodSymbol.ContainingType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+            isStaticMethod = false;
+        }
+        else
+        {
+            typeArg = "T";
+            isStaticMethod = false;
+        }
+
+        // Create new Problem { Title = "Null value not allowed" }
+        var problemCreation = SyntaxFactory.ObjectCreationExpression(
+            SyntaxFactory.IdentifierName("Problem"))
+            .WithInitializer(
+                SyntaxFactory.InitializerExpression(
+                    SyntaxKind.ObjectInitializerExpression,
+                    SyntaxFactory.SeparatedList<ExpressionSyntax>(new[]
+                    {
+                        SyntaxFactory.AssignmentExpression(
+                            SyntaxKind.SimpleAssignmentExpression,
+                            SyntaxFactory.IdentifierName("Title"),
+                            SyntaxFactory.LiteralExpression(
+                                SyntaxKind.StringLiteralExpression,
+                                SyntaxFactory.Literal("Null value not allowed")))
+                    })));
+
+        // Build the replacement based on whether it's static or instance method
+        InvocationExpressionSyntax newInvocation;
+
+        if (isStaticMethod && invocation.Expression is MemberAccessExpressionSyntax originalAccess)
+        {
+            // For static methods, check if the original was Maybe.Success<T> format
+            if (originalAccess.Expression is IdentifierNameSyntax maybeIdent && maybeIdent.Identifier.Text == "Maybe")
+            {
+                // Keep the static format but change to Maybe<T>.Error
+                newInvocation = SyntaxFactory.InvocationExpression(
+                    SyntaxFactory.MemberAccessExpression(
+                        SyntaxKind.SimpleMemberAccessExpression,
+                        SyntaxFactory.GenericName("Maybe")
+                            .WithTypeArgumentList(
+                                SyntaxFactory.TypeArgumentList(
+                                    SyntaxFactory.SingletonSeparatedList<TypeSyntax>(
+                                        SyntaxFactory.ParseTypeName(typeArg)))),
+                        SyntaxFactory.IdentifierName("Error")))
+                    .WithArgumentList(
+                        SyntaxFactory.ArgumentList(
+                            SyntaxFactory.SingletonSeparatedList(
+                                SyntaxFactory.Argument(problemCreation))));
+            }
+            else
+            {
+                // Default to Maybe<T>.Error format
+                newInvocation = SyntaxFactory.InvocationExpression(
+                    SyntaxFactory.MemberAccessExpression(
+                        SyntaxKind.SimpleMemberAccessExpression,
+                        SyntaxFactory.GenericName("Maybe")
+                            .WithTypeArgumentList(
+                                SyntaxFactory.TypeArgumentList(
+                                    SyntaxFactory.SingletonSeparatedList<TypeSyntax>(
+                                        SyntaxFactory.ParseTypeName(typeArg)))),
+                        SyntaxFactory.IdentifierName("Error")))
+                    .WithArgumentList(
+                        SyntaxFactory.ArgumentList(
+                            SyntaxFactory.SingletonSeparatedList(
+                                SyntaxFactory.Argument(problemCreation))));
+            }
+        }
+        else
+        {
+            // For instance methods, use Maybe<T>.Error format
+            newInvocation = SyntaxFactory.InvocationExpression(
+                SyntaxFactory.MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    SyntaxFactory.GenericName("Maybe")
+                        .WithTypeArgumentList(
+                            SyntaxFactory.TypeArgumentList(
+                                SyntaxFactory.SingletonSeparatedList<TypeSyntax>(
+                                    SyntaxFactory.ParseTypeName(typeArg)))),
+                    SyntaxFactory.IdentifierName("Error")))
+                .WithArgumentList(
+                    SyntaxFactory.ArgumentList(
+                        SyntaxFactory.SingletonSeparatedList(
+                            SyntaxFactory.Argument(problemCreation))));
+        }
 
         var newRoot = root.ReplaceNode(invocation, newInvocation);
         return document.WithSyntaxRoot(newRoot);

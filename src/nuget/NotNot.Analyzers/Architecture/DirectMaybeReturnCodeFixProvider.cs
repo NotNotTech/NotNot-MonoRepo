@@ -97,11 +97,17 @@ public class DirectMaybeReturnCodeFixProvider : CodeFixProvider
         var nextStatement = parentBlock.Statements[ifIndex + 1];
         if (nextStatement is not ReturnStatementSyntax) return document;
 
-        // Create the simplified return statement
+        // Preserve the trivia from the original if statement for proper line endings
+        var leadingTrivia = ifStatement.GetLeadingTrivia();
+        var trailingTrivia = nextStatement.GetTrailingTrivia();
+
+        // Create the simplified return statement with preserved trivia
         var simplifiedReturn = SyntaxFactory.ReturnStatement(
             SyntaxFactory.Token(SyntaxKind.ReturnKeyword).WithTrailingTrivia(SyntaxFactory.Space),
-            variableIdentifier.WithLeadingTrivia(SyntaxFactory.Space),
-            SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+            variableIdentifier,
+            SyntaxFactory.Token(SyntaxKind.SemicolonToken))
+            .WithLeadingTrivia(leadingTrivia)
+            .WithTrailingTrivia(trailingTrivia);
 
         // Remove the if statement and the next return, replace with single return
         var newStatements = parentBlock.Statements
