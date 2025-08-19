@@ -25,13 +25,13 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
     private const string Category = "Architecture";
 
     private static readonly DiagnosticDescriptor Rule = new(
-        DiagnosticId,
-        Title,
-        MessageFormat,
-        Category,
-        DiagnosticSeverity.Warning,
-        isEnabledByDefault: true,
-        description: Description);
+         DiagnosticId,
+         Title,
+         MessageFormat,
+         Category,
+         DiagnosticSeverity.Error,
+         isEnabledByDefault: true,
+         description: Description);
 
     /// <summary>
     /// Default namespace prefixes that require Maybe return contracts.
@@ -39,12 +39,12 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static readonly string[] DefaultCoreApiNamespacePrefixes = new[]
     {
-        "Cleartrix.Cloud.Feature.Account.Api",
-        "Cleartrix.Cloud.Feature.EzAccess.Api",
-        "Cleartrix.Cloud.Feature.NewAudit.Api",
-        "Cleartrix.Cloud.Feature.Localization.Api",
-        "Cleartrix.Cloud.Persistence.Api"
-    };
+          "Cleartrix.Cloud.Feature.Account.Api",
+          "Cleartrix.Cloud.Feature.EzAccess.Api",
+          "Cleartrix.Cloud.Feature.NewAudit.Api",
+          "Cleartrix.Cloud.Feature.Localization.Api",
+          "Cleartrix.Cloud.Persistence.Api"
+     };
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
@@ -81,10 +81,10 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
         // Report diagnostic for non-compliant methods
         var returnTypeName = symbol.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
         context.ReportDiagnostic(Diagnostic.Create(
-            Rule,
-            method.Identifier.GetLocation(),
-            symbol.Name,
-            returnTypeName));
+             Rule,
+             method.Identifier.GetLocation(),
+             symbol.Name,
+             returnTypeName));
     }
 
     /// <summary>

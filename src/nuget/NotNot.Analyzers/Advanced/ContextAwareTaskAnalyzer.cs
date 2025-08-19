@@ -22,20 +22,20 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
 
     private static readonly DiagnosticDescriptor UiBlockingRule = new(
-         id: UiBlockingDiagnosticId,
-         title: "Potentially blocking async call in UI context",
-         messageFormat: "Async call '{0}' may block the UI thread. Consider using ConfigureAwait(false) or ensuring proper async/await patterns.",
-         category: "Performance",
-         defaultSeverity: DiagnosticSeverity.Warning,
-         isEnabledByDefault: true,
-         description: "Blocking async calls in UI contexts can cause deadlocks and poor user experience. " +
-                          "Use ConfigureAwait(false) for library calls or ensure proper async patterns.",
-         helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#{UiBlockingDiagnosticId}",
-         customTags: new[] { "Performance", "UI", "Deadlock" });
+          id: UiBlockingDiagnosticId,
+          title: "Potentially blocking async call in UI context",
+          messageFormat: "Async call '{0}' may block the UI thread. Consider using ConfigureAwait(false) or ensuring proper async/await patterns.",
+          category: "Performance",
+          defaultSeverity: DiagnosticSeverity.Error,
+          isEnabledByDefault: true,
+          description: "Blocking async calls in UI contexts can cause deadlocks and poor user experience. " +
+                                 "Use ConfigureAwait(false) for library calls or ensure proper async patterns.",
+          helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#{UiBlockingDiagnosticId}",
+          customTags: new[] { "Performance", "UI", "Deadlock" });
 
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-         ImmutableArray.Create(UiBlockingRule);
+          ImmutableArray.Create(UiBlockingRule);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -64,9 +64,9 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
             if (CouldCauseUiBlocking(awaitExpression, semanticModel))
             {
                 var diagnostic = Diagnostic.Create(
-                     UiBlockingRule,
-                     awaitExpression.GetLocation(),
-                     awaitExpression.Expression.ToString());
+                      UiBlockingRule,
+                      awaitExpression.GetLocation(),
+                      awaitExpression.Expression.ToString());
 
                 context.ReportDiagnostic(diagnostic);
             }
@@ -109,13 +109,13 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
             // Common UI class patterns
             if (className.EndsWith("Page") ||
-                 className.EndsWith("Window") ||
-                 className.EndsWith("Form") ||
-                 className.EndsWith("Control") ||
-                 className.EndsWith("Component") ||
-                 className.EndsWith("Activity") ||
-                 className.EndsWith("Fragment") ||
-                 className.EndsWith("ViewModel"))
+                  className.EndsWith("Window") ||
+                  className.EndsWith("Form") ||
+                  className.EndsWith("Control") ||
+                  className.EndsWith("Component") ||
+                  className.EndsWith("Activity") ||
+                  className.EndsWith("Fragment") ||
+                  className.EndsWith("ViewModel"))
             {
                 return true;
             }
@@ -128,19 +128,19 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
                 // Exclude server base classes
                 if (baseTypeName == "ControllerBase" ||
-                     baseTypeName == "Controller" ||
-                     baseTypeName == "ApiController")
+                      baseTypeName == "Controller" ||
+                      baseTypeName == "ApiController")
                 {
                     return false;
                 }
 
                 // UI base classes
                 if (baseTypeName.Contains("Page") ||
-                     baseTypeName.Contains("Window") ||
-                     baseTypeName.Contains("Form") ||
-                     baseTypeName.Contains("Control") ||
-                     baseTypeName.Contains("Activity") ||
-                     baseTypeName.Contains("Fragment"))
+                      baseTypeName.Contains("Window") ||
+                      baseTypeName.Contains("Form") ||
+                      baseTypeName.Contains("Control") ||
+                      baseTypeName.Contains("Activity") ||
+                      baseTypeName.Contains("Fragment"))
                 {
                     return true;
                 }
@@ -149,7 +149,7 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
         // Check namespace patterns to exclude server namespaces
         var namespaceDeclaration = node.FirstAncestorOrSelf<NamespaceDeclarationSyntax>() ??
-                                    node.FirstAncestorOrSelf<FileScopedNamespaceDeclarationSyntax>() as BaseNamespaceDeclarationSyntax;
+                                             node.FirstAncestorOrSelf<FileScopedNamespaceDeclarationSyntax>() as BaseNamespaceDeclarationSyntax;
 
         if (namespaceDeclaration != null)
         {
@@ -157,11 +157,11 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
             // Exclude server-side namespaces from UI detection
             if (namespaceName.Contains(".Api") ||
-                 namespaceName.Contains(".Controllers") ||
-                 namespaceName.Contains(".WebApi") ||
-                 namespaceName.Contains(".Server") ||
-                 namespaceName.Contains(".Services") ||
-                 namespaceName.Contains(".Infrastructure"))
+                  namespaceName.Contains(".Controllers") ||
+                  namespaceName.Contains(".WebApi") ||
+                  namespaceName.Contains(".Server") ||
+                  namespaceName.Contains(".Services") ||
+                  namespaceName.Contains(".Infrastructure"))
             {
                 return false;
             }
@@ -173,9 +173,9 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
         {
             var methodName = containingMethod.Identifier.ValueText;
             if (methodName.EndsWith("_Click") ||
-                 methodName.EndsWith("_Tapped") ||
-                 methodName.EndsWith("_Changed") ||
-                 methodName.StartsWith("On") && methodName.Contains("Click"))
+                  methodName.EndsWith("_Tapped") ||
+                  methodName.EndsWith("_Changed") ||
+                  methodName.StartsWith("On") && methodName.Contains("Click"))
             {
                 return true;
             }
@@ -198,7 +198,7 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
                     {
                         var argument = invocation.ArgumentList.Arguments[0];
                         if (argument.Expression is LiteralExpressionSyntax literal &&
-                             literal.Token.IsKind(SyntaxKind.FalseKeyword))
+                              literal.Token.IsKind(SyntaxKind.FalseKeyword))
                         {
                             return false; // ConfigureAwait(false) is used, no blocking risk
                         }
@@ -219,7 +219,7 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
         {
             var containingMethod = node.FirstAncestorOrSelf<MethodDeclarationSyntax>();
             if (containingMethod?.Modifiers.Any(SyntaxKind.PublicKeyword) == true ||
-                 containingMethod?.Modifiers.Any(SyntaxKind.ProtectedKeyword) == true)
+                  containingMethod?.Modifiers.Any(SyntaxKind.ProtectedKeyword) == true)
             {
                 return true;
             }
@@ -227,7 +227,7 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
         // Check namespace - avoid UI-related namespaces
         var namespaceDeclaration = node.FirstAncestorOrSelf<NamespaceDeclarationSyntax>() ??
-                                            node.FirstAncestorOrSelf<FileScopedNamespaceDeclarationSyntax>() as BaseNamespaceDeclarationSyntax;
+                                                        node.FirstAncestorOrSelf<FileScopedNamespaceDeclarationSyntax>() as BaseNamespaceDeclarationSyntax;
 
         if (namespaceDeclaration != null)
         {
@@ -235,18 +235,18 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
             // Don't apply rule to UI namespaces
             if (namespaceName.Contains(".UI") ||
-                 namespaceName.Contains(".Views") ||
-                 namespaceName.Contains(".Pages") ||
-                 namespaceName.Contains(".Controls"))
+                  namespaceName.Contains(".Views") ||
+                  namespaceName.Contains(".Pages") ||
+                  namespaceName.Contains(".Controls"))
             {
                 return false;
             }
 
             // Apply to library/service namespaces
             if (namespaceName.Contains(".Services") ||
-                 namespaceName.Contains(".Library") ||
-                 namespaceName.Contains(".Core") ||
-                 namespaceName.Contains(".Infrastructure"))
+                  namespaceName.Contains(".Library") ||
+                  namespaceName.Contains(".Core") ||
+                  namespaceName.Contains(".Infrastructure"))
             {
                 return true;
             }
@@ -271,7 +271,7 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
             // ASP.NET Core controller patterns
             if (className.EndsWith("Controller") ||
-                 className.Contains("Controller"))
+                  className.Contains("Controller"))
             {
                 return true;
             }
@@ -282,8 +282,8 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
             {
                 var baseTypeName = classSymbol.BaseType.Name;
                 if (baseTypeName.Contains("Controller") ||
-                     baseTypeName == "ControllerBase" ||
-                     baseTypeName == "ApiController")
+                      baseTypeName == "ControllerBase" ||
+                      baseTypeName == "ApiController")
                 {
                     return true;
                 }
@@ -293,8 +293,8 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
                 while (baseType != null)
                 {
                     if (baseType.Name == "ControllerBase" ||
-                         baseType.Name == "Controller" ||
-                         baseType.Name == "ApiController")
+                          baseType.Name == "Controller" ||
+                          baseType.Name == "ApiController")
                     {
                         return true;
                     }
@@ -305,7 +305,7 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
         // Check namespace patterns for server/API code
         var namespaceDeclaration = node.FirstAncestorOrSelf<NamespaceDeclarationSyntax>() ??
-                                    node.FirstAncestorOrSelf<FileScopedNamespaceDeclarationSyntax>() as BaseNamespaceDeclarationSyntax;
+                                             node.FirstAncestorOrSelf<FileScopedNamespaceDeclarationSyntax>() as BaseNamespaceDeclarationSyntax;
 
         if (namespaceDeclaration != null)
         {
@@ -313,14 +313,14 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
             // Server-side namespace patterns
             if (namespaceName.Contains(".Api") ||
-                 namespaceName.Contains(".Controllers") ||
-                 namespaceName.Contains(".WebApi") ||
-                 namespaceName.Contains(".Server") ||
-                 namespaceName.Contains(".Services") ||
-                 namespaceName.Contains(".Core") ||
-                 namespaceName.Contains(".Infrastructure") ||
-                 namespaceName.Contains(".Background") ||
-                 namespaceName.Contains(".Workers"))
+                  namespaceName.Contains(".Controllers") ||
+                  namespaceName.Contains(".WebApi") ||
+                  namespaceName.Contains(".Server") ||
+                  namespaceName.Contains(".Services") ||
+                  namespaceName.Contains(".Core") ||
+                  namespaceName.Contains(".Infrastructure") ||
+                  namespaceName.Contains(".Background") ||
+                  namespaceName.Contains(".Workers"))
             {
                 return true;
             }
@@ -331,15 +331,15 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
         if (containingMethod != null)
         {
             var hasServerAttributes = containingMethod.AttributeLists
-                .SelectMany(al => al.Attributes)
-                .Any(attr =>
-                {
-                    var attrName = attr.Name.ToString();
-                    return attrName.Contains("Http") ||  // HttpGet, HttpPost, etc.
-                           attrName == "Route" ||
-                           attrName == "ApiController" ||
-                           attrName == "Authorize";
-                });
+                 .SelectMany(al => al.Attributes)
+                 .Any(attr =>
+                 {
+                     var attrName = attr.Name.ToString();
+                     return attrName.Contains("Http") ||  // HttpGet, HttpPost, etc.
+                                  attrName == "Route" ||
+                                  attrName == "ApiController" ||
+                                  attrName == "Authorize";
+                 });
 
             if (hasServerAttributes)
             {
@@ -351,14 +351,14 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
         if (containingClass != null)
         {
             var hasServerClassAttributes = containingClass.AttributeLists
-                .SelectMany(al => al.Attributes)
-                .Any(attr =>
-                {
-                    var attrName = attr.Name.ToString();
-                    return attrName == "ApiController" ||
-                           attrName == "Route" ||
-                           attrName == "Authorize";
-                });
+                 .SelectMany(al => al.Attributes)
+                 .Any(attr =>
+                 {
+                     var attrName = attr.Name.ToString();
+                     return attrName == "ApiController" ||
+                                  attrName == "Route" ||
+                                  attrName == "Authorize";
+                 });
 
             if (hasServerClassAttributes)
             {

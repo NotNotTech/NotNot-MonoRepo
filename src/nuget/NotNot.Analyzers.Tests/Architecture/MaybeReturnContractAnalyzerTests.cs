@@ -30,7 +30,7 @@ public class MaybeReturnContractAnalyzerTests
 
 	private static DiagnosticResult MaybeReturnDiagnostic(int line, int column, string methodName, string returnType)
 	{
-		return new DiagnosticResult(MaybeReturnContractAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+		return new DiagnosticResult(MaybeReturnContractAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
 			.WithLocation(line, column)
 			.WithArguments(methodName, returnType);
 	}
