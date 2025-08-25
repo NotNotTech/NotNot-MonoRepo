@@ -620,8 +620,8 @@ public class MaybeNonGenericJsonConverter : JsonConverter<Maybe>
 		var result = baseConverter.Read(ref reader, typeof(Maybe<OperationResult>), options);
 
 		// Cast is safe since Maybe : Maybe<OperationResult>
-		// If cast fails, create new Maybe with the Problem
-		return result as Maybe ?? new Maybe(result.Problem!);
+		// If cast fails, create new Maybe based on success/failure state
+		return result as Maybe ?? (result.IsSuccess ? new Maybe(result.Value) : new Maybe(result.Problem!));
 	}
 
 	public override void Write(Utf8JsonWriter writer, Maybe value, JsonSerializerOptions options)
