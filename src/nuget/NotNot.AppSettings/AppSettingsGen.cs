@@ -385,7 +385,7 @@ namespace {config.StartingNamespace}
 /// </summary>
 internal static class zz_AppSettingsExtensions_IConfiguration
 {{
-    private static AppSettingsGen.AppSettings? _cachedAppSettings;
+    private static {config.StartingNamespace}.AppSettings? _cachedAppSettings;
 
 
     /// <summary>
@@ -393,13 +393,13 @@ internal static class zz_AppSettingsExtensions_IConfiguration
     /// </summary>
     /// <param name=""configuration"">builder.Configuration</param>
     /// <param name=""ignoreCache"">true to recreate the AppSettings even if it's already been created</param>
-    internal static AppSettingsGen.AppSettings _AppSettings(this IConfiguration configuration, bool ignoreCache=false)
+    internal static {config.StartingNamespace}.AppSettings _AppSettings(this IConfiguration configuration, bool ignoreCache=false)
     {{
         if (ignoreCache == false && _cachedAppSettings is not null)
         {{
             return _cachedAppSettings;
         }}
-        var appSettingsBinder = new AppSettingsGen.AppSettingsBinder(configuration);
+        var appSettingsBinder = new {config.StartingNamespace}.AppSettingsBinder(configuration);
         _cachedAppSettings = appSettingsBinder.AppSettings;
         return _cachedAppSettings;
     }}

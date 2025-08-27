@@ -15,7 +15,7 @@
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 		<LangVersion>preview</LangVersion>
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
-		<RootNamespace></RootNamespace>
+		<RootNamespace>ExampleApp</RootNamespace>
 	</PropertyGroup>
 
 

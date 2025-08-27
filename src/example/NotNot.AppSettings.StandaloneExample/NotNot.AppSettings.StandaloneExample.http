@@ -1,0 +1,6 @@
+@NotNot.AppSettings.StandaloneExample_HostAddress = http://localhost:5284
+
+GET {{NotNot.AppSettings.StandaloneExample_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
