@@ -83,7 +83,23 @@ public class Program
    }
 }
 ```
+
 *See the **`./NotNot.AppSettings.Example`** folder in the repository for a fully buildable version of this example.*
+
+### New in `v2.0.3`
+There's now an IConfiguration extension method to make usage even easier:
+
+```csharp
+public class Program
+{
+	public static void Main(string[] args)
+	{
+		var builder = WebApplication.CreateBuilder(args);
+
+		var appSettings = builder.Configuration._AppSettings();
+		Console.WriteLine($"appSettings.AllowedHosts={appSettings.AllowedHosts}");
+
+```
 
 ## Troubleshooting / Tips
 
@@ -178,6 +194,8 @@ A summary from [TldrLegal](https://www.tldrlegal.com/license/mozilla-public-lice
 
 ## Notable Changes
 
+- **`2.0.3`** :
+	- New IConfiguration extension method to make usage easier
 - **`2.0.2`** :
   - Generated code files now use the `.g.cs` suffix (a7dc012)
   - Added an extension method for faster Dependency Injection acquisition (7fd7f1f)

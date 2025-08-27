@@ -6,6 +6,9 @@ public class Program
 	{
 		var builder = WebApplication.CreateBuilder(args);
 
+		var appSettings = builder.Configuration._AppSettings();
+		Console.WriteLine($"appSettings.AllowedHosts={appSettings.AllowedHosts}");
+
 		// Add services to the container.
 
 		builder.Services.AddControllers();
@@ -22,6 +25,8 @@ public class Program
 		app.MapControllers();
 
 		app.Run();
+
+
 
 	}
 }
