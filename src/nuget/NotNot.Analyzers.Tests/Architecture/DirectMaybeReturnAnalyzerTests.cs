@@ -60,7 +60,7 @@ namespace NotNot
 
 	private static DiagnosticResult DirectReturnDiagnostic(int line, int column, string methodName)
 	{
-		return new DiagnosticResult(DirectMaybeReturnAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+		return new DiagnosticResult(DirectMaybeReturnAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
 			 .WithLocation(line, column)
 			 .WithArguments(methodName);
 	}

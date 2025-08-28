@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace NotNot.Analyzers.Architecture;
 
 /// <summary>
-/// Analyzer that ensures ASP.NET Core controller actions in core feature namespaces
+/// Analyzer that ensures ASP.NET Core controller actions marked with RequireMaybeReturn attribute
 /// return Maybe or Maybe&lt;T&gt; for consistent error handling per architectural decisions.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -20,8 +20,8 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
     public const string DiagnosticId = "NN_A001";
 
     private static readonly LocalizableString Title = "Endpoint should return Maybe or Maybe<T>";
-    private static readonly LocalizableString MessageFormat = "Controller action '{0}' in core feature namespace must return Maybe/Maybe<T> (current: {1})";
-    private static readonly LocalizableString Description = "Core feature API controllers must use Maybe-based result contracts for consistent error handling.";
+    private static readonly LocalizableString MessageFormat = "Controller action '{0}' marked with RequireMaybeReturn must return Maybe/Maybe<T> (current: {1})";
+    private static readonly LocalizableString Description = "API controllers marked with RequireMaybeReturn attribute must use Maybe-based result contracts for consistent error handling.";
     private const string Category = "Architecture";
 
     private static readonly DiagnosticDescriptor Rule = new(
@@ -29,22 +29,10 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
          Title,
          MessageFormat,
          Category,
-         DiagnosticSeverity.Error,
+         DiagnosticSeverity.Warning,  // Changed from Error to Warning for broader ecosystem compatibility
          isEnabledByDefault: true,
          description: Description);
 
-    /// <summary>
-    /// Default namespace prefixes that require Maybe return contracts.
-    /// Can be overridden via .editorconfig.
-    /// </summary>
-    private static readonly string[] DefaultCoreApiNamespacePrefixes = new[]
-    {
-          "Cleartrix.Cloud.Feature.Account.Api",
-          "Cleartrix.Cloud.Feature.EzAccess.Api",
-          "Cleartrix.Cloud.Feature.NewAudit.Api",
-          "Cleartrix.Cloud.Feature.Localization.Api",
-          "Cleartrix.Cloud.Persistence.Api"
-     };
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
@@ -71,9 +59,8 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
         if (symbol.DeclaredAccessibility != Accessibility.Public) return;
         if (!IsController(containingType)) return;
 
-        // Check if this controller is in a namespace that requires Maybe returns
-        var ns = containingType.ContainingNamespace?.ToDisplayString();
-        if (ns == null || !ShouldEnforceMaybePattern(ns, context)) return;
+        // Check if this controller or method requires Maybe returns via attribute
+        if (!ShouldEnforceMaybePattern(symbol, containingType)) return;
 
         // Check if return type follows Maybe pattern
         if (IsMaybeReturnType(symbol.ReturnType)) return;
@@ -109,20 +96,40 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Determines if a namespace should enforce Maybe return pattern.
+    /// Determines if a method or its containing type requires Maybe return pattern via attribute.
     /// </summary>
-    private static bool ShouldEnforceMaybePattern(string namespaceName, SyntaxNodeAnalysisContext context)
+    private static bool ShouldEnforceMaybePattern(IMethodSymbol method, INamedTypeSymbol containingType)
     {
-        // Try to get configured namespaces from .editorconfig
-        var options = context.Options.AnalyzerConfigOptionsProvider.GetOptions(context.Node.SyntaxTree);
-        if (options.TryGetValue($"dotnet_diagnostic.{DiagnosticId}.required_namespaces", out var configuredNamespaces))
+        // Check for method-level attribute
+        if (method.GetAttributes().Any(a =>
+            a.AttributeClass?.Name == "RequireMaybeReturnAttribute" ||
+            a.AttributeClass?.ToDisplayString() == "NotNot.Bcl.Diagnostics.RequireMaybeReturnAttribute"))
         {
-            var namespaces = configuredNamespaces.Split(',').Select(n => n.Trim());
-            return namespaces.Any(prefix => namespaceName.StartsWith(prefix));
+            return true;
         }
 
-        // Fall back to default namespaces
-        return DefaultCoreApiNamespacePrefixes.Any(prefix => namespaceName.StartsWith(prefix));
+        // Check for class-level attribute (inherited by default)
+        if (containingType.GetAttributes().Any(a =>
+            a.AttributeClass?.Name == "RequireMaybeReturnAttribute" ||
+            a.AttributeClass?.ToDisplayString() == "NotNot.Bcl.Diagnostics.RequireMaybeReturnAttribute"))
+        {
+            return true;
+        }
+
+        // Check base classes for inherited attribute
+        var baseType = containingType.BaseType;
+        while (baseType != null)
+        {
+            if (baseType.GetAttributes().Any(a =>
+                a.AttributeClass?.Name == "RequireMaybeReturnAttribute" ||
+                a.AttributeClass?.ToDisplayString() == "NotNot.Bcl.Diagnostics.RequireMaybeReturnAttribute"))
+            {
+                return true;
+            }
+            baseType = baseType.BaseType;
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -30,7 +30,7 @@ public class DirectMaybeReturnAnalyzer : DiagnosticAnalyzer
          Title,
          MessageFormat,
          Category,
-         DiagnosticSeverity.Error,
+         DiagnosticSeverity.Warning,  // Changed from Error to Warning for consistency
          isEnabledByDefault: true,
          description: Description);
 
@@ -56,6 +56,9 @@ public class DirectMaybeReturnAnalyzer : DiagnosticAnalyzer
 
         // Only analyze methods that return Maybe or Task<Maybe>
         if (!ReturnsMaybe(methodSymbol.ReturnType)) return;
+
+        // Only analyze methods under Maybe enforcement (attribute or voluntary adoption)
+        if (!MaybePatternDetector.IsUnderMaybeEnforcement(methodSymbol)) return;
 
         // Look for the anti-pattern in the method body
         var body = method.Body;

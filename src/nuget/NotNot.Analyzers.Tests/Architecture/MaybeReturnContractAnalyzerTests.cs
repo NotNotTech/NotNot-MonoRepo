@@ -20,6 +20,11 @@ public class MaybeReturnContractAnalyzerTests
 		// Add ASP.NET Core references for controller types
 		test.TestState.AdditionalReferences.Add(typeof(Microsoft.AspNetCore.Mvc.ControllerBase).Assembly);
 		test.TestState.AdditionalReferences.Add(typeof(Microsoft.AspNetCore.Mvc.IActionResult).Assembly);
+		// Add NotNot.Bcl reference for RequireMaybeReturnAttribute
+		test.TestState.AdditionalReferences.Add(typeof(NotNot.Bcl.Diagnostics.RequireMaybeReturnAttribute).Assembly);
+
+		// Ignore compiler diagnostics that don't affect the analyzer logic
+		test.CompilerDiagnostics = CompilerDiagnostics.None;
 
 		if (expected?.Length > 0)
 		{
@@ -30,7 +35,7 @@ public class MaybeReturnContractAnalyzerTests
 
 	private static DiagnosticResult MaybeReturnDiagnostic(int line, int column, string methodName, string returnType)
 	{
-		return new DiagnosticResult(MaybeReturnContractAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+		return new DiagnosticResult(MaybeReturnContractAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
 			.WithLocation(line, column)
 			.WithArguments(methodName, returnType);
 	}
@@ -41,9 +46,11 @@ public class MaybeReturnContractAnalyzerTests
 		string source = @"
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         public {|#0:IActionResult|} BadMethod()
@@ -53,7 +60,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(9, 30, "BadMethod", "IActionResult");
+		var expected = MaybeReturnDiagnostic(11, 30, "BadMethod", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -62,9 +69,11 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         public {|#0:StatusCodeResult|} HeartbeatTemp()
@@ -74,7 +83,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(8, 33, "HeartbeatTemp", "StatusCodeResult");
+		var expected = MaybeReturnDiagnostic(10, 33, "HeartbeatTemp", "StatusCodeResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -84,9 +93,11 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 		string source = @"
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.EzAccess.Api
+namespace TestNamespace
 {
+    [RequireMaybeReturn]
     public class GroupController : ControllerBase
     {
         public async {|#0:Task<IActionResult>|} GetGroup()
@@ -97,7 +108,7 @@ namespace Cleartrix.Cloud.Feature.EzAccess.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(9, 42, "GetGroup", "Task<IActionResult>");
+		var expected = MaybeReturnDiagnostic(11, 42, "GetGroup", "Task<IActionResult>");
 		await VerifyAsync(source, expected);
 	}
 
@@ -106,11 +117,13 @@ namespace Cleartrix.Cloud.Feature.EzAccess.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
     public class Maybe { }
     
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         public Maybe GoodMethod()
@@ -128,12 +141,14 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
     public class Maybe<T> { }
     public class UserDto { }
     
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         public Maybe<UserDto> GetUser()
@@ -152,11 +167,13 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 		string source = @"
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.NewAudit.Api
+namespace TestNamespace
 {
     public class Maybe { }
     
+    [RequireMaybeReturn]
     public class AuditController : ControllerBase
     {
         public async Task<Maybe> GetAuditLog()
@@ -176,11 +193,13 @@ namespace Cleartrix.Cloud.Feature.NewAudit.Api
 		string source = @"
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Localization.Api
+namespace TestNamespace
 {
     public class Maybe<T> { }
     
+    [RequireMaybeReturn]
     public class LocalizationController : ControllerBase
     {
         public async ValueTask<Maybe<string>> GetTranslation()
@@ -199,9 +218,11 @@ namespace Cleartrix.Cloud.Feature.Localization.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         private IActionResult PrivateMethod()
@@ -219,9 +240,11 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         protected IActionResult ProtectedMethod()
@@ -235,12 +258,12 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 	}
 
 	[Fact]
-	public async Task ControllerOutsideCoreNamespace_ShouldNotReportDiagnostic()
+	public async Task ControllerWithoutAttribute_ShouldNotReportDiagnostic()
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
 
-namespace SomeOtherNamespace
+namespace TestNamespace
 {
     public class TestController : ControllerBase
     {
@@ -259,9 +282,11 @@ namespace SomeOtherNamespace
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
+    [RequireMaybeReturn]
     public class NotAController
     {
         public IActionResult Method()
@@ -279,10 +304,12 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
     [ApiController]
+    [RequireMaybeReturn]
     public class AccountEndpoints
     {
         public {|#0:IActionResult|} GetAccount()
@@ -292,28 +319,36 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(9, 30, "GetAccount", "IActionResult");
+		var expected = MaybeReturnDiagnostic(11, 30, "GetAccount", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
 	[Fact]
-	public async Task PersistenceApiNamespace_ShouldBeIncluded()
+	public async Task ControllerWithMethodLevelAttribute_ShouldReportDiagnostic()
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Persistence.Api
+namespace TestNamespace
 {
-    public class PersistenceController : ControllerBase
+    public class TestController : ControllerBase
     {
+        [RequireMaybeReturn]
         public {|#0:IActionResult|} GetData()
+        {
+            return Ok();
+        }
+        
+        // This method should not trigger since it doesn't have the attribute
+        public IActionResult GetOtherData()
         {
             return Ok();
         }
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(8, 30, "GetData", "IActionResult");
+		var expected = MaybeReturnDiagnostic(10, 30, "GetData", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -322,9 +357,11 @@ namespace Cleartrix.Cloud.Persistence.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         public {|#0:IActionResult|} ConditionalMethod(bool condition)
@@ -337,7 +374,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(8, 30, "ConditionalMethod", "IActionResult");
+		var expected = MaybeReturnDiagnostic(10, 30, "ConditionalMethod", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -346,16 +383,18 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         public {|#0:IActionResult|} GetStatus() => Ok();
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(8, 30, "GetStatus", "IActionResult");
+		var expected = MaybeReturnDiagnostic(10, 30, "GetStatus", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 
@@ -365,11 +404,13 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 		string source = @"
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
     public class Maybe<T> { }
     
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         public Maybe<List<string>> GetList()
@@ -387,9 +428,11 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
+    [RequireMaybeReturn]
     public class TestController : ControllerBase
     {
         public {|#0:object|} GetObjectResult()
@@ -399,7 +442,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(8, 23, "GetObjectResult", "object");
+		var expected = MaybeReturnDiagnostic(10, 23, "GetObjectResult", "object");
 		await VerifyAsync(source, expected);
 	}
 
@@ -408,9 +451,36 @@ namespace Cleartrix.Cloud.Feature.Account.Api
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
 
-namespace Cleartrix.Cloud.Feature.Account.Api
+namespace TestNamespace
 {
+    public abstract class BaseController : ControllerBase { }
+    
+    [RequireMaybeReturn]
+    public class DerivedController : BaseController
+    {
+        public {|#0:IActionResult|} GetData()
+        {
+            return Ok();
+        }
+    }
+}";
+
+		var expected = MaybeReturnDiagnostic(12, 30, "GetData", "IActionResult");
+		await VerifyAsync(source, expected);
+	}
+
+	[Fact]
+	public async Task InheritedAttributeFromBaseClass_ShouldBeRecognized()
+	{
+		string source = @"
+using Microsoft.AspNetCore.Mvc;
+using NotNot.Bcl.Diagnostics;
+
+namespace TestNamespace
+{
+    [RequireMaybeReturn]
     public abstract class BaseController : ControllerBase { }
     
     public class DerivedController : BaseController
@@ -422,7 +492,7 @@ namespace Cleartrix.Cloud.Feature.Account.Api
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(10, 30, "GetData", "IActionResult");
+		var expected = MaybeReturnDiagnostic(12, 30, "GetData", "IActionResult");
 		await VerifyAsync(source, expected);
 	}
 }

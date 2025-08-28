@@ -52,6 +52,8 @@
 	<ItemGroup>
 		<!-- Reference the analyzer project -->
 		<ProjectReference Include="..\NotNot.Analyzers\NotNot.Analyzers.csproj" />
+		<!-- Reference NotNot.Bcl for RequireMaybeReturnAttribute -->
+		<ProjectReference Include="..\NotNot.Bcl\NotNot.Bcl.csproj" />
 	</ItemGroup>
 
 	<PropertyGroup>
