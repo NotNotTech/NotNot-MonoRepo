@@ -258,7 +258,7 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task ControllerWithoutAttribute_ShouldNotReportDiagnostic()
+	public async Task ControllerWithoutAttribute_ShouldReportDiagnostic()
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
@@ -267,14 +267,15 @@ namespace TestNamespace
 {
     public class TestController : ControllerBase
     {
-        public IActionResult Method()
+        public {|#0:IActionResult|} Method()
         {
             return Ok();
         }
     }
 }";
 
-		await VerifyAsync(source);
+		var expected = MaybeReturnDiagnostic(8, 30, "Method", "IActionResult");
+		await VerifyAsync(source, expected);
 	}
 
 	[Fact]
@@ -324,7 +325,7 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task ControllerWithMethodLevelAttribute_ShouldReportDiagnostic()
+	public async Task ControllerWithMultipleMethods_ShouldReportDiagnosticForAll()
 	{
 		string source = @"
 using Microsoft.AspNetCore.Mvc;
@@ -340,16 +341,17 @@ namespace TestNamespace
             return Ok();
         }
         
-        // This method should not trigger since it doesn't have the attribute
-        public IActionResult GetOtherData()
+        // This method should also trigger with universal enforcement
+        public {|#1:IActionResult|} GetOtherData()
         {
             return Ok();
         }
     }
 }";
 
-		var expected = MaybeReturnDiagnostic(10, 30, "GetData", "IActionResult");
-		await VerifyAsync(source, expected);
+		var expected1 = MaybeReturnDiagnostic(10, 30, "GetData", "IActionResult");
+		var expected2 = MaybeReturnDiagnostic(16, 30, "GetOtherData", "IActionResult");
+		await VerifyAsync(source, expected1, expected2);
 	}
 
 	[Fact]

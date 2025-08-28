@@ -9,41 +9,70 @@ namespace NotNot.Analyzers.Architecture;
 internal static class MaybePatternDetector
 {
     /// <summary>
-    /// Determines if a method is under Maybe enforcement either through explicit attribute
-    /// or by returning a Maybe type (indicating voluntary adoption).
+    /// Determines if a method is under Maybe enforcement. With universal enforcement,
+    /// all controller methods are enforced unless explicitly excluded.
+    /// Non-controller methods are enforced if they return Maybe (voluntary adoption).
     /// </summary>
     public static bool IsUnderMaybeEnforcement(IMethodSymbol method)
     {
-        // Check if method has RequireMaybeReturn attribute
-        if (HasRequireMaybeReturnAttribute(method))
-            return true;
-
-        // Check if containing type has RequireMaybeReturn attribute
         var containingType = method.ContainingType;
-        if (containingType != null && HasRequireMaybeReturnAttribute(containingType))
+        if (containingType == null) return false;
+
+        // Check if excluded via MaybeReturnNotRequired attribute
+        if (IsExcludedFromMaybePattern(method, containingType))
+            return false;
+
+        // Check if it's a controller - if so, enforce universally
+        if (IsController(containingType))
             return true;
 
-        // Check base classes for inherited attribute
-        var baseType = containingType?.BaseType;
-        while (baseType != null)
-        {
-            if (HasRequireMaybeReturnAttribute(baseType))
-                return true;
-            baseType = baseType.BaseType;
-        }
-
-        // Check if method already returns Maybe type (voluntary adoption)
+        // For non-controllers, check if method already returns Maybe type (voluntary adoption)
         return ReturnsMaybeType(method.ReturnType);
     }
 
     /// <summary>
-    /// Checks if a symbol has the RequireMaybeReturn attribute.
+    /// Determines if a method or its containing type is excluded from Maybe pattern enforcement.
     /// </summary>
-    private static bool HasRequireMaybeReturnAttribute(ISymbol symbol)
+    private static bool IsExcludedFromMaybePattern(IMethodSymbol method, INamedTypeSymbol containingType)
     {
-        return symbol.GetAttributes().Any(a =>
-            a.AttributeClass?.Name == "RequireMaybeReturnAttribute" ||
-            a.AttributeClass?.ToDisplayString() == "NotNot.Bcl.Diagnostics.RequireMaybeReturnAttribute");
+        // Check method-level exclusion
+        if (method.GetAttributes().Any(a =>
+            a.AttributeClass?.Name == "MaybeReturnNotRequiredAttribute" ||
+            a.AttributeClass?.ToDisplayString() == "NotNot.Bcl.Diagnostics.MaybeReturnNotRequiredAttribute"))
+        {
+            return true;
+        }
+
+        // Check class-level exclusion (NOT inherited by design)
+        if (containingType.GetAttributes().Any(a =>
+            a.AttributeClass?.Name == "MaybeReturnNotRequiredAttribute" ||
+            a.AttributeClass?.ToDisplayString() == "NotNot.Bcl.Diagnostics.MaybeReturnNotRequiredAttribute"))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Determines if a type is an ASP.NET Core controller.
+    /// </summary>
+    private static bool IsController(INamedTypeSymbol type)
+    {
+        // Check for [ApiController] attribute
+        if (type.GetAttributes().Any(a => a.AttributeClass?.Name == "ApiControllerAttribute"))
+            return true;
+
+        // Check if inherits from Controller or ControllerBase
+        var baseType = type.BaseType;
+        while (baseType != null)
+        {
+            if (baseType.Name == "Controller" || baseType.Name == "ControllerBase")
+                return true;
+            baseType = baseType.BaseType;
+        }
+
+        return false;
     }
 
     /// <summary>

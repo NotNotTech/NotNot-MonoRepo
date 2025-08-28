@@ -8,8 +8,9 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace NotNot.Analyzers.Architecture;
 
 /// <summary>
-/// Analyzer that ensures ASP.NET Core controller actions marked with RequireMaybeReturn attribute
-/// return Maybe or Maybe&lt;T&gt; for consistent error handling per architectural decisions.
+/// Analyzer that ensures all ASP.NET Core controller actions return Maybe or Maybe&lt;T&gt; 
+/// for consistent error handling per architectural decisions. Controllers or methods can be
+/// excluded using the MaybeReturnNotRequired attribute.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
@@ -20,8 +21,8 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
     public const string DiagnosticId = "NN_A001";
 
     private static readonly LocalizableString Title = "Endpoint should return Maybe or Maybe<T>";
-    private static readonly LocalizableString MessageFormat = "Controller action '{0}' marked with RequireMaybeReturn must return Maybe/Maybe<T> (current: {1})";
-    private static readonly LocalizableString Description = "API controllers marked with RequireMaybeReturn attribute must use Maybe-based result contracts for consistent error handling.";
+    private static readonly LocalizableString MessageFormat = "Controller action '{0}' must return Maybe/Maybe<T> (current: {1})";
+    private static readonly LocalizableString Description = "API controllers must use Maybe-based result contracts for consistent error handling. Use [MaybeReturnNotRequired] to exclude specific controllers or methods.";
     private const string Category = "Architecture";
 
     private static readonly DiagnosticDescriptor Rule = new(
@@ -59,8 +60,11 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
         if (symbol.DeclaredAccessibility != Accessibility.Public) return;
         if (!IsController(containingType)) return;
 
-        // Check if this controller or method requires Maybe returns via attribute
-        if (!ShouldEnforceMaybePattern(symbol, containingType)) return;
+        // Check if excluded from Maybe pattern enforcement
+        if (IsExcludedFromMaybePattern(symbol, containingType)) return;
+
+        // Universal enforcement - all controllers require Maybe returns by default
+        // (RequireMaybeReturn attribute no longer required)
 
         // Check if return type follows Maybe pattern
         if (IsMaybeReturnType(symbol.ReturnType)) return;
@@ -90,6 +94,30 @@ public class MaybeReturnContractAnalyzer : DiagnosticAnalyzer
             if (baseType.Name == "Controller" || baseType.Name == "ControllerBase")
                 return true;
             baseType = baseType.BaseType;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Determines if a method or its containing type is excluded from Maybe pattern enforcement.
+    /// </summary>
+    private static bool IsExcludedFromMaybePattern(IMethodSymbol method, INamedTypeSymbol containingType)
+    {
+        // Check method-level exclusion
+        if (method.GetAttributes().Any(a =>
+            a.AttributeClass?.Name == "MaybeReturnNotRequiredAttribute" ||
+            a.AttributeClass?.ToDisplayString() == "NotNot.Bcl.Diagnostics.MaybeReturnNotRequiredAttribute"))
+        {
+            return true;
+        }
+
+        // Check class-level exclusion (NOT inherited by design)
+        if (containingType.GetAttributes().Any(a =>
+            a.AttributeClass?.Name == "MaybeReturnNotRequiredAttribute" ||
+            a.AttributeClass?.ToDisplayString() == "NotNot.Bcl.Diagnostics.MaybeReturnNotRequiredAttribute"))
+        {
+            return true;
         }
 
         return false;
