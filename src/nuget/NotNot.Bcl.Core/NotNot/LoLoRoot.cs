@@ -560,15 +560,10 @@ public partial class LoLoRoot
 
 	public Normalize Normalize = new();
 
-	public LoLoRoot(LoLoConfig? config = null, IServiceProvider services = null)
+	public LoLoRoot(LoLoConfig? config = null)
 	{
 
 		Config = config ?? new LoLoConfig();
-		//_services = services;
-		if (services is not null)
-		{
-			Initialize(services);
-		}
 
 		Async = new DebuggableAsyncHelper(Config.IsDebuggableTaskFactorySingleThreaded);
 	}
@@ -583,6 +578,10 @@ public partial class LoLoRoot
 			{
 				//throw new NullReferenceException("lolo.__ is not set, call lolo.__ = new lolo() first, in your program.cs");
 				_instance = new LoLoRoot();
+			}
+			if (_instance._isDisposed)
+			{
+				throw new ObjectDisposedException("LoLoRoot is already disposed");
 			}
 
 			return _instance;
@@ -627,16 +626,26 @@ public partial class LoLoRoot
 	//	}
 	//}
 
-
+	private bool _isDisposed;
 
 	/// <summary>
 	/// helper to dispose static variables, used by test runners.  probably not needed otherwise.
 	/// </summary>
 	public void Dispose()
 	{
+		if (_isDisposed)
+		{
+			//throw new ObjectDisposedException("LoLoRoot is already disposed");
+			return;
+		}
+
+
+		Serialization.SerializationHelper.Dispose();
+
 		_loggerFactory.Dispose();
 		LoLoRoot._loggerFactory = null;
-		LoLoRoot._instance = null;
+		_isDisposed = true;
+		//LoLoRoot._instance = null;
 	}
 
 }
@@ -780,6 +789,10 @@ public partial class LoLoRoot
 
 	public ILogger GetLogger(Type categoryType)
 	{
+
+
+
+
 		//if (_services is null)
 		//{
 		//	return _GetFallbackLogger();
@@ -791,20 +804,45 @@ public partial class LoLoRoot
 
 	}
 
+
+	private static ILoggerFactory _loggerFactory_INTERNAL;
+
 	/// <summary>
 	/// logger factory.  defaults to a simple console logger factory until DI services have registered.
 	/// </summary>
-	private static ILoggerFactory _loggerFactory = LoggerFactory.Create(builder =>
+	private static ILoggerFactory _loggerFactory
 	{
-		builder.ClearProviders();
-		builder.SetMinimumLevel(LogLevel.Trace);
+		get
+		{
+			if (_loggerFactory_INTERNAL is null)
+			{
+				_loggerFactory_INTERNAL = LoggerFactory.Create(builder =>
+				{
+					builder.ClearProviders();
+					builder.SetMinimumLevel(LogLevel.Trace);
 
-		builder.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
-	});
+					builder.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
+				});
+			}
+			return _loggerFactory_INTERNAL;
+		}
+		set
+		{
+			if (_loggerFactory_INTERNAL is not null)
+			{
+				_loggerFactory_INTERNAL.Dispose();
+			}
+			_loggerFactory_INTERNAL = value;
+		}
+	}
 
+	/// <summary>
+	/// optional initializer to pass in DI services for loggerFactory creation
+	/// </summary>
+	/// <param name="serviceProvider"></param>
 	public void Initialize(IServiceProvider serviceProvider)
 	{
-		//_loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+		_loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
 	}
 
 	//private ILogger _GetFallbackLogger()
@@ -883,8 +921,10 @@ public partial class LoLoRoot
 		//	return _GetFallbackLogger();
 		//}
 		//return GetLogger(typeof(TCategory));
+
 		return _loggerFactory.CreateLogger<TCategory>();
 	}
+
 
 
 	//public AsyncLazy<ILogger> GetLoggerAsync(string? name = null, [CallerFilePath] string sourceFilePath = "")

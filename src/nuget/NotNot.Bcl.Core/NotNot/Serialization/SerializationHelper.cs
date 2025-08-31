@@ -31,6 +31,62 @@ namespace NotNot.Serialization;
 public class SerializationHelper
 {
 
+
+	private static bool _isDisposed = false;
+	/// <summary>
+	/// dispose static resources _logJsonOptions and _roundtripJsonOptions
+	/// <para>usually not needed, but some runtimes like Godot need this explicitly cleared out during lifecycle disposal for assembly unloading to work properly</para>
+	/// </summary>
+	public static void Dispose()
+	{
+		if (_isDisposed is true)
+		{
+			throw new ObjectDisposedException("SerializationHelper", "Dispose() already called");
+			return;
+		}
+		_isDisposed = true;
+
+		//if (SerializationHelper._logJsonOptions is not null)
+		{
+			foreach (var converter in SerializationHelper._logJsonOptions.Converters)
+			{
+				if (converter is IDisposable disposable)
+				{
+					try
+					{
+						disposable.Dispose();
+					}
+					catch (Exception ex)
+					{
+						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex.Message}");
+					}
+				}
+			}
+			SerializationHelper._logJsonOptions.Converters.Clear();
+			SerializationHelper._logJsonOptions = null;
+		}
+
+		//if (SerializationHelper._roundtripJsonOptions is not null)
+		{
+			foreach (var converter in SerializationHelper._roundtripJsonOptions.Converters)
+			{
+				if (converter is IDisposable disposable)
+				{
+					try
+					{
+						disposable.Dispose();
+					}
+					catch (Exception ex)
+					{
+						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex.Message}");
+					}
+				}
+			}
+			SerializationHelper._roundtripJsonOptions.Converters.Clear();
+			_roundtripJsonOptions = null;
+		}
+	}
+
 	/// <summary>
 	/// configure sane defaults for http json options (de)serializing post body
 	/// </summary>

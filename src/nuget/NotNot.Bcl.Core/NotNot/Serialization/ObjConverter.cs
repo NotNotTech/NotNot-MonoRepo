@@ -75,7 +75,7 @@ public class ObjConverter<T> : JsonConverter<T>
 	}
 }
 
-public class RoundtripObjConverter<T> : JsonConverter<T>
+public class RoundtripObjConverter<T> : JsonConverter<T>, IDisposable
 {
 
 	public delegate T? ReaderAction(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options);
@@ -110,5 +110,14 @@ public class RoundtripObjConverter<T> : JsonConverter<T>
 	public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
 	{
 		DoWrite(writer, value, options);
+		writer.Dispose();
 	}
+
+	public void Dispose()
+	{
+		DoRead = null;
+		DoWrite = null;
+	}
+
+
 }
