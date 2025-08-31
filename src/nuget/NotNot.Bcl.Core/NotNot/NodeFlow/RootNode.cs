@@ -1,4 +1,5 @@
-using NotNot.NodeFlow;
+
+namespace NotNot.NodeFlow;
 
 public class RootNode : SlimNode
 {
