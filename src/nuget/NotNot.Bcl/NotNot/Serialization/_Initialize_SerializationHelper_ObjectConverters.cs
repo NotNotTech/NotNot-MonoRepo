@@ -20,7 +20,7 @@ internal static class _Initialize_SerializationHelper_ObjectConverters
 	{
 
 		//need to treat as string because potential loops
-		NotNot.Serialization.SerializationHelper._logJsonOptions.Converters.Add(new NotNot.Serialization.ObjConverter<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry>(value => value.ToString()));
+		__.SerializationHelper._logJsonOptions.Converters.Add(new NotNot.Serialization.ObjConverter<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry>(value => value.ToString()));
 
 	}
 }

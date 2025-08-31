@@ -704,8 +704,8 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 				else
 				{
 					//roundtrip in case errors, which would cause the entire write to fail if we did it directly on the `writer` object.
-					var poco = NotNot.Serialization.SerializationHelper.ToLogPoCo(extension.Value);
-					JsonSerializer.Serialize(writer, poco, NotNot.Serialization.SerializationHelper._logJsonOptions);
+					var poco = __.SerializationHelper.ToLogPoCo(extension.Value);
+					JsonSerializer.Serialize(writer, poco, __.SerializationHelper._logJsonOptions);
 				}
 			}
 			catch (Exception ex)

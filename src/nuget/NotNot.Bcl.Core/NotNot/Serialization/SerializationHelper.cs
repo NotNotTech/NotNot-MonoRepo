@@ -28,16 +28,16 @@ namespace NotNot.Serialization;
 
 //}
 
-public partial class SerializationHelper
+public class SerializationHelper
 {
 
 
-	private static bool _isDisposed = false;
+	private bool _isDisposed = false;
 	/// <summary>
 	/// dispose static resources _logJsonOptions and _roundtripJsonOptions
 	/// <para>usually not needed, but some runtimes like Godot need this explicitly cleared out during lifecycle disposal for assembly unloading to work properly</para>
 	/// </summary>
-	public static void Dispose()
+	public void Dispose()
 	{
 		if (_isDisposed is true)
 		{
@@ -48,7 +48,7 @@ public partial class SerializationHelper
 
 		//if (SerializationHelper._logJsonOptions is not null)
 		{
-			foreach (var converter in SerializationHelper._logJsonOptions.Converters)
+			foreach (var converter in _logJsonOptions.Converters)
 			{
 				if (converter is IDisposable disposable)
 				{
@@ -62,13 +62,13 @@ public partial class SerializationHelper
 					}
 				}
 			}
-			SerializationHelper._logJsonOptions.Converters.Clear();
-			SerializationHelper._logJsonOptions = null;
+			_logJsonOptions.Converters.Clear();
+			_logJsonOptions = null;
 		}
 
 		//if (SerializationHelper._roundtripJsonOptions is not null)
 		{
-			foreach (var converter in SerializationHelper._roundtripJsonOptions.Converters)
+			foreach (var converter in _roundtripJsonOptions.Converters)
 			{
 				if (converter is IDisposable disposable)
 				{
@@ -82,7 +82,7 @@ public partial class SerializationHelper
 					}
 				}
 			}
-			SerializationHelper._roundtripJsonOptions.Converters.Clear();
+			_roundtripJsonOptions.Converters.Clear();
 			_roundtripJsonOptions = null;
 		}
 	}
@@ -91,7 +91,7 @@ public partial class SerializationHelper
 	/// configure sane defaults for http json options (de)serializing post body
 	/// </summary>
 	/// <param name="options"></param>
-	public static void ConfigureJsonOptions(JsonSerializerOptions options)
+	public void ConfigureJsonOptions(JsonSerializerOptions options)
 	{
 		//be forgiving in parsing user json
 		options.ReadCommentHandling = JsonCommentHandling.Skip;
@@ -123,15 +123,15 @@ public partial class SerializationHelper
 	// Removed ConfigureJsonOptions(JsonLoadSettings) - Newtonsoft-specific method
 
 
-	private SerializationHelper() { }
+	//public SerializationHelper() { }
 
-	private static ILogger _logger = __.GetLogger<SerializationHelper>();
+	//private static ILogger _logger = __.GetLogger<SerializationHelper>();
 
 	/// <summary>
 	/// how the serialization helper should convert objects to json (for use with logging, etc).
 	/// <para>if you have a custom type that needs to be handled, add it to _jsonOptions.Converters at application start up.</para>
 	/// </summary>
-	public static JsonSerializerOptions _logJsonOptions = new()
+	public JsonSerializerOptions _logJsonOptions = new()
 	{
 		MaxDepth = 10,
 		IncludeFields = true,
@@ -156,7 +156,7 @@ public partial class SerializationHelper
 	/// how the serialization helper should convert objects to json (for use with logging, etc).
 	/// <para>if you have a custom type that needs to be handled, add it to _jsonOptions.Converters at application start up.</para>
 	/// </summary>
-	public static JsonSerializerOptions _roundtripJsonOptions = new()
+	public JsonSerializerOptions _roundtripJsonOptions = new()
 	{
 		MaxDepth = 10,
 		IncludeFields = true,
@@ -190,7 +190,7 @@ public partial class SerializationHelper
 	/// </summary>
 	/// <param name="obj"></param>
 	/// <returns></returns>
-	public static object ToLogPoCo(object obj)
+	public object ToLogPoCo(object obj)
 	{
 		try
 		{
@@ -216,12 +216,12 @@ public partial class SerializationHelper
 	/// </summary>
 	/// <param name="obj"></param>
 	/// <returns></returns>
-	public static string ToJsonLog(object obj)
+	public string ToJsonLog(object obj)
 	{
 		//var roundTrip = ToLogPoCo(obj);
 		return JsonSerializer.Serialize(obj, _logJsonOptions);
 	}
-	public static JsonDocument ToJsonLogDocument(object obj)
+	public JsonDocument ToJsonLogDocument(object obj)
 	{
 		return JsonSerializer.SerializeToDocument(obj, _logJsonOptions);
 	}
@@ -231,12 +231,12 @@ public partial class SerializationHelper
 	/// </summary>
 	/// <param name="obj"></param>
 	/// <returns></returns>
-	public static string ToJson(object obj)
+	public string ToJson(object obj)
 	{
 		return JsonSerializer.Serialize(obj, _roundtripJsonOptions);
 	}
 
-	public static JsonDocument ToJsonDocument(object obj)
+	public JsonDocument ToJsonDocument(object obj)
 	{
 		return JsonSerializer.SerializeToDocument(obj, _roundtripJsonOptions);
 	}
@@ -250,7 +250,7 @@ public partial class SerializationHelper
 	///    via
 	///    https://stackoverflow.com/questions/5546142/how-do-i-use-json-net-to-deserialize-into-nested-recursive-dictionary-and-list
 	/// </summary>
-	public static object JsonToPoCo(string json)
+	public object JsonToPoCo(string json)
 	{
 		using var document = JsonDocument.Parse(json, new JsonDocumentOptions
 		{
@@ -258,7 +258,7 @@ public partial class SerializationHelper
 			CommentHandling = JsonCommentHandling.Skip,
 			MaxDepth = 10
 		});
-		
+
 		return JsonElementToPoCo(document.RootElement);
 	}
 
@@ -270,7 +270,7 @@ public partial class SerializationHelper
 	///    option is used. not useful otherwise.
 	/// </param>
 	/// <returns></returns>
-	private static object JsonElementToPoCo(JsonElement element, bool discardMetaNodes = false)
+	private object JsonElementToPoCo(JsonElement element, bool discardMetaNodes = false)
 	{
 		switch (element.ValueKind)
 		{
@@ -281,12 +281,12 @@ public partial class SerializationHelper
 						// When discardMetaNodes is false, convert all properties to dictionary
 						// without special handling - this matches the original behavior
 						var dict = new Dictionary<string, object>();
-						
+
 						foreach (var prop in element.EnumerateObject())
 						{
 							dict[prop.Name] = JsonElementToPoCo(prop.Value, discardMetaNodes);
 						}
-						
+
 						return dict;
 					}
 					else
@@ -294,7 +294,7 @@ public partial class SerializationHelper
 						// When discardMetaNodes is true, we have special handling for $values
 						// and filter out $ prefixed properties
 						var dict = new Dictionary<string, object>();
-						
+
 						foreach (var prop in element.EnumerateObject())
 						{
 							if (prop.Name == "$values")
@@ -303,20 +303,20 @@ public partial class SerializationHelper
 								// This happens when ReferenceHandler.Preserve is used
 								return JsonElementToPoCo(prop.Value, discardMetaNodes);
 							}
-							
+
 							if (prop.Name.StartsWith("$"))
 							{
 								// Skip other metadata nodes
 								continue;
 							}
-							
+
 							dict[prop.Name] = JsonElementToPoCo(prop.Value, discardMetaNodes);
 						}
-						
+
 						return dict;
 					}
 				}
-				
+
 			case JsonValueKind.Array:
 				{
 					var list = new List<object>();
@@ -326,10 +326,10 @@ public partial class SerializationHelper
 					}
 					return list;
 				}
-				
+
 			case JsonValueKind.String:
 				return element.GetString();
-				
+
 			case JsonValueKind.Number:
 				// Try to get the most appropriate numeric type
 				if (element.TryGetInt32(out var intValue))
@@ -340,17 +340,17 @@ public partial class SerializationHelper
 					return doubleValue;
 				// Fallback to decimal for maximum precision
 				return element.GetDecimal();
-				
+
 			case JsonValueKind.True:
 				return true;
-				
+
 			case JsonValueKind.False:
 				return false;
-				
+
 			case JsonValueKind.Null:
 			case JsonValueKind.Undefined:
 				return null;
-				
+
 			default:
 				throw new NotSupportedException($"Unsupported JsonValueKind: {element.ValueKind}");
 		}
@@ -362,7 +362,7 @@ public partial class SerializationHelper
 	/// </summary>
 	/// <param name="json5String">The JSON5 string to preprocess.</param>
 	/// <returns>A valid JSON string.</returns>
-	private static string PreprocessJson5ToJson(string json5String)
+	private string PreprocessJson5ToJson(string json5String)
 	{
 		// Handle multi-line strings with backslash-newline
 		json5String = @"\\\r?\n\s*"._ToRegex().Replace(json5String, "");
@@ -426,7 +426,7 @@ public partial class SerializationHelper
 	/// <typeparam name="TJsonSerialized"></typeparam>
 	/// <param name="json5ResFilePath"></param>
 	/// <returns></returns>
-	public static TJsonSerialized DeserializeJson5<TJsonSerialized>(string json5String)
+	public TJsonSerialized DeserializeJson5<TJsonSerialized>(string json5String)
 	{
 
 		//dotnet, doesn't support unquoted keys
