@@ -640,7 +640,7 @@ public partial class LoLoRoot
 		}
 
 
-		Serialization.SerializationHelper.Dispose();
+		//Serialization.SerializationHelper.Dispose();
 
 		_loggerFactory.Dispose();
 		LoLoRoot._loggerFactory = null;

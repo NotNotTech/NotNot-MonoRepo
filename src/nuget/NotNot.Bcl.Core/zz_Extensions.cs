@@ -23,7 +23,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Blake3;
 using CommunityToolkit.HighPerformance.Helpers;
-using Newtonsoft.Json.Linq;
+// using Newtonsoft.Json.Linq; // Removed - no longer needed
 using Nito.AsyncEx.Synchronous;
 using NotNot;
 using NotNot._internal.Threading;

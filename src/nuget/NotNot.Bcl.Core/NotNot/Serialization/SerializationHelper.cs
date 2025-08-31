@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Primitives;
-using Newtonsoft.Json.Linq;
+// using Newtonsoft.Json.Linq; // Removed - replaced with System.Text.Json
 
 namespace NotNot.Serialization;
 
@@ -28,7 +28,7 @@ namespace NotNot.Serialization;
 
 //}
 
-public class SerializationHelper
+public partial class SerializationHelper
 {
 
 
@@ -120,12 +120,7 @@ public class SerializationHelper
 
 	}
 
-	public static void ConfigureJsonOptions(JsonLoadSettings options)
-	{
-		options.DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Replace;
-		options.CommentHandling = CommentHandling.Ignore;
-		options.LineInfoHandling = LineInfoHandling.Ignore;
-	}
+	// Removed ConfigureJsonOptions(JsonLoadSettings) - Newtonsoft-specific method
 
 
 	private SerializationHelper() { }
@@ -257,8 +252,14 @@ public class SerializationHelper
 	/// </summary>
 	public static object JsonToPoCo(string json)
 	{
-		//Console.WriteLine($"DeserializeUnknownType {json}");
-		return ToObject(JToken.Parse(json));
+		using var document = JsonDocument.Parse(json, new JsonDocumentOptions
+		{
+			AllowTrailingCommas = true,
+			CommentHandling = JsonCommentHandling.Skip,
+			MaxDepth = 10
+		});
+		
+		return JsonElementToPoCo(document.RootElement);
 	}
 
 	/// <summary>
@@ -269,54 +270,89 @@ public class SerializationHelper
 	///    option is used. not useful otherwise.
 	/// </param>
 	/// <returns></returns>
-	private static object ToObject(JToken token, bool discardMetaNodes = false)
+	private static object JsonElementToPoCo(JsonElement element, bool discardMetaNodes = false)
 	{
-		switch (token.Type)
+		switch (element.ValueKind)
 		{
-			// key/value node
-			case JTokenType.Object:
+			case JsonValueKind.Object:
 				{
 					if (discardMetaNodes == false)
 					{
-						return token.Children<JProperty>()
-							.ToDictionary(prop => prop.Name,
-								prop => ToObject(prop.Value, discardMetaNodes));
+						// When discardMetaNodes is false, convert all properties to dictionary
+						// without special handling - this matches the original behavior
+						var dict = new Dictionary<string, object>();
+						
+						foreach (var prop in element.EnumerateObject())
+						{
+							dict[prop.Name] = JsonElementToPoCo(prop.Value, discardMetaNodes);
+						}
+						
+						return dict;
 					}
-
-					var dict = new Dictionary<string, object>();
-
-
-					foreach (var prop in token.Children<JProperty>())
+					else
 					{
-						if (prop.Name == "$values")
+						// When discardMetaNodes is true, we have special handling for $values
+						// and filter out $ prefixed properties
+						var dict = new Dictionary<string, object>();
+						
+						foreach (var prop in element.EnumerateObject())
 						{
-							//if (dict.Count > 0)
-							//{
-							//	throw new ApplicationException("assume no other value nodes if $values is present");
-							//}
-
-							//just return the value metdata node
-							return ToObject(prop.Value, discardMetaNodes);
+							if (prop.Name == "$values")
+							{
+								// Special case: just return the value metadata node
+								// This happens when ReferenceHandler.Preserve is used
+								return JsonElementToPoCo(prop.Value, discardMetaNodes);
+							}
+							
+							if (prop.Name.StartsWith("$"))
+							{
+								// Skip other metadata nodes
+								continue;
+							}
+							
+							dict[prop.Name] = JsonElementToPoCo(prop.Value, discardMetaNodes);
 						}
-
-						if (prop.Name.StartsWith("$"))
-						{
-							continue;
-						}
-
-						dict.Add(prop.Name, ToObject(prop.Value, discardMetaNodes));
+						
+						return dict;
 					}
-
-					return dict;
 				}
-			// array node
-			case JTokenType.Array:
+				
+			case JsonValueKind.Array:
 				{
-					return token.Select(tok => ToObject(tok, discardMetaNodes)).ToList();
+					var list = new List<object>();
+					foreach (var item in element.EnumerateArray())
+					{
+						list.Add(JsonElementToPoCo(item, discardMetaNodes));
+					}
+					return list;
 				}
-			// simple node
+				
+			case JsonValueKind.String:
+				return element.GetString();
+				
+			case JsonValueKind.Number:
+				// Try to get the most appropriate numeric type
+				if (element.TryGetInt32(out var intValue))
+					return intValue;
+				if (element.TryGetInt64(out var longValue))
+					return longValue;
+				if (element.TryGetDouble(out var doubleValue))
+					return doubleValue;
+				// Fallback to decimal for maximum precision
+				return element.GetDecimal();
+				
+			case JsonValueKind.True:
+				return true;
+				
+			case JsonValueKind.False:
+				return false;
+				
+			case JsonValueKind.Null:
+			case JsonValueKind.Undefined:
+				return null;
+				
 			default:
-				return ((JValue)token).Value;
+				throw new NotSupportedException($"Unsupported JsonValueKind: {element.ValueKind}");
 		}
 	}
 
