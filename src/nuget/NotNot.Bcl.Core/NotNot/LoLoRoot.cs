@@ -632,7 +632,7 @@ public partial class LoLoRoot
 	private bool _isDisposed;
 
 	/// <summary>
-	/// helper to dispose static variables, used by test runners.  probably not needed otherwise.
+	/// helper to dispose static variables, used by test runners. Also use to cleanup for assembly unloading.  probably not needed otherwise.
 	/// </summary>
 	public void Dispose()
 	{
