@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using NotNot.Advanced;
 
 namespace NotNot.NodeFlow;
 
@@ -20,6 +21,11 @@ public abstract class SlimNode : AsyncDisposeGuard
 	public bool IsInitialized { get; private set; }
 
 	public SlimNode Parent { get; private set; }
+
+	public ManagedPointer<SlimNode> p_this { get; private set; }
+
+
+
 
 	private List<SlimNode>? _children;
 	public bool HasChildren => _children is not null && _children.Count > 0;
@@ -36,6 +42,11 @@ public abstract class SlimNode : AsyncDisposeGuard
 			}
 			return _children._AsSpan_Unsafe();
 		}
+	}
+
+	public SlimNode()
+	{
+		p_this = ManagedPointer<SlimNode>.RegisterTarget(this);
 	}
 
 	protected async ValueTask Initialize(CancellationToken lifecycleCt)
@@ -171,6 +182,7 @@ public abstract class SlimNode : AsyncDisposeGuard
 				await child.DisposeAsync();
 			}
 		}
-
+		p_this.Dispose();
+		p_this = default;
 	}
 }

@@ -5,6 +5,8 @@
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace NotNot.Advanced;
 
@@ -12,8 +14,9 @@ namespace NotNot.Advanced;
 /// a lightweight handle to an owner object, up to int.maxValue targets.
 /// useful for tracking hundreds/thousands of refs to a single object without gc overhead
 /// <para>should NOT be used for 1:1 references, only many-one.</para>
+/// <para> you should always clean this up, using destructor or other lifecycle workflows.   uncleaned up references will be considered memory leaks and asserts will trigger.</para>
 /// </summary>
-public record struct ManagedPointer<T> where T : class
+public record struct ManagedPointer<T> : IDisposable where T : class
 {
 	//private static Lock _ownerLock = new();
 	private static ConcurrentDictionary<ManagedPointer<T>, WeakReference<T>> _targets = new();
@@ -32,34 +35,63 @@ public record struct ManagedPointer<T> where T : class
 				{
 					freeOwnerSlot._version = 1;
 				}
-				ManagedPointer<T> toReturn = new()
-				{
-					_idVersion = freeOwnerSlot,
-				};
-				var result = _targets.TryAdd(toReturn, new WeakReference<T>(target));
-				__.AssertIfNot(result);
-				return toReturn;
-			}
 
-			//allocate new owner slot
+			}
+			else
 			{
+				//allocate new owner slot
 				var ownerSlot = Interlocked.Increment(ref _nextNewTargetSlot);
 				__.ThrowIfNot(ownerSlot > 0, "can not allocate a handle.  consumed all possible handle owners, need a different implementation");
 
-				ManagedPointer<T> toReturn = new()
+				freeOwnerSlot = new()
 				{
-					_idVersion = new()
-					{
-						_location = ownerSlot,
-						_version = 1,
-					},
+					_location = ownerSlot,
+					_version = 1,
 				};
-				var result = _targets.TryAdd(toReturn, new WeakReference<T>(target));
-				__.AssertIfNot(result);
-				return toReturn;
+
 			}
+
+			ManagedPointer<T> toReturn = new()
+			{
+				_idVersion = freeOwnerSlot,
+			};
+			var result = _targets.TryAdd(toReturn, new WeakReference<T>(target));
+			__.ThrowIfNot(result);
+
+
+			_CheckForMemoryLeaks();
+
+			return toReturn;
+
+
+
+
+
+
 		}
 	}
+
+	/// <summary>
+	/// checks 10 randomly picked items from _targets to see if they are still alive.
+	/// if not, will assert and clean them up.
+	/// </summary>
+	[Conditional("DEBUG")]
+	private static void _CheckForMemoryLeaks()
+	{
+		_targets._TakeRandom(10).ForEach(kvp =>
+		{
+			if (kvp.Value.TryGetTarget(out var target) is false)
+			{
+				//__.GetLogger()._EzWarn(true, "found a leaked handle owner, cleaning up", null, typeof(ManagedPointer<T>).FullName);
+				__.Assert($"found a leaked handle owner, cleaning up: {typeof(ManagedPointer<T>).FullName}");
+				_targets.TryRemove(kvp.Key, out _);
+				_freePointers.Enqueue(kvp.Key._idVersion);
+			}
+		});
+
+	}
+
+
 	public static void UnregisterTarget(ManagedPointer<T> managedPointer)
 	{
 		//lock (_ownerLock)
@@ -67,6 +99,8 @@ public record struct ManagedPointer<T> where T : class
 			var result = _targets.TryRemove(managedPointer, out _);
 			__.ThrowIfNot(result, "did not unregister handle owner");
 			_freePointers.Enqueue(managedPointer._idVersion);
+
+			_CheckForMemoryLeaks();
 		}
 	}
 
@@ -78,41 +112,63 @@ public record struct ManagedPointer<T> where T : class
 
 	public bool IsAllocated => _idVersion.id != 0;
 
+	[Conditional("DEBUG")]
 	public void AssertIsAlive()
 	{
 		__.AssertIfNot(IsAllocated);
 
-		if (_targets.TryGetValue(this, out var weakRef) is false)
-		{
-			throw new ObjectDisposedException("owner no longer exists, likely disposed");
-		}
-		if (weakRef.TryGetTarget(out var toReturn) is false)
-		{
-			throw new ObjectDisposedException("owner no longer exists, likely disposed");
-		}
+		//if (_targets.TryGetValue(this, out var weakRef) is false)
+		//{
+		//	throw new ObjectDisposedException("owner no longer exists, likely disposed");
+		//}
+		//if (weakRef.TryGetTarget(out var toReturn) is false)
+		//{
+		//	throw new ObjectDisposedException("owner no longer exists, likely disposed");
+		//}
 	}
 
 	public T GetTarget()
 	{
-		var weakRef = _targets[this];
+		this.AssertIsAlive();
+
+		if (!_targets.TryGetValue(this, out var weakRef))
+		{
+			throw new ObjectDisposedException("owner no longer exists, likely disposed");
+		}
 		if (weakRef.TryGetTarget(out var toReturn))
 		{
+			_CheckForMemoryLeaks();
 			return toReturn;
 		}
 		else
 		{
+			this.AssertIsAlive();
 			throw new ObjectDisposedException("owner no longer exists, likely disposed");
 		}
+
 	}
 
-	public bool TryGetTarget(T target)
+	public bool TryGetTarget(out T target)
 	{
-		var weakRef = _targets[this];
+		this.AssertIsAlive();
 
-		return weakRef.TryGetTarget(out target);
+		if (!_targets.TryGetValue(this, out var weakRef))
+		{
+			target = default;
+			return false;
+		}
+
+		var toReturn = weakRef.TryGetTarget(out target);
+		_CheckForMemoryLeaks();
+		return toReturn;
 	}
 
-
-
-
+	public void Dispose()
+	{
+		if (!IsAllocated)
+		{
+			return;
+		}
+		ManagedPointer<T>.UnregisterTarget(this);
+	}
 }
