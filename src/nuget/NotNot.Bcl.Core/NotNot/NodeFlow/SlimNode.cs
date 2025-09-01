@@ -11,6 +11,10 @@ using NotNot.Advanced;
 
 namespace NotNot.NodeFlow;
 
+
+
+
+
 /// <summary>
 /// a lightweight re-implementation of "SimNode", with only minimal features
 /// <para>Needs more work for advanced features: does not currently support reattach of initialized nodes, nor multithreaded execution</para>
@@ -22,7 +26,6 @@ public abstract class SlimNode : AsyncDisposeGuard
 
 	public SlimNode Parent { get; private set; }
 
-	public ManagedPointer<SlimNode> p_this { get; private set; }
 
 
 
@@ -44,10 +47,6 @@ public abstract class SlimNode : AsyncDisposeGuard
 		}
 	}
 
-	public SlimNode()
-	{
-		p_this = ManagedPointer<SlimNode>.RegisterTarget(this);
-	}
 
 	protected async ValueTask Initialize(CancellationToken lifecycleCt)
 	{
@@ -182,7 +181,5 @@ public abstract class SlimNode : AsyncDisposeGuard
 				await child.DisposeAsync();
 			}
 		}
-		p_this.Dispose();
-		p_this = default;
 	}
 }
