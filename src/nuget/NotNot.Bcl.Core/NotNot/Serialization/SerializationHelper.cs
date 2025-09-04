@@ -258,7 +258,7 @@ public partial class SerializationHelper
 			CommentHandling = JsonCommentHandling.Skip,
 			MaxDepth = 10
 		});
-		
+
 		return JsonElementToPoCo(document.RootElement);
 	}
 
@@ -281,12 +281,12 @@ public partial class SerializationHelper
 						// When discardMetaNodes is false, convert all properties to dictionary
 						// without special handling - this matches the original behavior
 						var dict = new Dictionary<string, object>();
-						
+
 						foreach (var prop in element.EnumerateObject())
 						{
 							dict[prop.Name] = JsonElementToPoCo(prop.Value, discardMetaNodes);
 						}
-						
+
 						return dict;
 					}
 					else
@@ -294,7 +294,7 @@ public partial class SerializationHelper
 						// When discardMetaNodes is true, we have special handling for $values
 						// and filter out $ prefixed properties
 						var dict = new Dictionary<string, object>();
-						
+
 						foreach (var prop in element.EnumerateObject())
 						{
 							if (prop.Name == "$values")
@@ -303,20 +303,20 @@ public partial class SerializationHelper
 								// This happens when ReferenceHandler.Preserve is used
 								return JsonElementToPoCo(prop.Value, discardMetaNodes);
 							}
-							
+
 							if (prop.Name.StartsWith("$"))
 							{
 								// Skip other metadata nodes
 								continue;
 							}
-							
+
 							dict[prop.Name] = JsonElementToPoCo(prop.Value, discardMetaNodes);
 						}
-						
+
 						return dict;
 					}
 				}
-				
+
 			case JsonValueKind.Array:
 				{
 					var list = new List<object>();
@@ -326,10 +326,10 @@ public partial class SerializationHelper
 					}
 					return list;
 				}
-				
+
 			case JsonValueKind.String:
 				return element.GetString();
-				
+
 			case JsonValueKind.Number:
 				// Try to get the most appropriate numeric type
 				if (element.TryGetInt32(out var intValue))
@@ -340,17 +340,17 @@ public partial class SerializationHelper
 					return doubleValue;
 				// Fallback to decimal for maximum precision
 				return element.GetDecimal();
-				
+
 			case JsonValueKind.True:
 				return true;
-				
+
 			case JsonValueKind.False:
 				return false;
-				
+
 			case JsonValueKind.Null:
 			case JsonValueKind.Undefined:
 				return null;
-				
+
 			default:
 				throw new NotSupportedException($"Unsupported JsonValueKind: {element.ValueKind}");
 		}
