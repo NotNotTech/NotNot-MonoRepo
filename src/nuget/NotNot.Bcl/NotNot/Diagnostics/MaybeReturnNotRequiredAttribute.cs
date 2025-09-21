@@ -7,4 +7,8 @@ namespace NotNot.Bcl.Diagnostics;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = false)]
 public sealed class MaybeReturnNotRequiredAttribute : Attribute
 {
+	/// <summary>
+	/// Optional reason for excluding Maybe return pattern
+	/// </summary>
+	public string? Reason { get; set; }
 }

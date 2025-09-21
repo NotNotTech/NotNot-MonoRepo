@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -310,5 +312,172 @@ public static class zz_Extensions_DbContext
 		await context.SaveChangesAsync(ct);
 		context.ChangeTracker.Clear();
 		//await context.SaveChangesAsync(ct);
+	}
+}
+
+
+/// <summary>
+/// Extension methods for converting Maybe&lt;T&gt; results to ASP.NET Core ActionResult&lt;T&gt; responses.
+/// Enables clean controller endpoints that return standard HTTP responses with proper status codes.
+/// </summary>
+public static class zz_Extensions_Maybe
+{
+	/// <summary>
+	/// Converts a Maybe&lt;T&gt; to ActionResult&lt;T&gt; for HTTP API responses.
+	/// Success returns the value directly with appropriate status code.
+	/// Failure returns ProblemDetails with proper HTTP status code and RFC 9457 compliance.
+	/// </summary>
+	/// <typeparam name="T">The success value type</typeparam>
+	/// <param name="maybe">The Maybe&lt;T&gt; to convert</param>
+	/// <param name="webHostEnvironment">Optional environment for development-specific error details</param>
+	/// <returns>ActionResult&lt;T&gt; suitable for controller return</returns>
+	public static ActionResult<T> _ToActionResult<T>(
+		 this Maybe<T> maybe,
+		 IWebHostEnvironment? webHostEnvironment = null)
+	{
+		if (maybe.IsSuccess)
+		{
+			// Handle null success values with 204 No Content
+			if (maybe.Value == null)
+				return new ObjectResult(null) { StatusCode = StatusCodes.Status204NoContent };
+
+			// Return the value directly - ASP.NET Core will serialize and set 200 OK
+			return maybe.Value;
+		}
+
+		// Convert Problem to ProblemDetails
+		var problemDetails = maybe.Problem._ToProblemDetails(webHostEnvironment);
+
+		return new ObjectResult(problemDetails)
+		{
+			StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError,
+			ContentTypes = { "application/problem+json" } // RFC 9457 compliance
+		};
+	}
+
+	/// <summary>
+	/// Converts a Maybe&lt;T&gt; to ActionResult&lt;T&gt; using the current HTTP context environment.
+	/// Automatically detects development vs production mode from the service provider.
+	/// </summary>
+	/// <typeparam name="T">The success value type</typeparam>
+	/// <param name="maybe">The Maybe&lt;T&gt; to convert</param>
+	/// <param name="serviceProvider">Service provider to resolve IWebHostEnvironment</param>
+	/// <returns>ActionResult&lt;T&gt; suitable for controller return</returns>
+	public static ActionResult<T> _ToActionResult<T>(
+		 this Maybe<T> maybe,
+		 IServiceProvider serviceProvider)
+	{
+		var environment = serviceProvider.GetService<IWebHostEnvironment>();
+		return maybe._ToActionResult(environment);
+	}
+
+	/// <summary>
+	/// Converts a non-generic Maybe to IActionResult for HTTP API responses.
+	/// Success returns 204 No Content.
+	/// Failure returns ProblemDetails with proper HTTP status code and RFC 9457 compliance.
+	/// </summary>
+	/// <param name="maybe">The Maybe to convert</param>
+	/// <param name="webHostEnvironment">Optional environment for development-specific error details</param>
+	/// <returns>IActionResult suitable for controller return</returns>
+	public static IActionResult _ToActionResult(
+		 this Maybe maybe,
+		 IWebHostEnvironment? webHostEnvironment = null)
+	{
+		if (maybe.IsSuccess)
+			return new NoContentResult(); // 204 No Content for successful operations with no return value
+
+		// Convert Problem to ProblemDetails
+		var problemDetails = maybe.Problem._ToProblemDetails(webHostEnvironment);
+
+		return new ObjectResult(problemDetails)
+		{
+			StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError,
+			ContentTypes = { "application/problem+json" } // RFC 9457 compliance
+		};
+	}
+
+	/// <summary>
+	/// Converts a non-generic Maybe to IActionResult using the current HTTP context environment.
+	/// Automatically detects development vs production mode from the service provider.
+	/// </summary>
+	/// <param name="maybe">The Maybe to convert</param>
+	/// <param name="serviceProvider">Service provider to resolve IWebHostEnvironment</param>
+	/// <returns>IActionResult suitable for controller return</returns>
+	public static IActionResult _ToActionResult(
+		 this Maybe maybe,
+		 IServiceProvider serviceProvider)
+	{
+		var environment = serviceProvider.GetService<IWebHostEnvironment>();
+		return maybe._ToActionResult(environment);
+	}
+}
+
+
+/// <summary>
+/// Extension methods for converting NotNot.Problem to ASP.NET Core ProblemDetails.
+/// Enables seamless integration between internal error handling and HTTP API responses.
+/// </summary>
+public static class zz_Extensions_Problem
+{
+	/// <summary>
+	/// Converts a NotNot.Problem to Microsoft.AspNetCore.Mvc.ProblemDetails for HTTP API responses.
+	/// Follows RFC 9457 with proper type URIs and includes debug information in development.
+	/// </summary>
+	/// <param name="problem">The NotNot.Problem to convert</param>
+	/// <param name="webHostEnvironment">Optional environment for development-specific details</param>
+	/// <returns>ProblemDetails suitable for HTTP response</returns>
+	public static ProblemDetails _ToProblemDetails(
+		 this Problem problem,
+		 IWebHostEnvironment? webHostEnvironment = null)
+	{
+		var problemDetails = new ProblemDetails
+		{
+			Type = $"https://cleartrix.com/errors/{problem.category}",
+			Title = problem.Title ?? "Error",
+			Status = (int)problem.Status,
+			Detail = problem.Detail,
+			Instance = null // Can be set per specific scenarios if needed
+		};
+
+		// Add category for client-side categorization
+		problemDetails.Extensions["category"] = problem.category;
+
+		// Copy problem extensions (excluding source and category to avoid duplication)
+		foreach (var kvp in problem.Extensions)
+		{
+			if (kvp.Key != "source" && kvp.Key != "category")
+			{
+				problemDetails.Extensions[kvp.Key] = kvp.Value;
+			}
+		}
+
+		// Include debug information in development environment
+		bool isDevelopment = webHostEnvironment?.EnvironmentName == "Development";
+		if (isDevelopment)
+		{
+			if (problem.Ex != null)
+			{
+				problemDetails.Extensions["trace"] = problem.Ex.StackTrace;
+				problemDetails.Extensions["exceptionType"] = problem.Ex.GetType().Name;
+			}
+			problemDetails.Extensions["source"] = problem.source;
+		}
+
+		return problemDetails;
+	}
+
+	/// <summary>
+	/// Converts a NotNot.Problem to Microsoft.AspNetCore.Mvc.ProblemDetails using the current HTTP context environment.
+	/// Automatically detects development vs production mode from the service provider.
+	/// </summary>
+	/// <param name="problem">The NotNot.Problem to convert</param>
+	/// <param name="serviceProvider">Service provider to resolve IWebHostEnvironment</param>
+	/// <returns>ProblemDetails suitable for HTTP response</returns>
+	public static ProblemDetails _ToProblemDetails(
+		 this Problem problem,
+		 IServiceProvider serviceProvider)
+	{
+		var environment = serviceProvider.GetService<IWebHostEnvironment>();
+		return problem._ToProblemDetails(environment);
 	}
 }
