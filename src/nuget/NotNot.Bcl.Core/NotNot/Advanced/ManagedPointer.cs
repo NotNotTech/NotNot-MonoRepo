@@ -7,6 +7,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using NotNot.Collections;
 
 namespace NotNot.Advanced;
 
@@ -18,105 +19,99 @@ namespace NotNot.Advanced;
 /// </summary>
 public record struct ManagedPointer<T> : IDisposable where T : class
 {
-	//private static Lock _ownerLock = new();
-	private static ConcurrentDictionary<ManagedPointer<T>, WeakReference<T>> _targets = new();
-	private static uint _nextNewTargetSlot = 1;
-	private static ConcurrentQueue<IdVersion> _freePointers = new();
+	// RefSlotStore for storing WeakReference<T> - provides array-based access
+	private static readonly RefSlotStore<WeakReference<T>> _store = new(initialCapacity: 100);
+
+	// Lock for thread-safe allocation operations
+	private static readonly object _allocLock = new();
+
+	// Cursor for incremental cleanup - tracks position in array
+	private static int _cleanupCursor = 0;
 
 	public static ManagedPointer<T> RegisterTarget(T target)
 	{
-		//lock (_ownerLock)
+		lock (_allocLock)
 		{
-			//try to reuse a previously freed owner slot
-			if (_freePointers.TryDequeue(out var freeOwnerSlot))
+			// Create WeakReference for the target
+			var weakRef = new WeakReference<T>(target);
+
+			// Allocate slot in RefSlotStore
+			var slotHandle = _store.Alloc(weakRef);
+
+			// Run incremental cleanup of 5 slots
+			_GCNextSlots(5);
+
+			// Return ManagedPointer with the SlotHandle
+			return new ManagedPointer<T>
 			{
-				freeOwnerSlot._version++;
-				if (freeOwnerSlot._version == 0)
-				{
-					freeOwnerSlot._version = 1;
-				}
-
-			}
-			else
-			{
-				//allocate new owner slot
-				var ownerSlot = Interlocked.Increment(ref _nextNewTargetSlot);
-				__.ThrowIfNot(ownerSlot > 0, "can not allocate a handle.  consumed all possible handle owners, need a different implementation");
-
-				freeOwnerSlot = new()
-				{
-					_location = ownerSlot,
-					_version = 1,
-				};
-
-			}
-
-			ManagedPointer<T> toReturn = new()
-			{
-				_idVersion = freeOwnerSlot,
+				_slotHandle = slotHandle
 			};
-			var result = _targets.TryAdd(toReturn, new WeakReference<T>(target));
-			__.ThrowIfNot(result);
-
-
-			_CheckForMemoryLeaks();
-
-			return toReturn;
-
-
-
-
-
-
 		}
 	}
 
 	/// <summary>
-	/// checks 10 randomly picked items from _targets to see if they are still alive.
-	/// if not, will assert and clean them up.
+	/// Incremental cleanup - checks next 'count' slots for dead WeakReferences
 	/// </summary>
-	[Conditional("DEBUG")]
-	private static void _CheckForMemoryLeaks()
+	private static void _GCNextSlots(int count)
 	{
-		_targets._TakeRandom(10).ForEach(kvp =>
-		{
-			if (kvp.Value.TryGetTarget(out var target) is false)
-			{
-				//__.GetLogger()._EzWarn(true, "found a leaked handle owner, cleaning up", null, typeof(ManagedPointer<T>).FullName);
-				__.Assert($"found a leaked handle owner, cleaning up: {typeof(ManagedPointer<T>).FullName}");
-				_targets.TryRemove(kvp.Key, out _);
-				_freePointers.Enqueue(kvp.Key._idVersion);
-			}
-		});
+		// Must be called within _allocLock to ensure thread safety with _AsSpan_Unsafe
+		var span = _store._AsSpan_Unsafe();
+		if (span.Length == 0) return;
 
+		for (int i = 0; i < count; i++)
+		{
+			// Wrap around at end of array
+			if (_cleanupCursor >= span.Length)
+			{
+				_cleanupCursor = 0;
+			}
+
+			var slot = span[_cleanupCursor];
+
+			// Check if slot is allocated and WeakReference is dead
+			if (slot.handle.IsAllocated && slot.slotData != null)
+			{
+				if (!slot.slotData.TryGetTarget(out _))
+				{
+					// Dead reference found - free the slot
+					_store.Free(slot.handle);
+				}
+			}
+
+			_cleanupCursor++;
+		}
 	}
 
 
 	public static void UnregisterTarget(ManagedPointer<T> managedPointer)
 	{
-		//lock (_ownerLock)
+		if (managedPointer._slotHandle.IsAllocated)
 		{
-			var result = _targets.TryRemove(managedPointer, out _);
-			__.ThrowIfNot(result, "did not unregister handle owner");
-			_freePointers.Enqueue(managedPointer._idVersion);
-
-			_CheckForMemoryLeaks();
+			_store.Free(managedPointer._slotHandle);
 		}
 	}
 
 	/// <summary>
-	/// for internal use.   use `.GetOwner()`
+	/// Internal handle to the slot in RefSlotStore
 	/// </summary>
-	public required IdVersion _idVersion;
+	private SlotHandle _slotHandle;
 
+	///// <summary>
+	///// Compatibility shim for code that uses _idVersion
+	///// </summary>
+	//public IdVersion _idVersion => new IdVersion
+	//{
+	//	_location = (uint)_slotHandle.Index,
+	//	_version = _slotHandle.Version
+	//};
 
-	public bool IsAllocated => _idVersion.id != 0;
+	public bool IsAllocated => _slotHandle.IsAllocated;
 
 	[Conditional("DEBUG")]
 	public void AssertIsAlive()
 	{
 		__.AssertIfNot(IsAllocated);
-
+		
 		//if (_targets.TryGetValue(this, out var weakRef) is false)
 		//{
 		//	throw new ObjectDisposedException("owner no longer exists, likely disposed");
@@ -131,44 +126,61 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 	{
 		this.AssertIsAlive();
 
-		if (!_targets.TryGetValue(this, out var weakRef))
+		if (!_slotHandle.IsAllocated)
 		{
-			throw new ObjectDisposedException("owner no longer exists, likely disposed");
-		}
-		if (weakRef.TryGetTarget(out var toReturn))
-		{
-			_CheckForMemoryLeaks();
-			return toReturn;
-		}
-		else
-		{
-			this.AssertIsAlive();
-			throw new ObjectDisposedException("owner no longer exists, likely disposed");
+			throw new ObjectDisposedException("Handle not allocated");
 		}
 
+		// Get WeakReference from RefSlotStore
+		var weakRef = _store[_slotHandle];
+
+		if (weakRef == null || !weakRef.TryGetTarget(out var target))
+		{
+			throw new ObjectDisposedException("Target has been garbage collected");
+		}
+
+		// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
+		lock (_allocLock)
+		{
+			_GCNextSlots(3);
+		}
+
+		return target;
 	}
 
 	public bool TryGetTarget(out T target)
 	{
 		this.AssertIsAlive();
 
-		if (!_targets.TryGetValue(this, out var weakRef))
+		if (!_slotHandle.IsAllocated || !_store._IsHandleValid(_slotHandle).isValid)
 		{
 			target = default;
 			return false;
 		}
 
-		var toReturn = weakRef.TryGetTarget(out target);
-		_CheckForMemoryLeaks();
-		return toReturn;
+		// Get WeakReference from RefSlotStore
+		var weakRef = _store[_slotHandle];
+
+		if (weakRef == null)
+		{
+			target = default;
+			return false;
+		}
+
+		// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
+		lock (_allocLock)
+		{
+			_GCNextSlots(3);
+		}
+
+		return weakRef.TryGetTarget(out target);
 	}
 
 	public void Dispose()
 	{
-		if (!IsAllocated)
+		if (IsAllocated)
 		{
-			return;
+			UnregisterTarget(this);
 		}
-		ManagedPointer<T>.UnregisterTarget(this);
 	}
 }

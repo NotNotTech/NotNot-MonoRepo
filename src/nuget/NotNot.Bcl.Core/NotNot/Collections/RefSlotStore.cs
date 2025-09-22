@@ -117,19 +117,25 @@ namespace NotNot.Collections
 
 		/// <summary>
 		/// **Indexer** to access elements by slot index.
-		/// - **DEBUG check:** logs an error if the slot is not allocated.
+		/// - **Thread-safe:** Uses lock to ensure safe access during concurrent operations.
 		/// </summary>
 		public ref T this[SlotHandle slot]
 		{
 			get
 			{
-				var currentVersion = _nextVersion;
-				__.DebugAssertIfNot(_IsHandleValid(slot).isValid);
-				ref var toReturn = ref _storage._AsSpan_Unsafe()[slot.Index].slotData; // **Non-blocking read**
-				__.DebugAssertIfNot(currentVersion == _nextVersion, "race condition: an allocation occured during entity read/write.  Don't do this, as the array could be resized during allocation, causing you to loose write data");
+				// Thread-safe validation and access
+				lock (_lock)
+				{
+					var validResult = _IsHandleValid_Unsafe(slot);
+					__.DebugAssertIfNot(validResult.isValid, $"Invalid slot access: {validResult.invalidReason}");
 
-				return ref toReturn;
+					if (!validResult.isValid)
+					{
+						throw new InvalidOperationException($"Invalid slot access: {validResult.invalidReason}");
+					}
 
+					return ref _storage._AsSpan_Unsafe()[slot.Index].slotData;
+				}
 			}
 		}
 
@@ -238,8 +244,20 @@ namespace NotNot.Collections
 
 		public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle slot)
 		{
+			// Thread-safe public version
+			lock (_lock)
+			{
+				return _IsHandleValid_Unsafe(slot);
+			}
+		}
 
-			if (slot.IsAllocated)
+		/// <summary>
+		/// Internal version of handle validation that assumes caller holds the lock.
+		/// </summary>
+		private (bool isValid, string? invalidReason) _IsHandleValid_Unsafe(SlotHandle slot)
+		{
+
+			if (!slot.IsAllocated)
 			{
 				return (false, "slot.IsEmpty");
 			}
@@ -271,12 +289,17 @@ namespace NotNot.Collections
 		/// </summary>
 		public void Free(SlotHandle slot)
 		{
-			__.DebugAssertIfNot(_IsHandleValid(slot).isValid);
-
-
-
 			lock (_lock)
 			{
+				var validResult = _IsHandleValid_Unsafe(slot);
+
+				if(!validResult.isValid)
+				{
+					__.DebugAssertIfNot(validResult.isValid);
+					throw new InvalidOperationException($"attempt to free invalid slot: {validResult.invalidReason}");
+				}
+
+
 				OnFree.Invoke(slot);
 
 				_freeSlots.Push(slot.Index); // **Mark slot as free**
