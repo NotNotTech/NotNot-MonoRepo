@@ -13,6 +13,7 @@ using NotNot._internal;
 using NotNot._internal.Diagnostics;
 using NotNot._internal.Threading;
 using NotNot.Diagnostics.Advanced;
+using NotNot.Serialization;
 using NotNot.Validation;
 
 
@@ -604,6 +605,8 @@ public partial class LoLoRoot
 	public LoLoConfig Config { get; private set; }
 
 
+	public SerializationHelper SerializationHelper = new();
+
 	//private IServiceProvider _services;
 	//public IServiceProvider? Services
 	//{
@@ -629,7 +632,7 @@ public partial class LoLoRoot
 	private bool _isDisposed;
 
 	/// <summary>
-	/// helper to dispose static variables, used by test runners.  probably not needed otherwise.
+	/// helper to dispose static variables, used by test runners. Also use to cleanup for assembly unloading.  probably not needed otherwise.
 	/// </summary>
 	public void Dispose()
 	{
@@ -640,7 +643,8 @@ public partial class LoLoRoot
 		}
 
 
-		//Serialization.SerializationHelper.Dispose();
+		SerializationHelper.Dispose();
+		SerializationHelper = null;
 
 		_loggerFactory.Dispose();
 		LoLoRoot._loggerFactory = null;

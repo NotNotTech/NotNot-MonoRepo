@@ -7,8 +7,13 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using NotNot.Advanced;
 
 namespace NotNot.NodeFlow;
+
+
+
+
 
 /// <summary>
 /// a lightweight re-implementation of "SimNode", with only minimal features
@@ -20,6 +25,10 @@ public abstract class SlimNode : AsyncDisposeGuard
 	public bool IsInitialized { get; private set; }
 
 	public SlimNode Parent { get; private set; }
+
+
+
+
 
 	private List<SlimNode>? _children;
 	public bool HasChildren => _children is not null && _children.Count > 0;
@@ -37,6 +46,7 @@ public abstract class SlimNode : AsyncDisposeGuard
 			return _children._AsSpan_Unsafe();
 		}
 	}
+
 
 	protected async ValueTask Initialize(CancellationToken lifecycleCt)
 	{
@@ -171,6 +181,5 @@ public abstract class SlimNode : AsyncDisposeGuard
 				await child.DisposeAsync();
 			}
 		}
-
 	}
 }

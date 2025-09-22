@@ -93,7 +93,7 @@ public static class zz_Extensions_ILogger
 							}
 							else
 							{
-								argPairs[i] = (argPairs[i].name, SerializationHelper.ToLogPoCo(obj));
+								argPairs[i] = (argPairs[i].name, __.SerializationHelper.ToLogPoCo(obj));
 							}
 						}
 						catch (Exception err)

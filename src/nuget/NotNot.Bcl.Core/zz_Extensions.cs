@@ -1687,7 +1687,7 @@ public static class zz_Extensions_HttpContent
 				content.Headers.ContentType ??= new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
 				//VIBE_CRITICAL: Use shared SerializationHelper options for consistent JSON handling
-				var options = NotNot.Serialization.SerializationHelper._roundtripJsonOptions;
+				var options = __.SerializationHelper._roundtripJsonOptions;
 
 				var result = await content.ReadFromJsonAsync<Maybe<T>>(options);
 				if (result == null)
@@ -1754,7 +1754,7 @@ public static class zz_Extensions_HttpContent
 				content.Headers.ContentType ??= new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
 				//VIBE_CRITICAL: Use shared SerializationHelper options for consistent JSON handling
-				var options = NotNot.Serialization.SerializationHelper._roundtripJsonOptions;
+				var options = __.SerializationHelper._roundtripJsonOptions;
 
 				var result = await content.ReadFromJsonAsync<Maybe>(options);
 				if (result == null)
