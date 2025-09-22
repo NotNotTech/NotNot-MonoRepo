@@ -17,27 +17,84 @@ namespace NotNot.Collections
 
 	/// <summary>
 	/// A read-only handle for referencing an allocated slot in a `RefSlotStore{T}` collection.
+	/// Packed into 64 bits for maximum performance:
+	/// - Bit 63: IsAllocated (1 bit)
+	/// - Bits 40-62: CollectionId (23 bits, max 8,388,607)
+	/// - Bits 32-39: Version (8 bits, max 255)
+	/// - Bits 0-31: Index (32 bits, max 4,294,967,295)
 	/// </summary>
-	public record struct SlotHandle
+	[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1)]
+	public readonly record struct SlotHandle
 	{
+		/// <summary>
+		/// Direct access to the packed value for performance-critical scenarios
+		/// </summary>
+		public readonly ulong _packedValue;
+
 		public static SlotHandle Empty { get; } = default;
-		/// <summary>
-		/// for internal use only:  internal reference to the array/list location of the data
-		/// </summary>
-		public required int Index { get; init; }
-		/// <summary>
-		/// for internal use only:  ensures the handle is not reused after freeing
-		/// </summary>
-		public required uint Version { get; init; }
-		/// <summary>
-		/// for internal use only:  ensures this handle is not used across different collections
-		/// </summary>
-		public required int CollectionId { get; init; }
+
 
 		/// <summary>
-		/// mostly for internal use:  if the handle was properly allocated by a collection
+		/// Creates a SlotHandle from a packed value
 		/// </summary>
-		public required bool IsAllocated { get; init; }
+		public SlotHandle(ulong packed)
+		{
+			_packedValue = packed;
+		}
+
+		/// <summary>
+		/// Creates a new SlotHandle with the specified values
+		/// </summary>
+		[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+		public SlotHandle(int index, byte version, int collectionId, bool isAllocated)
+		{
+			// Validate ranges
+			System.Diagnostics.Debug.Assert(collectionId >= 0 && collectionId <= 0x7FFFFF, "CollectionId must fit in 23 bits");
+			System.Diagnostics.Debug.Assert(version <= 0xFF, "Version must fit in 8 bits");
+
+			// Pack the values
+			_packedValue = ((ulong)(isAllocated ? 1 : 0) << 63) |
+					  ((ulong)(collectionId & 0x7FFFFF) << 40) |
+					  ((ulong)(version & 0xFF) << 32) |
+					  ((ulong)index & 0xFFFFFFFF);
+		}
+
+		/// <summary>
+		/// for internal use only: internal reference to the array/list location of the data
+		/// </summary>
+		public int Index
+		{
+			[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+			get => (int)(_packedValue & 0xFFFFFFFF);
+		}
+
+		/// <summary>
+		/// for internal use only: ensures the handle is not reused after freeing
+		/// </summary>
+		public byte Version
+		{
+			[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+			get => (byte)((_packedValue >> 32) & 0xFF);
+		}
+
+		/// <summary>
+		/// for internal use only: ensures this handle is not used across different collections
+		/// </summary>
+		public int CollectionId
+		{
+			[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+			get => (int)((_packedValue >> 40) & 0x7FFFFF);
+		}
+
+		/// <summary>
+		/// mostly for internal use: if the handle was properly allocated by a collection
+		/// </summary>
+		public bool IsAllocated
+		{
+			[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+			get => (_packedValue & 0x8000000000000000UL) != 0;
+		}
+
 	}
 
 
@@ -57,14 +114,24 @@ namespace NotNot.Collections
 		private static int _nextCollectionId = 1;
 
 		/// <summary>
+		/// Stack of freed CollectionIds available for reuse
+		/// </summary>
+		private static readonly Stack<int> _freeCollectionIds = new();
+
+		/// <summary>
+		/// Lock for thread-safe CollectionId allocation
+		/// </summary>
+		private static readonly object _collectionIdLock = new();
+
+		/// <summary>
 		/// the collection id for this store
 		/// </summary>
-		public int CollectionId { get; } = _nextCollectionId++;
+		public int CollectionId { get; }
 
 		/// <summary>
 		/// tracks allocations, to ensure a slot is not used after being freed.
 		/// </summary>
-		private uint _nextVersion = 1;
+		private byte _nextVersion = 1;
 
 		/// <summary>
 		/// storage for the data and their handles (for tracking lifetime)
@@ -103,6 +170,24 @@ namespace NotNot.Collections
 
 		public RefSlotStore(int initialCapacity = 10)
 		{
+			// Allocate CollectionId (reuse freed ones or get new one)
+			lock (_collectionIdLock)
+			{
+				if (_freeCollectionIds.Count > 0)
+				{
+					CollectionId = _freeCollectionIds.Pop();
+				}
+				else
+				{
+					CollectionId = _nextCollectionId++;
+					// Ensure we don't exceed 23-bit limit
+					if (_nextCollectionId > 0x7FFFFF)
+					{
+						throw new InvalidOperationException("Maximum number of RefSlotStore instances exceeded (8,388,607)");
+					}
+				}
+			}
+
 			// **Initialize the underlying storage** with the initial capacity.
 			_storage = new(initialCapacity);
 			_freeSlots = new Stack<int>(initialCapacity);
@@ -213,13 +298,7 @@ namespace NotNot.Collections
 				__.DebugAssertIfNot(_storage.Count > index && _storage[index].handle.IsAllocated is false);
 
 
-				var toReturn = new SlotHandle()
-				{
-					Index = index,
-					CollectionId = CollectionId,
-					Version = version,
-					IsAllocated = true,
-				};
+				var toReturn = new SlotHandle(index, version, CollectionId, true);
 
 				p_element.handle = toReturn;
 
@@ -304,6 +383,18 @@ namespace NotNot.Collections
 
 				_freeSlots.Push(slot.Index); // **Mark slot as free**
 				_storage[slot.Index] = default; // **Clear the slot's data**
+			}
+		}
+
+		/// <summary>
+		/// Destructor that returns the CollectionId to the free pool
+		/// </summary>
+		~RefSlotStore()
+		{
+			lock (_collectionIdLock)
+			{
+				// Return the CollectionId to the free pool for reuse
+				_freeCollectionIds.Push(CollectionId);
 			}
 		}
 
