@@ -10,7 +10,7 @@ namespace NotNot.DI;
 /// Provides a base implementation for managing a dependency injection container using the Generic Host, 
 /// supporting both inheritance-based and delegation-based service configuration.
 /// </summary>
-public class GenericDIServices : AsyncDisposeGuard
+public class GenericDIHost : AsyncDisposeGuard
 {
 	/// <summary>
 	/// The underlying host instance.
@@ -48,7 +48,7 @@ public class GenericDIServices : AsyncDisposeGuard
 	/// This method is called by <see cref="Initialize"/> before the optional `configureDelegate` is executed.
 	/// </summary>
 	/// <param name="builder">The host application builder to add services to.</param>
-	public virtual ValueTask OnInitialize(HostApplicationBuilder builder)
+	protected virtual ValueTask OnInitialize(HostApplicationBuilder builder)
 	{
 		return ValueTask.CompletedTask;
 	}
