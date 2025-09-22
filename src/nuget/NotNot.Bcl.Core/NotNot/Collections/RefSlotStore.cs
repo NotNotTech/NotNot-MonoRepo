@@ -115,13 +115,10 @@ namespace NotNot.Collections
 
 		/// <summary>
 		/// Stack of freed CollectionIds available for reuse
+		/// we also track version to avoid collection id reuse also reusing the same default version (1)
 		/// </summary>
-		private static readonly Stack<int> _freeCollectionIds = new();
+		private static readonly ConcurrentQueue<(int collectionId, byte nextVersion)> _freeCollectionIds = new();
 
-		/// <summary>
-		/// Lock for thread-safe CollectionId allocation
-		/// </summary>
-		private static readonly object _collectionIdLock = new();
 
 		/// <summary>
 		/// the collection id for this store
@@ -170,23 +167,27 @@ namespace NotNot.Collections
 
 		public RefSlotStore(int initialCapacity = 10)
 		{
-			// Allocate CollectionId (reuse freed ones or get new one)
-			lock (_collectionIdLock)
+
+
+			//"Maximum number of RefSlotStore instances exceeded (8,388,607)"
+			//out of collection ids, so reuse freed ones
+			if (_freeCollectionIds.TryDequeue(out var tuple))
 			{
-				if (_freeCollectionIds.Count > 0)
+				CollectionId = tuple.collectionId;
+				this._nextVersion = tuple.nextVersion;
+			}
+			else
+			{
+				// Allocate CollectionId (reuse freed ones or get new one)
+				CollectionId = _nextCollectionId++;
+				// Ensure we don't exceed 23-bit limit
+				if (_nextCollectionId > 0x7FFFFF)
 				{
-					CollectionId = _freeCollectionIds.Pop();
-				}
-				else
-				{
-					CollectionId = _nextCollectionId++;
-					// Ensure we don't exceed 23-bit limit
-					if (_nextCollectionId > 0x7FFFFF)
-					{
-						throw new InvalidOperationException("Maximum number of RefSlotStore instances exceeded (8,388,607)");
-					}
+					throw new InvalidOperationException("Maximum number of RefSlotStore instances exceeded (8,388,607) and no freed CollectionIds available");
 				}
 			}
+
+
 
 			// **Initialize the underlying storage** with the initial capacity.
 			_storage = new(initialCapacity);
@@ -372,7 +373,7 @@ namespace NotNot.Collections
 			{
 				var validResult = _IsHandleValid_Unsafe(slot);
 
-				if(!validResult.isValid)
+				if (!validResult.isValid)
 				{
 					__.DebugAssertIfNot(validResult.isValid);
 					throw new InvalidOperationException($"attempt to free invalid slot: {validResult.invalidReason}");
@@ -391,11 +392,9 @@ namespace NotNot.Collections
 		/// </summary>
 		~RefSlotStore()
 		{
-			lock (_collectionIdLock)
-			{
 				// Return the CollectionId to the free pool for reuse
-				_freeCollectionIds.Push(CollectionId);
-			}
+				_freeCollectionIds.Enqueue((CollectionId,_nextVersion));
+			
 		}
 
 	}
