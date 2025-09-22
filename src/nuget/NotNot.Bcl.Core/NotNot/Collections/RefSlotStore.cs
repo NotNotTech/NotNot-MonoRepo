@@ -6,6 +6,7 @@
 
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
@@ -40,6 +41,7 @@ namespace NotNot.Collections
 		public SlotHandle(ulong packed)
 		{
 			_packedValue = packed;
+			_AssertOk();
 		}
 
 		/// <summary>
@@ -49,14 +51,16 @@ namespace NotNot.Collections
 		public SlotHandle(int index, byte version, int collectionId, bool isAllocated)
 		{
 			// Validate ranges
-			System.Diagnostics.Debug.Assert(collectionId >= 0 && collectionId <= 0x7FFFFF, "CollectionId must fit in 23 bits");
-			System.Diagnostics.Debug.Assert(version <= 0xFF, "Version must fit in 8 bits");
+			__.AssertIfNot(collectionId >= 0 && collectionId <= 0x7FFFFF, "CollectionId must fit in 23 bits");
+			__.AssertIfNot(version <= 0xFF, "Version must fit in 8 bits");
 
 			// Pack the values
 			_packedValue = ((ulong)(isAllocated ? 1 : 0) << 63) |
 					  ((ulong)(collectionId & 0x7FFFFF) << 40) |
 					  ((ulong)(version & 0xFF) << 32) |
 					  ((ulong)index & 0xFFFFFFFF);
+
+			_AssertOk();
 		}
 
 		/// <summary>
@@ -64,7 +68,6 @@ namespace NotNot.Collections
 		/// </summary>
 		public int Index
 		{
-			[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 			get => (int)(_packedValue & 0xFFFFFFFF);
 		}
 
@@ -73,7 +76,6 @@ namespace NotNot.Collections
 		/// </summary>
 		public byte Version
 		{
-			[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 			get => (byte)((_packedValue >> 32) & 0xFF);
 		}
 
@@ -82,7 +84,6 @@ namespace NotNot.Collections
 		/// </summary>
 		public int CollectionId
 		{
-			[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 			get => (int)((_packedValue >> 40) & 0x7FFFFF);
 		}
 
@@ -91,10 +92,16 @@ namespace NotNot.Collections
 		/// </summary>
 		public bool IsAllocated
 		{
-			[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 			get => (_packedValue & 0x8000000000000000UL) != 0;
 		}
 
+		[Conditional("DEBUG")]
+		private void _AssertOk()
+		{
+			__.AssertIfNot(IsAllocated);
+			__.AssertIfNot(Version>0,"assume version is >=1.  will remove IsAllocated bit to use that instead");
+
+		}
 	}
 
 
@@ -160,6 +167,7 @@ namespace NotNot.Collections
 
 
 		private readonly Stack<int> _freeSlots; // **Stack to track free slot indices**
+
 		/// <summary>
 		/// Lock for thread safety when allocating/freeing slots.
 		/// </summary>
@@ -400,6 +408,17 @@ namespace NotNot.Collections
 	}
 }
 
+/// <summary>
+/// For advanced performance situations only.
+/// Provides a tuple-like ref struct that groups a reference to a slot handle and a reference to a value of type
+/// <typeparamref name="T"/>. Designed for scenarios where both references need to be passed or manipulated together
+/// without heap allocation.
+/// </summary>
+/// <remarks>Because <see langword="ref struct"/> types cannot be boxed or captured by closures, <see
+/// cref="RefTuple{T}"/> is suitable for stack-only usage and cannot be stored in fields of classes or used across
+/// async/await boundaries. This type is typically used in performance-critical or low-level APIs where passing
+/// references together is required.</remarks>
+/// <typeparam name="T">The type of the value referenced by the <see cref="data"/> field.</typeparam>
 public ref struct RefTuple<T>
 {
 	public ref SlotHandle handle;

@@ -85,7 +85,11 @@ public abstract class SlimNode : AsyncDisposeGuard
 		}
 	}
 
-
+	/// <summary>
+	/// internal helper, do not use/call directly.  Update is pumped via the RootNode.RootUpdate() method.
+	/// </summary>
+	/// <param name="currentTick"></param>
+	/// <returns></returns>
 	protected async ValueTask Update(TickState currentTick)
 	{
 		var tempCounter = _callCounter;
@@ -96,6 +100,7 @@ public abstract class SlimNode : AsyncDisposeGuard
 
 	/// <summary>
 	/// <para>children are updated inside the base call, so you can execute before/after.</para>
+	/// do not use/call directly.  Update is pumped via the RootNode.RootUpdate() method.
 	/// </summary>
 	protected virtual async ValueTask OnUpdate(TickState currentTick)
 	{
