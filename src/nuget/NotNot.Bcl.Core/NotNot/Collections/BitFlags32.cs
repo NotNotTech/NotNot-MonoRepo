@@ -11,7 +11,7 @@ using System.Runtime.CompilerServices;
 /// Represents a set of bit flags as a 32-bit unsigned integer.
 /// can use + - operataors to add and remove flags
 /// </summary>
-public struct BitFlags
+public struct BitFlags32
 {
 	/// <summary>
 	/// The maximum number of flags supported, which is 32.
@@ -21,19 +21,19 @@ public struct BitFlags
 	/// <summary>
 	/// A BitFlags instance where all flags are set.
 	/// </summary>
-	public static readonly BitFlags All = new BitFlags(uint.MaxValue);
+	public static readonly BitFlags32 All = new BitFlags32(uint.MaxValue);
 
 	/// <summary>
 	/// A BitFlags instance where no flags are set.
 	/// </summary>
-	public static readonly BitFlags None = default;
+	public static readonly BitFlags32 None = default;
 
 	/// <summary>
 	/// The raw 32-bit unsigned integer value of the flags.
 	/// </summary>
 	public uint RawBuffer;
 
-	public BitFlags()
+	public BitFlags32()
 	{
 	}
 
@@ -41,7 +41,7 @@ public struct BitFlags
 	/// Initializes a new instance of the BitFlags struct with a specific raw buffer.
 	/// </summary>
 	/// <param name="rawBuffer">The initial value of the flags.</param>
-	public BitFlags(uint rawBuffer)
+	public BitFlags32(uint rawBuffer)
 	{
 		RawBuffer = rawBuffer;
 	}
@@ -50,7 +50,7 @@ public struct BitFlags
 	/// Initializes a new instance of the BitFlags struct by copying another instance.
 	/// </summary>
 	/// <param name="other">The instance to copy.</param>
-	public BitFlags(BitFlags other)
+	public BitFlags32(BitFlags32 other)
 	{
 		RawBuffer = other.RawBuffer;
 	}
@@ -198,7 +198,7 @@ public struct BitFlags
 	/// Adds the flags from another BitFlags instance to this one.
 	/// </summary>
 	/// <param name="flags">The other BitFlags instance.</param>
-	public void Add(BitFlags flags) => RawBuffer |= flags.RawBuffer;
+	public void Add(BitFlags32 flags) => RawBuffer |= flags.RawBuffer;
 
 	/// <summary>
 	/// Removes the specified flags from this instance.
@@ -210,7 +210,7 @@ public struct BitFlags
 	/// Removes the flags from another BitFlags instance from this one.
 	/// </summary>
 	/// <param name="flags">The other BitFlags instance.</param>
-	public void Subtract(BitFlags flags) => RawBuffer &= ~flags.RawBuffer;
+	public void Subtract(BitFlags32 flags) => RawBuffer &= ~flags.RawBuffer;
 
 	/// <summary>
 	/// Toggles the specified flags in this instance.
@@ -222,7 +222,7 @@ public struct BitFlags
 	/// Toggles the flags from another BitFlags instance in this one.
 	/// </summary>
 	/// <param name="flags">The other BitFlags instance.</param>
-	public void Flip(BitFlags flags) => RawBuffer ^= flags.RawBuffer;
+	public void Flip(BitFlags32 flags) => RawBuffer ^= flags.RawBuffer;
 
 	/// <summary>
 	/// Determines if all specified flags are set.
@@ -236,7 +236,7 @@ public struct BitFlags
 	/// </summary>
 	/// <param name="flags">The flags to check.</param>
 	/// <returns>True if all specified flags are set, false otherwise.</returns>
-	public bool IsAllOn(BitFlags flags) => (RawBuffer & flags.RawBuffer) == flags.RawBuffer;
+	public bool IsAllOn(BitFlags32 flags) => (RawBuffer & flags.RawBuffer) == flags.RawBuffer;
 
 	/// <summary>
 	/// Determines if any of the specified flags are set.
@@ -250,7 +250,7 @@ public struct BitFlags
 	/// </summary>
 	/// <param name="flags">The flags to check.</param>
 	/// <returns>True if any specified flags are set, false otherwise.</returns>
-	public bool IsAnyOn(BitFlags flags) => (RawBuffer & flags.RawBuffer) != 0;
+	public bool IsAnyOn(BitFlags32 flags) => (RawBuffer & flags.RawBuffer) != 0;
 
 	/// <summary>
 	/// Checks for equality with the specified flags.
@@ -264,14 +264,14 @@ public struct BitFlags
 	/// </summary>
 	/// <param name="other">The other instance to compare.</param>
 	/// <returns>True if both instances have the same flags, false otherwise.</returns>
-	public bool Equals(BitFlags other) => RawBuffer == other.RawBuffer;
+	public bool Equals(BitFlags32 other) => RawBuffer == other.RawBuffer;
 
 	/// <summary>
 	/// Overrides the default Equals method.
 	/// </summary>
 	/// <param name="obj">The object to compare with.</param>
 	/// <returns>True if the object is a BitFlags instance with the same flags, false otherwise.</returns>
-	public override bool Equals(object obj) => obj is BitFlags other && Equals(other);
+	public override bool Equals(object obj) => obj is BitFlags32 other && Equals(other);
 
 	/// <summary>
 	/// Returns the hash code for this instance.
@@ -282,40 +282,40 @@ public struct BitFlags
 	/// <summary>
 	/// Determines if two BitFlags instances are equal.
 	/// </summary>
-	public static bool operator ==(BitFlags left, BitFlags right) => left.RawBuffer == right.RawBuffer;
+	public static bool operator ==(BitFlags32 left, BitFlags32 right) => left.RawBuffer == right.RawBuffer;
 
 	/// <summary>
 	/// Determines if two BitFlags instances are not equal.
 	/// </summary>
-	public static bool operator !=(BitFlags left, BitFlags right) => left.RawBuffer != right.RawBuffer;
+	public static bool operator !=(BitFlags32 left, BitFlags32 right) => left.RawBuffer != right.RawBuffer;
 
 	/// <summary>
 	/// Implicitly converts a BitFlags instance to a uint.
 	/// </summary>
 	/// <param name="flags">The BitFlags instance to convert.</param>
 	/// <returns>The raw 32-bit unsigned integer representation of the flags.</returns>
-	public static implicit operator uint(BitFlags flags) => flags.RawBuffer;
+	public static implicit operator uint(BitFlags32 flags) => flags.RawBuffer;
 
 	/// <summary>
 	/// Implicitly converts a uint to a BitFlags instance.
 	/// </summary>
 	/// <param name="value">The uint value to convert.</param>
 	/// <returns>A new BitFlags instance representing the uint value.</returns>
-	public static implicit operator BitFlags(uint value) => new(value);
+	public static implicit operator BitFlags32(uint value) => new(value);
 
 	/// <summary>
 	/// Implicitly converts a BitFlags instance to an int.
 	/// </summary>
 	/// <param name="flags">The BitFlags instance to convert.</param>
 	/// <returns>The int representation of the flags.</returns>
-	public static implicit operator int(BitFlags flags) => (int)flags.RawBuffer;
+	public static implicit operator int(BitFlags32 flags) => (int)flags.RawBuffer;
 
 	/// <summary>
 	/// Implicitly converts an int to a BitFlags instance.
 	/// </summary>
 	/// <param name="value">The int value to convert.</param>
 	/// <returns>A new BitFlags instance representing the int value.</returns>
-	public static implicit operator BitFlags(int value) => new((uint)value);
+	public static implicit operator BitFlags32(int value) => new((uint)value);
 }
 
 
@@ -323,7 +323,7 @@ public struct BitFlags
 /// Represents a set of bit flags as a 32-bit unsigned integer, using a generic enum type for type-safe flag operations.
 /// </summary>
 /// <typeparam name="TFlagsEnum">The enum type representing the flags. Must be marked with [Flags] attribute and inherit from int.</typeparam>
-public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
+public struct BitFlags32<TFlagsEnum> where TFlagsEnum : struct, Enum
 {
 	/// <summary>
 	/// The maximum number of flags supported, which is 32.
@@ -333,19 +333,19 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// <summary>
 	/// A BitFlags instance where all flags are set.
 	/// </summary>
-	public static readonly BitFlags<TFlagsEnum> All = new BitFlags<TFlagsEnum>(uint.MaxValue);
+	public static readonly BitFlags32<TFlagsEnum> All = new BitFlags32<TFlagsEnum>(uint.MaxValue);
 
 	/// <summary>
 	/// A BitFlags instance where no flags are set.
 	/// </summary>
-	public static readonly BitFlags<TFlagsEnum> None = default;
+	public static readonly BitFlags32<TFlagsEnum> None = default;
 
 	/// <summary>
 	/// The raw 32-bit unsigned integer value of the flags.
 	/// </summary>
 	public uint RawBuffer;
 
-	public BitFlags()
+	public BitFlags32()
 	{
 	}
 
@@ -354,7 +354,7 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// Initializes a new instance of the BitFlags struct with a specific raw buffer.
 	/// </summary>
 	/// <param name="rawBuffer">The initial value of the flags.</param>
-	public BitFlags(uint rawBuffer)
+	public BitFlags32(uint rawBuffer)
 	{
 		RawBuffer = rawBuffer;
 	}
@@ -363,12 +363,12 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// Initializes a new instance of the BitFlags struct by copying another instance.
 	/// </summary>
 	/// <param name="other">The instance to copy.</param>
-	public BitFlags(BitFlags<TFlagsEnum> other)
+	public BitFlags32(BitFlags32<TFlagsEnum> other)
 	{
 		RawBuffer = other.RawBuffer;
 	}
 
-	public BitFlags(BitFlags other)
+	public BitFlags32(BitFlags32 other)
 	{
 		RawBuffer = other.RawBuffer;
 	}
@@ -530,7 +530,7 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// Adds the flags from another BitFlags instance to this one.
 	/// </summary>
 	/// <param name="flags">The other BitFlags instance.</param>
-	public void Add(BitFlags<TFlagsEnum> flags) => RawBuffer |= flags.RawBuffer;
+	public void Add(BitFlags32<TFlagsEnum> flags) => RawBuffer |= flags.RawBuffer;
 
 	/// <summary>
 	/// Removes the specified flags from this instance.
@@ -542,7 +542,7 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// Removes the flags from another BitFlags instance from this one.
 	/// </summary>
 	/// <param name="flags">The other BitFlags instance.</param>
-	public void Subtract(BitFlags<TFlagsEnum> flags) => RawBuffer &= ~flags.RawBuffer;
+	public void Subtract(BitFlags32<TFlagsEnum> flags) => RawBuffer &= ~flags.RawBuffer;
 
 	/// <summary>
 	/// Toggles the specified flags in this instance.
@@ -554,7 +554,7 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// Toggles the flags from another BitFlags instance in this one.
 	/// </summary>
 	/// <param name="flags">The other BitFlags instance.</param>
-	public void Flip(BitFlags<TFlagsEnum> flags) => RawBuffer ^= flags.RawBuffer;
+	public void Flip(BitFlags32<TFlagsEnum> flags) => RawBuffer ^= flags.RawBuffer;
 
 	/// <summary>
 	/// Determines if all specified flags are set.
@@ -568,7 +568,7 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// </summary>
 	/// <param name="flags">The flags to check.</param>
 	/// <returns>True if all specified flags are set, false otherwise.</returns>
-	public bool IsAllOn(BitFlags<TFlagsEnum> flags) => (RawBuffer & flags.RawBuffer) == flags.RawBuffer;
+	public bool IsAllOn(BitFlags32<TFlagsEnum> flags) => (RawBuffer & flags.RawBuffer) == flags.RawBuffer;
 
 	/// <summary>
 	/// Determines if any of the specified flags are set.
@@ -582,7 +582,7 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// </summary>
 	/// <param name="flags">The flags to check.</param>
 	/// <returns>True if any specified flags are set, false otherwise.</returns>
-	public bool IsAnyOn(BitFlags<TFlagsEnum> flags) => (RawBuffer & flags.RawBuffer) != 0;
+	public bool IsAnyOn(BitFlags32<TFlagsEnum> flags) => (RawBuffer & flags.RawBuffer) != 0;
 
 	/// <summary>
 	/// Checks for equality with the specified flags.
@@ -596,14 +596,14 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// </summary>
 	/// <param name="other">The other instance to compare.</param>
 	/// <returns>True if both instances have the same flags, false otherwise.</returns>
-	public bool Equals(BitFlags<TFlagsEnum> other) => RawBuffer == other.RawBuffer;
+	public bool Equals(BitFlags32<TFlagsEnum> other) => RawBuffer == other.RawBuffer;
 
 	/// <summary>
 	/// Overrides the default Equals method.
 	/// </summary>
 	/// <param name="obj">The object to compare with.</param>
 	/// <returns>True if the object is a BitFlags instance with the same flags, false otherwise.</returns>
-	public override bool Equals(object obj) => obj is BitFlags<TFlagsEnum> other && Equals(other);
+	public override bool Equals(object obj) => obj is BitFlags32<TFlagsEnum> other && Equals(other);
 
 	/// <summary>
 	/// Returns the hash code for this instance.
@@ -614,30 +614,30 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// <summary>
 	/// Determines if two BitFlags instances are equal.
 	/// </summary>
-	public static bool operator ==(BitFlags<TFlagsEnum> left, BitFlags<TFlagsEnum> right) => left.RawBuffer == right.RawBuffer;
+	public static bool operator ==(BitFlags32<TFlagsEnum> left, BitFlags32<TFlagsEnum> right) => left.RawBuffer == right.RawBuffer;
 
 	/// <summary>
 	/// Determines if two BitFlags instances are not equal.
 	/// </summary>
-	public static bool operator !=(BitFlags<TFlagsEnum> left, BitFlags<TFlagsEnum> right) => left.RawBuffer != right.RawBuffer;
+	public static bool operator !=(BitFlags32<TFlagsEnum> left, BitFlags32<TFlagsEnum> right) => left.RawBuffer != right.RawBuffer;
 
 	/// <summary>
 	/// Explicitly converts a BitFlags instance to a uint.
 	/// </summary>
 	/// <param name="flags">The BitFlags instance to convert.</param>
 	/// <returns>The raw 32-bit unsigned integer representation of the flags.</returns>
-	public static implicit operator uint(BitFlags<TFlagsEnum> flags) => flags.RawBuffer;
+	public static implicit operator uint(BitFlags32<TFlagsEnum> flags) => flags.RawBuffer;
 
 	/// <summary>
 	/// Explicitly converts a uint to a BitFlags instance.
 	/// </summary>
 	/// <param name="value">The uint value to convert.</param>
 	/// <returns>A new BitFlags instance representing the uint value.</returns>
-	public static implicit operator BitFlags<TFlagsEnum>(uint value) => new(value);
+	public static implicit operator BitFlags32<TFlagsEnum>(uint value) => new(value);
 
-	public static implicit operator BitFlags(BitFlags<TFlagsEnum> flags) => new(flags.RawBuffer);
+	public static implicit operator BitFlags32(BitFlags32<TFlagsEnum> flags) => new(flags.RawBuffer);
 
-	public static implicit operator BitFlags<TFlagsEnum>(BitFlags flags) => new(flags.RawBuffer);
+	public static implicit operator BitFlags32<TFlagsEnum>(BitFlags32 flags) => new(flags.RawBuffer);
 
 
 
@@ -646,7 +646,7 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// </summary>
 	/// <param name="flags">The BitFlags<T> instance to convert.</param>
 	/// <returns>The enum representation of the flags.</returns>
-	public static implicit operator TFlagsEnum(BitFlags<TFlagsEnum> flags)
+	public static implicit operator TFlagsEnum(BitFlags32<TFlagsEnum> flags)
 	{
 		return Unsafe.As<uint, TFlagsEnum>(ref flags.RawBuffer);
 	}
@@ -656,9 +656,9 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// </summary>
 	/// <param name="enumValue">The enum value to convert.</param>
 	/// <returns>A new BitFlags<T> instance representing the enum value.</returns>
-	public static implicit operator BitFlags<TFlagsEnum>(TFlagsEnum enumValue)
+	public static implicit operator BitFlags32<TFlagsEnum>(TFlagsEnum enumValue)
 	{
-		return new BitFlags<TFlagsEnum>(EnumToUInt32(ref enumValue));
+		return new BitFlags32<TFlagsEnum>(EnumToUInt32(ref enumValue));
 	}
 
 	/// <summary>
@@ -666,7 +666,7 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// </summary>
 	/// <param name="flags">The BitFlags<T> instance to convert.</param>
 	/// <returns>The int representation of the flags.</returns>
-	public static implicit operator int(BitFlags<TFlagsEnum> flags)
+	public static implicit operator int(BitFlags32<TFlagsEnum> flags)
 	{
 		return (int)flags.RawBuffer;
 	}
@@ -676,8 +676,8 @@ public struct BitFlags<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// </summary>
 	/// <param name="value">The int value to convert.</param>
 	/// <returns>A new BitFlags<T> instance representing the int value.</returns>
-	public static implicit operator BitFlags<TFlagsEnum>(int value)
+	public static implicit operator BitFlags32<TFlagsEnum>(int value)
 	{
-		return new BitFlags<TFlagsEnum>((uint)value);
+		return new BitFlags32<TFlagsEnum>((uint)value);
 	}
 }

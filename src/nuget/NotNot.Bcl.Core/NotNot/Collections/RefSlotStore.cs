@@ -29,7 +29,7 @@ namespace NotNot.Collections
 		/// <summary>
 		/// Direct access to the packed value for performance-critical scenarios
 		/// </summary>
-		public readonly ulong _packedValue;
+		public readonly BitFlags64 _packedValue;
 
 		public static SlotHandle Empty { get; } = default;
 
