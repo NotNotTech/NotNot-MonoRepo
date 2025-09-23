@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -10,7 +11,7 @@ namespace NotNot.DI;
 /// Provides a base implementation for managing a dependency injection container using the Generic Host, 
 /// supporting both inheritance-based and delegation-based service configuration.
 /// </summary>
-public class GenericDIHost : AsyncDisposeGuard
+public class GenericDIHost : DisposeGuard
 {
 	/// <summary>
 	/// The underlying host instance.
@@ -53,25 +54,37 @@ public class GenericDIHost : AsyncDisposeGuard
 		return ValueTask.CompletedTask;
 	}
 
-	/// <summary>
-	/// Disposes the underlying host if it has been created.
-	/// </summary>
-	protected override async ValueTask OnDispose(bool managedDisposing)
+	///// <summary>
+	///// Disposes the underlying host if it has been created.
+	///// </summary>
+	//protected override async ValueTask OnDispose(bool managedDisposing)
+	//{
+	//	if (managedDisposing)
+	//	{
+	//		if (_host is IAsyncDisposable asyncDisposable)
+	//		{
+	//			await asyncDisposable.DisposeAsync();
+	//		}
+	//		else
+	//		{
+	//			_host?.Dispose();
+	//		}
+	//	}
+	//	_host = null;
+
+	//	await base.OnDispose(managedDisposing);
+	//}
+
+	protected override void OnDispose(bool managedDisposing)
 	{
+		base.OnDispose(managedDisposing);
 		if (managedDisposing)
 		{
-			if (_host is IAsyncDisposable asyncDisposable)
-			{
-				await asyncDisposable.DisposeAsync();
-			}
-			else
-			{
-				_host?.Dispose();
-			}
+			_host?.Dispose();
 		}
 		_host = null;
 
-		await base.OnDispose(managedDisposing);
+
 	}
 
 
