@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis.Text;
 using System.Collections.Generic;
 
-namespace NotNot.AppSettings;
+namespace NotNot.AppSettingsInternal;
 
 /// <summary>
 /// helper to merge json files into a single object
