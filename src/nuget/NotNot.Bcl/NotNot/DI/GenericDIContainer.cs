@@ -11,12 +11,12 @@ namespace NotNot.DI;
 /// Provides a base implementation for managing a dependency injection container using the Generic Host, 
 /// supporting both inheritance-based and delegation-based service configuration.
 /// </summary>
-public class GenericDIHost : DisposeGuard
+public class GenericDIContainer : DisposeGuard
 {
 	/// <summary>
 	/// The underlying host instance.
 	/// </summary>
-	private IHost? _host;
+	public IHost? _host;
 
 	/// <summary>
 	/// Gets the configured service provider from the host.
@@ -53,27 +53,6 @@ public class GenericDIHost : DisposeGuard
 	{
 		return ValueTask.CompletedTask;
 	}
-
-	///// <summary>
-	///// Disposes the underlying host if it has been created.
-	///// </summary>
-	//protected override async ValueTask OnDispose(bool managedDisposing)
-	//{
-	//	if (managedDisposing)
-	//	{
-	//		if (_host is IAsyncDisposable asyncDisposable)
-	//		{
-	//			await asyncDisposable.DisposeAsync();
-	//		}
-	//		else
-	//		{
-	//			_host?.Dispose();
-	//		}
-	//	}
-	//	_host = null;
-
-	//	await base.OnDispose(managedDisposing);
-	//}
 
 	protected override void OnDispose(bool managedDisposing)
 	{
