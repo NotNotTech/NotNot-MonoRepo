@@ -16,7 +16,7 @@ public class GenericDIContainer : DisposeGuard
 	/// <summary>
 	/// The underlying host instance.
 	/// </summary>
-	public IHost? _host;
+	private IHost? _host;
 
 	/// <summary>
 	/// Gets the configured service provider from the host.
@@ -42,6 +42,8 @@ public class GenericDIContainer : DisposeGuard
 			await configureDelegate(builder);
 		}
 		_host = builder.Build();
+
+		//_host.Start();  //prevents code-reload in godot editor
 	}
 
 	/// <summary>
@@ -59,6 +61,8 @@ public class GenericDIContainer : DisposeGuard
 		base.OnDispose(managedDisposing);
 		if (managedDisposing)
 		{
+			//_host.StopAsync()._SyncWait(); //prevents code-reload in godot editor
+
 			_host?.Dispose();
 		}
 		_host = null;
