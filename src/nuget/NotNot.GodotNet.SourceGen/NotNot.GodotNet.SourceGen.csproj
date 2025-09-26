@@ -141,6 +141,9 @@
 				<!--required so that the .props file is included in the target project build-->
 				<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			</PackageReference>
+			<!--required for code fix providers-->
+			<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" PrivateAssets="all" />
+			<PackageReference Include="System.Composition" Version="9.0.8" PrivateAssets="all" />
 			<!--required for json IConfiguration.Bind()  _BinderShims.cs-->
 			<PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.8" />
 			<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.8" />
