@@ -99,12 +99,43 @@ namespace NotNot.Collections
 		private void _AssertOk()
 		{
 			__.AssertIfNot(IsAllocated);
-			__.AssertIfNot(Version>0,"assume version is >=1.  will remove IsAllocated bit to use that instead");
+			__.AssertIfNot(Version > 0, "assume version is >=1.  will remove IsAllocated bit to use that instead");
 
+		}
+
+		public RefSlotStore<TSlotStore> GetBackingCollection<TSlotStore>()
+		{
+			RefSlotStore._allStoresByCollectionId.TryGetValue(CollectionId, out var weakRef);
+			if (weakRef is null || weakRef.TryGetTarget(out var store) is false)
+			{
+				throw new InvalidOperationException("Backing collection for SlotHandle not found (it may have been disposed)");
+			}
+			return (RefSlotStore<TSlotStore>)store;
 		}
 	}
 
+	public abstract class RefSlotStore
+	{
 
+		/// <summary>
+		/// used to ensure SlotHandle not used across different collections
+		/// </summary>
+		protected static int _nextCollectionId = 1;
+
+		/// <summary>
+		/// Stack of freed CollectionIds available for reuse
+		/// we also track version to avoid collection id reuse also reusing the same default version (1)
+		/// </summary>
+		protected internal static readonly ConcurrentQueue<(int collectionId, byte nextVersion)> _freeCollectionIds = new();
+
+		/// <summary>
+		/// the collection id for this store
+		/// </summary>
+		public int CollectionId { get; protected set; }
+
+		public static readonly ConcurrentDictionary<int, WeakReference<RefSlotStore>> _allStoresByCollectionId = new();
+
+	}
 	/// <summary>
 	/// provides a List backed storage where individual slots can be freed for reuse.
 	/// - When out of capacity, the backing List is automatically resized
@@ -113,24 +144,10 @@ namespace NotNot.Collections
 	/// for doing reads/edits in bulk, use the `_AsSpan_Unsafe()` method.
 	/// </summary>
 	/// <typeparam name="T">The type of item to store.</typeparam>
-	public class RefSlotStore<T>
+	public class RefSlotStore<T> : RefSlotStore
 	{
-		/// <summary>
-		/// used to ensure SlotHandle not used across different collections
-		/// </summary>
-		private static int _nextCollectionId = 1;
-
-		/// <summary>
-		/// Stack of freed CollectionIds available for reuse
-		/// we also track version to avoid collection id reuse also reusing the same default version (1)
-		/// </summary>
-		private static readonly ConcurrentQueue<(int collectionId, byte nextVersion)> _freeCollectionIds = new();
 
 
-		/// <summary>
-		/// the collection id for this store
-		/// </summary>
-		public int CollectionId { get; }
 
 		/// <summary>
 		/// tracks allocations, to ensure a slot is not used after being freed.
@@ -207,7 +224,31 @@ namespace NotNot.Collections
 			//{
 			//	_freeSlots.Push(i);
 			//}
+
+			// Register this store in the global dictionary for handle validation
+			if (_allStoresByCollectionId.TryGetValue(CollectionId, out var existingStoreWeakRef))
+			{
+				if (existingStoreWeakRef.TryGetTarget(out var existingStore))
+				{
+					throw new InvalidOperationException("CollectionId reuse detected while previous store is still alive. This should not happen.");
+				}
+			}
+			_allStoresByCollectionId[CollectionId] = new WeakReference<RefSlotStore>(this);
 		}
+
+
+		/// <summary>
+		/// Destructor that returns the CollectionId to the free pool
+		/// </summary>
+		~RefSlotStore()
+		{
+			// Return the CollectionId to the free pool for reuse
+			_freeCollectionIds.Enqueue((CollectionId, _nextVersion));
+
+			// Remove this store from the global dictionary
+			_allStoresByCollectionId._TryRemoveIf(CollectionId, (key, existingStoreWeakRef) => existingStoreWeakRef._TargetRefEquals(this));
+		}
+
 
 		/// <summary>
 		/// **Indexer** to access elements by slot index.
@@ -395,15 +436,6 @@ namespace NotNot.Collections
 			}
 		}
 
-		/// <summary>
-		/// Destructor that returns the CollectionId to the free pool
-		/// </summary>
-		~RefSlotStore()
-		{
-				// Return the CollectionId to the free pool for reuse
-				_freeCollectionIds.Enqueue((CollectionId,_nextVersion));
-			
-		}
 
 	}
 }
