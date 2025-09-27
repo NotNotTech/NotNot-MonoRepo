@@ -4,9 +4,9 @@
 // [!!] See the LICENSE.md file in the project root for more info. 
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
+using System.Diagnostics;
 using CommunityToolkit.HighPerformance.Buffers;
 using NotNot.Collections.Advanced;
-using System.Diagnostics;
 
 namespace NotNot;
 
@@ -18,7 +18,7 @@ namespace NotNot;
 public ref struct SpanGuard<T>
 {
 	/// <summary>
-	///    should dispose prior to exit function.   easiest way is to ex:  `using var spanGuard = SpanGuard[int](42)
+	///    should dispose prior to exit function.   easiest way is to ex:  `using var spanGuard = SpanGuard{int}(42)
 	/// </summary>
 	/// <param name="size"></param>
 	/// <returns></returns>

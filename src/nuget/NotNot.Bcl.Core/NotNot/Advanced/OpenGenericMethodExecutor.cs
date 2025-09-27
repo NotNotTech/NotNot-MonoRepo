@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace NotNot.Advanced
@@ -146,6 +147,190 @@ namespace NotNot.Advanced
 		{
 			return GetOrAllocInvoker<SpanInvoker<TTarget, TElement>>(
 				typeof(TTarget), methodName, genericTypeArgument, flags);
+		}
+
+		/// <summary>
+		/// Creates a cached delegate for instance methods with dynamic parameter types (Action signature).
+		/// Supports any number and type of parameters determined at runtime.
+		/// </summary>
+		/// <typeparam name="TTarget">The type containing the instance method</typeparam>
+		/// <param name="methodName">Name of the generic method to invoke</param>
+		/// <param name="genericTypeArgument">Runtime type to close the generic method with</param>
+		/// <param name="parameterTypes">Array of parameter types for the method (empty for parameterless)</param>
+		/// <param name="flags">Binding flags for method lookup (defaults to instance methods)</param>
+		/// <returns>Delegate that can be invoked with DynamicInvoke. First arg is the instance.</returns>
+		/// <remarks>
+		/// Uses Expression.GetDelegateType to dynamically construct the appropriate Action delegate.
+		/// Result is cached for performance. Use DynamicInvoke for invocation.
+		/// </remarks>
+		/// <example>
+		/// <code>
+		/// // Method: void Process&lt;T&gt;(string name, int count)
+		/// var processor = GetOrAllocDynamicAction&lt;MyClass&gt;(
+		///     "Process",
+		///     typeof(DateTime),
+		///     typeof(string), typeof(int));
+		///
+		/// processor.DynamicInvoke(instance, "test", 42);
+		/// </code>
+		/// </example>
+		public static Delegate GetOrAllocDynamicAction<TTarget>(
+			string methodName,
+			Type genericTypeArgument,
+			Type[] parameterTypes,
+			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			where TTarget : class
+		{
+			// Build the complete delegate signature: [TTarget, param1, param2, ..., void]
+			// Expression.GetDelegateType expects all parameter types followed by return type
+			var allTypes = new[] { typeof(TTarget) }
+				.Concat(parameterTypes ?? Type.EmptyTypes)
+				.Append(typeof(void))  // Action returns void
+				.ToArray();
+
+			// Let Expression.GetDelegateType create the appropriate Action<...> or custom delegate
+			// Handles any parameter count, including >16 which exceeds built-in Action types
+			var delegateType = Expression.GetDelegateType(allTypes);
+
+			// Reuse the existing GetOrAllocInvoker infrastructure via reflection
+			// This maintains all caching benefits while supporting dynamic signatures
+			var getMethod = typeof(OpenGenericMethodExecutor)
+				.GetMethod(nameof(GetOrAllocInvoker), BindingFlags.Public | BindingFlags.Static)
+				?? throw new InvalidOperationException("Could not find GetOrAllocInvoker method");
+
+			var genericMethod = getMethod.MakeGenericMethod(delegateType);
+
+			// Invoke the generic method to get the cached delegate
+			// Cast is safe because GetOrAllocInvoker<T> returns T where T : Delegate
+			return (Delegate)genericMethod.Invoke(null, new object[] {
+				typeof(TTarget), methodName, genericTypeArgument, flags
+			})!;
+		}
+
+		/// <summary>
+		/// Creates a cached delegate for instance methods with dynamic parameter and return types (Func signature).
+		/// Supports any number and type of parameters with a return value.
+		/// </summary>
+		/// <typeparam name="TTarget">The type containing the instance method</typeparam>
+		/// <param name="methodName">Name of the generic method to invoke</param>
+		/// <param name="genericTypeArgument">Runtime type to close the generic method with</param>
+		/// <param name="returnType">Return type of the method</param>
+		/// <param name="parameterTypes">Array of parameter types for the method (empty for parameterless)</param>
+		/// <param name="flags">Binding flags for method lookup (defaults to instance methods)</param>
+		/// <returns>Delegate that can be invoked with DynamicInvoke. First arg is the instance.</returns>
+		/// <remarks>
+		/// Uses Expression.GetDelegateType to dynamically construct the appropriate Func delegate.
+		/// Result is cached for performance. Use DynamicInvoke for invocation and cast the result.
+		/// </remarks>
+		/// <example>
+		/// <code>
+		/// // Method: string Calculate&lt;T&gt;(double x, double y)
+		/// var calculator = GetOrAllocDynamicFunc&lt;MyClass&gt;(
+		///     "Calculate",
+		///     typeof(int),
+		///     typeof(string),  // return type
+		///     new[] { typeof(double), typeof(double) });
+		///
+		/// var result = (string)calculator.DynamicInvoke(instance, 3.14, 2.71);
+		/// </code>
+		/// </example>
+		public static Delegate GetOrAllocDynamicFunc<TTarget>(
+			string methodName,
+			Type genericTypeArgument,
+			Type returnType,
+			Type[] parameterTypes,
+			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			where TTarget : class
+		{
+			if (returnType == null) throw new ArgumentNullException(nameof(returnType));
+
+			// Build the complete delegate signature: [TTarget, param1, param2, ..., TReturn]
+			// Expression.GetDelegateType expects all parameter types followed by return type
+			var allTypes = new[] { typeof(TTarget) }
+				.Concat(parameterTypes ?? Type.EmptyTypes)
+				.Append(returnType)
+				.ToArray();
+
+			// Let Expression.GetDelegateType create the appropriate Func<...> or custom delegate
+			// Handles any parameter count, including >16 which exceeds built-in Func types
+			var delegateType = Expression.GetDelegateType(allTypes);
+
+			// Reuse the existing GetOrAllocInvoker infrastructure
+			var getMethod = typeof(OpenGenericMethodExecutor)
+				.GetMethod(nameof(GetOrAllocInvoker), BindingFlags.Public | BindingFlags.Static)
+				?? throw new InvalidOperationException("Could not find GetOrAllocInvoker method");
+
+			var genericMethod = getMethod.MakeGenericMethod(delegateType);
+
+			// Invoke the generic method to get the cached delegate
+			return (Delegate)genericMethod.Invoke(null, new object[] {
+				typeof(TTarget), methodName, genericTypeArgument, flags
+			})!;
+		}
+
+		/// <summary>
+		/// Creates a cached delegate for static methods with dynamic parameter and return types.
+		/// Supports any number and type of parameters for static methods.
+		/// </summary>
+		/// <param name="declaringType">Type containing the static method</param>
+		/// <param name="methodName">Name of the generic method to invoke</param>
+		/// <param name="genericTypeArgument">Runtime type to close the generic method with</param>
+		/// <param name="returnType">Return type of the method (use typeof(void) for Action-like behavior)</param>
+		/// <param name="parameterTypes">Array of parameter types for the method (empty for parameterless)</param>
+		/// <param name="flags">Binding flags for method lookup (defaults to static methods)</param>
+		/// <returns>Delegate that can be invoked with DynamicInvoke</returns>
+		/// <remarks>
+		/// Uses Expression.GetDelegateType to dynamically construct the appropriate delegate.
+		/// For void methods, pass typeof(void) as returnType.
+		/// Result is cached for performance.
+		/// </remarks>
+		/// <example>
+		/// <code>
+		/// // Static method: void Register&lt;T&gt;(string name, int priority)
+		/// var register = GetOrAllocDynamicStatic(
+		///     typeof(Factory),
+		///     "Register",
+		///     typeof(Widget),
+		///     typeof(void),
+		///     new[] { typeof(string), typeof(int) });
+		///
+		/// register.DynamicInvoke("WidgetA", 10);
+		/// </code>
+		/// </example>
+		public static Delegate GetOrAllocDynamicStatic(
+			Type declaringType,
+			string methodName,
+			Type genericTypeArgument,
+			Type returnType,
+			Type[] parameterTypes,
+			BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+		{
+			if (declaringType == null) throw new ArgumentNullException(nameof(declaringType));
+			if (returnType == null) throw new ArgumentNullException(nameof(returnType));
+
+			// For static methods, no instance parameter needed
+			// Build signature: [param1, param2, ..., TReturn]
+			var allTypes = (parameterTypes ?? Type.EmptyTypes)
+				.Append(returnType)
+				.ToArray();
+
+			// Let Expression.GetDelegateType handle delegate type creation
+			var delegateType = Expression.GetDelegateType(allTypes);
+
+			// Ensure static flags are set correctly
+			var staticFlags = (flags | BindingFlags.Static) & ~BindingFlags.Instance;
+
+			// Reuse the existing GetOrAllocInvoker infrastructure
+			var getMethod = typeof(OpenGenericMethodExecutor)
+				.GetMethod(nameof(GetOrAllocInvoker), BindingFlags.Public | BindingFlags.Static)
+				?? throw new InvalidOperationException("Could not find GetOrAllocInvoker method");
+
+			var genericMethod = getMethod.MakeGenericMethod(delegateType);
+
+			// Invoke the generic method to get the cached delegate
+			return (Delegate)genericMethod.Invoke(null, new object[] {
+				declaringType, methodName, genericTypeArgument, staticFlags
+			})!;
 		}
 
 		public static void Dispose() => _cache.Clear();

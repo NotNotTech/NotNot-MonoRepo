@@ -601,7 +601,7 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// <returns></returns>
 	public Mem<SlotHandle> Alloc(int count)
 	{
-		var toReturn = Mem.Allocate<SlotHandle>(count);
+		var toReturn = Mem<SlotHandle>.Allocate(count);
 		var slotSpan = toReturn.Span;
 		lock (_lock)
 		{
@@ -611,7 +611,7 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 				slotSpan[i] = hSlot;
 			}
 
-			AfterAlloc.Invoke(slotSpan);
+			AfterAlloc.Invoke(toReturn);
 
 
 			return toReturn;//.AsReadMem();
@@ -671,12 +671,12 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// invoked immediately after slot is alloc'd.
 	/// <para>The slot is fully allocated (and populated), and the callback occurs within the lock.</para>
 	/// </summary>
-	public ActionEventSpan<SlotHandle> AfterAlloc = new();
+	public ActionEvent<Mem<SlotHandle>> AfterAlloc = new();
 	/// <summary>
 	/// invoked immediately after slot is freed
 	/// <para>The slot is no longer allocated (or populated), and the callback occurs within the lock.</para>
 	/// </summary>
-	public ActionEventSpan<SlotHandle> AfterFree = new();
+	public ActionEvent<Mem<SlotHandle>> AfterFree = new();
 
 	public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle slot)
 	{
@@ -723,7 +723,7 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// - Increases **Version**.
 	/// - **DEBUG mode:** validates that the slot is currently allocated.
 	/// </summary>
-	public void Free(Span<SlotHandle> slotsToFree)
+	public void Free(Mem<SlotHandle> slotsToFree)
 	{
 		lock (_lock)
 		{
