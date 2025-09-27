@@ -8,111 +8,101 @@ namespace NotNot.Advanced
 	public static class OpenGenericMethodExecutor
 	{
 		public static TDelegate CreateInvoker<TDelegate>(
-			 Type declaringType,
-			 string methodName,
-			 Type genericTypeArgument,
-			 BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
-			 where TDelegate : Delegate
+			Type declaringType,
+			string methodName,
+			Type genericTypeArgument,
+			BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+			where TDelegate : Delegate
 		{
 			return (TDelegate)CreateDelegate(typeof(TDelegate), declaringType, methodName, genericTypeArgument, bindingFlags);
 		}
 
 		public static Action<TTarget> CreateAction<TTarget>(
-			 string methodName,
-			 Type genericTypeArgument,
-			 BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			 where TTarget : class
+			string methodName,
+			Type genericTypeArgument,
+			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			where TTarget : class
 		{
 			return CreateInvoker<Action<TTarget>>(
-				 typeof(TTarget), methodName, genericTypeArgument, flags);
+				typeof(TTarget), methodName, genericTypeArgument, flags);
 		}
 
 		public static Func<TTarget, TResult> CreateFunc<TTarget, TResult>(
-			 string methodName,
-			 Type genericTypeArgument,
-			 BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			 where TTarget : class
+			string methodName,
+			Type genericTypeArgument,
+			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			where TTarget : class
 		{
 			return CreateInvoker<Func<TTarget, TResult>>(
-				 typeof(TTarget), methodName, genericTypeArgument, flags);
+				typeof(TTarget), methodName, genericTypeArgument, flags);
 		}
 
 		public static Action<TTarget, Span<TElement>> CreateSpanInvoker<TTarget, TElement>(
-			 string methodName,
-			 Type genericTypeArgument,
-			 BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			 where TTarget : class
+			string methodName,
+			Type genericTypeArgument,
+			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			where TTarget : class
 		{
 			return CreateInvoker<Action<TTarget, Span<TElement>>>(
-				 typeof(TTarget), methodName, genericTypeArgument, flags);
+				typeof(TTarget), methodName, genericTypeArgument, flags);
 		}
 
 		public static Func<TTarget, Span<TElement>, TResult> CreateSpanFunc<TTarget, TElement, TResult>(
-			 string methodName,
-			 Type genericTypeArgument,
-			 BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			 where TTarget : class
+			string methodName,
+			Type genericTypeArgument,
+			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			where TTarget : class
 		{
 			return CreateInvoker<Func<TTarget, Span<TElement>, TResult>>(
-				 typeof(TTarget), methodName, genericTypeArgument, flags);
+				typeof(TTarget), methodName, genericTypeArgument, flags);
 		}
 
 		public static Delegate CreateDynamicAction<TTarget>(
-			 string methodName,
-			 Type genericTypeArgument,
-			 Type[] parameterTypes,
-			 BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			 where TTarget : class
+			string methodName,
+			Type genericTypeArgument,
+			Span<Type> parameterTypes,
+			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			where TTarget : class
 		{
 			return CreateDynamicDelegate(
-				 typeof(TTarget),
-				 typeof(TTarget),
-				 methodName,
-				 genericTypeArgument,
-				 typeof(void),
-				 parameterTypes,
-				 flags);
+				typeof(TTarget),
+				typeof(TTarget),
+				methodName,
+				genericTypeArgument,
+				typeof(void),
+				parameterTypes,
+				flags);
 		}
 
 		public static Delegate CreateDynamicFunc<TTarget>(
-			 string methodName,
-			 Type genericTypeArgument,
-			 Type returnType,
-			 Type[] parameterTypes,
-			 BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			 where TTarget : class
+			string methodName,
+			Type genericTypeArgument,
+			Type returnType,
+			Span<Type> parameterTypes,
+			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			where TTarget : class
 		{
 			if (returnType == null) throw new ArgumentNullException(nameof(returnType));
 
 			return CreateDynamicDelegate(
-				 typeof(TTarget),
-				 typeof(TTarget),
-				 methodName,
-				 genericTypeArgument,
-				 returnType,
-				 parameterTypes,
-				 flags);
+				typeof(TTarget),
+				typeof(TTarget),
+				methodName,
+				genericTypeArgument,
+				returnType,
+				parameterTypes,
+				flags);
 		}
 
 		public static Delegate CreateDynamicStatic(
-			 Type declaringType,
-			 string methodName,
-			 Type genericTypeArgument,
-			 Type returnType,
-			 Type[] parameterTypes,
-			 BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+			Type declaringType,
+			string methodName,
+			Type genericTypeArgument,
+			Type returnType,
+			Span<Type> parameterTypes,
+			BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
 		{
-			if (declaringType == null) throw new ArgumentNullException(nameof(declaringType));
-			if (returnType == null) throw new ArgumentNullException(nameof(returnType));
-
-			return CreateDynamicDelegate(
-				 null,
-				 declaringType,
-				 methodName,
-				 genericTypeArgument,
-				 returnType,
-				 parameterTypes,
-				 flags);
+			throw new NotSupportedException("Static method binding is not supported.");
 		}
 
 		public static void Dispose()
@@ -120,105 +110,110 @@ namespace NotNot.Advanced
 		}
 
 		private static Delegate CreateDynamicDelegate(
-			 Type? instanceType,
-			 Type declaringType,
-			 string methodName,
-			 Type genericTypeArgument,
-			 Type returnType,
-			 Span<Type> parameterTypes,
-			 BindingFlags bindingFlags)
+			Type? instanceType,
+			Type declaringType,
+			string methodName,
+			Type genericTypeArgument,
+			Type returnType,
+			Span<Type> parameterTypes,
+			BindingFlags bindingFlags)
 		{
-			//var args = parameterTypes ?? Array.Empty<Type>();
-			var args = parameterTypes;
-			var signatureLength = args.Length + (instanceType is null ? 1 : 2);
-			using var signatureGuard = SpanGuard<Type>.Allocate(signatureLength);// new Type[signatureLength];
+			if (instanceType is null)
+			{
+				throw new NotSupportedException("Static method binding is not supported.");
+			}
+
+			if ((bindingFlags & BindingFlags.Static) != 0)
+			{
+				throw new NotSupportedException("Static method binding is not supported.");
+			}
+
+			var signatureLength = parameterTypes.Length + 2;
+			using var signatureGuard = SpanGuard<Type>.Allocate(signatureLength);
 			var signature = signatureGuard.Span;
 			var index = 0;
 
-			if (instanceType is not null)
-			{
-				signature[index++] = instanceType;
-			}
+			signature[index++] = instanceType;
 
-			if (args.Length > 0)
+			if (!parameterTypes.IsEmpty)
 			{
-				//Array.Copy(args, 0, signature, index, args.Length);
-				args.CopyTo(signature.Slice(index));
-
-				index += args.Length;
+				parameterTypes.CopyTo(signature.Slice(index));
+				index += parameterTypes.Length;
 			}
 
 			signature[index] = returnType;
 
-			var delegateType = Expression.GetDelegateType(signatureGuard.DangerousGetArray().Array);
-			var flags = instanceType is null
-				 ? (bindingFlags | BindingFlags.Static) & ~BindingFlags.Instance
-				 : bindingFlags;
+			var segment = signatureGuard.DangerousGetArray();
+			Type[]? backingArray = segment.Array;
+			if (backingArray is null)
+			{
+				backingArray = GC.AllocateUninitializedArray<Type>(signatureLength);
+				signature.CopyTo(backingArray);
+			}
+			else if (segment.Offset != 0 || backingArray.Length != signatureLength)
+			{
+				var exact = GC.AllocateUninitializedArray<Type>(signatureLength);
+				signature.CopyTo(exact);
+				backingArray = exact;
+			}
+
+			var delegateType = Expression.GetDelegateType(backingArray);
+			var flags = (bindingFlags | BindingFlags.Instance) & ~BindingFlags.Static;
 
 			return CreateDelegate(delegateType, declaringType, methodName, genericTypeArgument, flags);
 		}
 
 		private static Delegate CreateDelegate(
-			 Type delegateType,
-			 Type declaringType,
-			 string methodName,
-			 Type genericTypeArgument,
-			 BindingFlags bindingFlags)
+			Type delegateType,
+			Type declaringType,
+			string methodName,
+			Type genericTypeArgument,
+			BindingFlags bindingFlags)
 		{
 			if (declaringType is null) throw new ArgumentNullException(nameof(declaringType));
 			if (genericTypeArgument is null) throw new ArgumentNullException(nameof(genericTypeArgument));
 			if (string.IsNullOrWhiteSpace(methodName)) throw new ArgumentException("Required", nameof(methodName));
+			if ((bindingFlags & BindingFlags.Static) != 0) throw new NotSupportedException("Static method binding is not supported.");
 
 			var invokeMethod = delegateType.GetMethod("Invoke")
-				 ?? throw new InvalidOperationException($"{delegateType} is not a valid delegate type");
+				?? throw new InvalidOperationException($"{delegateType} is not a valid delegate type");
 
 			var invokeParameters = invokeMethod.GetParameters();
-			var parameterTypes = new Type[invokeParameters.Length];
-			for (int i = 0; i < parameterTypes.Length; i++)
+			using var parameterGuard = SpanGuard<Type>.Allocate(invokeParameters.Length);
+			var parameterSpan = parameterGuard.Span;
+			for (int i = 0; i < parameterSpan.Length; i++)
 			{
-				parameterTypes[i] = invokeParameters[i].ParameterType;
+				parameterSpan[i] = invokeParameters[i].ParameterType;
 			}
 
-			Type[] methodParameterTypes;
-			var isInstanceDelegate = parameterTypes.Length > 0 && parameterTypes[0].IsAssignableFrom(declaringType);
-			if (isInstanceDelegate)
-			{
-				methodParameterTypes = new Type[parameterTypes.Length - 1];
-				Array.Copy(parameterTypes, 1, methodParameterTypes, 0, methodParameterTypes.Length);
-			}
-			else
-			{
-				methodParameterTypes = parameterTypes;
-			}
+			var isInstanceDelegate = parameterSpan.Length > 0 && parameterSpan[0].IsAssignableFrom(declaringType);
+			if (!isInstanceDelegate) throw new NotSupportedException("Delegates must represent instance methods.");
+			ReadOnlySpan<Type> methodParameterTypes = parameterSpan.Slice(1);
 
-			var searchFlags = bindingFlags;
-			if (isInstanceDelegate)
-			{
-				searchFlags = (searchFlags | BindingFlags.Instance) & ~BindingFlags.Static;
-			}
-			else if (parameterTypes.Length == methodParameterTypes.Length)
-			{
-				searchFlags = (searchFlags | BindingFlags.Static) & ~BindingFlags.Instance;
-			}
+			var searchFlags = (bindingFlags | BindingFlags.Instance) & ~BindingFlags.Static;
 
 			var method = FindGenericMethod(
-				 declaringType,
-				 methodName,
-				 searchFlags,
-				 methodParameterTypes,
-				 requiredGenericArity: 1)
-				 ?? throw new MissingMethodException(declaringType.FullName, methodName);
+				declaringType,
+				methodName,
+				searchFlags,
+				methodParameterTypes,
+				requiredGenericArity: 1,
+				genericTypeArgument,
+				invokeMethod.ReturnType)
+				?? throw new MissingMethodException(declaringType.FullName, methodName);
 
 			var closedMethod = method.MakeGenericMethod(genericTypeArgument);
 			return closedMethod.CreateDelegate(delegateType);
 		}
 
 		private static MethodInfo? FindGenericMethod(
-			 Type declaringType,
-			 string methodName,
-			 BindingFlags flags,
-			 Type[] parameterTypes,
-			 int requiredGenericArity)
+			Type declaringType,
+			string methodName,
+			BindingFlags flags,
+			ReadOnlySpan<Type> parameterTypes,
+			int requiredGenericArity,
+			Type genericTypeArgument,
+			Type expectedReturnType)
 		{
 			bool needWalk = (flags & BindingFlags.Instance) != 0 && (flags & BindingFlags.NonPublic) != 0;
 
@@ -232,8 +227,31 @@ namespace NotNot.Advanced
 					if (!string.Equals(method.Name, methodName, StringComparison.Ordinal)) continue;
 					if (method.GetGenericArguments().Length != requiredGenericArity) continue;
 
-					var parameters = method.GetParameters();
+					MethodInfo closedMethod;
+					try
+					{
+						closedMethod = method.MakeGenericMethod(genericTypeArgument);
+					}
+					catch (ArgumentException)
+					{
+						continue;
+					}
+
+					var parameters = closedMethod.GetParameters();
 					if (parameters.Length != parameterTypes.Length) continue;
+
+					bool parametersMatch = true;
+					for (int p = 0; p < parameters.Length; p++)
+					{
+						if (parameters[p].ParameterType != parameterTypes[p])
+						{
+							parametersMatch = false;
+							break;
+						}
+					}
+
+					if (!parametersMatch) continue;
+					if (closedMethod.ReturnType != expectedReturnType) continue;
 
 					return method;
 				}
