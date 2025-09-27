@@ -5,8 +5,27 @@ using NotNot;
 
 namespace NotNot.Advanced
 {
+	/// <summary>
+	/// Builds strongly typed delegates that can invoke open generic instance methods once supplied with a concrete type argument.
+	/// </summary>
+	/// <remarks>
+	/// The helpers in this class close a single generic parameter, validate delegate signatures against the resolved method, and refuse static bindings.
+	/// </remarks>
 	public static class OpenGenericMethodExecutor
 	{
+		/// <summary>
+		/// Creates a delegate of type <typeparamref name="TDelegate"/> that closes and invokes an open generic method on the specified <paramref name="declaringType"/>.
+		/// </summary>
+		/// <typeparam name="TDelegate">The delegate signature to produce. The first parameter must be assignable from <paramref name="declaringType"/>.</typeparam>
+		/// <param name="declaringType">The type that declares the generic method definition.</param>
+		/// <param name="methodName">The name of the generic method definition to bind.</param>
+		/// <param name="genericTypeArgument">The type used to close the method's single generic argument.</param>
+		/// <param name="bindingFlags">Binding flags that control how the method lookup is performed.</param>
+		/// <returns>A delegate instance that invokes the resolved method.</returns>
+		/// <exception cref="ArgumentNullException">Thrown when <paramref name="declaringType"/> or <paramref name="genericTypeArgument"/> is <see langword="null"/>.</exception>
+		/// <exception cref="ArgumentException">Thrown when <paramref name="methodName"/> is missing or whitespace.</exception>
+		/// <exception cref="NotSupportedException">Thrown when the delegate does not represent a supported instance signature or when static binding is requested.</exception>
+		/// <exception cref="MissingMethodException">Thrown when no matching generic method definition can be found.</exception>
 		public static TDelegate CreateInvoker<TDelegate>(
 			Type declaringType,
 			string methodName,
@@ -17,6 +36,14 @@ namespace NotNot.Advanced
 			return (TDelegate)CreateDelegate(typeof(TDelegate), declaringType, methodName, genericTypeArgument, bindingFlags);
 		}
 
+		/// <summary>
+		/// Creates an <see cref="Action{T}"/> delegate that invokes an open generic instance method on <typeparamref name="TTarget"/>.
+		/// </summary>
+		/// <typeparam name="TTarget">The concrete type that declares the method to bind.</typeparam>
+		/// <param name="methodName">The name of the method to bind.</param>
+		/// <param name="genericTypeArgument">The type that replaces the method's single generic parameter.</param>
+		/// <param name="flags">Binding flags used to locate the target method.</param>
+		/// <returns>An action that invokes the resolved method for an instance of <typeparamref name="TTarget"/>.</returns>
 		public static Action<TTarget> CreateAction<TTarget>(
 			string methodName,
 			Type genericTypeArgument,
@@ -27,6 +54,15 @@ namespace NotNot.Advanced
 				typeof(TTarget), methodName, genericTypeArgument, flags);
 		}
 
+		/// <summary>
+		/// Creates a <see cref="Func{T,TResult}"/> delegate that invokes a generic method on <typeparamref name="TTarget"/> and returns <typeparamref name="TResult"/>.
+		/// </summary>
+		/// <typeparam name="TTarget">The type that provides the method implementation.</typeparam>
+		/// <typeparam name="TResult">The return type produced by the method.</typeparam>
+		/// <param name="methodName">The target method name.</param>
+		/// <param name="genericTypeArgument">The concrete type that closes the method's generic parameter.</param>
+		/// <param name="flags">Binding flags used during method discovery.</param>
+		/// <returns>A function delegate that executes the closed generic method on an instance of <typeparamref name="TTarget"/>.</returns>
 		public static Func<TTarget, TResult> CreateFunc<TTarget, TResult>(
 			string methodName,
 			Type genericTypeArgument,
@@ -37,6 +73,15 @@ namespace NotNot.Advanced
 				typeof(TTarget), methodName, genericTypeArgument, flags);
 		}
 
+		/// <summary>
+		/// Creates an action delegate capable of invoking a generic method that accepts a <see cref="Span{T}"/> argument.
+		/// </summary>
+		/// <typeparam name="TTarget">The instance type that exposes the method.</typeparam>
+		/// <typeparam name="TElement">The element type of the <see cref="Span{T}"/> parameter.</typeparam>
+		/// <param name="methodName">The name of the target method.</param>
+		/// <param name="genericTypeArgument">The single generic type argument used to close the method.</param>
+		/// <param name="flags">Binding flags used to locate the method definition.</param>
+		/// <returns>An action that executes the closed method with a span parameter.</returns>
 		public static Action<TTarget, Span<TElement>> CreateSpanInvoker<TTarget, TElement>(
 			string methodName,
 			Type genericTypeArgument,
@@ -47,6 +92,16 @@ namespace NotNot.Advanced
 				typeof(TTarget), methodName, genericTypeArgument, flags);
 		}
 
+		/// <summary>
+		/// Creates a function delegate for a generic method that accepts a <see cref="Span{T}"/> and returns <typeparamref name="TResult"/>.
+		/// </summary>
+		/// <typeparam name="TTarget">The instance type that will be invoked.</typeparam>
+		/// <typeparam name="TElement">The element type of the span parameter.</typeparam>
+		/// <typeparam name="TResult">The return type of the method.</typeparam>
+		/// <param name="methodName">The method name to bind.</param>
+		/// <param name="genericTypeArgument">The concrete type argument that closes the method definition.</param>
+		/// <param name="flags">Binding flags used during method discovery.</param>
+		/// <returns>A function that executes the resolved method and returns a value.</returns>
 		public static Func<TTarget, Span<TElement>, TResult> CreateSpanFunc<TTarget, TElement, TResult>(
 			string methodName,
 			Type genericTypeArgument,
@@ -57,6 +112,16 @@ namespace NotNot.Advanced
 				typeof(TTarget), methodName, genericTypeArgument, flags);
 		}
 
+		/// <summary>
+		/// Creates a delegate with a dynamically constructed signature that invokes a generic instance method returning <see langword="void"/>.
+		/// </summary>
+		/// <typeparam name="TTarget">The declaring type that hosts the method.</typeparam>
+		/// <param name="methodName">The name of the generic method to bind.</param>
+		/// <param name="genericTypeArgument">The type that closes the method's generic parameter.</param>
+		/// <param name="parameterTypes">An ordered span describing the delegate parameter types following the target instance.</param>
+		/// <param name="flags">Binding flags that control visibility and inheritance during method lookup.</param>
+		/// <returns>A delegate that matches the specified signature and invokes the resolved method.</returns>
+		/// <exception cref="NotSupportedException">Thrown when a static binding is requested.</exception>
 		public static Delegate CreateDynamicAction<TTarget>(
 			string methodName,
 			Type genericTypeArgument,
@@ -74,6 +139,18 @@ namespace NotNot.Advanced
 				flags);
 		}
 
+		/// <summary>
+		/// Creates a delegate with a dynamically constructed signature that invokes a generic instance method returning <paramref name="returnType"/>.
+		/// </summary>
+		/// <typeparam name="TTarget">The declaring type that hosts the method.</typeparam>
+		/// <param name="methodName">The name of the generic method to bind.</param>
+		/// <param name="genericTypeArgument">The type that closes the method's generic parameter.</param>
+		/// <param name="returnType">The return type expected from the closed method.</param>
+		/// <param name="parameterTypes">An ordered span describing the delegate parameter types following the target instance.</param>
+		/// <param name="flags">Binding flags that control visibility and inheritance during method lookup.</param>
+		/// <returns>A delegate whose signature matches the supplied parameter and return types.</returns>
+		/// <exception cref="ArgumentNullException">Thrown when <paramref name="returnType"/> is <see langword="null"/>.</exception>
+		/// <exception cref="NotSupportedException">Thrown when a static binding is requested.</exception>
 		public static Delegate CreateDynamicFunc<TTarget>(
 			string methodName,
 			Type genericTypeArgument,
@@ -94,6 +171,10 @@ namespace NotNot.Advanced
 				flags);
 		}
 
+		/// <summary>
+		/// Not supported. Static method binding is intentionally disallowed because delegate creation assumes instance targets.
+		/// </summary>
+		/// <exception cref="NotSupportedException">Always thrown to signal that static methods cannot be bound.</exception>
 		public static Delegate CreateDynamicStatic(
 			Type declaringType,
 			string methodName,
@@ -105,10 +186,20 @@ namespace NotNot.Advanced
 			throw new NotSupportedException("Static method binding is not supported.");
 		}
 
-		public static void Dispose()
-		{
-		}
 
+
+		/// <summary>
+		/// Creates a delegate instance using the supplied signature metadata while ensuring only instance methods are bound.
+		/// </summary>
+		/// <param name="instanceType">The type containing the instance parameter expected by the delegate.</param>
+		/// <param name="declaringType">The type that declares the method definition.</param>
+		/// <param name="methodName">The name of the method to bind.</param>
+		/// <param name="genericTypeArgument">The type used to close the method.</param>
+		/// <param name="returnType">The return type expected from the delegate signature.</param>
+		/// <param name="parameterTypes">The parameter types (excluding the instance parameter) that compose the delegate signature.</param>
+		/// <param name="bindingFlags">Binding flags used during method discovery.</param>
+		/// <returns>A delegate that matches the supplied signature.</returns>
+		/// <exception cref="NotSupportedException">Thrown when static binding is attempted.</exception>
 		private static Delegate CreateDynamicDelegate(
 			Type? instanceType,
 			Type declaringType,
@@ -163,6 +254,19 @@ namespace NotNot.Advanced
 			return CreateDelegate(delegateType, declaringType, methodName, genericTypeArgument, flags);
 		}
 
+		/// <summary>
+		/// Resolves the generic method definition corresponding to <paramref name="methodName"/> and creates a delegate of <paramref name="delegateType"/>.
+		/// </summary>
+		/// <param name="delegateType">The delegate type whose signature must match the method.</param>
+		/// <param name="declaringType">The type that declares the method definition.</param>
+		/// <param name="methodName">The method name to bind.</param>
+		/// <param name="genericTypeArgument">The type that closes the generic method parameter.</param>
+		/// <param name="bindingFlags">Binding flags used during discovery.</param>
+		/// <returns>A delegate that can invoke the closed method.</returns>
+		/// <exception cref="ArgumentNullException">Thrown when required arguments are <see langword="null"/>.</exception>
+		/// <exception cref="ArgumentException">Thrown when <paramref name="methodName"/> is blank.</exception>
+		/// <exception cref="NotSupportedException">Thrown when the delegate does not represent an instance method.</exception>
+		/// <exception cref="MissingMethodException">Thrown when the underlying method cannot be located.</exception>
 		private static Delegate CreateDelegate(
 			Type delegateType,
 			Type declaringType,
@@ -206,6 +310,17 @@ namespace NotNot.Advanced
 			return closedMethod.CreateDelegate(delegateType);
 		}
 
+		/// <summary>
+		/// Searches <paramref name="declaringType"/> and optionally its base types for a generic method that matches the provided signature.
+		/// </summary>
+		/// <param name="declaringType">The type that declares the candidate methods.</param>
+		/// <param name="methodName">The name of the method to locate.</param>
+		/// <param name="flags">Binding flags controlling visibility and inheritance.</param>
+		/// <param name="parameterTypes">The parameter types expected by the closed method.</param>
+		/// <param name="requiredGenericArity">The number of generic parameters the method definition must expose.</param>
+		/// <param name="genericTypeArgument">The type argument used to close the method during evaluation.</param>
+		/// <param name="expectedReturnType">The return type required for a successful match.</param>
+		/// <returns>The open generic <see cref="MethodInfo"/> that matches the supplied criteria, or <see langword="null"/> when none is found.</returns>
 		private static MethodInfo? FindGenericMethod(
 			Type declaringType,
 			string methodName,
