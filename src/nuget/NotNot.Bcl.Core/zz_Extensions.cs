@@ -3081,6 +3081,18 @@ public static class zz_Extensions_Dictionary
 		return toReturn;
 	}
 
+	public static Mem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source)
+	{
+		var toReturn = Mem<(TKey key, TValue value)>.Allocate(source.Count);
+		var i = 0;
+		foreach (var kvp in source)
+		{
+			toReturn[i] = (kvp.Key, kvp.Value);
+			i++;
+		}
+		return toReturn;
+	}
+
 	public static TDerived _Get<TKey, TBase, TDerived>(this IDictionary<TKey, TBase> dict, TKey key)
 		where TDerived : TBase
 		where TKey : notnull

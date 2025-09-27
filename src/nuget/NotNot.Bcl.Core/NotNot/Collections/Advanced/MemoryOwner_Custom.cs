@@ -8,6 +8,7 @@ using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Buffers;
 using System.Buffers;
 using System.Collections;
+using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Runtime.CompilerServices;
 #if NETCORE_RUNTIME || NET5_0
@@ -122,6 +123,7 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		get
 		{
+			AssertNotDisposed();
 			T[]? array = this.array;
 
 			if (array is null)
@@ -147,7 +149,9 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 #endif
 		}
 	}
-
+	/// <summary>
+	/// if disposed we will throw if you try to access the memory/span/array
+	/// </summary>
 	public bool IsDisposed { get; private set; }
 
 	/// <inheritdoc />
@@ -156,6 +160,7 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		get
 		{
+			AssertNotDisposed();
 			T[]? array = this.array;
 
 			if (array is null)
@@ -203,6 +208,12 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 	~MemoryOwner_Custom()
 	{
 		Dispose();
+	}
+
+	[Conditional("CHECKED")]
+	private void AssertNotDisposed()
+	{
+		__.ThrowIfNot(!IsDisposed, "The current buffer has already been disposed");
 	}
 
 	/// <summary>
@@ -279,6 +290,7 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public ref T DangerousGetReference()
 	{
+		AssertNotDisposed();
 		T[]? array = this.array;
 
 		if (array is null)
@@ -307,6 +319,7 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public ArraySegment<T> DangerousGetArray()
 	{
+		AssertNotDisposed();
 		T[]? array = this.array;
 
 		if (array is null)
@@ -336,6 +349,7 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 	/// </remarks>
 	public MemoryOwner_Custom<T> Slice(int start, int length)
 	{
+		AssertNotDisposed();
 		T[]? array = this.array;
 
 		if (array is null)

@@ -52,6 +52,9 @@
 	 <!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
 	<Version>0.0.0-0.invalidMinverProcess</Version>
 </PropertyGroup>
+<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+  <DefineConstants>$(DefineConstants);CHECKED</DefineConstants>
+</PropertyGroup>
 
 
 	<ItemGroup>

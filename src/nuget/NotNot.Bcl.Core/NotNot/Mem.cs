@@ -16,7 +16,7 @@ namespace NotNot;
 ///    use this instead of <see cref="SpanOwner{T}" />.  This will alert you if you do not dispose properly.
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public ref struct SpanGuard<T>
+public ref struct SpanGuard<T> : IDisposable
 {
 	/// <summary>
 	///    should dispose prior to exit function.   easiest way is to ex:  `using var spanGuard = SpanGuard{int}(42)
@@ -183,7 +183,7 @@ public static class ReadMem
 ///    a write capable view into an array/span
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public readonly struct Mem<T>
+public readonly struct Mem<T> : IDisposable
 {
 	/// <summary>
 	///    if pooled, this will be set.  a reference to the pooled location so it can be recycled
@@ -372,7 +372,7 @@ public readonly struct Mem<T>
 //[DebuggerTypeProxy(typeof(NotNot.Bcl.Collections.Advanced.CollectionDebugView<>))]
 //[DebuggerDisplay("{ToString(),raw}")]
 //[DebuggerDisplay("{ToString(),nq}")]
-public readonly struct ReadMem<T>
+public readonly struct ReadMem<T> : IDisposable
 {
 	/// <summary>
 	///    if pooled, this will be set.  a reference to the pooled location so it can be recycled
