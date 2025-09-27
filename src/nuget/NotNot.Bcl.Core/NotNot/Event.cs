@@ -1,3 +1,5 @@
+using NotNot.Advanced;
+
 namespace NotNot;
 
 /// <summary>
@@ -195,3 +197,97 @@ public class ActionEvent<TArgs>
 	}
 }
 
+
+/// <summary>
+///  light weight event that doesn't pass sender.  version of ActionEvent that takes a Span of args.
+/// </summary>
+/// <typeparam name="TArgs"></typeparam>
+public class ActionEventSpan<TArgs> where TArgs : struct
+{
+	private bool _isInvoking;
+
+	private List<WeakReference<Action<Span<TArgs>>>> _storage = new();
+	///// <summary>
+	///// used in enumration when .Invoke() is called.
+	///// </summary>
+	//private List<WeakReference<EventHandler<TEventArgs>>> _storageTempCopy = new();
+
+	/// <summary>
+	///    (un)subscribe here
+	/// </summary>
+	public event Action<Span<TArgs>> Handler
+	{
+		add
+		{
+			lock (_storage)
+			{
+				_storage.Add(new WeakReference<Action<Span<TArgs>>>(value));
+			}
+		}
+		remove
+		{
+			lock (_storage)
+			{
+				_storage._RemoveLast(x => x.TryGetTarget(out var target) && target == value);
+			}
+		}
+	}
+
+	/// <summary>
+	///    only the owner should call this
+	/// </summary>
+	public void Invoke(Span<TArgs> span_args)
+	{
+		if (_storage.Count == 0)
+		{
+			//nothing registered to listen
+			return;
+		}
+		__.GetLogger()._EzError(_isInvoking is false, "multiple invokes occuring.  danger?  investigate.");
+		_isInvoking = true;
+
+		//__.assert.IsFalse(ThreadDiag.IsLocked(_storageTempCopy),"multiple invokes occuring.  danger?  investigate.");
+
+		//lock (_storageTempCopy)
+		var _storageTempCopy = __.pool.Get<List<WeakReference<Action<Span<TArgs>>>>>();
+		__.GetLogger()._EzError(_storageTempCopy.Count == 0, "when recycling to pool, should always clear objects");
+		{
+			lock (_storage)
+			{
+				__.GetLogger()._EzError(_storageTempCopy.Count == 0);
+				_storageTempCopy.AddRange(_storage);
+			}
+
+			var anyExpired = false;
+			foreach (var weakRef in _storageTempCopy)
+			{
+				if (weakRef.TryGetTarget(out var handler))
+				{
+					handler(span_args);
+				}
+				else
+				{
+					anyExpired = true;
+				}
+			}
+
+			if (anyExpired)
+			{
+				_RemoveExpiredSubscriptions();
+			}
+
+			_storageTempCopy.Clear();
+			__.pool.Return(_storageTempCopy);
+		}
+		_isInvoking = false;
+	}
+
+	private void _RemoveExpiredSubscriptions()
+	{
+		lock (_storage)
+		{
+			//remove all expired weakrefs
+			_storage.RemoveAll(weakRef => weakRef.TryGetTarget(out _) == false);
+		}
+	}
+}

@@ -21,6 +21,7 @@ namespace NotNot.Collections._unused;
 /// </summary>
 /// <typeparam name="T"></typeparam>
 [ThreadSafety(ThreadSituation.Always)]
+[Obsolete("use ManagedPointer<T> instead")]
 public class ObjLookup<T> where T : class
 {
 	private readonly object _lock = new();

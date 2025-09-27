@@ -24,7 +24,7 @@ public abstract class SlimNode : AsyncDisposeGuard
 	public virtual bool IsRoot { get; init; }
 	public bool IsInitialized { get; private set; }
 
-	public SlimNode Parent { get; private set; }
+	public virtual SlimNode Parent { get; private set; }
 
 
 
