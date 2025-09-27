@@ -594,8 +594,12 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	}
 
 
-
-	public ReadMem<SlotHandle> Alloc(int count)
+	/// <summary>
+	/// allocate slots, all will be uninitialized ("default")
+	/// </summary>
+	/// <param name="count"></param>
+	/// <returns></returns>
+	public Mem<SlotHandle> Alloc(int count)
 	{
 		var toReturn = Mem.Allocate<SlotHandle>(count);
 		var slotSpan = toReturn.Span;
@@ -610,7 +614,7 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 			AfterAlloc.Invoke(slotSpan);
 
 
-			return toReturn.AsReadMem();
+			return toReturn;//.AsReadMem();
 		}
 	}
 
