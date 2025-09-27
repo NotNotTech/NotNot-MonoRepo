@@ -3,6 +3,7 @@
 // [!!] This file is licensed to you under the MPL-2.0.
 // [!!] See the LICENSE.md file in the project root for more info. 
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
+#define CHECKED
 
 using System.Diagnostics;
 using CommunityToolkit.HighPerformance.Buffers;
@@ -21,10 +22,11 @@ public ref struct SpanGuard<T>
 	///    should dispose prior to exit function.   easiest way is to ex:  `using var spanGuard = SpanGuard{int}(42)
 	/// </summary>
 	/// <param name="size"></param>
+	/// <param name="allocationMode">if you only use NotNot based pooling (SpanGuard and Mem) you can leave this as default, because pooled arrays are cleared upon .Dispose().</param>
 	/// <returns></returns>
-	public static SpanGuard<T> Allocate(int size)
+	public static SpanGuard<T> Allocate(int size, AllocationMode allocationMode = AllocationMode.Default)
 	{
-		return new SpanGuard<T>(SpanOwner<T>.Allocate(size));
+		return new SpanGuard<T>(SpanOwner<T>.Allocate(size, allocationMode));
 	}
 
 	public SpanGuard(SpanOwner<T> owner)
@@ -50,6 +52,7 @@ public ref struct SpanGuard<T>
 #endif
 	public void Dispose()
 	{
+		_poolOwner.Span.Clear();
 		_poolOwner.Dispose();
 
 #if CHECKED
