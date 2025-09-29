@@ -43,11 +43,11 @@ namespace NotNot.Advanced
 		public static TDelegate CreateInvoker<TDelegate>(
 			Type declaringType,
 			string methodName,
-			params Type[] genericTypeArgumentss)
+			params Type[] genericTypeArguments)
 			where TDelegate : Delegate
 		{
 			return CreateInvoker<TDelegate>(declaringType, methodName,
-				BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArgumentss);
+				BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
 		/// <example>
@@ -65,23 +65,14 @@ namespace NotNot.Advanced
 			Type declaringType,
 			string methodName,
 			BindingFlags bindingFlags,
-			params Type[] genericTypeArgumentss)
+			params Type[] genericTypeArguments)
 			where TDelegate : Delegate
 		{
 			if (declaringType == null) throw new ArgumentNullException(nameof(declaringType));
 			if (string.IsNullOrWhiteSpace(methodName)) throw new ArgumentException("Method name is required", nameof(methodName));
-			if (genericTypeArgumentss == null) throw new ArgumentNullException(nameof(genericTypeArgumentss));
+			ValidateTypeArguments(genericTypeArguments);
 
-			// Validate each type argument is not null
-			for (int i = 0; i < genericTypeArgumentss.Length; i++)
-			{
-				if (genericTypeArgumentss[i] == null)
-					throw new ArgumentNullException(
-						$"{nameof(genericTypeArgumentss)}[{i}]",
-						"Type arguments cannot be null");
-			}
-
-			return (TDelegate)CreateDelegate(typeof(TDelegate), declaringType, methodName, genericTypeArgumentss, bindingFlags);
+			return (TDelegate)CreateDelegate(typeof(TDelegate), declaringType, methodName, genericTypeArguments, bindingFlags);
 		}
 
 		/// <summary>
@@ -89,7 +80,7 @@ namespace NotNot.Advanced
 		/// </summary>
 		/// <typeparam name="TDelegate">The delegate type to create.</typeparam>
 		/// <param name="method">The method to create a delegate for (can be generic method definition).</param>
-		/// <param name="genericTypeArgumentss">Type arguments to close the generic method (empty for non-generic).</param>
+		/// <param name="genericTypeArguments">Type arguments to close the generic method (empty for non-generic).</param>
 		/// <returns>A delegate that invokes the specified method.</returns>
 		/// <exception cref="ArgumentNullException">When method or type arguments are null.</exception>
 		/// <exception cref="ArgumentException">When type argument count doesn't match method requirements.</exception>
@@ -108,20 +99,11 @@ namespace NotNot.Advanced
 		/// </example>
 		public static TDelegate CreateExactInvoker<TDelegate>(
 			MethodInfo method,
-			params Type[] genericTypeArgumentss)
+			params Type[] genericTypeArguments)
 			where TDelegate : Delegate
 		{
 			if (method == null) throw new ArgumentNullException(nameof(method));
-			if (genericTypeArgumentss == null) throw new ArgumentNullException(nameof(genericTypeArgumentss));
-
-			// Validate each type argument is not null
-			for (int i = 0; i < genericTypeArgumentss.Length; i++)
-			{
-				if (genericTypeArgumentss[i] == null)
-					throw new ArgumentNullException(
-						$"{nameof(genericTypeArgumentss)}[{i}]",
-						"Type arguments cannot be null");
-			}
+			ValidateTypeArguments(genericTypeArguments);
 
 			// Handle generic, already-closed, and non-generic methods
 			MethodInfo targetMethod;
@@ -134,11 +116,11 @@ namespace NotNot.Advanced
 						"Method is a constructed generic that still contains open type parameters. " +
 						"Pass the generic method definition instead.");
 				}
-				if (method.GetGenericArguments().Length != genericTypeArgumentss.Length)
+				if (method.GetGenericArguments().Length != genericTypeArguments.Length)
 					throw new ArgumentException($"Method requires {method.GetGenericArguments().Length} type arguments");
-				targetMethod = method.MakeGenericMethod(genericTypeArgumentss);
+				targetMethod = method.MakeGenericMethod(genericTypeArguments);
 			}
-			else if (genericTypeArgumentss.Length == 0)
+			else if (genericTypeArguments.Length == 0)
 			{
 				targetMethod = method; // Already closed or non-generic, use as-is
 			}
@@ -192,11 +174,11 @@ namespace NotNot.Advanced
 		/// </example>
 		public static Action<TTarget> CreateAction<TTarget>(
 			string methodName,
-			params Type[] genericTypeArgumentss)
+			params Type[] genericTypeArguments)
 			where TTarget : class
 		{
 			return CreateInvoker<Action<TTarget>>(
-				typeof(TTarget), methodName, BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArgumentss);
+				typeof(TTarget), methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
 		/// <summary>
@@ -219,15 +201,34 @@ namespace NotNot.Advanced
 		/// </example>
 		public static Func<TTarget, TResult> CreateFunc<TTarget, TResult>(
 			string methodName,
-			params Type[] genericTypeArgumentss)
+			params Type[] genericTypeArguments)
 			where TTarget : class
 		{
 			return CreateInvoker<Func<TTarget, TResult>>(
-				typeof(TTarget), methodName, BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArgumentss);
+				typeof(TTarget), methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
 		// APIs removed - CreateSpanInvoker, CreateSpanFunc, CreateDynamicAction, CreateDynamicFunc, CreateDynamicStatic, CreateDynamicDelegate
 		// These APIs contradicted exact-match semantics by inferring signatures or making assumptions
+
+		/// <summary>
+		/// Validates that all type arguments in the array are non-null.
+		/// </summary>
+		/// <param name="genericTypeArguments">The type arguments to validate.</param>
+		/// <exception cref="ArgumentNullException">When the array is null or contains null elements.</exception>
+		private static void ValidateTypeArguments(Type[] genericTypeArguments)
+		{
+			if (genericTypeArguments == null) 
+				throw new ArgumentNullException(nameof(genericTypeArguments));
+			
+			for (int i = 0; i < genericTypeArguments.Length; i++)
+			{
+				if (genericTypeArguments[i] == null)
+					throw new ArgumentNullException(
+						$"{nameof(genericTypeArguments)}[{i}]",
+						"Type arguments cannot be null");
+			}
+		}
 
 		/// <summary>
 		/// Resolves the generic method definition corresponding to <paramref name="methodName"/> and creates a delegate of <paramref name="delegateType"/>.
@@ -250,14 +251,8 @@ namespace NotNot.Advanced
 			BindingFlags bindingFlags)
 		{
 			if (declaringType is null) throw new ArgumentNullException(nameof(declaringType));
-			if (genericTypeArguments is null) throw new ArgumentNullException(nameof(genericTypeArguments));
-		if (genericTypeArguments.Length == 0) throw new ArgumentException("At least one type argument required", nameof(genericTypeArguments));
-		for (int i = 0; i < genericTypeArguments.Length; i++)
-		{
-			if (genericTypeArguments[i] == null)
-				throw new ArgumentNullException($"{nameof(genericTypeArguments)}[{i}]", "Type arguments cannot be null");
-		}
-			if (string.IsNullOrWhiteSpace(methodName)) throw new ArgumentException("Required", nameof(methodName));
+			ValidateTypeArguments(genericTypeArguments);
+			if (string.IsNullOrWhiteSpace(methodName)) throw new ArgumentException("Method name is required", nameof(methodName));
 			if ((bindingFlags & BindingFlags.Static) != 0) throw new NotSupportedException("Static method binding is not supported.");
 
 			var invokeMethod = delegateType.GetMethod("Invoke")
@@ -271,7 +266,7 @@ namespace NotNot.Advanced
 				parameterSpan[i] = invokeParameters[i].ParameterType;
 			}
 
-			var isInstanceDelegate = parameterSpan.Length > 0 && parameterSpan[0].IsAssignableFrom(declaringType);
+			var isInstanceDelegate = parameterSpan.Length > 0 && declaringType.IsAssignableFrom(parameterSpan[0]);
 			if (!isInstanceDelegate) throw new NotSupportedException("Delegates must represent instance methods.");
 			ReadOnlySpan<Type> methodParameterTypes = parameterSpan.Slice(1);
 
@@ -396,7 +391,7 @@ namespace NotNot.Advanced
 				// Verify first parameter is compatible with declaring type
 				if (invokeParameters.Length > 0 && method.DeclaringType != null)
 				{
-					if (!invokeParameters[0].ParameterType.IsAssignableFrom(method.DeclaringType))
+					if (!method.DeclaringType.IsAssignableFrom(invokeParameters[0].ParameterType))
 						throw new NotSupportedException(
 							$"Delegate's first parameter type {invokeParameters[0].ParameterType} " +
 							$"is not compatible with declaring type {method.DeclaringType}");
