@@ -28,56 +28,38 @@ internal class AppSettingsGen : IncrementalGenerator
 	 {
 		  // SGF handles debugging automatically via SGF_DEBUGGER_LAUNCH environment variable
 
-
 		  /////////////  NEW ADDITIONAL FILES WORKFLOW
 		  {
-
 				// Get the MSBuild property <NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic> from the consuming project .csproj file
 				var genPublicProvider = context.AnalyzerConfigOptionsProvider
 					.Select((provider, ct) =>
-				{
-					 //IMPORTANT!: this property has to be whitelisted in the `NotNot.AppSettings.targets` file, which is included in the consuming project.
-					 // First try reading directly from build_property
-					 provider.GlobalOptions.TryGetValue("build_property.NotNot_AppSettings_GenPublic", out var genPublic);
+					{
+						 provider.GlobalOptions.TryGetValue("build_property.NotNot_AppSettings_GenPublic", out var genPublic);
+						 if (string.IsNullOrEmpty(genPublic))
+						 {
+							  provider.GlobalOptions.TryGetValue("build_metadata.NotNot_AppSettings_GenPublic", out genPublic);
+						 }
+						 return !string.IsNullOrEmpty(genPublic) && bool.TryParse(genPublic, out var result) && result;
+					});
 
-					 // If not found or empty, try reading from MSBuild properties
-					 if (string.IsNullOrEmpty(genPublic))
-					 {
-						  provider.GlobalOptions.TryGetValue("build_metadata.NotNot_AppSettings_GenPublic", out genPublic);
-					 }
-
-					 // Parse as boolean, defaulting to false if parsing fails or value is not found
-					 return !string.IsNullOrEmpty(genPublic) && bool.TryParse(genPublic, out var result) && result;
-				});
-
-				//get appsettings*.json via AdditionalFiles
+				// get appsettings*.json via AdditionalFiles
 				var regex = new Regex(@"[/\\]appsettings\..*json$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-				var additionalFiles = context.AdditionalTextsProvider.Where(file =>
-				{
-					 var result = regex.IsMatch(file.Path);
-					 return result;
-				});
+				var additionalFiles = context.AdditionalTextsProvider.Where(file => regex.IsMatch(file.Path));
 
-
-				// Transform additionalFiles to a single Dictionary entry
+				// group SourceText once
 				var combinedSourceTextsProvider = additionalFiles.Collect().Select((files, ct) =>
 				{
-					 //Debug.WriteLine($"additionalFiles = {files.Length}");
 					 var combinedFiles = new Dictionary<string, SourceText>();
 					 foreach (var file in files)
 					 {
-
-						  //Debug.WriteLine($"file = {file.Path}");
 						  var sourceText = file.GetText(ct);
 						  if (sourceText != null)
 						  {
 								combinedFiles[file.Path] = sourceText;
 						  }
 					 }
-
 					 return combinedFiles;
 				});
-
 
 				var namespaceProvider = context.AnalyzerConfigOptionsProvider
 					.Select(static (provider, ct) =>
@@ -86,42 +68,45 @@ internal class AppSettingsGen : IncrementalGenerator
 						 return rootNamespace;
 					});
 
-				var combinedProvider = namespaceProvider.Combine(combinedSourceTextsProvider).Combine(genPublicProvider);
+				// SIMPLE: get invoking project from Compilation
+				var projectNameProvider = context.CompilationProvider
+					.Select((compilation, ct) => compilation.AssemblyName ?? "UnknownProject");
 
-
+				var combinedProvider = projectNameProvider
+					.Combine(namespaceProvider)
+					.Combine(combinedSourceTextsProvider)
+					.Combine(genPublicProvider);
 
 				context.RegisterSourceOutput(
 					combinedProvider,
 					(spc, content) =>
 					{
-						 var rootNamespace = content.Left.Left;
+						 var projectName = content.Left.Left.Left;
+						 var rootNamespace = content.Left.Left.Right;
 						 var combinedSourceTexts = content.Left.Right;
 						 var genPublic = content.Right;
 
-
 						 string version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-										?? Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyVersionAttribute>()?.Version.ToString()
-										?? Assembly.GetExecutingAssembly().GetName().ToString();
+									 ?? Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyVersionAttribute>()?.Version.ToString()
+									 ?? Assembly.GetExecutingAssembly().GetName().ToString();
 						 if (version?.IndexOf("+") > 0)
 						 {
 							  version = version.Substring(0, version.IndexOf("+"));
 						 }
 
-
 						 var config = new AppSettingsGenConfig
 						 {
+							  ProjectName = projectName,
 							  RootNamespace = rootNamespace,
 							  IsPublic = genPublic,
 							  CombinedSourceTexts = combinedSourceTexts,
 							  NugetVersion = version,
 						 };
 
-						 //config.GenSemVer += $" {config.IsPublic} {DateTime.Now}";
-
 						 ExecuteGenerator(spc, config);
 					});
-
 		  }
+	 
 
 		  ////////////////  OLD FILE.IO WORKFLOW  Works but frowned upon for sourcegen.  Switched to SourceText
 		  //{
@@ -169,7 +154,7 @@ internal class AppSettingsGen : IncrementalGenerator
 		  //}
 		  if (config.CombinedSourceTexts.Count == 0)
 		  {
-				Logger.Error("No appSettings.json files were found in your project. SourceGen aborted. In Project Properties, Make sure it's BuildAction=C# Analyzer, and copy-to-output=ALWAYS.");
+				Logger.Error($"No appSettings.json files were found in your project `{config.ProjectName}`. SourceGen aborted. In Project Properties, Make sure it's BuildAction=C# Analyzer, and copy-to-output=ALWAYS.");
 				return toReturn;
 		  }
 

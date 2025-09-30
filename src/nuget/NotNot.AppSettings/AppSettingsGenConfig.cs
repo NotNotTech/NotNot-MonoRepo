@@ -9,6 +9,9 @@ public class AppSettingsGenConfig
 	 /// the root namespace of the consuming project.   may be null.
 	 /// </summary>
 	 public string? RootNamespace { get; set; }
+
+
+	 public string ProjectName { get; set; }
 	 /// <summary>
 	 /// if false, the generated class will be internal
 	 /// <para>set from the MSBuild property {NotNot_AppSettings_GenPublic}true{/NotNot_AppSettings_GenPublic} from the consuming project .csproj file</para>
