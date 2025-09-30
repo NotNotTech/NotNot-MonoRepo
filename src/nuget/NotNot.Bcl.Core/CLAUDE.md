@@ -12,6 +12,37 @@
 - **NO IResult or HttpContext usage** - Web concerns belong in NotNot.Bcl
 - Type detection by name/string matching only when needed for web types
 
+## Important usage patterns
+
+### Maybe<T> Pattern
+- `Maybe.cs` - Core Maybe monad implementation
+- `MaybeJsonConverter` - JSON serialization support
+- `Problem.cs` - Structured error representation
+- Detection of IResult types by name (not reference) to avoid ASP.NET dependency
+
+### Pooled Arrays/Spans Pattern: Mem<T> and SpanGuard<T>
+- `Mem.cs` - Pooled array/span allocation cache.
+- use `Mem<T>` for high-performance scenarios where an array would commonly be used
+   - very low GC pressure: just a small tracking object.  (array is pooled))
+   - has fast reliable Span<T> access and conversion to/from Read-only mode (`ReadMem<T>`)
+- use `SpanGuard<T>` for "stackalloc"" scenarios where a large allocation is needed.
+   - no GC pressure: the array is pooled and reused.
+   - useful when you need an array for the lifetime of a method.  useful because the allocation is automatically freed when the method exits. 
+
+
+### Serialization
+- `SerializationHelper.cs` - JSON configuration
+- Custom converters for Maybe<T> types
+- Framework-agnostic serialization patterns
+
+### Extensions
+- Pure .NET extension methods only.   
+- conventions:
+	- follow same `zz_Extensions_{type}` naming convention for new extensions.  
+   - always prefix our extension methods with `_` to visibly signal this is our extension method.
+- No web-specific extensions (those go in NotNot.Bcl)
+- Focus on general-purpose utilities
+
 # VIBECACHE
 
 **LastCommitHash**: Unknown
@@ -23,24 +54,6 @@
 
 ## Related Topics
 - [../NotNot.Bcl/CLAUDE.md](../NotNot.Bcl/CLAUDE.md) - Web framework extensions
-
-## Core Components
-
-### Maybe<T> Pattern
-- `Maybe.cs` - Core Maybe monad implementation
-- `MaybeJsonConverter` - JSON serialization support
-- `Problem.cs` - Structured error representation
-- Detection of IResult types by name (not reference) to avoid ASP.NET dependency
-
-### Serialization
-- `SerializationHelper.cs` - JSON configuration
-- Custom converters for Maybe<T> types
-- Framework-agnostic serialization patterns
-
-### Extensions
-- Pure .NET extension methods only
-- No web-specific extensions (those go in NotNot.Bcl)
-- Focus on general-purpose utilities
 
 ## Dependency Rules
 1. **Allowed**: System.* namespaces, pure .NET libraries

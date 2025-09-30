@@ -111,7 +111,7 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 	public void AssertIsAlive()
 	{
 		__.AssertIfNot(IsAllocated);
-		
+
 		//if (_targets.TryGetValue(this, out var weakRef) is false)
 		//{
 		//	throw new ObjectDisposedException("owner no longer exists, likely disposed");

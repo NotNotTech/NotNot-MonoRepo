@@ -3040,6 +3040,20 @@ public static class zz_Extensions_IEnumerable
 	}
 }
 
+public static class zz_Extensions_ConcurrentDictionary
+{
+	public static bool _TryRemoveIf<TKey, TValue>(this ConcurrentDictionary<TKey, TValue> source, TKey key, Func<TKey, TValue, bool> removeIfTrue)
+	{
+		if (source.TryGetValue(key, out var val))
+		{
+			if (removeIfTrue(key, val))
+			{
+				return source.TryRemove(new KeyValuePair<TKey, TValue>(key, val));
+			}
+		}
+		return false;
+	}
+}
 public static class zz_Extensions_Dictionary
 {
 	/// <summary>
@@ -3064,6 +3078,18 @@ public static class zz_Extensions_Dictionary
 			toReturn.Add(key, val);
 		}
 
+		return toReturn;
+	}
+
+	public static Mem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source)
+	{
+		var toReturn = Mem<(TKey key, TValue value)>.Allocate(source.Count);
+		var i = 0;
+		foreach (var kvp in source)
+		{
+			toReturn[i] = (kvp.Key, kvp.Value);
+			i++;
+		}
 		return toReturn;
 	}
 
@@ -5003,6 +5029,29 @@ public static class zz_Extensions_DateTime
 	public static DateTimeOffset? _ToMicrosecondPrecision(this DateTimeOffset? dateTimeOffset)
 	{
 		return dateTimeOffset?._ToMicrosecondPrecision();
+	}
+}
+
+
+public static class zz_Extensions_WeakReference
+{
+	/// <summary>
+	/// true if target REFERENCE-EQUALS the given object
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="weakReference"></param>
+	/// <param name="value"></param>
+	/// <returns></returns>
+	public static bool _TargetRefEquals<T>(this WeakReference<T> weakReference, object value) where T : class
+	{
+		if (weakReference.TryGetTarget(out var existingValue))
+		{
+			if (ReferenceEquals(existingValue, value))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 }
 

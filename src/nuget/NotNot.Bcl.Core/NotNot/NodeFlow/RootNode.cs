@@ -20,6 +20,12 @@ public class RootNode : SlimNode
 		return Update(CurrentTick);
 	}
 
+	protected override ValueTask OnUpdate(TickState currentTick)
+	{
+		__.AssertIfNot(currentTick == CurrentTick,"we expect RootNode's OnUpdate to be called via the .RootUpdate() method.  did you call .Update() instead?");
+		return base.OnUpdate(currentTick);
+	}
+
 	public ValueTask RootInitialize(CancellationToken ct)
 	{
 		return this.Initialize(ct);

@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Text;
 using Microsoft.CodeAnalysis;
 
-namespace NotNot.AppSettings;
+namespace NotNot.AppSettingsInternal;
 
 internal static class zz_Extensions
 {

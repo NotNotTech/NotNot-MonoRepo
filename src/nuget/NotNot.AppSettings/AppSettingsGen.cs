@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using NotNot.AppSettings;
+using NotNot.AppSettingsInternal;
 using SGF;
 
 [assembly: InternalsVisibleTo("NotNot.AppSettings.Tests")]
