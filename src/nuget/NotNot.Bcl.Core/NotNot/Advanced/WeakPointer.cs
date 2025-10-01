@@ -17,7 +17,7 @@ namespace NotNot.Advanced;
 /// <para>should NOT be used for 1:1 references, only many-one.</para>
 /// <para> you should always clean this up, using destructor or other lifecycle workflows.   uncleaned up references will be considered memory leaks and asserts will trigger.</para>
 /// </summary>
-public record struct ManagedPointer<T> : IDisposable where T : class
+public record struct WeakPointer<T> : IDisposable where T : class
 {
 	// RefSlotStore for storing WeakReference<T> - provides array-based access
 	private static readonly RefSlotStore<WeakReference<T>> _store = new(initialCapacity: 100);
@@ -28,7 +28,7 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 	// Cursor for incremental cleanup - tracks position in array
 	private static int _cleanupCursor = 0;
 
-	public static ManagedPointer<T> RegisterTarget(T target)
+	public static WeakPointer<T> Alloc(T target)
 	{
 		lock (_allocLock)
 		{
@@ -42,7 +42,7 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 			_GCNextSlots(5);
 
 			// Return ManagedPointer with the SlotHandle
-			return new ManagedPointer<T>
+			return new WeakPointer<T>
 			{
 				_slotHandle = slotHandle
 			};
@@ -83,7 +83,7 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 	}
 
 
-	public static void UnregisterTarget(ManagedPointer<T> managedPointer)
+	public static void Free(WeakPointer<T> managedPointer)
 	{
 		if (managedPointer._slotHandle.IsAllocated)
 		{
@@ -180,7 +180,7 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 	{
 		if (IsAllocated)
 		{
-			UnregisterTarget(this);
+			Free(this);
 		}
 	}
 }

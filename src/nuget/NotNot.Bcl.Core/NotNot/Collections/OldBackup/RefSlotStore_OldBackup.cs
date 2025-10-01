@@ -14,30 +14,31 @@ using CommunityToolkit.HighPerformance;
 using NotNot.Advanced;
 using NotNot.Collections;
 
-namespace NotNot.Collections;
-
+namespace NotNot.Collections.OldBackup;
 
 /// <summary>
 /// A read-only handle for referencing an allocated slot in a `RefSlotStore{T}` collection.
-/// Packed into 32 bits for maximum performance:
-/// - Bit 31: IsAllocated (1 bit)
-/// - Bits 8-30: Index (23 bits, max 8,388,607)
-/// - Bits 0-7: Version (8 bits, max 255)
+/// Packed into 64 bits for maximum performance:
+/// - Bit 63: IsAllocated (1 bit)
+/// - Bits 40-62: CollectionId (23 bits, max 8,388,607)
+/// - Bits 32-39: Version (8 bits, max 255)
+/// - Bits 0-31: Index (32 bits, max 4,294,967,295)
 /// </summary>
-public readonly record struct SlotHandle
+//[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1)]
+public readonly record struct SlotHandle_OldBackup
 {
 	/// <summary>
 	/// Direct access to the packed value for performance-critical scenarios
 	/// </summary>
-	public readonly uint _packedValue;
+	public readonly BitFlags64 _packedValue;
 
-	public static SlotHandle Empty { get; } = default;
+	public static SlotHandle_OldBackup Empty { get; } = default;
 
 
 	/// <summary>
 	/// Creates a SlotHandle from a packed value
 	/// </summary>
-	public SlotHandle(uint packed)
+	public SlotHandle_OldBackup(ulong packed)
 	{
 		_packedValue = packed;
 		_AssertOk();
@@ -46,16 +47,18 @@ public readonly record struct SlotHandle
 	/// <summary>
 	/// Creates a new SlotHandle with the specified values
 	/// </summary>
-	public SlotHandle(int index, byte version, bool isAllocated)
+	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	public SlotHandle_OldBackup(int index, byte version, int collectionId, bool isAllocated)
 	{
 		// Validate ranges
-		__.AssertIfNot(index >= 0 && index <= 0x7FFFFF, "Index must fit in 23 bits");
+		__.AssertIfNot(collectionId >= 0 && collectionId <= 0x7FFFFF, "CollectionId must fit in 23 bits");
 		__.AssertIfNot(version <= 0xFF, "Version must fit in 8 bits");
 
 		// Pack the values
-		_packedValue = ((uint)(isAllocated ? 1 : 0) << 31) |
-					 ((uint)(index & 0x7FFFFF) << 8) |
-					 ((uint)version & 0xFF);
+		_packedValue = ((ulong)(isAllocated ? 1 : 0) << 63) |
+				  ((ulong)(collectionId & 0x7FFFFF) << 40) |
+				  ((ulong)(version & 0xFF) << 32) |
+				  ((ulong)index & 0xFFFFFFFF);
 
 		_AssertOk();
 	}
@@ -65,7 +68,7 @@ public readonly record struct SlotHandle
 	/// </summary>
 	public int Index
 	{
-		get => (int)((_packedValue >> 8) & 0x7FFFFF);
+		get => (int)(_packedValue & 0xFFFFFFFF);
 	}
 
 	/// <summary>
@@ -73,7 +76,15 @@ public readonly record struct SlotHandle
 	/// </summary>
 	public byte Version
 	{
-		get => (byte)(_packedValue & 0xFF);
+		get => (byte)((_packedValue >> 32) & 0xFF);
+	}
+
+	/// <summary>
+	/// for internal use only: ensures this handle is not used across different collections
+	/// </summary>
+	public int CollectionId
+	{
+		get => (int)((_packedValue >> 40) & 0x7FFFFF);
 	}
 
 	/// <summary>
@@ -81,7 +92,7 @@ public readonly record struct SlotHandle
 	/// </summary>
 	public bool IsAllocated
 	{
-		get => (_packedValue & 0x80000000U) != 0;
+		get => (_packedValue & 0x8000000000000000UL) != 0;
 	}
 
 	[Conditional("DEBUG")]
@@ -91,12 +102,39 @@ public readonly record struct SlotHandle
 		__.AssertIfNot(Version > 0, "assume version is >=1.  will remove IsAllocated bit to use that instead");
 
 	}
+
+	public RefSlotStore_OldBackup<TSlotStore> GetBackingCollection<TSlotStore>()
+	{
+		RefSlotStore_OldBackup._allStoresByCollectionId.TryGetValue(CollectionId, out var weakRef);
+		if (weakRef is null || weakRef.TryGetTarget(out var store) is false)
+		{
+			throw new InvalidOperationException("Backing collection for SlotHandle not found (it may have been disposed)");
+		}
+		return (RefSlotStore_OldBackup<TSlotStore>)store;
+	}
 }
 
-public abstract class RefSlotStore
+public abstract class RefSlotStore_OldBackup
 {
-	protected static byte _initialVersion = 1;
-	
+
+	/// <summary>
+	/// used to ensure SlotHandle not used across different collections
+	/// </summary>
+	protected static int _nextCollectionId = 1;
+
+	/// <summary>
+	/// Stack of freed CollectionIds available for reuse
+	/// we also track version to avoid collection id reuse also reusing the same default version (1)
+	/// </summary>
+	protected internal static readonly ConcurrentQueue<(int collectionId, byte nextVersion)> _freeCollectionIds = new();
+
+	/// <summary>
+	/// the collection id for this store
+	/// </summary>
+	public int CollectionId { get; protected set; }
+
+	public static readonly ConcurrentDictionary<int, WeakReference<RefSlotStore_OldBackup>> _allStoresByCollectionId = new();
+
 }
 /// <summary>
 /// provides a List backed storage where individual slots can be freed for reuse.
@@ -106,24 +144,27 @@ public abstract class RefSlotStore
 /// for doing reads/edits in bulk, use the `_AsSpan_Unsafe()` method.
 /// </summary>
 /// <typeparam name="T">The type of item to store.</typeparam>
-public class RefSlotStore<T> : RefSlotStore
+public class RefSlotStore_OldBackup<T> : RefSlotStore_OldBackup
 {
+
+
+
 	/// <summary>
 	/// tracks allocations, to ensure a slot is not used after being freed.
 	/// </summary>
-	private byte _nextVersion;
+	private byte _nextVersion = 1;
 
 	/// <summary>
 	/// storage for the data and their handles (for tracking lifetime)
 	/// </summary>
-	private List<(SlotHandle handle, T slotData)> _storage;
+	private List<(SlotHandle_OldBackup handle, T slotData)> _storage;
 
 	/// <summary>
 	/// for use when reading/writing existing elements in bulk.  be sure not to allocate when using this (but free is ok)
 	/// <para>skip items with `handle.IsAllocated==false</para>
 	/// </summary>
 	/// <returns></returns>
-	public Span<(SlotHandle handle, T slotData)> _AsSpan_Unsafe() => _storage._AsSpan_Unsafe();
+	public Span<(SlotHandle_OldBackup handle, T slotData)> _AsSpan_Unsafe() => _storage._AsSpan_Unsafe();
 
 	/// <summary>
 	/// Used slots count: calculated as total allocated minus free slots.
@@ -149,25 +190,71 @@ public class RefSlotStore<T> : RefSlotStore
 	/// </summary>
 	private readonly Lock _lock = new();
 
-	public RefSlotStore(int initialCapacity = 10)
+	public RefSlotStore_OldBackup(int initialCapacity = 10)
 	{
-		_nextVersion = _initialVersion++;
+
+
+		//"Maximum number of RefSlotStore instances exceeded (8,388,607)"
+		//out of collection ids, so reuse freed ones
+		if (_freeCollectionIds.TryDequeue(out var tuple))
+		{
+			CollectionId = tuple.collectionId;
+			this._nextVersion = tuple.nextVersion;
+		}
+		else
+		{
+			// Allocate CollectionId (reuse freed ones or get new one)
+			CollectionId = _nextCollectionId++;
+			// Ensure we don't exceed 23-bit limit
+			if (_nextCollectionId > 0x7FFFFF)
+			{
+				throw new InvalidOperationException("Maximum number of RefSlotStore instances exceeded (8,388,607) and no freed CollectionIds available");
+			}
+		}
 
 
 
 		// **Initialize the underlying storage** with the initial capacity.
 		_storage = new(initialCapacity);
 		_freeSlots = new Stack<int>(initialCapacity);
+
+		//below NOT NEEDED: list has Count=0 now, so can let it grow/freSlot organically
+		//// **Push all slots** into the free slots stack in reverse order.
+		//for (var i = initialCapacity - 1; i >= 0; i--)
+		//{
+		//	_freeSlots.Push(i);
+		//}
+
+		// Register this store in the global dictionary for handle validation
+		if (_allStoresByCollectionId.TryGetValue(CollectionId, out var existingStoreWeakRef))
+		{
+			if (existingStoreWeakRef.TryGetTarget(out var existingStore))
+			{
+				throw new InvalidOperationException("CollectionId reuse detected while previous store is still alive. This should not happen.");
+			}
+		}
+		_allStoresByCollectionId[CollectionId] = new WeakReference<RefSlotStore_OldBackup>(this);
 	}
 
 
+	/// <summary>
+	/// Destructor that returns the CollectionId to the free pool
+	/// </summary>
+	~RefSlotStore_OldBackup()
+	{
+		// Return the CollectionId to the free pool for reuse
+		_freeCollectionIds.Enqueue((CollectionId, _nextVersion));
+
+		// Remove this store from the global dictionary
+		_allStoresByCollectionId._TryRemoveIf(CollectionId, (key, existingStoreWeakRef) => existingStoreWeakRef._TargetRefEquals(this));
+	}
 
 
 	/// <summary>
 	/// **Indexer** to access elements by slot index.
 	/// - **Thread-safe:** Uses lock to ensure safe access during concurrent operations.
 	/// </summary>
-	public ref T this[SlotHandle slot]
+	public ref T this[SlotHandle_OldBackup slot]
 	{
 		get
 		{
@@ -191,7 +278,7 @@ public class RefSlotStore<T> : RefSlotStore
 	/// <summary>
 	/// **Alloc** a free slot and set it with **data**.
 	/// </summary>
-	public SlotHandle Alloc(T data)
+	public SlotHandle_OldBackup Alloc(T data)
 	{
 		return Alloc(ref data);
 		//lock (_lock)
@@ -208,7 +295,7 @@ public class RefSlotStore<T> : RefSlotStore
 		//		return toReturn;
 		//	}
 	}
-	public SlotHandle Alloc(ref T data)
+	public SlotHandle_OldBackup Alloc(ref T data)
 	{
 		lock (_lock)
 		{
@@ -232,7 +319,7 @@ public class RefSlotStore<T> : RefSlotStore
 	/// - If no free slot is available, expands the storage.
 	/// - **DEBUG mode:** tracks allocation via _CHECKED_allocationTracker.
 	/// </summary>
-	private SlotHandle Alloc()
+	private SlotHandle_OldBackup Alloc()
 	{
 		lock (_lock)
 		{
@@ -262,7 +349,7 @@ public class RefSlotStore<T> : RefSlotStore
 			__.DebugAssertIfNot(_storage.Count > index && _storage[index].handle.IsAllocated is false);
 
 
-			var toReturn = new SlotHandle(index, version, true);
+			var toReturn = new SlotHandle_OldBackup(index, version, CollectionId, true);
 
 			p_element.handle = toReturn;
 
@@ -278,14 +365,14 @@ public class RefSlotStore<T> : RefSlotStore
 	/// invoked immediately after slot is alloc'd.
 	/// <para>The slot is fully allocated (and populated), and the callback occurs within the lock.</para>
 	/// </summary>
-	public ActionEvent<SlotHandle> OnAlloc = new();
+	public ActionEvent<SlotHandle_OldBackup> OnAlloc = new();
 	/// <summary>
 	/// invoked immediately before slot is freed
 	/// <para>The slot is still fully allocated (and populated), and the callback occurs within the lock.</para>
 	/// </summary>
-	public ActionEvent<SlotHandle> OnFree = new();
+	public ActionEvent<SlotHandle_OldBackup> OnFree = new();
 
-	public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle slot)
+	public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle_OldBackup slot)
 	{
 		// Thread-safe public version
 		lock (_lock)
@@ -297,12 +384,16 @@ public class RefSlotStore<T> : RefSlotStore
 	/// <summary>
 	/// Internal version of handle validation that assumes caller holds the lock.
 	/// </summary>
-	private (bool isValid, string? invalidReason) _IsHandleValid_Unsafe(SlotHandle slot)
+	private (bool isValid, string? invalidReason) _IsHandleValid_Unsafe(SlotHandle_OldBackup slot)
 	{
 
 		if (!slot.IsAllocated)
 		{
 			return (false, "slot.IsEmpty");
+		}
+		if (slot.CollectionId != CollectionId)
+		{
+			return (false, "wrong CollectionId");
 		}
 
 		if (_storage.Count <= slot.Index)
@@ -326,7 +417,7 @@ public class RefSlotStore<T> : RefSlotStore
 	/// - Increases **Version**.
 	/// - **DEBUG mode:** validates that the slot is currently allocated.
 	/// </summary>
-	public void Free(SlotHandle slot)
+	public void Free(SlotHandle_OldBackup slot)
 	{
 		lock (_lock)
 		{
@@ -350,13 +441,29 @@ public class RefSlotStore<T> : RefSlotStore
 }
 
 
+/// <summary>
+/// For advanced performance situations only.
+/// Provides a tuple-like ref struct that groups a reference to a slot handle and a reference to a value of type
+/// <typeparamref name="T"/>. Designed for scenarios where both references need to be passed or manipulated together
+/// without heap allocation.
+/// </summary>
+/// <remarks>Because <see langword="ref struct"/> types cannot be boxed or captured by closures, <see
+/// cref="RefTuple_OldBackup{T}"/> is suitable for stack-only usage and cannot be stored in fields of classes or used across
+/// async/await boundaries. This type is typically used in performance-critical or low-level APIs where passing
+/// references together is required.</remarks>
+/// <typeparam name="T">The type of the value referenced by the <see cref="data"/> field.</typeparam>
+public ref struct RefTuple_OldBackup<T>
+{
+	public ref SlotHandle_OldBackup handle;
+	public ref T data;
+}
 
 /// <summary>
 /// a prototype version of RefSlotStore that is optimized for archetype storage.
 /// <para>optimized for batch operations, not setting value upon allocation</para>
 /// </summary>
 /// <typeparam name="T">The type of item to store.</typeparam>
-public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
+public class RefSlotStore_ArchetypeOptimized_OldBackup<T> : RefSlotStore_OldBackup
 {
 
 
@@ -364,19 +471,19 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// <summary>
 	/// tracks allocations, to ensure a slot is not used after being freed.
 	/// </summary>
-	private byte _nextVersion;
+	private byte _nextVersion = 1;
 
 	/// <summary>
 	/// storage for the data and their handles (for tracking lifetime)
 	/// </summary>
-	private List<(SlotHandle handle, T slotData)> _storage;
+	private List<(SlotHandle_OldBackup handle, T slotData)> _storage;
 
 	/// <summary>
 	/// for use when reading/writing existing elements in bulk.  be sure not to allocate when using this (but free is ok)
 	/// <para>skip items with `handle.IsAllocated==false</para>
 	/// </summary>
 	/// <returns></returns>
-	public Span<(SlotHandle handle, T slotData)> _AsSpan_Unsafe() => _storage._AsSpan_Unsafe();
+	public Span<(SlotHandle_OldBackup handle, T slotData)> _AsSpan_Unsafe() => _storage._AsSpan_Unsafe();
 
 	/// <summary>
 	/// Used slots count: calculated as total allocated minus free slots.
@@ -402,17 +509,63 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// </summary>
 	private readonly Lock _lock = new();
 
-	public RefSlotStore_ArchetypeOptimized(int initialCapacity = 10)
+	public RefSlotStore_ArchetypeOptimized_OldBackup(int initialCapacity = 10)
 	{
 
-		_nextVersion = _initialVersion++;
 
-		
+		//"Maximum number of RefSlotStore instances exceeded (8,388,607)"
+		//out of collection ids, so reuse freed ones
+		if (_freeCollectionIds.TryDequeue(out var tuple))
+		{
+			CollectionId = tuple.collectionId;
+			this._nextVersion = tuple.nextVersion;
+		}
+		else
+		{
+			// Allocate CollectionId (reuse freed ones or get new one)
+			CollectionId = _nextCollectionId++;
+			// Ensure we don't exceed 23-bit limit
+			if (_nextCollectionId > 0x7FFFFF)
+			{
+				throw new InvalidOperationException("Maximum number of RefSlotStore instances exceeded (8,388,607) and no freed CollectionIds available");
+			}
+		}
+
 
 
 		// **Initialize the underlying storage** with the initial capacity.
 		_storage = new(initialCapacity);
-		_freeSlots = new Stack<int>(initialCapacity);		
+		_freeSlots = new Stack<int>(initialCapacity);
+
+		//below NOT NEEDED: list has Count=0 now, so can let it grow/freSlot organically
+		//// **Push all slots** into the free slots stack in reverse order.
+		//for (var i = initialCapacity - 1; i >= 0; i--)
+		//{
+		//	_freeSlots.Push(i);
+		//}
+
+		// Register this store in the global dictionary for handle validation
+		if (_allStoresByCollectionId.TryGetValue(CollectionId, out var existingStoreWeakRef))
+		{
+			if (existingStoreWeakRef.TryGetTarget(out var existingStore))
+			{
+				throw new InvalidOperationException("CollectionId reuse detected while previous store is still alive. This should not happen.");
+			}
+		}
+		_allStoresByCollectionId[CollectionId] = new WeakReference<RefSlotStore_OldBackup>(this);
+	}
+
+
+	/// <summary>
+	/// Destructor that returns the CollectionId to the free pool
+	/// </summary>
+	~RefSlotStore_ArchetypeOptimized_OldBackup()
+	{
+		// Return the CollectionId to the free pool for reuse
+		_freeCollectionIds.Enqueue((CollectionId, _nextVersion));
+
+		// Remove this store from the global dictionary
+		_allStoresByCollectionId._TryRemoveIf(CollectionId, (key, existingStoreWeakRef) => existingStoreWeakRef._TargetRefEquals(this));
 	}
 
 
@@ -420,7 +573,7 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// **Indexer** to access elements by slot index.
 	/// - **Thread-safe:** Uses lock to ensure safe access during concurrent operations.
 	/// </summary>
-	public ref T this[SlotHandle slot]
+	public ref T this[SlotHandle_OldBackup slot]
 	{
 		get
 		{
@@ -446,9 +599,9 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// </summary>
 	/// <param name="count"></param>
 	/// <returns></returns>
-	public Mem<SlotHandle> Alloc(int count)
+	public Mem<SlotHandle_OldBackup> Alloc(int count)
 	{
-		var toReturn = Mem<SlotHandle>.Allocate(count);
+		var toReturn = Mem<SlotHandle_OldBackup>.Allocate(count);
 		var slotSpan = toReturn.Span;
 		lock (_lock)
 		{
@@ -473,7 +626,7 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// - If no free slot is available, expands the storage.
 	/// - **DEBUG mode:** tracks allocation via _CHECKED_allocationTracker.
 	/// </summary>
-	private SlotHandle _AllocSlot()
+	private SlotHandle_OldBackup _AllocSlot()
 	{
 		lock (_lock)
 		{
@@ -502,7 +655,7 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 			//verify allocated but unused
 			__.DebugAssertIfNot(_storage.Count > index && _storage[index].handle.IsAllocated is false);
 
-			var toReturn = new SlotHandle(index, version, true);
+			var toReturn = new SlotHandle_OldBackup(index, version, CollectionId, true);
 
 			p_element.handle = toReturn;
 
@@ -518,14 +671,14 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// invoked immediately after slot is alloc'd.
 	/// <para>The slot is fully allocated (and populated), and the callback occurs within the lock.</para>
 	/// </summary>
-	public ActionEvent<Mem<SlotHandle>> AfterAlloc = new();
+	public ActionEvent<Mem<SlotHandle_OldBackup>> AfterAlloc = new();
 	/// <summary>
 	/// invoked immediately after slot is freed
 	/// <para>The slot is no longer allocated (or populated), and the callback occurs within the lock.</para>
 	/// </summary>
-	public ActionEvent<Mem<SlotHandle>> AfterFree = new();
+	public ActionEvent<Mem<SlotHandle_OldBackup>> AfterFree = new();
 
-	public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle slot)
+	public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle_OldBackup slot)
 	{
 		// Thread-safe public version
 		lock (_lock)
@@ -537,12 +690,16 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// <summary>
 	/// Internal version of handle validation that assumes caller holds the lock.
 	/// </summary>
-	private (bool isValid, string? invalidReason) _IsHandleValid_Unsafe(SlotHandle slot)
+	private (bool isValid, string? invalidReason) _IsHandleValid_Unsafe(SlotHandle_OldBackup slot)
 	{
 
 		if (!slot.IsAllocated)
 		{
 			return (false, "slot.IsEmpty");
+		}
+		if (slot.CollectionId != CollectionId)
+		{
+			return (false, "wrong CollectionId");
 		}
 
 		if (_storage.Count <= slot.Index)
@@ -566,7 +723,7 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 	/// - Increases **Version**.
 	/// - **DEBUG mode:** validates that the slot is currently allocated.
 	/// </summary>
-	public void Free(Mem<SlotHandle> slotsToFree)
+	public void Free(Mem<SlotHandle_OldBackup> slotsToFree)
 	{
 		lock (_lock)
 		{
