@@ -12,15 +12,16 @@ using NotNot.Collections;
 namespace NotNot.Advanced;
 
 /// <summary>
-/// a lightweight handle to an owner object, up to int.maxValue targets.
-/// useful for tracking hundreds/thousands of refs to a single object without gc overhead
-/// <para>should NOT be used for 1:1 references, only many-one.</para>
-/// <para> you should always clean this up, using destructor or other lifecycle workflows.   uncleaned up references will be considered memory leaks and asserts will trigger.</para>
+/// a lightweight handle to an owner object.  Useful for 1-to-many references without object reference overhead.
+/// <para>More lightweight than WeakPointer{T} but requires explicit disposal. You must dispose this when done with it, prior to the target being disposed.</para>
+/// <para>Treat this struct as a move-only handle: copying (assignment, pass-by-value, closure captures, etc.) duplicates the SlotHandle but not the ownership. Disposing any copy invalidates every copy, so all other copies must be considered dead immediately.</para>
+/// <para>Disposal is one-shot and not idempotent; double-dispose or using a stale copy will trigger the RefSlotStore guard. Call <see cref="CheckIsAlive"/> if you need to verify a handle before use.</para>
 /// </summary>
-public record struct WeakPointer<T> : IDisposable where T : class
+/// <typeparam name="T"></typeparam>
+
+public record struct StrongPointer<T> : IDisposable where T : DisposeGuard //class, IDisposeGuard
 {
-	// RefSlotStore for storing WeakReference<T> - provides array-based access
-	private static readonly RefSlotStore<WeakRef<T>> _store = new(initialCapacity: 100);
+	private static readonly RefSlotStore<T> _store = new(initialCapacity: 100);
 
 	// Lock for thread-safe allocation operations
 	private static readonly Lock _allocLock = new();
@@ -28,21 +29,19 @@ public record struct WeakPointer<T> : IDisposable where T : class
 	// Cursor for incremental cleanup - tracks position in array
 	private static int _cleanupCursor = 0;
 
-	public static WeakPointer<T> Alloc(T target)
+	public static StrongPointer<T> Alloc(T target)
 	{
 		lock (_allocLock)
 		{
-			// Create WeakReference for the target
-			var weakRef = new WeakRef<T>(target);
 
 			// Allocate slot in RefSlotStore
-			var slotHandle = _store.Alloc(weakRef);
+			var slotHandle = _store.Alloc(target);
 
 			// Run incremental cleanup of 5 slots
 			_GCNextSlots(5);
 
 			// Return ManagedPointer with the SlotHandle
-			return new WeakPointer<T>
+			return new StrongPointer<T>
 			{
 				_slotHandle = slotHandle
 			};
@@ -52,6 +51,7 @@ public record struct WeakPointer<T> : IDisposable where T : class
 	/// <summary>
 	/// Incremental cleanup - checks next 'count' slots for dead WeakReferences
 	/// </summary>
+	[Conditional("CHECKED")]
 	private static void _GCNextSlots(int count)
 	{
 		// Must be called within _allocLock to ensure thread safety with _AsSpan_Unsafe
@@ -68,29 +68,22 @@ public record struct WeakPointer<T> : IDisposable where T : class
 
 			var slot = span[_cleanupCursor];
 
-			// Check if slot is allocated and WeakReference is dead
-			if (slot.handle.IsAllocated)
+			var target = slot.slotData;
+			__.AssertIfNot(target != null, "StrongPointer target is null - was it disposed without freeing the StrongPointer?");
+			__.AssertIfNot(target.IsDisposed == false, "StrongPointer target is disposed - was it disposed without freeing the StrongPointer?");
+			if (target.IsDisposed)
 			{
-				if (!slot.slotData.TryGetTarget(out _))
-				{
-					// Dead reference found - free the slot
-					_store.Free(slot.handle);
-				}
+				// Disposed reference found - free the slot, even though this should not happen if used correctly
+				_store.Free(slot.handle);
 			}
-
 			_cleanupCursor++;
 		}
 	}
 
 
-	public static void Free(WeakPointer<T> managedPointer)
+	public static void Free(StrongPointer<T> managedPointer)
 	{
-		if (managedPointer._slotHandle.IsAllocated)
-		{
-			var weakRef = _store[managedPointer._slotHandle];
-			_store.Free(managedPointer._slotHandle);
-			weakRef.Dispose();
-		}
+		_store.Free(managedPointer._slotHandle);
 	}
 
 	/// <summary>
@@ -98,21 +91,22 @@ public record struct WeakPointer<T> : IDisposable where T : class
 	/// </summary>
 	private SlotHandle _slotHandle;
 
-	///// <summary>
-	///// Compatibility shim for code that uses _idVersion
-	///// </summary>
-	//public IdVersion _idVersion => new IdVersion
-	//{
-	//	_location = (uint)_slotHandle.Index,
-	//	_version = _slotHandle.Version
-	//};
-
 	public bool IsAllocated => _slotHandle.IsAllocated;
+
+	/// <summary>
+	/// checks if this handle is allocated (valid) and if so, will check the backing store to ensure it still actually is.
+	/// </summary>
+	public bool CheckIsAlive()
+	{
+		if (!IsAllocated) return false;
+		//var response = _store._IsHandleValid(_slotHandle).isValid;
+		return _store._AsSpan_Unsafe()[_slotHandle.Index].handle == _slotHandle;
+	}
 
 	[Conditional("DEBUG")]
 	public void AssertIsAlive()
 	{
-		__.AssertIfNot(IsAllocated);
+		__.AssertIfNot(CheckIsAlive());
 
 		//if (_targets.TryGetValue(this, out var weakRef) is false)
 		//{
@@ -134,11 +128,11 @@ public record struct WeakPointer<T> : IDisposable where T : class
 		}
 
 		// Get WeakReference from RefSlotStore
-		var weakRef = _store[_slotHandle];
+		var target = _store[_slotHandle];
 
-		if (!weakRef.TryGetTarget(out var target))
+		if (target.IsDisposed)
 		{
-			throw new ObjectDisposedException("Target has been garbage collected");
+			throw new ObjectDisposedException("Target has been disposed already");
 		}
 
 		// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
@@ -150,27 +144,6 @@ public record struct WeakPointer<T> : IDisposable where T : class
 		return target;
 	}
 
-	public bool TryGetTarget(out T target)
-	{
-		this.AssertIsAlive();
-
-		if (!_slotHandle.IsAllocated || !_store._IsHandleValid(_slotHandle).isValid)
-		{
-			target = default;
-			return false;
-		}
-
-		// Get WeakReference from RefSlotStore
-		var weakRef = _store[_slotHandle];
-
-		// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
-		lock (_allocLock)
-		{
-			_GCNextSlots(3);
-		}
-
-		return weakRef.TryGetTarget(out target);
-	}
 
 	public void Dispose()
 	{
