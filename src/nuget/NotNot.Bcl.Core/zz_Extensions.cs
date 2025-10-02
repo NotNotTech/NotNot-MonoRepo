@@ -8159,6 +8159,26 @@ public static class zz_Extensions_IServiceProvider
 	}
 }
 
+public static class zz_Extensions_Point
+{
+	public static System.Drawing.PointF _ToPointF(this System.Drawing.Point point)
+	{
+		return new System.Drawing.PointF(point.X, point.Y);
+	}
+	public static System.Drawing.Point _ToPoint(this System.Drawing.PointF point)
+	{
+		return new System.Drawing.Point((int)point.X, (int)point.Y);
+	}
+
+	public static Vector3 _ToVector3(this System.Drawing.Point point)
+	{
+		return new Vector3(point.X, point.Y, 0);
+	}
+	public static Vector2 _ToVector2(this System.Drawing.Point point)
+	{
+		return new Vector2(point.X, point.Y);
+	}
+}
 public static class zz_Extensions_ProcessStartInfo
 {
 	[Obsolete(

@@ -20,7 +20,7 @@ namespace NotNot.Advanced;
 public record struct WeakPointer<T> : IDisposable where T : class
 {
 	// RefSlotStore for storing WeakReference<T> - provides array-based access
-	private static readonly RefSlotStore<WeakReference<T>> _store = new(initialCapacity: 100);
+	private static readonly RefSlotStore<WeakRef<T>> _store = new(initialCapacity: 100);
 
 	// Lock for thread-safe allocation operations
 	private static readonly object _allocLock = new();
@@ -33,7 +33,7 @@ public record struct WeakPointer<T> : IDisposable where T : class
 		lock (_allocLock)
 		{
 			// Create WeakReference for the target
-			var weakRef = new WeakReference<T>(target);
+			var weakRef = new WeakRef<T>(target);
 
 			// Allocate slot in RefSlotStore
 			var slotHandle = _store.Alloc(weakRef);
@@ -69,7 +69,7 @@ public record struct WeakPointer<T> : IDisposable where T : class
 			var slot = span[_cleanupCursor];
 
 			// Check if slot is allocated and WeakReference is dead
-			if (slot.handle.IsAllocated && slot.slotData != null)
+			if (slot.handle.IsAllocated)
 			{
 				if (!slot.slotData.TryGetTarget(out _))
 				{
@@ -87,7 +87,9 @@ public record struct WeakPointer<T> : IDisposable where T : class
 	{
 		if (managedPointer._slotHandle.IsAllocated)
 		{
+			var weakRef = _store[managedPointer._slotHandle];
 			_store.Free(managedPointer._slotHandle);
+			weakRef.Dispose();
 		}
 	}
 
@@ -134,7 +136,7 @@ public record struct WeakPointer<T> : IDisposable where T : class
 		// Get WeakReference from RefSlotStore
 		var weakRef = _store[_slotHandle];
 
-		if (weakRef == null || !weakRef.TryGetTarget(out var target))
+		if (!weakRef.TryGetTarget(out var target))
 		{
 			throw new ObjectDisposedException("Target has been garbage collected");
 		}
@@ -159,13 +161,7 @@ public record struct WeakPointer<T> : IDisposable where T : class
 		}
 
 		// Get WeakReference from RefSlotStore
-		var weakRef = _store[_slotHandle];
-
-		if (weakRef == null)
-		{
-			target = default;
-			return false;
-		}
+		var weakRef = _store[_slotHandle];	
 
 		// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
 		lock (_allocLock)
@@ -175,6 +171,137 @@ public record struct WeakPointer<T> : IDisposable where T : class
 
 		return weakRef.TryGetTarget(out target);
 	}
+
+	public void Dispose()
+	{
+		if (IsAllocated)
+		{
+			Free(this);
+		}
+	}
+}
+
+/// <summary>
+/// a lightweight handle to an owner object.  Useful for 1-to-many references without object reference overhead.
+/// <para>more lightweight than WeakPointer{T} but requires explicit disposal.  you must dispose this when done with it, prior to the target being disposed.</para>
+/// </summary>
+/// <typeparam name="T"></typeparam>
+
+public record struct StrongPointer<T> : IDisposable where T : DisposeGuard //class, IDisposeGuard
+{
+	private static readonly RefSlotStore<T> _store = new(initialCapacity: 100);
+
+	// Lock for thread-safe allocation operations
+	private static readonly Lock _allocLock = new();
+
+	// Cursor for incremental cleanup - tracks position in array
+	private static int _cleanupCursor = 0;
+
+	public static StrongPointer<T> Alloc(T target)
+	{
+		lock (_allocLock)
+		{
+
+			// Allocate slot in RefSlotStore
+			var slotHandle = _store.Alloc(target);
+
+			// Run incremental cleanup of 5 slots
+			_GCNextSlots(5);
+
+			// Return ManagedPointer with the SlotHandle
+			return new StrongPointer<T>
+			{
+				_slotHandle = slotHandle
+			};
+		}
+	}
+
+	/// <summary>
+	/// Incremental cleanup - checks next 'count' slots for dead WeakReferences
+	/// </summary>
+	[Conditional("CHECKED")]
+	private static void _GCNextSlots(int count)
+	{
+		// Must be called within _allocLock to ensure thread safety with _AsSpan_Unsafe
+		var span = _store._AsSpan_Unsafe();
+		if (span.Length == 0) return;
+
+		for (int i = 0; i < count; i++)
+		{
+			// Wrap around at end of array
+			if (_cleanupCursor >= span.Length)
+			{
+				_cleanupCursor = 0;
+			}
+
+			var slot = span[_cleanupCursor];
+
+			var target = slot.slotData;
+			__.AssertIfNot(target != null, "StrongPointer target is null - was it disposed without freeing the StrongPointer?");
+			__.AssertIfNot(target.IsDisposed == false, "StrongPointer target is disposed - was it disposed without freeing the StrongPointer?");
+			if(target.IsDisposed)
+			{
+				// Disposed reference found - free the slot, even though this should not happen if used correctly
+				_store.Free(slot.handle);
+			}
+			_cleanupCursor++;
+		}
+	}
+
+
+	public static void Free(StrongPointer<T> managedPointer)
+	{
+		_store.Free(managedPointer._slotHandle);		
+	}
+
+	/// <summary>
+	/// Internal handle to the slot in RefSlotStore
+	/// </summary>
+	private SlotHandle _slotHandle;
+
+	public bool IsAllocated => _slotHandle.IsAllocated;
+
+	[Conditional("DEBUG")]
+	public void AssertIsAlive()
+	{
+		__.AssertIfNot(IsAllocated);
+
+		//if (_targets.TryGetValue(this, out var weakRef) is false)
+		//{
+		//	throw new ObjectDisposedException("owner no longer exists, likely disposed");
+		//}
+		//if (weakRef.TryGetTarget(out var toReturn) is false)
+		//{
+		//	throw new ObjectDisposedException("owner no longer exists, likely disposed");
+		//}
+	}
+
+	public T GetTarget()
+	{
+		this.AssertIsAlive();
+
+		if (!_slotHandle.IsAllocated)
+		{
+			throw new ObjectDisposedException("Handle not allocated");
+		}
+
+		// Get WeakReference from RefSlotStore
+		var target = _store[_slotHandle];
+
+		if (!target.IsDisposed)
+		{
+			throw new ObjectDisposedException("Target has been disposed already");
+		}
+
+		// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
+		lock (_allocLock)
+		{
+			_GCNextSlots(3);
+		}
+
+		return target;
+	}
+
 
 	public void Dispose()
 	{

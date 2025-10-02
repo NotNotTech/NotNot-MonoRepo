@@ -9,11 +9,12 @@ using System.Runtime.InteropServices;
 namespace NotNot.Advanced;
 
 /// <summary>
-///    struct version of WeakReference.
+///    struct version of WeakReference.  You must call .Dispose() when done, or it will leak memory.  
 ///    <para>
 ///       This is useful in internal tracking collections where you don't want to impact an objects lifetime, and where
-///       you can be sure to call the WeakRef.Dispose() method when done.
+///       you can be sure to call the WeakRef.Dispose() method when done.///       
 ///    </para>
+///    <para>For more general (and safe) usage, use the .net builtin WeakReference{T} class</para>
 /// </summary>
 /// <typeparam name="T"></typeparam>
 public struct WeakRef<T> where T : class
