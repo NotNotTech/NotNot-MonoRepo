@@ -19,7 +19,7 @@ namespace NotNot.NodeFlow;
 /// a lightweight re-implementation of "SimNode", with only minimal features
 /// <para>Needs more work for advanced features: does not currently support reattach of initialized nodes, nor multithreaded execution</para>
 /// </summary>
-public abstract class SlimNode : AsyncDisposeGuard
+public abstract class SlimNode : DisposeGuard
 {
 	public virtual bool IsRoot { get; init; }
 	public bool IsInitialized { get; private set; }
@@ -174,17 +174,19 @@ public abstract class SlimNode : AsyncDisposeGuard
 	/// </summary>
 	/// <param name="managedDisposing"></param>
 	/// <returns></returns>
-	protected override async ValueTask OnDispose(bool managedDisposing)
+	protected override void OnDispose(bool managedDisposing)
 	{
 
-		await base.OnDispose(managedDisposing);
+		
 		if (managedDisposing)
 		{
-			using var copy = _children._MemoryOwnerCopy();
-			foreach (var child in copy)
+			//using var copy = _children._MemoryOwnerCopy();
+			foreach (var child in _children)
 			{
-				await child.DisposeAsync();
+				child.Dispose();
 			}
 		}
+		base.OnDispose(managedDisposing);
+		_children = null;		
 	}
 }
