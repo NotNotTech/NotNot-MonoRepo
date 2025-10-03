@@ -2094,7 +2094,10 @@ public static class zz_Extensions_List
 		return CollectionsMarshal.AsSpan(list);
 	}
 
-	public static ref T _GetRef<T>(this List<T> list, int index)
+	/// <summary>
+	/// return a ref var.  Only useful with structs.   UNSAFE warning: do not modify list while using ref
+	/// </summary>
+	public static ref T _RefGet<T>(this List<T> list, int index)
 	{
 		var span = list._AsSpan_Unsafe();
 		return ref span[index];

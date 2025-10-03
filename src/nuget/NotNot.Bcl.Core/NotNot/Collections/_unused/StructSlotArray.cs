@@ -61,7 +61,7 @@ public class StructSlotArray<TData> //where TData : struct
 		}
 	}
 
-	public ref TData GetRef(int slot)
+	public ref TData RefGet(int slot)
 	{
 #if CHECKED
       __.GetLogger()._EzErrorThrow(this._CHECKED_allocationTracker.ContainsKey(slot), "slot is not allocated and you are using it");
@@ -70,7 +70,7 @@ public class StructSlotArray<TData> //where TData : struct
 		return ref _storage[slot];
 	}
 
-	public ref TData this[int slot] => ref GetRef(slot);
+	public ref TData this[int slot] => ref RefGet(slot);
 
 
 	public int Alloc(ref TData data)

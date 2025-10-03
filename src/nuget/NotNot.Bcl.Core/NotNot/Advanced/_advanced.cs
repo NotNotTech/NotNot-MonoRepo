@@ -108,7 +108,7 @@ public struct TypeLocal<TValue>
 		return _storage[TypeSlot<TType>._index];
 	}
 
-	public ref TValue GetRef<TType>()
+	public ref TValue RefGet<TType>()
 	{
 		//return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_storage), TypeSlot<T>.Index);
 		//return ref _storage[TypeSlot<TType>._index].value;
