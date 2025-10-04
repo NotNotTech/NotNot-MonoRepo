@@ -19,7 +19,7 @@ namespace NotNot.Advanced;
 /// </summary>
 /// <typeparam name="T"></typeparam>
 
-public record struct StrongPointer<T> : IDisposable where T : DisposeGuard //class, IDisposeGuard
+public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T>> where T : DisposeGuard //class, IDisposeGuard
 {
 	private static readonly RefSlotStore<T> _store = new(initialCapacity: 100);
 
@@ -46,6 +46,10 @@ public record struct StrongPointer<T> : IDisposable where T : DisposeGuard //cla
 				_slotHandle = slotHandle
 			};
 		}
+	}
+	public int CompareTo(StrongPointer<T> other)
+	{
+		return _slotHandle.CompareTo(other._slotHandle);
 	}
 
 	/// <summary>

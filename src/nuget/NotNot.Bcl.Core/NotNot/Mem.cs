@@ -301,7 +301,7 @@ public readonly struct Mem<T> : IDisposable
 		}
 		return toReturn;
 	}
-	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc) 
+	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
 		var thisSpan = this.Span;
 		var toReturn = Mem<TResult>.Allocate(Length);
@@ -349,23 +349,40 @@ public readonly struct Mem<T> : IDisposable
 	}
 
 	/// <summary>
-	/// IMPORTANT: we assume already sorted so that your pick delegate batches effectively.
+	/// <para>Walks contiguous batches where `<paramref name="isSameBatch"/>` returns true for each previous/current pair and calls `<paramref name="worker"/>` once per range.</para>
+	/// <para>Use this to process subgroups without extra allocations.</para>
+	/// <para>IMPORTANT: we assume the underlying data is sorted so that your batching delegate is effective.</para>
 	/// </summary>
-	/// <returns></returns>
-	public async ValueTask BatchProcess(Func_RefArg<T,bool> pick,Action<Mem<T>> worker)
+	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
+	/// <param name="worker">Action executed for each contiguous batch, receiving a `Mem` slice that references this instance's backing store.</param>
+	/// <returns>A completed task once all batches have been processed.</returns>
+	public async ValueTask BatchProcess(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>,ValueTask> worker)
 	{
-		if(this.Length == 0)
+		if (this.Length == 0)
 		{
-			return;
+			return;//
 		}
-		var currentIndex = 0;
-		this.Span.
-	
-	
-	
-	
-	
+
+		var span = this.Span;
+		var length = this.Length;
+		var batchStart = 0;
+
+		for (var i = 1; i < length; i++)
+		{
+			ref var previous = ref span[i - 1];
+			ref var current = ref span[i];
+			if (isSameBatch(ref previous, ref current))
+			{
+				continue;
+			}
+
+			await worker(this.Slice(batchStart, i - batchStart));
+			batchStart = i;
+		}
+
+		await worker(this.Slice(batchStart, length - batchStart));
 	}
+
 
 	/// <summary>
 	/// create a copy of the Mem (contents view coppied to new backing store)

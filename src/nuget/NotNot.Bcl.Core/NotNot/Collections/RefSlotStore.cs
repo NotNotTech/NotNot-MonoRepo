@@ -24,8 +24,13 @@ namespace NotNot.Collections;
 /// - Bits 8-30: Index (23 bits, max 8,388,607)
 /// - Bits 0-7: Version (8 bits, max 255)
 /// </summary>
-public readonly record struct SlotHandle
+public readonly record struct SlotHandle : IComparable<SlotHandle>
 {
+	public int CompareTo(SlotHandle other)
+	{
+		return _packedValue.CompareTo(other._packedValue);
+	}
+
 	/// <summary>
 	/// Direct access to the packed value for performance-critical scenarios
 	/// </summary>
