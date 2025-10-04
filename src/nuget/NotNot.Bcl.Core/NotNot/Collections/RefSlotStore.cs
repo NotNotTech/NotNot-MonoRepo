@@ -356,7 +356,7 @@ public class RefSlotStore<T> : RefSlotStore
 /// <para>optimized for batch operations, not setting value upon allocation</para>
 /// </summary>
 /// <typeparam name="T">The type of item to store.</typeparam>
-public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
+public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore, IDisposable
 {
 
 
@@ -458,9 +458,6 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 				slotSpan[i] = hSlot;
 			}
 
-			AfterAlloc.Invoke(toReturn);
-
-
 			return toReturn;//.AsReadMem();
 		}
 	}
@@ -514,16 +511,6 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 		}
 	}
 
-	/// <summary>
-	/// invoked immediately after slot is alloc'd.
-	/// <para>The slot is fully allocated (and populated), and the callback occurs within the lock.</para>
-	/// </summary>
-	public ActionEvent<Mem<SlotHandle>> AfterAlloc = new();
-	/// <summary>
-	/// invoked immediately after slot is freed
-	/// <para>The slot is no longer allocated (or populated), and the callback occurs within the lock.</para>
-	/// </summary>
-	public ActionEvent<Mem<SlotHandle>> AfterFree = new();
 
 	public (bool isValid, string? invalidReason) _IsHandleValid(SlotHandle slot)
 	{
@@ -581,10 +568,13 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore
 				_freeSlots.Push(slot.Index); // **Mark slot as free**
 				_storage[slot.Index] = default; // **Clear the slot's data**
 			}
-
-			AfterFree.Invoke(slotsToFree);
 		}
 	}
 
+	public void Dispose()
+	{
+		_storage.Clear();
+		_freeSlots.Clear();
+	}
 
 }

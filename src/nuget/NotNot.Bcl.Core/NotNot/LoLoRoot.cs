@@ -463,7 +463,7 @@ public partial class LoLoRoot
 
 	public Placeholder placeholder = new();
 
-	public StaticPool pool = new();
+	public ObjectPool pool = new();
 
 
 	private string? _runtimeEnv;
@@ -648,6 +648,10 @@ public partial class LoLoRoot
 
 		_loggerFactory.Dispose();
 		LoLoRoot._loggerFactory = null;
+
+		pool.Dispose();
+		pool = null;
+
 		_isDisposed = true;
 		//LoLoRoot._instance = null;
 	}

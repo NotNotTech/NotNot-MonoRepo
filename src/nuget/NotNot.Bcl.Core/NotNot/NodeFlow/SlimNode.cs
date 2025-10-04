@@ -92,11 +92,16 @@ public abstract class SlimNode : DisposeGuard
 	/// <returns></returns>
 	protected async ValueTask Update(TickState currentTick)
 	{
+		_updateCount = currentTick.UpdateCount;
 		var tempCounter = _callCounter;
 		await OnUpdate(currentTick);
 		__.AssertIfNot(_callCounter > tempCounter, "didn't call base method?");
 		_lifecycleCt.ThrowIfCancellationRequested();
 	}
+	/// <summary>
+	/// the rootNode's frame count (when this node's update was last invoked)
+	/// </summary>
+	protected ulong _updateCount;
 
 	/// <summary>
 	/// <para>children are updated inside the base call, so you can execute before/after.</para>

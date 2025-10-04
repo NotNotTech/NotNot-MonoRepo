@@ -285,6 +285,69 @@ public readonly struct Mem<T> : IDisposable
 		return toReturn;
 	}
 
+	/// <summary>
+	/// allocate a new Mem by applying the specified "Pick" mapping function to each element of this Mem
+	/// </summary>
+	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
+	{
+		var thisSpan = this.Span;
+		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturnSpan = toReturn.Span;
+		for (var i = 0; i < Length; i++)
+		{
+			ref var mappedResult = ref mapFunc(ref thisSpan[i]);
+			toReturnSpan[i] = mappedResult;
+		}
+		return toReturn;
+	}
+	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc) 
+	{
+		var thisSpan = this.Span;
+		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturnSpan = toReturn.Span;
+		for (var i = 0; i < Length; i++)
+		{
+			var mappedResult = mapFunc(ref thisSpan[i]);
+			toReturnSpan[i] = mappedResult;
+		}
+		return toReturn;
+	}
+	/// <summary>
+	/// like .Map() but allows mapping using two Mem instances in parallel.  must be the same length.
+	/// </summary>
+	/// <typeparam name="TOther"></typeparam>
+	/// <typeparam name="TResult"></typeparam>
+	/// <param name="otherToMapWith"></param>
+	/// <param name="mapFunc"></param>
+	/// <returns></returns>
+	public Mem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	{
+		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this Mem");
+		var thisSpan = this.Span;
+		var otherSpan = otherToMapWith.Span;
+		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturnSpan = toReturn.Span;
+
+		for (var i = 0; i < Length; i++)
+		{
+			ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
+			toReturnSpan[i] = mappedResult;
+		}
+		return toReturn;
+	}
+	public void MapWith<TOther>(Mem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	{
+		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this Mem");
+		var thisSpan = this.Span;
+		var otherSpan = otherToMapWith.Span;
+
+		for (var i = 0; i < Length; i++)
+		{
+			mapFunc(ref thisSpan[i], ref otherSpan[i]);
+			//toReturnSpan[i] = mappedResult;
+		}
+		return toReturn;
+	}
 
 	/// <summary>
 	///    beware: the size of the array allocated may be larger than the size requested by this Mem.

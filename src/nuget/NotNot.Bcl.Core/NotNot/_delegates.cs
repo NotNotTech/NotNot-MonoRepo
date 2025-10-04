@@ -6,9 +6,22 @@
 
 namespace NotNot;
 
+/// <summary>
+/// A Func where all parameters and the return value are passed by reference
+/// </summary>
 public delegate ref T Func_Ref<T>();
 
+/// <summary>
+/// A Func where all parameters but NOT the return value are passed by reference
+/// </summary>
+public delegate TReturn Func_RefArg<T1, TReturn>(ref T1 arg1);
+public delegate TReturn Func_RefArg<T1, T2, TReturn>(ref T1 arg1, ref T2 arg2);
+
+/// <summary>
+/// A Func where all parameters and the return value are passed by reference
+/// </summary>
 public delegate ref TReturn Func_Ref<T1, TReturn>(ref T1 arg1);
+public delegate ref TReturn Func_Ref<T1, T2, TReturn>(ref T1 arg1, ref T2 arg2);
 
 public delegate void Action_Span<T>(Span<T> span);
 
@@ -17,7 +30,7 @@ public delegate void Action_RoSpan<TSpan>(ReadOnlySpan<TSpan> span);
 public delegate void Action_RoSpan<TSpan, TArg>(ReadOnlySpan<TSpan> span, TArg arg);
 
 /// <summary>
-///    action delegates that allow passing parameters by ref
+///    action where all parameters are passed by reference
 /// </summary>
 /// <typeparam name="T1"></typeparam>
 /// <param name="val1"></param>

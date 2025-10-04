@@ -7,9 +7,41 @@ namespace NotNot._internal;
 ///    simple Object Pool implementation.  each instance of this class owns it's own, separate pool of objects.
 /// </summary>
 [ThreadSafe]
-public class ObjectPool
+public class ObjectPool : IDisposeGuard
 {
+	/// <summary>
+	/// helper for the .GetUsing() method
+	/// </summary>
+	public struct UsingDisposable<T> : IDisposable where T : class
+	{
+		private readonly ObjectPool _pool;
+		public readonly T Item;
+		private Action<T>? _clearAction;
+
+		public UsingDisposable(ObjectPool pool, T item, Action<T>? clearAction = null)
+		{
+			_pool = pool;
+			Item = item;
+			_clearAction = clearAction;
+		}
+
+		public void Dispose()
+		{
+			if (_clearAction != null)
+			{
+				_clearAction(Item);
+			}
+
+			_pool.Return(Item);
+		}
+	}
+
+
 	private ConcurrentDictionary<Type, ConcurrentQueue<object>> _itemStorage = new();
+	/// <summary>
+	///    stores recycled arrays of precise length
+	/// </summary>
+	private static ConcurrentDictionary<Type, ConcurrentDictionary<int, ConcurrentQueue<object>>> _arrayStore = new();
 
 
 	private ConcurrentQueue<object> _GetItemTypePool<T>()
@@ -32,10 +64,17 @@ public class ObjectPool
 		return queue;
 	}
 
-	/// <summary>
-	///    stores recycled arrays of precise length
-	/// </summary>
-	private static ConcurrentDictionary<Type, ConcurrentDictionary<int, ConcurrentQueue<object>>> _arrayStore = new();
+	public void Dispose()
+	{
+		if(IsDisposed) { return; }
+		IsDisposed = true;
+		_itemStorage.Clear();
+		_itemStorage = null!;
+		_arrayStore.Clear();
+		_arrayStore = null!;
+	}
+	public bool IsDisposed { get; private set; } = false;
+
 
 	/// <summary>
 	///    stores arrays of the given length
@@ -64,6 +103,21 @@ public class ObjectPool
 
 		return new T();
 	}
+
+	/// <summary>
+	///    Get but can be wrapped in a using block.  will be returned to the pool when the using block is exited.
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="item"></param>
+	/// <param name="clearAction">optional, for clearing the item before returning to the pool</param>
+	/// <returns></returns>
+	public UsingDisposable<T> GetUsing<T>(out T item, Action<T>? clearAction = null) where T : class, new()
+	{
+		item = Get<T>();
+		return new UsingDisposable<T>(this, item, clearAction);
+	}
+
+
 
 	public void Return<T>(T item)
 	{

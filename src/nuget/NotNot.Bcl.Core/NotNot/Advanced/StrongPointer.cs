@@ -81,7 +81,7 @@ public record struct StrongPointer<T> : IDisposable where T : DisposeGuard //cla
 	}
 
 
-	public static void Free(StrongPointer<T> managedPointer)
+	public static void OnFree(StrongPointer<T> managedPointer)
 	{
 		_store.Free(managedPointer._slotHandle);
 	}
@@ -92,6 +92,8 @@ public record struct StrongPointer<T> : IDisposable where T : DisposeGuard //cla
 	private SlotHandle _slotHandle;
 
 	public bool IsAllocated => _slotHandle.IsAllocated;
+
+	public int Index => _slotHandle.Index;
 
 	/// <summary>
 	/// checks if this handle is allocated (valid) and if so, will check the backing store to ensure it still actually is.
@@ -149,7 +151,7 @@ public record struct StrongPointer<T> : IDisposable where T : DisposeGuard //cla
 	{
 		if (IsAllocated)
 		{
-			Free(this);
+			OnFree(this);
 		}
 	}
 }
