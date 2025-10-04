@@ -187,6 +187,7 @@ public readonly struct Mem<T> : IDisposable
 {
 	/// <summary>
 	///    if pooled, this will be set.  a reference to the pooled location so it can be recycled
+	///    while this will naturally be GC'd when all referencing Mem{T}'s go out-of-scope, you can manually do so by calling <see cref="Dispose"/> or the `using` pattern
 	/// </summary>
 	private readonly MemoryOwner_Custom<T>? _poolOwner;
 
@@ -344,9 +345,37 @@ public readonly struct Mem<T> : IDisposable
 		for (var i = 0; i < Length; i++)
 		{
 			mapFunc(ref thisSpan[i], ref otherSpan[i]);
-			//toReturnSpan[i] = mappedResult;
 		}
-		return toReturn;
+	}
+
+	/// <summary>
+	/// IMPORTANT: we assume already sorted so that your pick delegate batches effectively.
+	/// </summary>
+	/// <returns></returns>
+	public async ValueTask BatchProcess(Func_RefArg<T,bool> pick,Action<Mem<T>> worker)
+	{
+		if(this.Length == 0)
+		{
+			return;
+		}
+		var currentIndex = 0;
+		this.Span.
+	
+	
+	
+	
+	
+	}
+
+	/// <summary>
+	/// create a copy of the Mem (contents view coppied to new backing store)
+	/// </summary>
+	/// <returns></returns>
+	public Mem<T> Clone()
+	{
+		var copy = Mem<T>.Allocate(Length);
+		this.Span.CopyTo(copy.Span);
+		return copy;
 	}
 
 	/// <summary>
