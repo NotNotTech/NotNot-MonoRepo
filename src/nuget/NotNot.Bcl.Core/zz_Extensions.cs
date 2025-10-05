@@ -1869,6 +1869,26 @@ public static class zz_Extensions_JsonSerializerOptions
 public static class zz_Extensions_List
 {
 	/// <summary>
+	/// optimal resizing of a list to a target count.
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="list"></param>
+	/// <param name="count"></param>
+	public static void _Resize<T>(this List<T> list, int count, bool doNotInitialize = false)
+	{
+		var originalCount = list.Count;
+		System.Runtime.InteropServices.CollectionsMarshal.SetCount(list, count);
+		var span = list._AsSpan_Unsafe();
+		if (doNotInitialize is false)
+		{
+			if (count > originalCount)
+			{
+				span.Slice(originalCount, count - originalCount).Clear();
+			}
+		}
+	}
+
+	/// <summary>
 	/// get a copy of the list in a MemoryOwner_Custom, used to reduce allocations
 	/// </summary>
 	/// <typeparam name="T"></typeparam>

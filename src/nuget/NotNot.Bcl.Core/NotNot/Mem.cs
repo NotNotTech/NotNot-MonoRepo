@@ -356,33 +356,45 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
 	/// <param name="worker">Action executed for each contiguous batch, receiving a `Mem` slice that references this instance's backing store.</param>
 	/// <returns>A completed task once all batches have been processed.</returns>
-	public async ValueTask BatchProcess(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>,ValueTask> worker)
+	public async ValueTask BatchProcess(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, ValueTask> worker)
 	{
 		if (this.Length == 0)
 		{
-			return;//
+			return;
 		}
-
-		var span = this.Span;
-		var length = this.Length;
 		var batchStart = 0;
-
-		for (var i = 1; i < length; i++)
+		while (batchStart < this.Length)
 		{
-			ref var previous = ref span[i - 1];
-			ref var current = ref span[i];
-			if (isSameBatch(ref previous, ref current))
-			{
-				continue;
-			}
-
-			await worker(this.Slice(batchStart, i - batchStart));
-			batchStart = i;
+			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+			await worker(this.Slice(batchStart, batchEnd - batchStart));
+			batchStart = batchEnd;
 		}
-
-		await worker(this.Slice(batchStart, length - batchStart));
 	}
+	/// <summary>
+	/// Local synchronous scanner; no awaits here, so using Span<T> is safe
+	/// </summary>
+	/// <param name="start"></param>
+	/// <param name="thisMem"></param>
+	/// <param name="isSameBatch"></param>
+	/// <returns></returns>
+	private static int _GetBatchEndExclusive(int start, Mem<T> thisMem, Func_RefArg<T, T, bool> isSameBatch)
+	{
+		var span = thisMem.Span;
+		var length = thisMem.Length;
 
+		var end = start + 1;
+		while (end < length)
+		{
+			ref var previous = ref span[end - 1];
+			ref var current = ref span[end];
+			if (!isSameBatch(ref previous, ref current))
+			{
+				break;
+			}
+			end++;
+		}
+		return end;
+	}
 
 	/// <summary>
 	/// create a copy of the Mem (contents view coppied to new backing store)
