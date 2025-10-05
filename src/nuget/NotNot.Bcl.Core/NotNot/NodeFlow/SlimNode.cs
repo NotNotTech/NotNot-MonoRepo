@@ -21,12 +21,31 @@ namespace NotNot.NodeFlow;
 /// </summary>
 public abstract class SlimNode : DisposeGuard
 {
-	public virtual bool IsRoot { get; init; }
+	protected bool IsRoot { get; init; }
 	public bool IsInitialized { get; private set; }
 
 	public virtual SlimNode Parent { get; private set; }
 
 
+	private RootNode _rootNode;
+	/// <summary>
+	/// quick access to the rootNode, eg for root specific features like time, or global services
+	/// <para>will be null until attached to node graph</para>
+	/// </summary>
+	public RootNode RootNode
+	{
+		get {
+			if(_rootNode is null)
+			{
+				_rootNode = Parent?.RootNode;
+				__.AssertIfNot(_rootNode is not null,"should be setable unless adding when not attached to node graph.  disable this assert if that's the case");
+			}
+			return _rootNode;
+		} protected set
+		{
+			_rootNode = value;
+		}
+	}
 
 
 
@@ -131,6 +150,7 @@ public abstract class SlimNode : DisposeGuard
 		_children.Add(child);
 
 		child.Parent = this;
+		child.RootNode = this.RootNode;
 
 		if (IsInitialized)
 		{
@@ -163,6 +183,8 @@ public abstract class SlimNode : DisposeGuard
 		child.OnRemove();
 		__.AssertIfNot(child._callCounter > childCounter, "didn't call base method?");
 
+		child.Parent = null;
+		child.RootNode = null;
 		_children.Remove(child);
 	}
 

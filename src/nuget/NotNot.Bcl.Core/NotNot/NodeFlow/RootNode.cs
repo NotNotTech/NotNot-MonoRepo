@@ -5,7 +5,16 @@ public class RootNode : SlimNode
 {
 
 
-	public override bool IsRoot { get; init; } = true;
+	//protected override bool IsRoot { get; init; } = true;
+
+	//public override RootNode RootNode { get; private set; }
+
+	
+	public RootNode()
+	{
+		IsRoot = true;
+		RootNode = this;
+	}
 
 	public TickState CurrentTick { get; protected set; }
 
