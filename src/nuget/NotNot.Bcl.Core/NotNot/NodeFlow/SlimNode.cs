@@ -150,12 +150,15 @@ public abstract class SlimNode : DisposeGuard
 		_children.Add(child);
 
 		child.Parent = this;
-		child.RootNode = this.RootNode;
-
+		child.RootNode = this.RootNode;		
 		if (IsInitialized)
 		{
 			await child.Initialize(_lifecycleCt);
 			_lifecycleCt.ThrowIfCancellationRequested();
+		}
+		if (child is ISingletonNode singletonNode)
+		{
+			RootNode.RegisterSingleton(singletonNode);		
 		}
 
 		var childCounter = child._callCounter;
@@ -182,6 +185,12 @@ public abstract class SlimNode : DisposeGuard
 		var childCounter = child._callCounter;
 		child.OnRemove();
 		__.AssertIfNot(child._callCounter > childCounter, "didn't call base method?");
+
+
+		if (child is ISingletonNode singletonNode)
+		{
+			RootNode.UnRegisterSingleton(singletonNode);
+		}
 
 		child.Parent = null;
 		child.RootNode = null;
@@ -216,4 +225,46 @@ public abstract class SlimNode : DisposeGuard
 		base.OnDispose(managedDisposing);
 		_children = null;		
 	}
+
+	/// <summary>
+	/// when ISingletonNode's are added to the node graph, they are registered in the root node for easy access.
+	/// <para>this easily lets you refernce it.  target Must already have been added, and max 1 per type.</para>
+	/// </summary>
+	public TSingletonNode GetSingletonNode<TSingletonNode>() where TSingletonNode : SlimNode, ISingletonNode
+	{
+		__.AssertIfNot(RootNode is not null, "not attached to node graph");
+		
+		if(RootNode._singletonCache.TryGetValue(typeof(TSingletonNode), out var node))
+		{
+			return (TSingletonNode)node;
+		}
+		else
+		{
+			//search for derived types in the dictionary.  if just one, add it to the dictionary cache for next time then return it.
+			//if multiple, throw error.
+			TSingletonNode? found = null;
+			foreach(var kvp in RootNode._singletonCache)
+			{
+				if(typeof(TSingletonNode).IsAssignableFrom(kvp.Key))
+				{
+					if(found is not null)
+					{
+						__.GetLogger()._EzError(false, "multiple singleton nodes found for type "+typeof(TSingletonNode).FullName+".  cannot determine which to return.  use exact type instead of base type.");
+						__.AssertIfNot(false);
+					}
+					found = (TSingletonNode)kvp.Value;
+				}
+			}
+			if(found is not null)
+			{
+				RootNode._singletonCache.Add(typeof(TSingletonNode), found);
+				return found;
+			}
+			throw __.Throw("no singleton node found for type " + typeof(TSingletonNode).FullName);
+		}
+	}
+}
+
+public interface ISingletonNode
+{
 }

@@ -39,4 +39,35 @@ public class RootNode : SlimNode
 	{
 		return this.Initialize(ct);
 	}
+
+
+	internal Dictionary<Type, SlimNode>? _singletonCache=new();
+
+	/// <summary>
+	/// for internal use only, by SlimNode during .AddChild() if the child is marked as a singleton (ISingletonService)
+	/// </summary>
+	/// <typeparam name="TSingletonNode"></typeparam>
+	/// <param name="instance"></param>
+	internal void RegisterSingleton(ISingletonNode instance) 
+	{
+		var type = instance.GetType();
+		if(_singletonCache.TryAdd(type,(SlimNode)instance) == false)
+		{
+			throw __.Throw($"a singleton of type {type.Name} is already registered");
+		}
+	}
+	internal void UnRegisterSingleton(ISingletonNode instance)
+	{
+		var type = instance.GetType();
+		int removeCount = 0;
+		foreach(var registeredType in _singletonCache.Keys)
+		{
+			if (registeredType.IsAssignableFrom(type)){
+				__.AssertIfNot(_singletonCache[registeredType] == instance, "assignable, from type of instance being removed, so it should match");
+				_singletonCache.Remove(registeredType);
+				removeCount++;
+			}
+		}
+		__.AssertIfNot(removeCount >= 1, "should have removed at least one");
+	}
 }
