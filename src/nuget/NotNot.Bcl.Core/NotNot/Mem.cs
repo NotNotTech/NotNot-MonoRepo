@@ -182,9 +182,10 @@ public static class ReadMem
 }
 
 /// <summary>
-///    a write capable view into an array/span
+/// A write-capable view into an array/span with support for pooled and non-pooled backing stores.
+/// <para>THREAD SAFETY: Instances are NOT thread-safe. Use external synchronization for concurrent access. Multiple readers are safe only if no writer is active.</para>
 /// </summary>
-/// <typeparam name="T"></typeparam>
+/// <typeparam name="T">Element type</typeparam>
 public readonly struct Mem<T> : IDisposable
 {
 	///// <summary>
@@ -693,9 +694,9 @@ public readonly struct Mem<T> : IDisposable
 	public int Length => _segmentCount;
 
 	/// <summary>
-	///    if owned by a pool, Disposes (usually including clear) so the backing array can be recycled.   DANGER: any other references to the same backing pool slot are also disposed at this
-	///    time!
-	///    <para>for non-pooled, just makes this struct disposed, not touching the backing collection (not even clearing it).</para>
+	/// if owned by a pool, Disposes so the backing array can be recycled. DANGER: any other references to the same backing pool slot are also disposed at this time!
+	/// <para>For non-pooled, just makes this struct disposed, not touching the backing collection.</para>
+	/// <para>NOT-REENTRY SAFE: Disposal only impacts MemoryOwner backing stores, but when called, the MemoryOwner will be disposed, which will impact other Mem's using the same MemoryOwner (such as a .Slice()). You can instead not dispose, and let the GC recycle when the MemoryOwner goes out of scope.</para>
 	/// </summary>
 	public void Dispose()
 	{
@@ -858,9 +859,10 @@ public readonly struct Mem<T> : IDisposable
 }
 
 /// <summary>
-///    a read-only capable view into an array/span
+/// A read-only view into an array/span with support for pooled and non-pooled backing stores.
+/// <para>THREAD SAFETY: Instances are NOT thread-safe for disposal. Reading is thread-safe as long as no thread is disposing or modifying the backing store. Use external synchronization when needed.</para>
 /// </summary>
-/// <typeparam name="T"></typeparam>
+/// <typeparam name="T">Element type</typeparam>
 //[DebuggerTypeProxy(typeof(NotNot.Bcl.Collections.Advanced.CollectionDebugView<>))]
 //[DebuggerDisplay("{ToString(),raw}")]
 //[DebuggerDisplay("{ToString(),nq}")]
@@ -1307,8 +1309,9 @@ public readonly struct ReadMem<T> : IDisposable
 	public int Count => _segmentCount;
 
 	/// <summary>
-	/// if owned by a pool, Disposes (usually including clear) so the backing array can be recycled. DANGER: any other references to the same backing pool slot are also disposed at this time!
-	/// <para>for non-pooled, just makes this struct disposed, not touching the backing collection (not even clearing it).</para>
+	/// if owned by a pool, Disposes so the backing array can be recycled. DANGER: any other references to the same backing pool slot are also disposed at this time!
+	/// <para>For non-pooled, just makes this struct disposed, not touching the backing collection.</para>
+	/// <para>NOT-REENTRY SAFE: Disposal only impacts MemoryOwner backing stores, but when called, the MemoryOwner will be disposed, which will impact other Mem's using the same MemoryOwner (such as a .Slice()). You can instead not dispose, and let the GC recycle when the MemoryOwner goes out of scope.</para>
 	/// </summary>
 	public void Dispose()
 	{
@@ -1321,12 +1324,6 @@ public readonly struct ReadMem<T> : IDisposable
 					__.AssertNotNull(owner, "storage is null, was it already disposed?");
 					if (owner is not null)
 					{
-						// Clear the owner's full backing array before disposal
-						var ownerSegment = owner.DangerousGetArray();
-						if (ownerSegment.Array is not null)
-						{
-							Array.Clear(ownerSegment.Array, 0, ownerSegment.Array.Length);
-						}
 						owner.Dispose();
 					}
 				}
