@@ -93,16 +93,15 @@ public ref struct SpanGuard<T> : IDisposable
 public static class Mem
 {
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing data object
+	///   use an existing collection as the backing storage
 	/// </summary>
 	public static Mem<T> Wrap<T>(ArraySegment<T> backingStore)
 	{
 		return Mem<T>.Wrap(backingStore);
 	}
 
-	//public static WriteMem<T> Allocate<T>(MemoryOwnerCustom<T> MemoryOwnerNew) => WriteMem<T>.Allocate(MemoryOwnerNew);
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing data object
+	///   use an existing collection as the backing storage
 	/// </summary>
 	public static Mem<T> Wrap<T>(T[] array)
 	{
@@ -110,7 +109,7 @@ public static class Mem
 	}
 
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing Memory instance
+	///    use an existing collection as the backing storage
 	/// </summary>
 	public static Mem<T> Wrap<T>(Memory<T> memory)
 	{
@@ -118,7 +117,7 @@ public static class Mem
 	}
 
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing List instance
+	///    use an existing collection as the backing storage
 	/// </summary>
 	public static Mem<T> Wrap<T>(List<T> list)
 	{
@@ -150,7 +149,7 @@ public static class Mem
 	}
 
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing data object
+	///   use an existing collection as the backing storage
 	/// </summary>
 	public static Mem<T> Wrap<T>(Mem<T> writeMem)
 	{
@@ -158,11 +157,11 @@ public static class Mem
 	}
 
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing data object
+	///   use an existing collection as the backing storage
 	/// </summary>
 	public static Mem<T> Wrap<T>(ReadMem<T> readMem)
 	{
-		return Mem<T>.CreateUsing(readMem);
+		return Mem<T>.Wrap(readMem);
 	}
 }
 
@@ -172,16 +171,15 @@ public static class Mem
 public static class ReadMem
 {
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing data object
+	///    use an existing collection as the backing storage
 	/// </summary>
 	public static ReadMem<T> Wrap<T>(ArraySegment<T> backingStore)
 	{
 		return ReadMem<T>.Wrap(backingStore);
 	}
 
-	//public static ReadMem<T> Allocate<T>(MemoryOwnerCustom<T> MemoryOwnerNew) => ReadMem<T>.Allocate(MemoryOwnerNew);
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing data object
+	///   use an existing collection as the backing storage
 	/// </summary>
 	public static ReadMem<T> Wrap<T>(T[] array)
 	{
@@ -189,7 +187,7 @@ public static class ReadMem
 	}
 
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing Memory instance
+	///    use an existing collection as the backing storage
 	/// </summary>
 	public static ReadMem<T> Wrap<T>(Memory<T> memory)
 	{
@@ -197,7 +195,7 @@ public static class ReadMem
 	}
 
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing List instance
+	///    use an existing collection as the backing storage
 	/// </summary>
 	public static ReadMem<T> Wrap<T>(List<T> list)
 	{
@@ -229,7 +227,7 @@ public static class ReadMem
 	}
 
 	/// <summary>
-	///    Create a temporary (no-pooled) mem using your own backing data object
+	///    use an existing collection as the backing storage
 	/// </summary>
 	public static ReadMem<T> Wrap<T>(Mem<T> writeMem)
 	{
@@ -486,7 +484,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="offset">Starting index in the array</param>
 	/// <param name="count">Number of elements</param>
 	/// <returns>Memory view over the specified array slice</returns>
-	public static Mem<T> CreateUsing(T[] array, int offset, int count)
+	public static Mem<T> Wrap(T[] array, int offset, int count)
 	{
 		return new Mem<T>(new ArraySegment<T>(array, offset, count));
 	}
@@ -506,7 +504,7 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	/// <param name="MemoryOwnerNew">Pooled memory owner to wrap</param>
 	/// <returns>Memory view over the pooled memory</returns>
-	internal static Mem<T> CreateUsing(MemoryOwner_Custom<T> MemoryOwnerNew)
+	internal static Mem<T> Wrap(MemoryOwner_Custom<T> MemoryOwnerNew)
 	{
 		return new Mem<T>(MemoryOwnerNew);
 	}
@@ -516,7 +514,7 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	/// <param name="readMem">Read-only memory to convert</param>
 	/// <returns>Writable memory view</returns>
-	public static Mem<T> CreateUsing(ReadMem<T> readMem)
+	public static Mem<T> Wrap(ReadMem<T> readMem)
 	{
 		return readMem.AsWriteMem();
 	}
@@ -1136,41 +1134,15 @@ public readonly struct ReadMem<T> : IDisposable
 		return mem.AsReadMem();
 	}
 
-
 	/// <summary>
 	/// Creates a new memory view that is a slice of this read-only memory, returned as writable Mem{T}
 	/// </summary>
 	/// <param name="offset">Starting offset within this memory</param>
 	/// <param name="count">Number of elements in the slice</param>
 	/// <returns>New writable memory view representing the slice</returns>
-	public Mem<T> Slice(int offset, int count)
+	public ReadMem<T> Slice(int offset, int count)
 	{
-		switch (_backingStorageType)
-		{
-			case MemBackingStorageType.MemoryOwner_Custom:
-				{
-					var owner = (MemoryOwner_Custom<T>)_backingStorage;
-					var relativeOffset = _segmentOffset + offset;
-					return new Mem<T>(owner, relativeOffset, count);
-				}
-			case MemBackingStorageType.Array:
-				{
-					var array = (T[])_backingStorage;
-					return new Mem<T>(array, _segmentOffset + offset, count);
-				}
-			case MemBackingStorageType.List:
-				{
-					var list = (List<T>)_backingStorage;
-					return new Mem<T>(list, _segmentOffset + offset, count);
-				}
-			case MemBackingStorageType.Memory:
-				{
-					var memory = (Memory<T>)_backingStorage;
-					return new Mem<T>(memory, _segmentOffset + offset, count);
-				}
-			default:
-				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
-		}
+		return new ReadMem<T>(this, offset, count);
 	}
 
 
