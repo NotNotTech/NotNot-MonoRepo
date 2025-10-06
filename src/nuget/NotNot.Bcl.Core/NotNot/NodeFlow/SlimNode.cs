@@ -261,6 +261,7 @@ public abstract class SlimNode : DisposeGuard
 				return found;
 			}
 			throw __.Throw("no singleton node found for type " + typeof(TSingletonNode).FullName);
+
 		}
 	}
 }
