@@ -296,7 +296,7 @@ public readonly struct Mem<T> : IDisposable
 		var ownerArraySegment = owner.DangerousGetArray();
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerArraySegment.Count);
-		_segmentOffset = ownerArraySegment.Offset + sliceOffset;
+		_segmentOffset = sliceOffset;
 		_segmentCount = sliceCount;
 	}
 
@@ -309,7 +309,7 @@ public readonly struct Mem<T> : IDisposable
 	internal Mem(ArraySegment<T> ownerArraySegment, int sliceOffset, int sliceCount)
 	{
 		_backingStorageType = MemBackingStorageType.Array;
-		_backingStorage = ownerArraySegment.Array;
+		_backingStorage = ownerArraySegment.Array ?? Array.Empty<T>();
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerArraySegment.Count);
 		_segmentOffset = ownerArraySegment.Offset + sliceOffset;
@@ -787,8 +787,9 @@ public readonly struct Mem<T> : IDisposable
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					var ownerSegment = owner.DangerousGetArray();
 					__.ThrowIfNot(ownerSegment.Array is not null, "owner must expose an array");
-					__.ThrowIfNot(_segmentOffset >= ownerSegment.Offset && _segmentOffset + _segmentCount <= ownerSegment.Offset + ownerSegment.Count);
-					return new ArraySegment<T>(ownerSegment.Array, _segmentOffset, _segmentCount);
+					__.ThrowIfNot(_segmentOffset >= 0 && _segmentOffset + _segmentCount <= ownerSegment.Count);
+					var absoluteOffset = ownerSegment.Offset + _segmentOffset;
+					return new ArraySegment<T>(ownerSegment.Array, absoluteOffset, _segmentCount);
 				}
 			case MemBackingStorageType.Array:
 				{
@@ -933,7 +934,7 @@ public readonly struct ReadMem<T> : IDisposable
 		var ownerArraySegment = owner.DangerousGetArray();
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerArraySegment.Count);
-		_segmentOffset = ownerArraySegment.Offset + sliceOffset;
+		_segmentOffset = sliceOffset;
 		_segmentCount = sliceCount;
 	}
 
@@ -1096,8 +1097,7 @@ public readonly struct ReadMem<T> : IDisposable
 			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
-					var ownerSegment = owner.DangerousGetArray();
-					var relativeOffset = _segmentOffset - ownerSegment.Offset + offset;
+					var relativeOffset = _segmentOffset + offset;
 					return new Mem<T>(owner, relativeOffset, count);
 				}
 			case MemBackingStorageType.Array:
@@ -1136,8 +1136,9 @@ public readonly struct ReadMem<T> : IDisposable
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					var ownerSegment = owner.DangerousGetArray();
 					__.ThrowIfNot(ownerSegment.Array is not null, "owner must expose an array");
-					__.ThrowIfNot(_segmentOffset >= ownerSegment.Offset && _segmentOffset + _segmentCount <= ownerSegment.Offset + ownerSegment.Count);
-					return new ArraySegment<T>(ownerSegment.Array, _segmentOffset, _segmentCount);
+					__.ThrowIfNot(_segmentOffset >= 0 && _segmentOffset + _segmentCount <= ownerSegment.Count);
+					var absoluteOffset = ownerSegment.Offset + _segmentOffset;
+					return new ArraySegment<T>(ownerSegment.Array, absoluteOffset, _segmentCount);
 				}
 			case MemBackingStorageType.Array:
 				{
