@@ -95,34 +95,34 @@ public static class Mem
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing data object
 	/// </summary>
-	public static Mem<T> CreateUsing<T>(ArraySegment<T> backingStore)
+	public static Mem<T> Wrap<T>(ArraySegment<T> backingStore)
 	{
-		return Mem<T>.CreateUsing(backingStore);
+		return Mem<T>.Wrap(backingStore);
 	}
 
 	//public static WriteMem<T> Allocate<T>(MemoryOwnerCustom<T> MemoryOwnerNew) => WriteMem<T>.Allocate(MemoryOwnerNew);
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing data object
 	/// </summary>
-	public static Mem<T> CreateUsing<T>(T[] array)
+	public static Mem<T> Wrap<T>(T[] array)
 	{
-		return Mem<T>.CreateUsing(array);
+		return Mem<T>.Wrap(array);
 	}
 
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing Memory instance
 	/// </summary>
-	public static Mem<T> CreateUsing<T>(Memory<T> memory)
+	public static Mem<T> Wrap<T>(Memory<T> memory)
 	{
-		return Mem<T>.CreateUsing(memory);
+		return Mem<T>.Wrap(memory);
 	}
 
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing List instance
 	/// </summary>
-	public static Mem<T> CreateUsing<T>(List<T> list)
+	public static Mem<T> Wrap<T>(List<T> list)
 	{
-		return Mem<T>.CreateUsing(list);
+		return Mem<T>.Wrap(list);
 	}
 
 	/// <summary>
@@ -152,7 +152,7 @@ public static class Mem
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing data object
 	/// </summary>
-	public static Mem<T> CreateUsing<T>(Mem<T> writeMem)
+	public static Mem<T> Wrap<T>(Mem<T> writeMem)
 	{
 		return writeMem;
 	}
@@ -160,7 +160,7 @@ public static class Mem
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing data object
 	/// </summary>
-	public static Mem<T> CreateUsing<T>(ReadMem<T> readMem)
+	public static Mem<T> Wrap<T>(ReadMem<T> readMem)
 	{
 		return Mem<T>.CreateUsing(readMem);
 	}
@@ -174,34 +174,34 @@ public static class ReadMem
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing data object
 	/// </summary>
-	public static ReadMem<T> CreateUsing<T>(ArraySegment<T> backingStore)
+	public static ReadMem<T> Wrap<T>(ArraySegment<T> backingStore)
 	{
-		return ReadMem<T>.CreateUsing(backingStore);
+		return ReadMem<T>.Wrap(backingStore);
 	}
 
 	//public static ReadMem<T> Allocate<T>(MemoryOwnerCustom<T> MemoryOwnerNew) => ReadMem<T>.Allocate(MemoryOwnerNew);
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing data object
 	/// </summary>
-	public static ReadMem<T> CreateUsing<T>(T[] array)
+	public static ReadMem<T> Wrap<T>(T[] array)
 	{
-		return ReadMem<T>.CreateUsing(array);
+		return ReadMem<T>.Wrap(array);
 	}
 
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing Memory instance
 	/// </summary>
-	public static ReadMem<T> CreateUsing<T>(Memory<T> memory)
+	public static ReadMem<T> Wrap<T>(Memory<T> memory)
 	{
-		return ReadMem<T>.CreateUsing(memory);
+		return ReadMem<T>.Wrap(memory);
 	}
 
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing List instance
 	/// </summary>
-	public static ReadMem<T> CreateUsing<T>(List<T> list)
+	public static ReadMem<T> Wrap<T>(List<T> list)
 	{
-		return ReadMem<T>.CreateUsing(list);
+		return ReadMem<T>.Wrap(list);
 	}
 
 	/// <summary>
@@ -231,9 +231,9 @@ public static class ReadMem
 	/// <summary>
 	///    Create a temporary (no-pooled) mem using your own backing data object
 	/// </summary>
-	public static ReadMem<T> CreateUsing<T>(Mem<T> writeMem)
+	public static ReadMem<T> Wrap<T>(Mem<T> writeMem)
 	{
-		return ReadMem<T>.CreateUsing(writeMem);
+		return ReadMem<T>.Wrap(writeMem);
 	}
 }
 
@@ -463,17 +463,17 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	/// <param name="array">Array to wrap</param>
 	/// <returns>Memory view over the entire array</returns>
-	public static Mem<T> CreateUsing(T[] array)
+	public static Mem<T> Wrap(T[] array)
 	{
 		return new Mem<T>(new ArraySegment<T>(array));
 	}
 
 
-	public static Mem<T> CreateUsing(List<T> list)
+	public static Mem<T> Wrap(List<T> list)
 	{
 		return new Mem<T>(list);
 	}
-	public static Mem<T> CreateUsing(Memory<T> memory)
+	public static Mem<T> Wrap(Memory<T> memory)
 	{
 		return new Mem<T>(memory);
 	}
@@ -496,7 +496,7 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	/// <param name="backingStore">Array segment to wrap</param>
 	/// <returns>Memory view over the array segment</returns>
-	public static Mem<T> CreateUsing(ArraySegment<T> backingStore)
+	public static Mem<T> Wrap(ArraySegment<T> backingStore)
 	{
 		return new Mem<T>(backingStore);
 	}
@@ -1098,40 +1098,40 @@ public readonly struct ReadMem<T> : IDisposable
 	{
 		var mem = Mem<T>.Allocate(1);
 		mem[0] = singleItem;
-		return CreateUsing(mem);
+		return Wrap(mem);
 	}
 
-	public static ReadMem<T> CreateUsing(T[] array)
+	public static ReadMem<T> Wrap(T[] array)
 	{
 		return new ReadMem<T>(new ArraySegment<T>(array));
 	}
 
 
-	public static ReadMem<T> CreateUsing(List<T> list)
+	public static ReadMem<T> Wrap(List<T> list)
 	{
 		return new ReadMem<T>(list);
 	}
-	public static ReadMem<T> CreateUsing(Memory<T> memory)
+	public static ReadMem<T> Wrap(Memory<T> memory)
 	{
 		return new ReadMem<T>(memory);
 	}
 
-	public static ReadMem<T> CreateUsing(T[] array, int offset, int count)
+	public static ReadMem<T> Wrap(T[] array, int offset, int count)
 	{
 		return new ReadMem<T>(new ArraySegment<T>(array, offset, count));
 	}
 
-	public static ReadMem<T> CreateUsing(ArraySegment<T> backingStore)
+	public static ReadMem<T> Wrap(ArraySegment<T> backingStore)
 	{
 		return new ReadMem<T>(backingStore);
 	}
 
-	internal static ReadMem<T> CreateUsing(MemoryOwner_Custom<T> MemoryOwnerNew)
+	internal static ReadMem<T> Wrap(MemoryOwner_Custom<T> MemoryOwnerNew)
 	{
 		return new ReadMem<T>(MemoryOwnerNew);
 	}
 
-	public static ReadMem<T> CreateUsing(Mem<T> mem)
+	public static ReadMem<T> Wrap(Mem<T> mem)
 	{
 		return mem.AsReadMem();
 	}

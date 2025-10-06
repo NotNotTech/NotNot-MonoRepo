@@ -355,7 +355,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 	{
 		GetOwner().WriteNotify<TComponent>();
 		var chunk = GetContainingChunk<TComponent>();
-		return Mem.CreateUsing(chunk.StorageSlice);
+		return Mem.Wrap(chunk.StorageSlice);
 	}
 
 	/// <summary>
@@ -365,7 +365,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 	{
 		GetOwner().ReadNotify<TComponent>();
 		var chunk = GetContainingChunk<TComponent>();
-		return ReadMem.CreateUsing(chunk.StorageSlice);
+		return ReadMem.Wrap(chunk.StorageSlice);
 	}
 
 
