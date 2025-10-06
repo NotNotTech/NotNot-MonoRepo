@@ -158,7 +158,7 @@ public abstract class SlimNode : DisposeGuard
 		}
 		if (child is ISingletonNode singletonNode)
 		{
-			RootNode.RegisterSingleton(singletonNode);		
+			RootNode._DoRegisterSingleton(singletonNode);		
 		}
 
 		var childCounter = child._callCounter;
@@ -189,7 +189,7 @@ public abstract class SlimNode : DisposeGuard
 
 		if (child is ISingletonNode singletonNode)
 		{
-			RootNode.UnRegisterSingleton(singletonNode);
+			RootNode._DoUnRegisterSingleton(singletonNode);
 		}
 
 		child.Parent = null;
@@ -265,6 +265,10 @@ public abstract class SlimNode : DisposeGuard
 	}
 }
 
+/// <summary>
+/// allows psudo-singleton / DI Service behavior.  There should only be one of this type added to the node-graph at once.
+/// <para>you can retrieve using mySlimNode.GetSingletonNode{TSingletonNode}()</para>
+/// </summary>
 public interface ISingletonNode
 {
 }

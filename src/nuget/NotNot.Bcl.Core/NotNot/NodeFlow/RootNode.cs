@@ -48,7 +48,7 @@ public class RootNode : SlimNode
 	/// </summary>
 	/// <typeparam name="TSingletonNode"></typeparam>
 	/// <param name="instance"></param>
-	internal void RegisterSingleton(ISingletonNode instance) 
+	internal void _DoRegisterSingleton(ISingletonNode instance) 
 	{
 		var type = instance.GetType();
 		if(_singletonCache.TryAdd(type,(SlimNode)instance) == false)
@@ -56,7 +56,17 @@ public class RootNode : SlimNode
 			throw __.Throw($"a singleton of type {type.Name} is already registered");
 		}
 	}
-	internal void UnRegisterSingleton(ISingletonNode instance)
+	/// <summary>
+	/// Removes the specified singleton instance from the internal singleton cache, unregistering all type associations
+	/// that match the instance.
+	/// <para>INTERNAL: only meant to be called by .RemoveChild()</para>
+	/// </summary>
+	/// <remarks>This method is intended for internal use and should only be called when the singleton instance is
+	/// no longer needed. If the instance is associated with multiple types in the cache, all matching entries will be
+	/// removed.</remarks>
+	/// <param name="instance">The singleton instance to unregister. Cannot be null. All type associations assignable from the instance's type
+	/// will be removed.</param>
+	internal void _DoUnRegisterSingleton(ISingletonNode instance)
 	{
 		var type = instance.GetType();
 		int removeCount = 0;

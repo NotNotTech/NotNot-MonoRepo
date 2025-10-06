@@ -1473,7 +1473,7 @@ public class SharedComponentGroup
 
 	private bool Matches(Mem<object> components)
 	{
-		if (storage.Count != components.Length)
+		if (storage.Count != components.Count)
 		{
 			return false;
 		}

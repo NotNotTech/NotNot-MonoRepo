@@ -6,6 +6,7 @@
 #define CHECKED
 
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance.Buffers;
 using NotNot.Collections.Advanced;
 
@@ -185,41 +186,112 @@ public static class ReadMem
 /// <typeparam name="T"></typeparam>
 public readonly struct Mem<T> : IDisposable
 {
-	/// <summary>
-	///    if pooled, this will be set.  a reference to the pooled location so it can be recycled
-	///    while this will naturally be GC'd when all referencing Mem{T}'s go out-of-scope, you can manually do so by calling <see cref="Dispose"/> or the `using` pattern
-	/// </summary>
-	private readonly MemoryOwner_Custom<T>? _poolOwner;
+	///// <summary>
+	/////    if pooled, this will be set.  a reference to the pooled location so it can be recycled
+	/////    while this will naturally be GC'd when all referencing Mem{T}'s go out-of-scope, you can manually do so by calling <see cref="Dispose"/> or the `using` pattern
+	///// </summary>
+	//private readonly MemoryOwner_Custom<T>? _poolOwner;
 
-	/// <summary>
-	///    details the backing storage
-	/// </summary>
-	private readonly ArraySegment<T> _segment;
+	private enum BackingStorageType
+	{
+		/// <summary>
+		/// if pooled (Mem.Alloc()), this will be set.  a reference to the pooled location so it can be recycled
+		///    while this will naturally be GC'd when all referencing Mem{T}'s go out-of-scope, you can manually do so by calling <see cref="Dispose"/> or the `using` pattern
+		/// </summary>
+		MemoryOwner_Custom,
+		/// <summary>
+		/// manually constructed Mem using your own List.  not disposed of when out-of-scope
+		/// </summary>
+		List,
+		/// <summary>
+		/// manually constructed Mem using your own List.  not disposed of when out-of-scope
+		/// </summary>
+		Array,
+		/// <summary>
+		/// manually constructed Mem using your own Memory.  not disposed of when out-of-scope
+		/// </summary>
+		Memory,
+	}
+
+	private readonly BackingStorageType _backingStorageType;
+	private readonly object _backingStorage;
+	private readonly int _segmentCount;
+	private readonly int _segmentOffset;
+
+	///// <summary>
+	/////    details the backing storage
+	///// </summary>
+	//private readonly ArraySegment<T> _segment;
 
 	//private readonly T[] _array;
 	//private readonly int _offset;
 	//public readonly int length;
 
-	public static readonly Mem<T> Empty = new(null, ArraySegment<T>.Empty);
-	internal Mem(MemoryOwner_Custom<T> owner) : this(owner, owner.DangerousGetArray()) { }
-	internal Mem(ArraySegment<T> segment) : this(null, segment) { }
+	public static readonly Mem<T> Empty = new(ArraySegment<T>.Empty,0,0);
 
-	internal Mem(MemoryOwner_Custom<T> owner, ArraySegment<T> segment, int subOffset, int length) : this(owner,
-		new ArraySegment<T>(segment.Array, segment.Offset + subOffset, length))
+
+
+
+
+	internal Mem(T[] array) : this(new ArraySegment<T>(array), 0, array.Length) { }
+	internal Mem(MemoryOwner_Custom<T> owner) : this(owner, 0, owner.Length) { }
+	internal Mem(ArraySegment<T> owner) : this(owner, 0, owner.Count) { }
+	internal Mem(List<T> owner) : this(owner, 0, owner.Count) { }
+	internal Mem(Memory<T> owner) : this(owner, 0, owner.Length) { }
+
+
+
+	internal Mem(MemoryOwner_Custom<T> owner, int sliceOffset, int sliceCount)
 	{
-		__.GetLogger()._EzError(subOffset + segment.Offset + length <= segment.Count);
-		//__.GetLogger()._EzError(length <= segment.Count);
+		_backingStorageType = BackingStorageType.MemoryOwner_Custom;
+		_backingStorage = owner;
+		var ownerArraySegment = owner.DangerousGetArray();
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count );
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerArraySegment.Count);
+		_segmentOffset = ownerArraySegment.Offset + sliceOffset;
+		_segmentCount = sliceCount;
+	}
+	internal Mem(ArraySegment<T> ownerArraySegment, int sliceOffset, int sliceCount)
+	{
+		_backingStorageType = BackingStorageType.Array;
+		_backingStorage = ownerArraySegment.Array;		
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerArraySegment.Count);
+		_segmentOffset = ownerArraySegment.Offset + sliceOffset;
+		_segmentCount = sliceCount;
+	}
+	internal Mem(T[] ownerArray, int sliceOffset, int sliceCount) : this(new ArraySegment<T>(ownerArray), sliceOffset, sliceCount) { }
+
+	internal Mem(List<T> list, int sliceOffset, int sliceCount)
+	{
+		_backingStorageType = BackingStorageType.List;
+		_backingStorage = list;
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= list.Count);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= list.Count);
+		_segmentOffset = 0 + sliceOffset;
+		_segmentCount = sliceCount;
 	}
 
-	internal Mem(T[] array, int offset, int length) : this(null, new ArraySegment<T>(array, offset, length)) { }
-
-	internal Mem(T[] array) : this(null, new ArraySegment<T>(array)) { }
-
-	internal Mem(MemoryOwner_Custom<T> owner, ArraySegment<T> segment)
+	internal Mem(Memory<T> ownerMemory, int sliceOffset, int sliceCount)
 	{
-		_poolOwner = owner;
-		_segment = segment;
+		_backingStorageType = BackingStorageType.Memory;
+		_backingStorage = ownerMemory.Slice(sliceOffset,sliceCount);
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerMemory.Length);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerMemory.Length);
+		_segmentOffset = 0;
+		_segmentCount = sliceCount;
 	}
+
+	internal Mem(Mem<T> parentMem, int sliceOffset, int sliceCount)
+	{
+		_backingStorageType = parentMem._backingStorageType;
+		_backingStorage = parentMem._backingStorage;
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Count);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Count);
+		_segmentOffset = parentMem._segmentOffset + sliceOffset;
+		_segmentCount = sliceCount;
+	}
+
 
 
 	/// <summary>
@@ -281,8 +353,7 @@ public readonly struct Mem<T> : IDisposable
 
 	public Mem<T> Slice(int offset, int count)
 	{
-		//var toReturn = new Mem<T>(_poolOwner, new(_array, _offset + offset, count), _array, _offset + offset, count);
-		var toReturn = new Mem<T>(_poolOwner, _segment, offset, count);
+		var toReturn = new Mem<T>(this, offset, count);
 		return toReturn;
 	}
 
@@ -292,9 +363,9 @@ public readonly struct Mem<T> : IDisposable
 	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
 		var thisSpan = this.Span;
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem<TResult>.Allocate(Count);
 		var toReturnSpan = toReturn.Span;
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < Count; i++)
 		{
 			ref var mappedResult = ref mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
@@ -304,9 +375,9 @@ public readonly struct Mem<T> : IDisposable
 	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
 		var thisSpan = this.Span;
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem<TResult>.Allocate(Count);
 		var toReturnSpan = toReturn.Span;
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < Count; i++)
 		{
 			var mappedResult = mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
@@ -323,13 +394,13 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns></returns>
 	public Mem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
-		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this Mem");
+		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = this.Span;
 		var otherSpan = otherToMapWith.Span;
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem<TResult>.Allocate(Count);
 		var toReturnSpan = toReturn.Span;
 
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < Count; i++)
 		{
 			ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
 			toReturnSpan[i] = mappedResult;
@@ -338,11 +409,11 @@ public readonly struct Mem<T> : IDisposable
 	}
 	public void MapWith<TOther>(Mem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
-		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this Mem");
+		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = this.Span;
 		var otherSpan = otherToMapWith.Span;
 
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < Count; i++)
 		{
 			mapFunc(ref thisSpan[i], ref otherSpan[i]);
 		}
@@ -358,12 +429,12 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>A completed task once all batches have been processed.</returns>
 	public async ValueTask BatchProcess(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, ValueTask> worker)
 	{
-		if (this.Length == 0)
+		if (this.Count == 0)
 		{
 			return;
 		}
 		var batchStart = 0;
-		while (batchStart < this.Length)
+		while (batchStart < this.Count)
 		{
 			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
 			await worker(this.Slice(batchStart, batchEnd - batchStart));
@@ -380,7 +451,7 @@ public readonly struct Mem<T> : IDisposable
 	private static int _GetBatchEndExclusive(int start, Mem<T> thisMem, Func_RefArg<T, T, bool> isSameBatch)
 	{
 		var span = thisMem.Span;
-		var length = thisMem.Length;
+		var length = thisMem.Count;
 
 		var end = start + 1;
 		while (end < length)
@@ -397,63 +468,116 @@ public readonly struct Mem<T> : IDisposable
 	}
 
 	/// <summary>
-	/// create a copy of the Mem (contents view coppied to new backing store)
+	/// create a copy of the Mem (contents view coppied to new pool backed storage)
 	/// </summary>
 	/// <returns></returns>
 	public Mem<T> Clone()
 	{
-		var copy = Mem<T>.Allocate(Length);
+		var copy = Mem<T>.Allocate(Count);
 		this.Span.CopyTo(copy.Span);
 		return copy;
 	}
 
-	/// <summary>
-	///    beware: the size of the array allocated may be larger than the size requested by this Mem.
-	///    As such, beware if using the backing Array directly.  respect the offset+length described in this segment.
-	/// </summary>
-	public ArraySegment<T> DangerousGetArray()
+	///// <summary>
+	/////    beware: the size of the array allocated may be larger than the size requested by this Mem.
+	/////    As such, beware if using the backing Array directly.  respect the offset+length described in this segment.
+	///// </summary>
+	//public ArraySegment<T> DangerousGetArray()
+	//{
+	//	return _segment;
+	//}
+
+	public Span<T> Span
 	{
-		return _segment;
+		get
+		{
+			switch (_backingStorageType)
+			{
+				case BackingStorageType.MemoryOwner_Custom:
+					{
+						var owner = (MemoryOwner_Custom<T>)_backingStorage;
+
+						var span = owner.Span;
+						return span.Slice(_segmentOffset, _segmentCount);
+					}
+				case BackingStorageType.Array:
+					{
+						var array = (T[])_backingStorage;
+						return new Span<T>(array, _segmentOffset, _segmentCount);
+					}
+				case BackingStorageType.List:
+					{
+						var list = (List<T>)_backingStorage;
+						return CollectionsMarshal.AsSpan(list).Slice(_segmentOffset, _segmentCount);
+					}
+					case BackingStorageType.Memory:
+					{
+						var memory = (Memory<T>)_backingStorage;
+						return memory.Span.Slice(_segmentOffset,_segmentCount);
+					}
+				default:
+					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
+			}
+		}
 	}
 
-	public Span<T> Span =>
-		//return new Span<T>(_array, _offset, length);
-		_segment.AsSpan();
+	//public Memory<T> Memory =>
+	//	//return new Memory<T>(_array, _offset, length);
+	//	_segment.AsMemory();
 
-	public Memory<T> Memory =>
-		//return new Memory<T>(_array, _offset, length);
-		_segment.AsMemory();
-
-	public int Length => _segment.Count;
+	public int Count => _segmentCount;
+	[Obsolete("use .Count")]
+	public int Length => _segmentCount;
 
 	/// <summary>
-	///    if owned by a pook, recycles.   DANGER: any other references to the same backing pool slot are also disposed at this
+	///    if owned by a pool, Disposes (usually including clear) so the backing array can be recycled.   DANGER: any other references to the same backing pool slot are also disposed at this
 	///    time!
+	///    <para>for non-pooled, just makes this struct disposed, not touching the backing collection (not even clearing it).</para>
 	/// </summary>
 	public void Dispose()
-	{
+	{		
 		//only do work if backed by an owner, and if so, recycle
-		if (_poolOwner != null)
+		switch(_backingStorageType)
 		{
-			AssertNotDisposed();
-			__.GetLogger()._EzError(_poolOwner.IsDisposed, "backing _poolOwner is already disposed!");
-
-			var array = _segment.Array;
-			Array.Clear(array, 0, array.Length);
-			_poolOwner.Dispose();
+			case BackingStorageType.MemoryOwner_Custom:
+				{
+					var owner = (MemoryOwner_Custom<T>)_backingStorage;
+					__.AssertNotNull(owner, "storage is null, was it already disposed?");
+					if (owner is not null)
+					{
+						owner.Dispose();
+					}
+				}
+				break;
+			case BackingStorageType.Array:
+			case BackingStorageType.List:
+			case BackingStorageType.Memory:
+				//do nothing, let the GC handle backing.
+				break;
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
-
-		//#if DEBUG
-		//		Array.Clear(_array, _offset, Length);
-		//#endif
 	}
 
 	[Conditional("CHECKED")]
 	private void AssertNotDisposed()
 	{
-		if (_poolOwner != null)
+		__.AssertNotNull(_backingStorage, "storage is null, should never be");
+		switch (_backingStorageType)
 		{
-			__.GetLogger()._EzError(_poolOwner?.IsDisposed != true, "disposed while in use");
+			case BackingStorageType.MemoryOwner_Custom:
+				{
+					var owner = (MemoryOwner_Custom<T>)_backingStorage;
+					__.AssertIfNot(owner.IsDisposed is false, "storage is disposed, cannot use");
+				}
+				break;
+			case BackingStorageType.Array:
+			case BackingStorageType.List:
+			case BackingStorageType.Memory:
+				//do nothing, let the GC handle backing.
+				break;
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -473,7 +597,7 @@ public readonly struct Mem<T> : IDisposable
 		return Span.GetEnumerator();
 	}
 
-	public IEnumerable<T> Enumerable => _segment;
+	//public IEnumerable<T> Enumerable => Span;
 
 	public ReadMem<T> AsReadMem()
 	{
