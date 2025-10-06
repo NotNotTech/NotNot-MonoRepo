@@ -14,6 +14,30 @@ using NotNot.Collections.Advanced;
 namespace NotNot;
 
 /// <summary>
+/// Identifies which type of backing store is being used by Mem{T} and ReadMem{T}
+/// </summary>
+internal enum MemBackingStorageType
+{
+	/// <summary>
+	/// if pooled (Mem.Alloc()), this will be set. a reference to the pooled location so it can be recycled
+	/// while this will naturally be GC'd when all referencing Mem{T}'s go out-of-scope, you can manually do so by calling Dispose or the using pattern
+	/// </summary>
+	MemoryOwner_Custom,
+	/// <summary>
+	/// manually constructed Mem using your own List. not disposed of when out-of-scope
+	/// </summary>
+	List,
+	/// <summary>
+	/// manually constructed Mem using your own Array. not disposed of when out-of-scope
+	/// </summary>
+	Array,
+	/// <summary>
+	/// manually constructed Mem using your own Memory. not disposed of when out-of-scope
+	/// </summary>
+	Memory,
+}
+
+/// <summary>
 ///    Use an array of {T} from the ArrayPool, without allocating any objects upon use. (no gc pressure)
 ///    use this instead of <see cref="SpanOwner{T}" />.  This will alert you if you do not dispose properly.
 /// </summary>
@@ -188,37 +212,10 @@ public static class ReadMem
 /// <typeparam name="T">Element type</typeparam>
 public readonly struct Mem<T> : IDisposable
 {
-	///// <summary>
-	/////    if pooled, this will be set.  a reference to the pooled location so it can be recycled
-	/////    while this will naturally be GC'd when all referencing Mem{T}'s go out-of-scope, you can manually do so by calling <see cref="Dispose"/> or the `using` pattern
-	///// </summary>
-	//private readonly MemoryOwner_Custom<T>? _poolOwner;
-
-	internal enum BackingStorageType
-	{
-		/// <summary>
-		/// if pooled (Mem.Alloc()), this will be set.  a reference to the pooled location so it can be recycled
-		///    while this will naturally be GC'd when all referencing Mem{T}'s go out-of-scope, you can manually do so by calling <see cref="Dispose"/> or the `using` pattern
-		/// </summary>
-		MemoryOwner_Custom,
-		/// <summary>
-		/// manually constructed Mem using your own List.  not disposed of when out-of-scope
-		/// </summary>
-		List,
-		/// <summary>
-		/// manually constructed Mem using your own List.  not disposed of when out-of-scope
-		/// </summary>
-		Array,
-		/// <summary>
-		/// manually constructed Mem using your own Memory.  not disposed of when out-of-scope
-		/// </summary>
-		Memory,
-	}
-
 	/// <summary>
 	/// Identifies which type of backing store is being used
 	/// </summary>
-	internal readonly BackingStorageType _backingStorageType;
+	internal readonly MemBackingStorageType _backingStorageType;
 
 	/// <summary>
 	/// Reference to the actual backing storage object (Array, List, Memory, or MemoryOwner_Custom)
@@ -294,7 +291,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal Mem(MemoryOwner_Custom<T> owner, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = BackingStorageType.MemoryOwner_Custom;
+		_backingStorageType = MemBackingStorageType.MemoryOwner_Custom;
 		_backingStorage = owner;
 		var ownerArraySegment = owner.DangerousGetArray();
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count);
@@ -311,7 +308,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal Mem(ArraySegment<T> ownerArraySegment, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = BackingStorageType.Array;
+		_backingStorageType = MemBackingStorageType.Array;
 		_backingStorage = ownerArraySegment.Array;
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerArraySegment.Count);
@@ -335,7 +332,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal Mem(List<T> list, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = BackingStorageType.List;
+		_backingStorageType = MemBackingStorageType.List;
 		_backingStorage = list;
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= list.Count);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= list.Count);
@@ -351,7 +348,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal Mem(Memory<T> ownerMemory, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = BackingStorageType.Memory;
+		_backingStorageType = MemBackingStorageType.Memory;
 		_backingStorage = ownerMemory.Slice(sliceOffset, sliceCount);
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerMemory.Length);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerMemory.Length);
@@ -383,7 +380,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal Mem(ReadMem<T> parentMem, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = (BackingStorageType)parentMem._backingStorageType;
+		_backingStorageType = parentMem._backingStorageType;
 		_backingStorage = parentMem._backingStorage;
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Count);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Count);
@@ -650,24 +647,24 @@ public readonly struct Mem<T> : IDisposable
 		{
 			switch (_backingStorageType)
 			{
-				case BackingStorageType.MemoryOwner_Custom:
+				case MemBackingStorageType.MemoryOwner_Custom:
 					{
 						var owner = (MemoryOwner_Custom<T>)_backingStorage;
 
 						var span = owner.Span;
 						return span.Slice(_segmentOffset, _segmentCount);
 					}
-				case BackingStorageType.Array:
+				case MemBackingStorageType.Array:
 					{
 						var array = (T[])_backingStorage;
 						return new Span<T>(array, _segmentOffset, _segmentCount);
 					}
-				case BackingStorageType.List:
+				case MemBackingStorageType.List:
 					{
 						var list = (List<T>)_backingStorage;
 						return CollectionsMarshal.AsSpan(list).Slice(_segmentOffset, _segmentCount);
 					}
-				case BackingStorageType.Memory:
+				case MemBackingStorageType.Memory:
 					{
 						var memory = (Memory<T>)_backingStorage;
 						return memory.Span.Slice(_segmentOffset, _segmentCount);
@@ -703,7 +700,7 @@ public readonly struct Mem<T> : IDisposable
 		//only do work if backed by an owner, and if so, recycle
 		switch (_backingStorageType)
 		{
-			case BackingStorageType.MemoryOwner_Custom:
+			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					__.AssertNotNull(owner, "storage is null, was it already disposed?");
@@ -713,9 +710,9 @@ public readonly struct Mem<T> : IDisposable
 					}
 				}
 				break;
-			case BackingStorageType.Array:
-			case BackingStorageType.List:
-			case BackingStorageType.Memory:
+			case MemBackingStorageType.Array:
+			case MemBackingStorageType.List:
+			case MemBackingStorageType.Memory:
 				//do nothing, let the GC handle backing.
 				break;
 			default:
@@ -732,15 +729,15 @@ public readonly struct Mem<T> : IDisposable
 		__.AssertNotNull(_backingStorage, "storage is null, should never be");
 		switch (_backingStorageType)
 		{
-			case BackingStorageType.MemoryOwner_Custom:
+			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					__.AssertIfNot(owner.IsDisposed is false, "storage is disposed, cannot use");
 				}
 				break;
-			case BackingStorageType.Array:
-			case BackingStorageType.List:
-			case BackingStorageType.Memory:
+			case MemBackingStorageType.Array:
+			case MemBackingStorageType.List:
+			case MemBackingStorageType.Memory:
 				//do nothing, let the GC handle backing.
 				break;
 			default:
@@ -785,7 +782,7 @@ public readonly struct Mem<T> : IDisposable
 
 		switch (_backingStorageType)
 		{
-			case BackingStorageType.MemoryOwner_Custom:
+			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					var ownerSegment = owner.DangerousGetArray();
@@ -793,12 +790,12 @@ public readonly struct Mem<T> : IDisposable
 					__.ThrowIfNot(_segmentOffset >= ownerSegment.Offset && _segmentOffset + _segmentCount <= ownerSegment.Offset + ownerSegment.Count);
 					return new ArraySegment<T>(ownerSegment.Array, _segmentOffset, _segmentCount);
 				}
-			case BackingStorageType.Array:
+			case MemBackingStorageType.Array:
 				{
 					var array = (T[])_backingStorage;
 					return new ArraySegment<T>(array, _segmentOffset, _segmentCount);
 				}
-			case BackingStorageType.List:
+			case MemBackingStorageType.List:
 				{
 					var list = (List<T>)_backingStorage;
 					__.ThrowIfNot(_segmentOffset + _segmentCount <= list.Count);
@@ -806,7 +803,7 @@ public readonly struct Mem<T> : IDisposable
 					__.ThrowIfNot(_segmentOffset + _segmentCount <= items.Length);
 					return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
 				}
-			case BackingStorageType.Memory:
+			case MemBackingStorageType.Memory:
 				{
 					var memory = (Memory<T>)_backingStorage;
 					if (MemoryMarshal.TryGetArray((ReadOnlyMemory<T>)memory, out var arraySegment) && arraySegment.Array is not null)
@@ -868,31 +865,10 @@ public readonly struct Mem<T> : IDisposable
 //[DebuggerDisplay("{ToString(),nq}")]
 public readonly struct ReadMem<T> : IDisposable
 {
-	internal enum BackingStorageType
-	{
-		/// <summary>
-		/// if pooled (ReadMem.Alloc()), this will be set.  a reference to the pooled location so it can be recycled
-		///    while this will naturally be GC'd when all referencing ReadMem{T}'s go out-of-scope, you can manually do so by calling <see cref="Dispose"/> or the `using` pattern
-		/// </summary>
-		MemoryOwner_Custom,
-		/// <summary>
-		/// manually constructed ReadMem using your own List.  not disposed of when out-of-scope
-		/// </summary>
-		List,
-		/// <summary>
-		/// manually constructed ReadMem using your own Array.  not disposed of when out-of-scope
-		/// </summary>
-		Array,
-		/// <summary>
-		/// manually constructed ReadMem using your own Memory.  not disposed of when out-of-scope
-		/// </summary>
-		Memory,
-	}
-
 	/// <summary>
 	/// Identifies which type of backing store is being used
 	/// </summary>
-	internal readonly BackingStorageType _backingStorageType;
+	internal readonly MemBackingStorageType _backingStorageType;
 
 	/// <summary>
 	/// Reference to the actual backing storage object (Array, List, Memory, or MemoryOwner_Custom)
@@ -952,7 +928,7 @@ public readonly struct ReadMem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal ReadMem(MemoryOwner_Custom<T> owner, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = BackingStorageType.MemoryOwner_Custom;
+		_backingStorageType = MemBackingStorageType.MemoryOwner_Custom;
 		_backingStorage = owner;
 		var ownerArraySegment = owner.DangerousGetArray();
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count);
@@ -969,7 +945,7 @@ public readonly struct ReadMem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal ReadMem(ArraySegment<T> ownerArraySegment, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = BackingStorageType.Array;
+		_backingStorageType = MemBackingStorageType.Array;
 		_backingStorage = ownerArraySegment.Array ?? Array.Empty<T>();
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerArraySegment.Count);
@@ -993,7 +969,7 @@ public readonly struct ReadMem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal ReadMem(List<T> list, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = BackingStorageType.List;
+		_backingStorageType = MemBackingStorageType.List;
 		_backingStorage = list;
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= list.Count);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= list.Count);
@@ -1009,7 +985,7 @@ public readonly struct ReadMem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal ReadMem(Memory<T> ownerMemory, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = BackingStorageType.Memory;
+		_backingStorageType = MemBackingStorageType.Memory;
 		_backingStorage = ownerMemory.Slice(sliceOffset, sliceCount);
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerMemory.Length);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerMemory.Length);
@@ -1041,7 +1017,7 @@ public readonly struct ReadMem<T> : IDisposable
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal ReadMem(Mem<T> parentMem, int sliceOffset, int sliceCount)
 	{
-		_backingStorageType = (BackingStorageType)parentMem._backingStorageType;
+		_backingStorageType = parentMem._backingStorageType;
 		_backingStorage = parentMem._backingStorage;
 		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Count);
 		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Count);
@@ -1117,24 +1093,24 @@ public readonly struct ReadMem<T> : IDisposable
 	{
 		switch (_backingStorageType)
 		{
-			case BackingStorageType.MemoryOwner_Custom:
+			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					var ownerSegment = owner.DangerousGetArray();
 					var relativeOffset = _segmentOffset - ownerSegment.Offset + offset;
 					return new Mem<T>(owner, relativeOffset, count);
 				}
-			case BackingStorageType.Array:
+			case MemBackingStorageType.Array:
 				{
 					var array = (T[])_backingStorage;
 					return new Mem<T>(array, _segmentOffset + offset, count);
 				}
-			case BackingStorageType.List:
+			case MemBackingStorageType.List:
 				{
 					var list = (List<T>)_backingStorage;
 					return new Mem<T>(list, _segmentOffset + offset, count);
 				}
-			case BackingStorageType.Memory:
+			case MemBackingStorageType.Memory:
 				{
 					var memory = (Memory<T>)_backingStorage;
 					return new Mem<T>(memory, _segmentOffset + offset, count);
@@ -1155,7 +1131,7 @@ public readonly struct ReadMem<T> : IDisposable
 
 		switch (_backingStorageType)
 		{
-			case BackingStorageType.MemoryOwner_Custom:
+			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					var ownerSegment = owner.DangerousGetArray();
@@ -1163,12 +1139,12 @@ public readonly struct ReadMem<T> : IDisposable
 					__.ThrowIfNot(_segmentOffset >= ownerSegment.Offset && _segmentOffset + _segmentCount <= ownerSegment.Offset + ownerSegment.Count);
 					return new ArraySegment<T>(ownerSegment.Array, _segmentOffset, _segmentCount);
 				}
-			case BackingStorageType.Array:
+			case MemBackingStorageType.Array:
 				{
 					var array = (T[])_backingStorage;
 					return new ArraySegment<T>(array, _segmentOffset, _segmentCount);
 				}
-			case BackingStorageType.List:
+			case MemBackingStorageType.List:
 				{
 					var list = (List<T>)_backingStorage;
 					__.ThrowIfNot(_segmentOffset + _segmentCount <= list.Count);
@@ -1176,7 +1152,7 @@ public readonly struct ReadMem<T> : IDisposable
 					__.ThrowIfNot(_segmentOffset + _segmentCount <= items.Length);
 					return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
 				}
-			case BackingStorageType.Memory:
+			case MemBackingStorageType.Memory:
 				{
 					var memory = (Memory<T>)_backingStorage;
 					if (MemoryMarshal.TryGetArray((ReadOnlyMemory<T>)memory, out var arraySegment) && arraySegment.Array is not null)
@@ -1202,23 +1178,23 @@ public readonly struct ReadMem<T> : IDisposable
 		{
 			switch (_backingStorageType)
 			{
-				case BackingStorageType.MemoryOwner_Custom:
+				case MemBackingStorageType.MemoryOwner_Custom:
 					{
 						var owner = (MemoryOwner_Custom<T>)_backingStorage;
 						var span = owner.Span;
 						return span.Slice(_segmentOffset, _segmentCount);
 					}
-				case BackingStorageType.Array:
+				case MemBackingStorageType.Array:
 					{
 						var array = (T[])_backingStorage;
 						return new Span<T>(array, _segmentOffset, _segmentCount);
 					}
-				case BackingStorageType.List:
+				case MemBackingStorageType.List:
 					{
 						var list = (List<T>)_backingStorage;
 						return CollectionsMarshal.AsSpan(list).Slice(_segmentOffset, _segmentCount);
 					}
-				case BackingStorageType.Memory:
+				case MemBackingStorageType.Memory:
 					{
 						var memory = (Memory<T>)_backingStorage;
 						return memory.Span.Slice(_segmentOffset, _segmentCount);
@@ -1237,22 +1213,22 @@ public readonly struct ReadMem<T> : IDisposable
 	{
 		switch (_backingStorageType)
 		{
-			case BackingStorageType.MemoryOwner_Custom:
+			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					return owner.Span.Slice(_segmentOffset, _segmentCount);
 				}
-			case BackingStorageType.Array:
+			case MemBackingStorageType.Array:
 				{
 					var array = (T[])_backingStorage;
 					return new Span<T>(array, _segmentOffset, _segmentCount);
 				}
-			case BackingStorageType.List:
+			case MemBackingStorageType.List:
 				{
 					var list = (List<T>)_backingStorage;
 					return CollectionsMarshal.AsSpan(list).Slice(_segmentOffset, _segmentCount);
 				}
-			case BackingStorageType.Memory:
+			case MemBackingStorageType.Memory:
 				{
 					var memory = (Memory<T>)_backingStorage;
 					return memory.Span.Slice(_segmentOffset, _segmentCount);
@@ -1271,23 +1247,23 @@ public readonly struct ReadMem<T> : IDisposable
 		{
 			switch (_backingStorageType)
 			{
-				case BackingStorageType.MemoryOwner_Custom:
+				case MemBackingStorageType.MemoryOwner_Custom:
 					{
 						var owner = (MemoryOwner_Custom<T>)_backingStorage;
 						return owner.Memory.Slice(_segmentOffset, _segmentCount);
 					}
-				case BackingStorageType.Array:
+				case MemBackingStorageType.Array:
 					{
 						var array = (T[])_backingStorage;
 						return new Memory<T>(array, _segmentOffset, _segmentCount);
 					}
-				case BackingStorageType.List:
+				case MemBackingStorageType.List:
 					{
 						// Memory<T> doesn't support List<T> directly, convert via array
 						var items = _GetListItemsArray((List<T>)_backingStorage);
 						return new Memory<T>(items, _segmentOffset, _segmentCount);
 					}
-				case BackingStorageType.Memory:
+				case MemBackingStorageType.Memory:
 					{
 						var memory = (Memory<T>)_backingStorage;
 						return memory.Slice(_segmentOffset, _segmentCount);
@@ -1318,7 +1294,7 @@ public readonly struct ReadMem<T> : IDisposable
 		//only do work if backed by an owner, and if so, recycle
 		switch (_backingStorageType)
 		{
-			case BackingStorageType.MemoryOwner_Custom:
+			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					__.AssertNotNull(owner, "storage is null, was it already disposed?");
@@ -1328,9 +1304,9 @@ public readonly struct ReadMem<T> : IDisposable
 					}
 				}
 				break;
-			case BackingStorageType.Array:
-			case BackingStorageType.List:
-			case BackingStorageType.Memory:
+			case MemBackingStorageType.Array:
+			case MemBackingStorageType.List:
+			case MemBackingStorageType.Memory:
 				//do nothing, let the GC handle backing.
 				break;
 			default:
@@ -1347,15 +1323,15 @@ public readonly struct ReadMem<T> : IDisposable
 		__.AssertNotNull(_backingStorage, "storage is null, should never be");
 		switch (_backingStorageType)
 		{
-			case BackingStorageType.MemoryOwner_Custom:
+			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
 					__.AssertIfNot(owner.IsDisposed is false, "storage is disposed, cannot use");
 				}
 				break;
-			case BackingStorageType.Array:
-			case BackingStorageType.List:
-			case BackingStorageType.Memory:
+			case MemBackingStorageType.Array:
+			case MemBackingStorageType.List:
+			case MemBackingStorageType.Memory:
 				//do nothing, let the GC handle backing.
 				break;
 			default:
