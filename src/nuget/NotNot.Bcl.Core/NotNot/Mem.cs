@@ -110,6 +110,22 @@ public static class Mem
 	}
 
 	/// <summary>
+	///    Create a temporary (no-pooled) mem using your own backing Memory instance
+	/// </summary>
+	public static Mem<T> CreateUsing<T>(Memory<T> memory)
+	{
+		return Mem<T>.CreateUsing(memory);
+	}
+
+	/// <summary>
+	///    Create a temporary (no-pooled) mem using your own backing List instance
+	/// </summary>
+	public static Mem<T> CreateUsing<T>(List<T> list)
+	{
+		return Mem<T>.CreateUsing(list);
+	}
+
+	/// <summary>
 	///    allocate from the pool (recycles the backing array for reuse when done)
 	/// </summary>
 	public static Mem<T> AllocateAndAssign<T>(T singleItem)
@@ -170,6 +186,22 @@ public static class ReadMem
 	public static ReadMem<T> CreateUsing<T>(T[] array)
 	{
 		return ReadMem<T>.CreateUsing(array);
+	}
+
+	/// <summary>
+	///    Create a temporary (no-pooled) mem using your own backing Memory instance
+	/// </summary>
+	public static ReadMem<T> CreateUsing<T>(Memory<T> memory)
+	{
+		return ReadMem<T>.CreateUsing(memory);
+	}
+
+	/// <summary>
+	///    Create a temporary (no-pooled) mem using your own backing List instance
+	/// </summary>
+	public static ReadMem<T> CreateUsing<T>(List<T> list)
+	{
+		return ReadMem<T>.CreateUsing(list);
 	}
 
 	/// <summary>
@@ -435,6 +467,17 @@ public readonly struct Mem<T> : IDisposable
 	{
 		return new Mem<T>(new ArraySegment<T>(array));
 	}
+
+
+	public static Mem<T> CreateUsing(List<T> list)
+	{
+		return new Mem<T>(list);
+	}
+	public static Mem<T> CreateUsing(Memory<T> memory)
+	{
+		return new Mem<T>(memory);
+	}
+
 
 	/// <summary>
 	/// Creates a non-pooled memory view using a slice of an existing array
@@ -1061,6 +1104,16 @@ public readonly struct ReadMem<T> : IDisposable
 	public static ReadMem<T> CreateUsing(T[] array)
 	{
 		return new ReadMem<T>(new ArraySegment<T>(array));
+	}
+
+
+	public static ReadMem<T> CreateUsing(List<T> list)
+	{
+		return new ReadMem<T>(list);
+	}
+	public static ReadMem<T> CreateUsing(Memory<T> memory)
+	{
+		return new ReadMem<T>(memory);
 	}
 
 	public static ReadMem<T> CreateUsing(T[] array, int offset, int count)
