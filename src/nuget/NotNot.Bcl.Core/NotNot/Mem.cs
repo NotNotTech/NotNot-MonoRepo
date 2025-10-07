@@ -236,12 +236,22 @@ public static class ReadMem
 }
 
 /// <summary>
-/// A write-capable view into an array/span with support for pooled and non-pooled backing stores.
-/// <para>THREAD SAFETY: Instances are NOT thread-safe. Use external synchronization for concurrent access. Multiple readers are safe only if no writer is active.</para>
+/// A universal, write-capable view into a wrapped array/list/memory backing storage, with support for pooled allocation (renting) for temporary collections (see <see cref="Allocate(int)"/>).
+/// Supports implicit casting from array/list/memory along with explicit via Mem.Wrap() methods.
 /// </summary>
 /// <typeparam name="T">Element type</typeparam>
 public readonly struct Mem<T> : IDisposable
 {
+	//implicit operators
+	public static implicit operator Mem<T>(T[] array) => new Mem<T>(array);
+	public static implicit operator Mem<T>(ArraySegment<T> arraySegment) => new Mem<T>(arraySegment);
+	public static implicit operator Mem<T>(List<T> list) => new Mem<T>(list);
+	public static implicit operator Mem<T>(Memory<T> memory) => new Mem<T>(memory);
+	public static implicit operator Mem<T>(MemoryOwner_Custom<T> owner) => new Mem<T>(owner);
+
+
+
+
 	/// <summary>
 	/// Identifies which type of backing store is being used
 	/// </summary>
@@ -898,8 +908,8 @@ public readonly struct Mem<T> : IDisposable
 }
 
 /// <summary>
-/// A read-only view into an array/span with support for pooled and non-pooled backing stores.
-/// <para>THREAD SAFETY: Instances are NOT thread-safe for disposal. Reading is thread-safe as long as no thread is disposing or modifying the backing store. Use external synchronization when needed.</para>
+/// A universal, read-only view into a wrapped array/list/memory backing storage, with support for pooled allocation (renting) for temporary collections.
+/// Supports implicit casting from array/list/memory along with explicit via ReadMem.Wrap() methods.
 /// </summary>
 /// <typeparam name="T">Element type</typeparam>
 //[DebuggerTypeProxy(typeof(NotNot.Bcl.Collections.Advanced.CollectionDebugView<>))]
@@ -907,6 +917,16 @@ public readonly struct Mem<T> : IDisposable
 //[DebuggerDisplay("{ToString(),nq}")]
 public readonly struct ReadMem<T> : IDisposable
 {
+	//implicit operators
+	public static implicit operator ReadMem<T>(T[] array) => new ReadMem<T>(array);
+	public static implicit operator ReadMem<T>(ArraySegment<T> arraySegment) => new ReadMem<T>(arraySegment);
+	public static implicit operator ReadMem<T>(List<T> list) => new ReadMem<T>(list);
+	public static implicit operator ReadMem<T>(Memory<T> memory) => new ReadMem<T>(memory);
+	public static implicit operator ReadMem<T>(MemoryOwner_Custom<T> owner) => new ReadMem<T>(owner);
+	public static implicit operator ReadMem<T>(Mem<T> mem) => mem.AsReadMem();
+
+
+
 	/// <summary>
 	/// Identifies which type of backing store is being used
 	/// </summary>
