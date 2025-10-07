@@ -137,7 +137,7 @@ public static class Mem
 	/// </summary>
 	public static Mem<T> Allocate<T>(int count)
 	{
-		return Mem<T>.Allocate(count);
+		return Mem<T>.Alloc(count);
 	}
 
 	/// <summary>
@@ -236,7 +236,7 @@ public static class ReadMem
 }
 
 /// <summary>
-/// A universal, write-capable view into a wrapped array/list/memory backing storage, with support for pooled allocation (renting) for temporary collections (see <see cref="Allocate(int)"/>).
+/// A universal, write-capable view into a wrapped array/list/memory backing storage, with support for pooled allocation (renting) for temporary collections (see <see cref="Alloc(int)"/>).
 /// Supports implicit casting from array/list/memory along with explicit via Mem.Wrap() methods.
 /// </summary>
 /// <typeparam name="T">Element type</typeparam>
@@ -436,7 +436,7 @@ public readonly struct Mem<T> : IDisposable
 	///    memory leaks.
 	///    also note that the memory is not cleared by default.
 	/// </summary>
-	public static Mem<T> Allocate(int size)
+	public static Mem<T> Alloc(int size)
 	{
 		//__.AssertOnce(RuntimeHelpers.IsReferenceOrContainsReferences<T>() == false || clearOnDispose, "alloc of classes via memPool can/will cause leaks");
 		var mo = MemoryOwner_Custom<T>.Allocate(size, AllocationMode.Clear);
@@ -449,7 +449,7 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	public static Mem<T> Allocate(ReadOnlySpan<T> span)
 	{
-		var toReturn = Allocate(span.Length);
+		var toReturn = Alloc(span.Length);
 		span.CopyTo(toReturn.Span);
 		return toReturn;
 	}
@@ -461,7 +461,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>Pooled memory containing the single item</returns>
 	public static Mem<T> AllocateAndAssign(T singleItem)
 	{
-		var mem = Allocate(1);
+		var mem = Alloc(1);
 		mem[0] = singleItem;
 		return mem;
 	}
@@ -551,7 +551,7 @@ public readonly struct Mem<T> : IDisposable
 	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
 		var thisSpan = this.Span;
-		var toReturn = Mem<TResult>.Allocate(Count);
+		var toReturn = Mem<TResult>.Alloc(Count);
 		var toReturnSpan = toReturn.Span;
 		for (var i = 0; i < Count; i++)
 		{
@@ -570,7 +570,7 @@ public readonly struct Mem<T> : IDisposable
 	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
 		var thisSpan = this.Span;
-		var toReturn = Mem<TResult>.Allocate(Count);
+		var toReturn = Mem<TResult>.Alloc(Count);
 		var toReturnSpan = toReturn.Span;
 		for (var i = 0; i < Count; i++)
 		{
@@ -592,7 +592,7 @@ public readonly struct Mem<T> : IDisposable
 		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = this.Span;
 		var otherSpan = otherToMapWith.Span;
-		var toReturn = Mem<TResult>.Allocate(Count);
+		var toReturn = Mem<TResult>.Alloc(Count);
 		var toReturnSpan = toReturn.Span;
 
 		for (var i = 0; i < Count; i++)
@@ -629,7 +629,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
 	/// <param name="worker">Action executed for each contiguous batch, receiving a `Mem` slice that references this instance's backing store.</param>
 	/// <returns>A completed task once all batches have been processed.</returns>
-	public async ValueTask BatchProcess(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, ValueTask> worker)
+	public async ValueTask BatchMap(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, ValueTask> worker)
 	{
 		if (this.Count == 0)
 		{
@@ -643,6 +643,9 @@ public readonly struct Mem<T> : IDisposable
 			batchStart = batchEnd;
 		}
 	}
+
+
+
 	/// <summary>
 	/// Local synchronous scanner that finds the end of a contiguous batch; no awaits here, so using Span{T} is safe
 	/// </summary>
@@ -669,13 +672,30 @@ public readonly struct Mem<T> : IDisposable
 		return end;
 	}
 
+	public async ValueTask BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, Mem<TOther>, ValueTask> worker)
+	{
+		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
+
+		if (this.Count == 0)
+		{
+			return;
+		}
+		var batchStart = 0;
+		while (batchStart < this.Count)
+		{
+			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+			await worker(this.Slice(batchStart, batchEnd - batchStart),otherToMapWith.Slice(batchStart, batchEnd - batchStart));
+			batchStart = batchEnd;
+		}
+	}
+
 	/// <summary>
 	/// Creates a deep copy of this Mem with contents copied to new pool-backed storage
 	/// </summary>
 	/// <returns>New pooled memory containing a copy of this memory's contents</returns>
 	public Mem<T> Clone()
 	{
-		var copy = Mem<T>.Allocate(Count);
+		var copy = Mem<T>.Alloc(Count);
 		this.Span.CopyTo(copy.Span);
 		return copy;
 	}
@@ -1114,7 +1134,7 @@ public readonly struct ReadMem<T> : IDisposable
 
 	public static ReadMem<T> AllocateAndAssign(T singleItem)
 	{
-		var mem = Mem<T>.Allocate(1);
+		var mem = Mem<T>.Alloc(1);
 		mem[0] = singleItem;
 		return Wrap(mem);
 	}

@@ -601,7 +601,7 @@ public class RefSlotStore_ArchetypeOptimized_OldBackup<T> : RefSlotStore_OldBack
 	/// <returns></returns>
 	public Mem<SlotHandle_OldBackup> Alloc(int count)
 	{
-		var toReturn = Mem<SlotHandle_OldBackup>.Allocate(count);
+		var toReturn = Mem<SlotHandle_OldBackup>.Alloc(count);
 		var slotSpan = toReturn.Span;
 		lock (_lock)
 		{
