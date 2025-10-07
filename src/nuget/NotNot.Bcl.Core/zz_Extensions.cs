@@ -4090,6 +4090,13 @@ public static class zz_Extensions_Random
 		return (float)scaled;
 	}
 
+	public static TEnum _NextEnum<TEnum>(this Random random) where TEnum : Enum
+	{
+		var values = Enum.GetValues(typeof(TEnum));
+		var index = random.Next(0, values.Length);
+		return (TEnum)values.GetValue(index)!;
+	}
+
 	/// <summary>
 	///    return a printable unicode character (letters, numbers, symbols, whiteSpace)
 	///    <para>note: this includes whiteSpace</para>
