@@ -3,9 +3,17 @@ using System.Diagnostics;
 namespace NotNot;
 
 /// <summary>
+/// allows tracking of dispose state.  if you can set your class to inherit from DisposeGuard, do so instead of this interface.
+/// </summary>
+public interface IDisposeGuard : IDisposable
+{
+	bool IsDisposed { get; }
+}
+
+/// <summary>
 ///    helper to ensure object gets disposed properly.   can either be used as a base class, or as a member.
 /// </summary>
-public class DisposeGuard : IDisposable
+public class DisposeGuard : IDisposeGuard
 {
 	private bool _IsDisposed;
 

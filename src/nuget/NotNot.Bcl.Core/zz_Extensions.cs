@@ -1869,6 +1869,26 @@ public static class zz_Extensions_JsonSerializerOptions
 public static class zz_Extensions_List
 {
 	/// <summary>
+	/// optimal resizing of a list to a target count.
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="list"></param>
+	/// <param name="count"></param>
+	public static void _Resize<T>(this List<T> list, int count, bool doNotInitialize = false)
+	{
+		var originalCount = list.Count;
+		System.Runtime.InteropServices.CollectionsMarshal.SetCount(list, count);
+		var span = list._AsSpan_Unsafe();
+		if (doNotInitialize is false)
+		{
+			if (count > originalCount)
+			{
+				span.Slice(originalCount, count - originalCount).Clear();
+			}
+		}
+	}
+
+	/// <summary>
 	/// get a copy of the list in a MemoryOwner_Custom, used to reduce allocations
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
@@ -2094,7 +2114,10 @@ public static class zz_Extensions_List
 		return CollectionsMarshal.AsSpan(list);
 	}
 
-	public static ref T _GetRef<T>(this List<T> list, int index)
+	/// <summary>
+	/// return a ref var.  Only useful with structs.   UNSAFE warning: do not modify list while using ref
+	/// </summary>
+	public static ref T _RefGet<T>(this List<T> list, int index)
 	{
 		var span = list._AsSpan_Unsafe();
 		return ref span[index];
@@ -3083,7 +3106,7 @@ public static class zz_Extensions_Dictionary
 
 	public static Mem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source)
 	{
-		var toReturn = Mem<(TKey key, TValue value)>.Allocate(source.Count);
+		var toReturn = Mem<(TKey key, TValue value)>.Alloc(source.Count);
 		var i = 0;
 		foreach (var kvp in source)
 		{
@@ -3515,6 +3538,41 @@ public static class zz_Extensions_Span
 		//return isSorted;		
 	}
 
+	public static bool _IsSorted<T>(this Span<T> target, Func_RefArg<T,T,int> compare)
+	{
+		if (target.Length < 2)
+		{
+			return true;
+		}
+
+		var isSorted = true;
+
+		ref var previous = ref target[0]!;
+		for (var i = 1; i < target.Length; i++)
+		{
+			if (compare(ref previous, ref target[i]) > 0) //ex: 1.CompareTo(2) == -1
+			{
+				return false;
+			}
+
+			previous = ref target[i]!;
+		}
+
+		return true;
+
+
+		//using var temp= SpanGuard<T>.Allocate(target.Length);
+		//var tempSpan = temp.Span;
+		//tempSpan.Sort(target, (first, second) => {
+		//	var result = first.CompareTo(second);
+		//	if(result < 0)
+		//	{
+		//		isSorted = false;
+		//	}
+		//	return result;
+		//});
+		//return isSorted;		
+	}
 
 	/// <summary>
 	///    returns true if both spans starting address in memory is the same.  Different length and/or type is ignored.
@@ -4030,6 +4088,13 @@ public static class zz_Extensions_Random
 		double sample = random.NextDouble();
 		double scaled = (sample * range) + minInclusive;
 		return (float)scaled;
+	}
+
+	public static TEnum _NextEnum<TEnum>(this Random random) where TEnum : Enum
+	{
+		var values = Enum.GetValues(typeof(TEnum));
+		var index = random.Next(0, values.Length);
+		return (TEnum)values.GetValue(index)!;
 	}
 
 	/// <summary>
@@ -8159,6 +8224,30 @@ public static class zz_Extensions_IServiceProvider
 	}
 }
 
+public static class zz_Extensions_Point
+{
+	public static System.Drawing.PointF _ToPointF(this System.Drawing.Point point)
+	{
+		return new System.Drawing.PointF(point.X, point.Y);
+	}
+	public static System.Drawing.Point _ToPoint(this System.Drawing.PointF point)
+	{
+		return new System.Drawing.Point((int)point.X, (int)point.Y);
+	}
+
+	public static Vector3 _ToVector3XY(this System.Drawing.Point point, float z=0)
+	{
+		return new Vector3(point.X, point.Y, z);
+	}
+	public static Vector3 _ToVector3XZ(this System.Drawing.Point point, float y=0)
+	{
+		return new Vector3(point.X, y, point.Y);
+	}
+	public static Vector2 _ToVector2(this System.Drawing.Point point)
+	{
+		return new Vector2(point.X, point.Y);
+	}
+}
 public static class zz_Extensions_ProcessStartInfo
 {
 	[Obsolete(

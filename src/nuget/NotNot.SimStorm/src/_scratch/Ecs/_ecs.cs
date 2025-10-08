@@ -1048,8 +1048,8 @@ public class EntityQuery
 		_ReadNotify<TC1>();
 
 		_SelectRangeHelper<TC1>((meta, c1) => callback(
-			ReadMem.CreateUsing(meta.StorageSlice)
-			, ReadMem.CreateUsing(c1.StorageSlice)
+			ReadMem.Wrap(meta.StorageSlice)
+			, ReadMem.Wrap(c1.StorageSlice)
 		));
 	}
 
@@ -1060,8 +1060,8 @@ public class EntityQuery
 		_SelectRangeHelper<TC1>((meta, c1) =>
 		{
 			callback(
-				ReadMem.CreateUsing(meta.StorageSlice)
-				, Mem.CreateUsing(c1.StorageSlice)
+				ReadMem.Wrap(meta.StorageSlice)
+				, Mem.Wrap(c1.StorageSlice)
 			);
 		});
 	}
@@ -1073,9 +1073,9 @@ public class EntityQuery
 		_ReadNotify<TC2>();
 
 		_SelectRangeHelper<TC1, TC2>((meta, c1, c2) => callback(
-			ReadMem.CreateUsing(meta.StorageSlice)
-			, ReadMem.CreateUsing(c1.StorageSlice)
-			, ReadMem.CreateUsing(c2.StorageSlice)
+			ReadMem.Wrap(meta.StorageSlice)
+			, ReadMem.Wrap(c1.StorageSlice)
+			, ReadMem.Wrap(c2.StorageSlice)
 		));
 	}
 
@@ -1085,9 +1085,9 @@ public class EntityQuery
 		_ReadNotify<TC2>();
 
 		_SelectRangeHelper<TC1, TC2>((meta, c1, c2) => callback(
-			ReadMem.CreateUsing(meta.StorageSlice)
-			, Mem.CreateUsing(c1.StorageSlice)
-			, ReadMem.CreateUsing(c2.StorageSlice)
+			ReadMem.Wrap(meta.StorageSlice)
+			, Mem.Wrap(c1.StorageSlice)
+			, ReadMem.Wrap(c2.StorageSlice)
 		));
 	}
 
@@ -1097,9 +1097,9 @@ public class EntityQuery
 		_WriteNotify<TC2>();
 
 		_SelectRangeHelper<TC1, TC2>((meta, c1, c2) => callback(
-			ReadMem.CreateUsing(meta.StorageSlice)
-			, Mem.CreateUsing(c1.StorageSlice)
-			, Mem.CreateUsing(c2.StorageSlice)
+			ReadMem.Wrap(meta.StorageSlice)
+			, Mem.Wrap(c1.StorageSlice)
+			, Mem.Wrap(c2.StorageSlice)
 		));
 	}
 
@@ -1110,10 +1110,10 @@ public class EntityQuery
 		_ReadNotify<TC3>();
 
 		_SelectRangeHelper<TC1, TC2, TC3>((meta, c1, c2, c3) => callback(
-			ReadMem.CreateUsing(meta.StorageSlice)
-			, ReadMem.CreateUsing(c1.StorageSlice)
-			, ReadMem.CreateUsing(c2.StorageSlice)
-			, ReadMem.CreateUsing(c3.StorageSlice)
+			ReadMem.Wrap(meta.StorageSlice)
+			, ReadMem.Wrap(c1.StorageSlice)
+			, ReadMem.Wrap(c2.StorageSlice)
+			, ReadMem.Wrap(c3.StorageSlice)
 		));
 	}
 
@@ -1124,10 +1124,10 @@ public class EntityQuery
 		_ReadNotify<TC3>();
 
 		_SelectRangeHelper<TC1, TC2, TC3>((meta, c1, c2, c3) => callback(
-			ReadMem.CreateUsing(meta.StorageSlice)
-			, Mem.CreateUsing(c1.StorageSlice)
-			, ReadMem.CreateUsing(c2.StorageSlice)
-			, ReadMem.CreateUsing(c3.StorageSlice)
+			ReadMem.Wrap(meta.StorageSlice)
+			, Mem.Wrap(c1.StorageSlice)
+			, ReadMem.Wrap(c2.StorageSlice)
+			, ReadMem.Wrap(c3.StorageSlice)
 		));
 	}
 
@@ -1138,10 +1138,10 @@ public class EntityQuery
 		_ReadNotify<TC3>();
 
 		_SelectRangeHelper<TC1, TC2, TC3>((meta, c1, c2, c3) => callback(
-			ReadMem.CreateUsing(meta.StorageSlice)
-			, Mem.CreateUsing(c1.StorageSlice)
-			, Mem.CreateUsing(c2.StorageSlice)
-			, ReadMem.CreateUsing(c3.StorageSlice)
+			ReadMem.Wrap(meta.StorageSlice)
+			, Mem.Wrap(c1.StorageSlice)
+			, Mem.Wrap(c2.StorageSlice)
+			, ReadMem.Wrap(c3.StorageSlice)
 		));
 	}
 
@@ -1152,10 +1152,10 @@ public class EntityQuery
 		_WriteNotify<TC3>();
 
 		_SelectRangeHelper<TC1, TC2, TC3>((meta, c1, c2, c3) => callback(
-			ReadMem.CreateUsing(meta.StorageSlice)
-			, Mem.CreateUsing(c1.StorageSlice)
-			, Mem.CreateUsing(c2.StorageSlice)
-			, Mem.CreateUsing(c3.StorageSlice)
+			ReadMem.Wrap(meta.StorageSlice)
+			, Mem.Wrap(c1.StorageSlice)
+			, Mem.Wrap(c2.StorageSlice)
+			, Mem.Wrap(c3.StorageSlice)
 		));
 	}
 
@@ -1269,9 +1269,9 @@ public partial class Archetype //passthrough of page stuff
 		//need to get a unique page per partitionComponent grouping
 
 		//create entityHandles
-		var entityHandlesMem = Mem<EntityHandle>.Allocate(count);
+		var entityHandlesMem = Mem<EntityHandle>.Alloc(count);
 		var entityHandles = entityHandlesMem.Span;
-		var accessTokensMem = Mem<AccessToken>.Allocate(count);
+		var accessTokensMem = Mem<AccessToken>.Alloc(count);
 		var accessTokens = accessTokensMem.Span;
 		_entityRegistry.Alloc(entityHandles);
 
@@ -1375,7 +1375,7 @@ public class SharedComponentGroup
 
 	public static SharedComponentGroup GetOrCreate(params object[] components)
 	{
-		return GetOrCreate(Mem.CreateUsing(components));
+		return GetOrCreate(Mem.Wrap(components));
 	}
 
 
@@ -1473,7 +1473,7 @@ public class SharedComponentGroup
 
 	private bool Matches(Mem<object> components)
 	{
-		if (storage.Count != components.Length)
+		if (storage.Count != components.Count)
 		{
 			return false;
 		}

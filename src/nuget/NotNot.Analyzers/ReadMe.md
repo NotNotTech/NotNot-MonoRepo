@@ -68,19 +68,78 @@ _ = await GetDataAsync();           // Option 2: Explicit discard
 return await GetDataAsync();        // Option 3: Return result
 ```
 
-### NN_R003: Potentially blocking async call in UI context
-**Severity:** Warning  
-**Category:** Performance
+### NN_C001: ref var declarations must use r_ prefix
+**Severity:** Error
+**Category:** Naming
+**Automatic Fix:** ✅ Adds r_ prefix and renames all references
 
-Warns about potential UI thread blocking in event handlers and UI components.
+Enforces r_ prefix naming convention for ref var declarations to make reference semantics visible.
 
 ```csharp
-// ❌ Problematic (in UI event handler)
-await HttpClient.GetAsync(url); // May deadlock
+// ❌ Problematic
+ref var cell = ref board.RefCell(point);
+cell.Value = 5; // Hard to see this mutates the board!
 
-// ✅ Better
-await HttpClient.GetAsync(url).ConfigureAwait(false);
+// ✅ Fixed automatically (Ctrl+. in IDE)
+ref var r_cell = ref board.RefCell(point);
+r_cell.Value = 5; // Clear mutation intent
+
+// Also applies to foreach
+foreach (ref var r_item in span) { r_item++; } // OK
+foreach (ref var item in span) { item++; } // Error → Auto-fix to r_item
+
+// And ref readonly
+ref readonly var r_value = ref array[0]; // OK
+ref readonly var value = ref array[0]; // Error → Auto-fix to r_value
 ```
+
+**Code Fix Behavior:**
+- Automatically adds `r_` prefix to variable name
+- Renames all references in scope using Roslyn Renamer API
+- Handles collision detection (generates r_cell1 if r_cell exists)
+- Available via Ctrl+. or lightbulb in IDE
+- Supports "Fix All in Document/Project/Solution"
+
+**Why this matters:**
+- Ref variables directly mutate underlying data structures
+- The r_ prefix makes mutation danger immediately visible
+- Complements existing conventions: h_ for handles, p_ for pointers
+- Critical for ECS architectures with heavy ref usage
+
+### NN_C002: Variables with r_ prefix must be declared with ref
+**Severity:** Error
+**Category:** Naming
+**Automatic Fix:** ✅ Removes r_ prefix and renames all references
+
+Prevents misuse of the r_ prefix on non-ref variables (bidirectional enforcement with NN_C001).
+
+```csharp
+// ❌ Problematic
+var r_tile = 22; // r_ prefix but not ref - confusing!
+void Method(int r_value) { } // Parameter with r_ but not ref
+
+// ✅ Fixed automatically (Ctrl+. in IDE)
+var tile = 22; // Auto-fix removes misleading prefix
+void Method(int value) { } // Auto-fix removes prefix from parameter
+
+// ✅ OK - ref-like parameters allowed
+void Method(ref int r_value) { } // ref parameter - OK
+void Method(out int r_result) { } // out parameter - OK
+void Method(in int r_input) { } // in parameter - OK
+```
+
+**Code Fix Behavior:**
+- Automatically removes `r_` prefix from variable name
+- Renames all references in scope using Roslyn Renamer API
+- Handles collision detection automatically
+- Available via Ctrl+. or lightbulb in IDE
+- Supports "Fix All in Document/Project/Solution"
+
+**Why this matters:**
+- Prevents accidental misuse of r_ convention
+- Ensures r_ prefix reliably indicates reference semantics
+- Catches copy-paste errors where ref keyword removed but name not updated
+- Bidirectional enforcement: ref vars need r_, r_ vars must be ref
 
 ## ⚙️ Configuration
 
@@ -91,10 +150,15 @@ Configure rules using `.editorconfig`:
 # Configure rule severity
 dotnet_diagnostic.NN_R001.severity = error
 dotnet_diagnostic.NN_R002.severity = error
-dotnet_diagnostic.NN_R003.severity = warning
+dotnet_diagnostic.NN_C001.severity = error
+dotnet_diagnostic.NN_C002.severity = error
 
 # Disable specific rules
 dotnet_diagnostic.NN_R003.severity = none
+
+# Disable for generated code
+[*.Generated.cs]
+dotnet_diagnostic.NN_C001.severity = none
 
 # Category-based configuration
 dotnet_analyzer_diagnostic.category-reliability.severity = error

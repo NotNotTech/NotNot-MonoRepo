@@ -105,7 +105,7 @@ public class EntityRegistry
 
 	public Mem<EntityHandle> Alloc(int count)
 	{
-		var toReturn = Mem<EntityHandle>.Allocate(count);
+		var toReturn = Mem<EntityHandle>.Alloc(count);
 		Alloc(toReturn.Span);
 		return toReturn;
 	}
@@ -355,7 +355,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 	{
 		GetOwner().WriteNotify<TComponent>();
 		var chunk = GetContainingChunk<TComponent>();
-		return Mem.CreateUsing(chunk.StorageSlice);
+		return Mem.Wrap(chunk.StorageSlice);
 	}
 
 	/// <summary>
@@ -365,7 +365,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 	{
 		GetOwner().ReadNotify<TComponent>();
 		var chunk = GetContainingChunk<TComponent>();
-		return ReadMem.CreateUsing(chunk.StorageSlice);
+		return ReadMem.Wrap(chunk.StorageSlice);
 	}
 
 
@@ -2323,7 +2323,7 @@ public class Chunk<TComponent> : Chunk
 		column._ExpandAndSet(chunkIndex, this);
 
 		//_storage = MemoryOwner<TComponent>.Allocate(_length, AllocationMode.Clear); //TODO: maybe no need to clear?
-		_storageRaw = Mem<TComponent>.Allocate(_length);
+		_storageRaw = Mem<TComponent>.Alloc(_length);
 
 		UnsafeArray = _storageRaw.DangerousGetArray().Array!;
 	}

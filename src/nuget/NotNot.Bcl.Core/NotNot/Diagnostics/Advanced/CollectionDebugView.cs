@@ -28,7 +28,7 @@ public sealed class CollectionDebugView<T>
 
 	public CollectionDebugView(Mem<T>? collection)
 	{
-		if (collection?.Length == 0)
+		if (collection?.Count == 0)
 		{
 			Items = new T[0];
 		}

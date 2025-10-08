@@ -7,9 +7,13 @@ namespace NotNot.Advanced
 {
 	/// <summary>
 	/// Builds strongly typed delegates that can invoke open generic instance methods once supplied with a concrete type argument.
+	/// The purpose of OpenGenericMethodExecutor is to allow the user to exactly match existing generic methods using known types.
+	/// This means the user should exactly specify their target method.
 	/// </summary>
 	/// <remarks>
 	/// The helpers in this class close a single generic parameter, validate delegate signatures against the resolved method, and refuse static bindings.
+	/// IMPORTANT: This implementation requires exact type matching - no variance is supported. The delegate's parameter and return types
+	/// must exactly match the closed method's signature.
 	/// </remarks>
 	public static class OpenGenericMethodExecutor
 	{
@@ -19,21 +23,136 @@ namespace NotNot.Advanced
 		/// <typeparam name="TDelegate">The delegate signature to produce. The first parameter must be assignable from <paramref name="declaringType"/>.</typeparam>
 		/// <param name="declaringType">The type that declares the generic method definition.</param>
 		/// <param name="methodName">The name of the generic method definition to bind.</param>
-		/// <param name="genericTypeArgument">The type used to close the method's single generic argument.</param>
+		/// <param name="genericTypeArguments">The type used to close the method's single generic argument.</param>
 		/// <param name="bindingFlags">Binding flags that control how the method lookup is performed.</param>
 		/// <returns>A delegate instance that invokes the resolved method.</returns>
-		/// <exception cref="ArgumentNullException">Thrown when <paramref name="declaringType"/> or <paramref name="genericTypeArgument"/> is <see langword="null"/>.</exception>
+		/// <exception cref="ArgumentNullException">Thrown when <paramref name="declaringType"/> or <paramref name="genericTypeArguments"/> is <see langword="null"/>.</exception>
 		/// <exception cref="ArgumentException">Thrown when <paramref name="methodName"/> is missing or whitespace.</exception>
 		/// <exception cref="NotSupportedException">Thrown when the delegate does not represent a supported instance signature or when static binding is requested.</exception>
 		/// <exception cref="MissingMethodException">Thrown when no matching generic method definition can be found.</exception>
+		/// <example>
+		/// <code>
+		/// var invoker = OpenGenericMethodExecutor.CreateInvoker&lt;Action&lt;ComponentDataPartition, Span&lt;SlotHandle&gt;&gt;&gt;(
+		///     typeof(ComponentDataPartition),
+		///     "_OnAlloc",
+		///     typeof(PositionComponent));
+		///
+		/// invoker(partitionInstance, slotSpan);
+		/// </code>
+		/// </example>
 		public static TDelegate CreateInvoker<TDelegate>(
 			Type declaringType,
 			string methodName,
-			Type genericTypeArgument,
-			BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+			params Type[] genericTypeArguments)
 			where TDelegate : Delegate
 		{
-			return (TDelegate)CreateDelegate(typeof(TDelegate), declaringType, methodName, genericTypeArgument, bindingFlags);
+			return CreateInvoker<TDelegate>(declaringType, methodName,
+				BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
+		}
+
+		/// <example>
+		/// <code>
+		/// var invoker = OpenGenericMethodExecutor.CreateInvoker&lt;Action&lt;ComponentDataPartition, Span&lt;SlotHandle&gt;&gt;&gt;(
+		///     typeof(ComponentDataPartition),
+		///     "_OnAlloc",
+		///     BindingFlags.Instance | BindingFlags.NonPublic,
+		///     typeof(PositionComponent));
+		///
+		/// invoker(partitionInstance, slotSpan);
+		/// </code>
+		/// </example>
+		public static TDelegate CreateInvoker<TDelegate>(
+			Type declaringType,
+			string methodName,
+			BindingFlags bindingFlags,
+			params Type[] genericTypeArguments)
+			where TDelegate : Delegate
+		{
+			if (declaringType == null) throw new ArgumentNullException(nameof(declaringType));
+			if (string.IsNullOrWhiteSpace(methodName)) throw new ArgumentException("Method name is required", nameof(methodName));
+			ValidateTypeArguments(genericTypeArguments);
+
+			return (TDelegate)CreateDelegate(typeof(TDelegate), declaringType, methodName, genericTypeArguments, bindingFlags);
+		}
+
+		/// <summary>
+		/// Creates a delegate from a known MethodInfo, bypassing all search logic.
+		/// </summary>
+		/// <typeparam name="TDelegate">The delegate type to create.</typeparam>
+		/// <param name="method">The method to create a delegate for (can be generic method definition).</param>
+		/// <param name="genericTypeArguments">Type arguments to close the generic method (empty for non-generic).</param>
+		/// <returns>A delegate that invokes the specified method.</returns>
+		/// <exception cref="ArgumentNullException">When method or type arguments are null.</exception>
+		/// <exception cref="ArgumentException">When type argument count doesn't match method requirements.</exception>
+		/// <exception cref="InvalidOperationException">When method has open generic parameters or declaring type is open.</exception>
+		/// <exception cref="NotSupportedException">When attempting to bind a static method.</exception>
+		/// <example>
+		/// <code>
+		/// var methodDefinition = typeof(ComponentDataPartition)
+		///     .GetMethod("_OnAlloc", BindingFlags.Instance | BindingFlags.NonPublic);
+		/// var invoker = OpenGenericMethodExecutor.CreateExactInvoker&lt;Action&lt;ComponentDataPartition, Span&lt;SlotHandle&gt;&gt;&gt;(
+		///     methodDefinition!,
+		///     typeof(PositionComponent));
+		///
+		/// invoker(partitionInstance, slotSpan);
+		/// </code>
+		/// </example>
+		public static TDelegate CreateExactInvoker<TDelegate>(
+			MethodInfo method,
+			params Type[] genericTypeArguments)
+			where TDelegate : Delegate
+		{
+			if (method == null) throw new ArgumentNullException(nameof(method));
+			ValidateTypeArguments(genericTypeArguments);
+
+			// Handle generic, already-closed, and non-generic methods
+			MethodInfo targetMethod;
+			if (method.ContainsGenericParameters)
+			{
+				// Open generic method OR already-constructed generic with open type parameters
+				if (!method.IsGenericMethodDefinition)
+				{
+					throw new InvalidOperationException(
+						"Method is a constructed generic that still contains open type parameters. " +
+						"Pass the generic method definition instead.");
+				}
+				if (method.GetGenericArguments().Length != genericTypeArguments.Length)
+					throw new ArgumentException($"Method requires {method.GetGenericArguments().Length} type arguments");
+				targetMethod = method.MakeGenericMethod(genericTypeArguments);
+			}
+			else if (genericTypeArguments.Length == 0)
+			{
+				targetMethod = method; // Already closed or non-generic, use as-is
+			}
+			else
+			{
+				throw new ArgumentException("Method is already closed and cannot accept additional type arguments");
+			}
+
+			// Validate instance-only invariant (reject static methods)
+			if (targetMethod.IsStatic)
+			{
+				throw new NotSupportedException("Static method binding is not supported.");
+			}
+
+			// Validate declaring type is fully closed
+			if (targetMethod.DeclaringType?.ContainsGenericParameters == true)
+			{
+				throw new InvalidOperationException(
+					$"Cannot create delegate for method '{targetMethod.Name}' on open generic type '{targetMethod.DeclaringType}'. " +
+					"The declaring type must be fully closed.");
+			}
+			if (targetMethod.ContainsGenericParameters)
+			{
+				throw new InvalidOperationException(
+					$"Method '{targetMethod.Name}' still contains open generic parameters after applying type arguments.");
+			}
+
+			// Validate delegate signature matches target method signature
+			ValidateDelegateSignature(targetMethod, typeof(TDelegate));
+
+			// Create the delegate
+			return targetMethod.CreateDelegate<TDelegate>();
 		}
 
 		/// <summary>
@@ -41,17 +160,25 @@ namespace NotNot.Advanced
 		/// </summary>
 		/// <typeparam name="TTarget">The concrete type that declares the method to bind.</typeparam>
 		/// <param name="methodName">The name of the method to bind.</param>
-		/// <param name="genericTypeArgument">The type that replaces the method's single generic parameter.</param>
+		/// <param name="genericTypeArguments">The type that replaces the method's single generic parameter.</param>
 		/// <param name="flags">Binding flags used to locate the target method.</param>
 		/// <returns>An action that invokes the resolved method for an instance of <typeparamref name="TTarget"/>.</returns>
+		/// <example>
+		/// <code>
+		/// var action = OpenGenericMethodExecutor.CreateAction&lt;ComponentDataPartition&gt;(
+		///     "ResetComponentState",
+		///     typeof(PositionComponent));
+		///
+		/// action(partitionInstance);
+		/// </code>
+		/// </example>
 		public static Action<TTarget> CreateAction<TTarget>(
 			string methodName,
-			Type genericTypeArgument,
-			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			params Type[] genericTypeArguments)
 			where TTarget : class
 		{
 			return CreateInvoker<Action<TTarget>>(
-				typeof(TTarget), methodName, genericTypeArgument, flags);
+				typeof(TTarget), methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
 		/// <summary>
@@ -60,198 +187,47 @@ namespace NotNot.Advanced
 		/// <typeparam name="TTarget">The type that provides the method implementation.</typeparam>
 		/// <typeparam name="TResult">The return type produced by the method.</typeparam>
 		/// <param name="methodName">The target method name.</param>
-		/// <param name="genericTypeArgument">The concrete type that closes the method's generic parameter.</param>
+		/// <param name="genericTypeArguments">The concrete type that closes the method's generic parameter.</param>
 		/// <param name="flags">Binding flags used during method discovery.</param>
 		/// <returns>A function delegate that executes the closed generic method on an instance of <typeparamref name="TTarget"/>.</returns>
+		/// <example>
+		/// <code>
+		/// var func = OpenGenericMethodExecutor.CreateFunc&lt;ComponentDataPartition, int&gt;(
+		///     "CountComponents",
+		///     typeof(PositionComponent));
+		///
+		/// var count = func(partitionInstance);
+		/// </code>
+		/// </example>
 		public static Func<TTarget, TResult> CreateFunc<TTarget, TResult>(
 			string methodName,
-			Type genericTypeArgument,
-			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
+			params Type[] genericTypeArguments)
 			where TTarget : class
 		{
 			return CreateInvoker<Func<TTarget, TResult>>(
-				typeof(TTarget), methodName, genericTypeArgument, flags);
+				typeof(TTarget), methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
-		/// <summary>
-		/// Creates an action delegate capable of invoking a generic method that accepts a <see cref="Span{T}"/> argument.
-		/// </summary>
-		/// <typeparam name="TTarget">The instance type that exposes the method.</typeparam>
-		/// <typeparam name="TElement">The element type of the <see cref="Span{T}"/> parameter.</typeparam>
-		/// <param name="methodName">The name of the target method.</param>
-		/// <param name="genericTypeArgument">The single generic type argument used to close the method.</param>
-		/// <param name="flags">Binding flags used to locate the method definition.</param>
-		/// <returns>An action that executes the closed method with a span parameter.</returns>
-		public static Action<TTarget, Span<TElement>> CreateSpanInvoker<TTarget, TElement>(
-			string methodName,
-			Type genericTypeArgument,
-			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			where TTarget : class
-		{
-			return CreateInvoker<Action<TTarget, Span<TElement>>>(
-				typeof(TTarget), methodName, genericTypeArgument, flags);
-		}
+		// APIs removed - CreateSpanInvoker, CreateSpanFunc, CreateDynamicAction, CreateDynamicFunc, CreateDynamicStatic, CreateDynamicDelegate
+		// These APIs contradicted exact-match semantics by inferring signatures or making assumptions
 
 		/// <summary>
-		/// Creates a function delegate for a generic method that accepts a <see cref="Span{T}"/> and returns <typeparamref name="TResult"/>.
+		/// Validates that all type arguments in the array are non-null.
 		/// </summary>
-		/// <typeparam name="TTarget">The instance type that will be invoked.</typeparam>
-		/// <typeparam name="TElement">The element type of the span parameter.</typeparam>
-		/// <typeparam name="TResult">The return type of the method.</typeparam>
-		/// <param name="methodName">The method name to bind.</param>
-		/// <param name="genericTypeArgument">The concrete type argument that closes the method definition.</param>
-		/// <param name="flags">Binding flags used during method discovery.</param>
-		/// <returns>A function that executes the resolved method and returns a value.</returns>
-		public static Func<TTarget, Span<TElement>, TResult> CreateSpanFunc<TTarget, TElement, TResult>(
-			string methodName,
-			Type genericTypeArgument,
-			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			where TTarget : class
+		/// <param name="genericTypeArguments">The type arguments to validate.</param>
+		/// <exception cref="ArgumentNullException">When the array is null or contains null elements.</exception>
+		private static void ValidateTypeArguments(Type[] genericTypeArguments)
 		{
-			return CreateInvoker<Func<TTarget, Span<TElement>, TResult>>(
-				typeof(TTarget), methodName, genericTypeArgument, flags);
-		}
-
-		/// <summary>
-		/// Creates a delegate with a dynamically constructed signature that invokes a generic instance method returning <see langword="void"/>.
-		/// </summary>
-		/// <typeparam name="TTarget">The declaring type that hosts the method.</typeparam>
-		/// <param name="methodName">The name of the generic method to bind.</param>
-		/// <param name="genericTypeArgument">The type that closes the method's generic parameter.</param>
-		/// <param name="parameterTypes">An ordered span describing the delegate parameter types following the target instance.</param>
-		/// <param name="flags">Binding flags that control visibility and inheritance during method lookup.</param>
-		/// <returns>A delegate that matches the specified signature and invokes the resolved method.</returns>
-		/// <exception cref="NotSupportedException">Thrown when a static binding is requested.</exception>
-		public static Delegate CreateDynamicAction<TTarget>(
-			string methodName,
-			Type genericTypeArgument,
-			Span<Type> parameterTypes,
-			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			where TTarget : class
-		{
-			return CreateDynamicDelegate(
-				typeof(TTarget),
-				typeof(TTarget),
-				methodName,
-				genericTypeArgument,
-				typeof(void),
-				parameterTypes,
-				flags);
-		}
-
-		/// <summary>
-		/// Creates a delegate with a dynamically constructed signature that invokes a generic instance method returning <paramref name="returnType"/>.
-		/// </summary>
-		/// <typeparam name="TTarget">The declaring type that hosts the method.</typeparam>
-		/// <param name="methodName">The name of the generic method to bind.</param>
-		/// <param name="genericTypeArgument">The type that closes the method's generic parameter.</param>
-		/// <param name="returnType">The return type expected from the closed method.</param>
-		/// <param name="parameterTypes">An ordered span describing the delegate parameter types following the target instance.</param>
-		/// <param name="flags">Binding flags that control visibility and inheritance during method lookup.</param>
-		/// <returns>A delegate whose signature matches the supplied parameter and return types.</returns>
-		/// <exception cref="ArgumentNullException">Thrown when <paramref name="returnType"/> is <see langword="null"/>.</exception>
-		/// <exception cref="NotSupportedException">Thrown when a static binding is requested.</exception>
-		public static Delegate CreateDynamicFunc<TTarget>(
-			string methodName,
-			Type genericTypeArgument,
-			Type returnType,
-			Span<Type> parameterTypes,
-			BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance)
-			where TTarget : class
-		{
-			if (returnType == null) throw new ArgumentNullException(nameof(returnType));
-
-			return CreateDynamicDelegate(
-				typeof(TTarget),
-				typeof(TTarget),
-				methodName,
-				genericTypeArgument,
-				returnType,
-				parameterTypes,
-				flags);
-		}
-
-		/// <summary>
-		/// Not supported. Static method binding is intentionally disallowed because delegate creation assumes instance targets.
-		/// </summary>
-		/// <exception cref="NotSupportedException">Always thrown to signal that static methods cannot be bound.</exception>
-		public static Delegate CreateDynamicStatic(
-			Type declaringType,
-			string methodName,
-			Type genericTypeArgument,
-			Type returnType,
-			Span<Type> parameterTypes,
-			BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-		{
-			throw new NotSupportedException("Static method binding is not supported.");
-		}
-
-
-
-		/// <summary>
-		/// Creates a delegate instance using the supplied signature metadata while ensuring only instance methods are bound.
-		/// </summary>
-		/// <param name="instanceType">The type containing the instance parameter expected by the delegate.</param>
-		/// <param name="declaringType">The type that declares the method definition.</param>
-		/// <param name="methodName">The name of the method to bind.</param>
-		/// <param name="genericTypeArgument">The type used to close the method.</param>
-		/// <param name="returnType">The return type expected from the delegate signature.</param>
-		/// <param name="parameterTypes">The parameter types (excluding the instance parameter) that compose the delegate signature.</param>
-		/// <param name="bindingFlags">Binding flags used during method discovery.</param>
-		/// <returns>A delegate that matches the supplied signature.</returns>
-		/// <exception cref="NotSupportedException">Thrown when static binding is attempted.</exception>
-		private static Delegate CreateDynamicDelegate(
-			Type? instanceType,
-			Type declaringType,
-			string methodName,
-			Type genericTypeArgument,
-			Type returnType,
-			Span<Type> parameterTypes,
-			BindingFlags bindingFlags)
-		{
-			if (instanceType is null)
+			if (genericTypeArguments == null) 
+				throw new ArgumentNullException(nameof(genericTypeArguments));
+			
+			for (int i = 0; i < genericTypeArguments.Length; i++)
 			{
-				throw new NotSupportedException("Static method binding is not supported.");
+				if (genericTypeArguments[i] == null)
+					throw new ArgumentNullException(
+						$"{nameof(genericTypeArguments)}[{i}]",
+						"Type arguments cannot be null");
 			}
-
-			if ((bindingFlags & BindingFlags.Static) != 0)
-			{
-				throw new NotSupportedException("Static method binding is not supported.");
-			}
-
-			var signatureLength = parameterTypes.Length + 2;
-			using var signatureGuard = SpanGuard<Type>.Allocate(signatureLength);
-			var signature = signatureGuard.Span;
-			var index = 0;
-
-			signature[index++] = instanceType;
-
-			if (!parameterTypes.IsEmpty)
-			{
-				parameterTypes.CopyTo(signature.Slice(index));
-				index += parameterTypes.Length;
-			}
-
-			signature[index] = returnType;
-
-			var segment = signatureGuard.DangerousGetArray();
-			Type[]? backingArray = segment.Array;
-			if (backingArray is null)
-			{
-				backingArray = GC.AllocateUninitializedArray<Type>(signatureLength);
-				signature.CopyTo(backingArray);
-			}
-			else if (segment.Offset != 0 || backingArray.Length != signatureLength)
-			{
-				var exact = GC.AllocateUninitializedArray<Type>(signatureLength);
-				signature.CopyTo(exact);
-				backingArray = exact;
-			}
-
-			var delegateType = Expression.GetDelegateType(backingArray);
-			var flags = (bindingFlags | BindingFlags.Instance) & ~BindingFlags.Static;
-
-			return CreateDelegate(delegateType, declaringType, methodName, genericTypeArgument, flags);
 		}
 
 		/// <summary>
@@ -260,7 +236,7 @@ namespace NotNot.Advanced
 		/// <param name="delegateType">The delegate type whose signature must match the method.</param>
 		/// <param name="declaringType">The type that declares the method definition.</param>
 		/// <param name="methodName">The method name to bind.</param>
-		/// <param name="genericTypeArgument">The type that closes the generic method parameter.</param>
+		/// <param name="genericTypeArguments">The type that closes the generic method parameter.</param>
 		/// <param name="bindingFlags">Binding flags used during discovery.</param>
 		/// <returns>A delegate that can invoke the closed method.</returns>
 		/// <exception cref="ArgumentNullException">Thrown when required arguments are <see langword="null"/>.</exception>
@@ -271,12 +247,12 @@ namespace NotNot.Advanced
 			Type delegateType,
 			Type declaringType,
 			string methodName,
-			Type genericTypeArgument,
+			Type[] genericTypeArguments,
 			BindingFlags bindingFlags)
 		{
 			if (declaringType is null) throw new ArgumentNullException(nameof(declaringType));
-			if (genericTypeArgument is null) throw new ArgumentNullException(nameof(genericTypeArgument));
-			if (string.IsNullOrWhiteSpace(methodName)) throw new ArgumentException("Required", nameof(methodName));
+			ValidateTypeArguments(genericTypeArguments);
+			if (string.IsNullOrWhiteSpace(methodName)) throw new ArgumentException("Method name is required", nameof(methodName));
 			if ((bindingFlags & BindingFlags.Static) != 0) throw new NotSupportedException("Static method binding is not supported.");
 
 			var invokeMethod = delegateType.GetMethod("Invoke")
@@ -290,7 +266,7 @@ namespace NotNot.Advanced
 				parameterSpan[i] = invokeParameters[i].ParameterType;
 			}
 
-			var isInstanceDelegate = parameterSpan.Length > 0 && parameterSpan[0].IsAssignableFrom(declaringType);
+			var isInstanceDelegate = parameterSpan.Length > 0 && declaringType.IsAssignableFrom(parameterSpan[0]);
 			if (!isInstanceDelegate) throw new NotSupportedException("Delegates must represent instance methods.");
 			ReadOnlySpan<Type> methodParameterTypes = parameterSpan.Slice(1);
 
@@ -301,12 +277,12 @@ namespace NotNot.Advanced
 				methodName,
 				searchFlags,
 				methodParameterTypes,
-				requiredGenericArity: 1,
-				genericTypeArgument,
+				genericTypeArguments.Length,
+				genericTypeArguments,
 				invokeMethod.ReturnType)
 				?? throw new MissingMethodException(declaringType.FullName, methodName);
 
-			var closedMethod = method.MakeGenericMethod(genericTypeArgument);
+			var closedMethod = method.MakeGenericMethod(genericTypeArguments);
 			return closedMethod.CreateDelegate(delegateType);
 		}
 
@@ -318,7 +294,7 @@ namespace NotNot.Advanced
 		/// <param name="flags">Binding flags controlling visibility and inheritance.</param>
 		/// <param name="parameterTypes">The parameter types expected by the closed method.</param>
 		/// <param name="requiredGenericArity">The number of generic parameters the method definition must expose.</param>
-		/// <param name="genericTypeArgument">The type argument used to close the method during evaluation.</param>
+		/// <param name="genericTypeArguments">The type argument used to close the method during evaluation.</param>
 		/// <param name="expectedReturnType">The return type required for a successful match.</param>
 		/// <returns>The open generic <see cref="MethodInfo"/> that matches the supplied criteria, or <see langword="null"/> when none is found.</returns>
 		private static MethodInfo? FindGenericMethod(
@@ -327,14 +303,16 @@ namespace NotNot.Advanced
 			BindingFlags flags,
 			ReadOnlySpan<Type> parameterTypes,
 			int requiredGenericArity,
-			Type genericTypeArgument,
+			Type[] genericTypeArguments,
 			Type expectedReturnType)
 		{
-			bool needWalk = (flags & BindingFlags.Instance) != 0 && (flags & BindingFlags.NonPublic) != 0;
+			bool walkBaseTypes = (flags & BindingFlags.DeclaredOnly) == 0;
+			BindingFlags perTypeFlags = flags | BindingFlags.DeclaredOnly;
+			ArgumentException? firstConstraintFailure = null;
 
-			for (Type? type = declaringType; type != null; type = needWalk ? type.BaseType : null)
+			for (Type? type = declaringType; type != null; type = walkBaseTypes ? type.BaseType : null)
 			{
-				var methods = type.GetMethods(flags);
+				var methods = type.GetMethods(perTypeFlags);
 				for (int i = 0; i < methods.Length; i++)
 				{
 					var method = methods[i];
@@ -345,10 +323,12 @@ namespace NotNot.Advanced
 					MethodInfo closedMethod;
 					try
 					{
-						closedMethod = method.MakeGenericMethod(genericTypeArgument);
+						closedMethod = method.MakeGenericMethod(genericTypeArguments);
 					}
-					catch (ArgumentException)
+					catch (ArgumentException ex)
 					{
+						// Capture first constraint failure for reporting
+						firstConstraintFailure ??= ex;
 						continue;
 					}
 
@@ -368,13 +348,69 @@ namespace NotNot.Advanced
 					if (!parametersMatch) continue;
 					if (closedMethod.ReturnType != expectedReturnType) continue;
 
+					// Found exact match - return immediately
 					return method;
 				}
 
-				if (!needWalk) break;
+			}
+
+			// If we had constraint failures, report them
+			if (firstConstraintFailure != null)
+			{
+				string typeList = string.Join(", ", Array.ConvertAll(genericTypeArguments, t => t.Name));
+				throw new InvalidOperationException(
+					$"Generic method '{methodName}' found but constraints not satisfied for types '{typeList}': {firstConstraintFailure.Message}",
+					firstConstraintFailure);
 			}
 
 			return null;
+		}
+
+		/// <summary>
+		/// Validates that a delegate type's signature matches the target method.
+		/// </summary>
+		/// <param name="method">The method to validate against.</param>
+		/// <param name="delegateType">The delegate type to validate.</param>
+		/// <exception cref="InvalidOperationException">When the delegate type is invalid.</exception>
+		/// <exception cref="NotSupportedException">When signatures don't match for instance methods.</exception>
+		private static void ValidateDelegateSignature(MethodInfo method, Type delegateType)
+		{
+			var invokeMethod = delegateType.GetMethod("Invoke")
+				?? throw new InvalidOperationException($"{delegateType} is not a valid delegate type");
+
+			var invokeParameters = invokeMethod.GetParameters();
+			var methodParameters = method.GetParameters();
+
+			// For instance methods, first parameter should be the instance type
+			if (!method.IsStatic)
+			{
+				if (invokeParameters.Length != methodParameters.Length + 1)
+					throw new NotSupportedException(
+						$"Delegate parameter count mismatch. Expected {methodParameters.Length + 1} but got {invokeParameters.Length}");
+
+				// Verify first parameter is compatible with declaring type
+				if (invokeParameters.Length > 0 && method.DeclaringType != null)
+				{
+					if (!method.DeclaringType.IsAssignableFrom(invokeParameters[0].ParameterType))
+						throw new NotSupportedException(
+							$"Delegate's first parameter type {invokeParameters[0].ParameterType} " +
+							$"is not compatible with declaring type {method.DeclaringType}");
+				}
+
+				// Verify remaining parameters match
+				for (int i = 0; i < methodParameters.Length; i++)
+				{
+					if (invokeParameters[i + 1].ParameterType != methodParameters[i].ParameterType)
+						throw new NotSupportedException(
+							$"Parameter type mismatch at position {i}: " +
+							$"expected {methodParameters[i].ParameterType} but got {invokeParameters[i + 1].ParameterType}");
+				}
+			}
+
+			// Verify return type matches
+			if (invokeMethod.ReturnType != method.ReturnType)
+				throw new NotSupportedException(
+					$"Return type mismatch: expected {method.ReturnType} but got {invokeMethod.ReturnType}");
 		}
 	}
 }

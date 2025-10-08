@@ -17,23 +17,23 @@ namespace NotNot.Advanced;
 /// <para>should NOT be used for 1:1 references, only many-one.</para>
 /// <para> you should always clean this up, using destructor or other lifecycle workflows.   uncleaned up references will be considered memory leaks and asserts will trigger.</para>
 /// </summary>
-public record struct ManagedPointer<T> : IDisposable where T : class
+public record struct WeakPointer<T> : IDisposable where T : class
 {
 	// RefSlotStore for storing WeakReference<T> - provides array-based access
-	private static readonly RefSlotStore<WeakReference<T>> _store = new(initialCapacity: 100);
+	private static readonly RefSlotStore<WeakRef<T>> _store = new(initialCapacity: 100);
 
 	// Lock for thread-safe allocation operations
-	private static readonly object _allocLock = new();
+	private static readonly Lock _allocLock = new();
 
 	// Cursor for incremental cleanup - tracks position in array
 	private static int _cleanupCursor = 0;
 
-	public static ManagedPointer<T> RegisterTarget(T target)
+	public static WeakPointer<T> Alloc(T target)
 	{
 		lock (_allocLock)
 		{
 			// Create WeakReference for the target
-			var weakRef = new WeakReference<T>(target);
+			var weakRef = new WeakRef<T>(target);
 
 			// Allocate slot in RefSlotStore
 			var slotHandle = _store.Alloc(weakRef);
@@ -42,7 +42,7 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 			_GCNextSlots(5);
 
 			// Return ManagedPointer with the SlotHandle
-			return new ManagedPointer<T>
+			return new WeakPointer<T>
 			{
 				_slotHandle = slotHandle
 			};
@@ -69,7 +69,7 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 			var slot = span[_cleanupCursor];
 
 			// Check if slot is allocated and WeakReference is dead
-			if (slot.handle.IsAllocated && slot.slotData != null)
+			if (slot.handle.IsAllocated)
 			{
 				if (!slot.slotData.TryGetTarget(out _))
 				{
@@ -83,11 +83,13 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 	}
 
 
-	public static void UnregisterTarget(ManagedPointer<T> managedPointer)
+	public static void Free(WeakPointer<T> managedPointer)
 	{
 		if (managedPointer._slotHandle.IsAllocated)
 		{
+			var weakRef = _store[managedPointer._slotHandle];
 			_store.Free(managedPointer._slotHandle);
+			weakRef.Dispose();
 		}
 	}
 
@@ -134,7 +136,7 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 		// Get WeakReference from RefSlotStore
 		var weakRef = _store[_slotHandle];
 
-		if (weakRef == null || !weakRef.TryGetTarget(out var target))
+		if (!weakRef.TryGetTarget(out var target))
 		{
 			throw new ObjectDisposedException("Target has been garbage collected");
 		}
@@ -161,12 +163,6 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 		// Get WeakReference from RefSlotStore
 		var weakRef = _store[_slotHandle];
 
-		if (weakRef == null)
-		{
-			target = default;
-			return false;
-		}
-
 		// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
 		lock (_allocLock)
 		{
@@ -180,7 +176,7 @@ public record struct ManagedPointer<T> : IDisposable where T : class
 	{
 		if (IsAllocated)
 		{
-			UnregisterTarget(this);
+			Free(this);
 		}
 	}
 }

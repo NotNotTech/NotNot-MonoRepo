@@ -19,14 +19,33 @@ namespace NotNot.NodeFlow;
 /// a lightweight re-implementation of "SimNode", with only minimal features
 /// <para>Needs more work for advanced features: does not currently support reattach of initialized nodes, nor multithreaded execution</para>
 /// </summary>
-public abstract class SlimNode : AsyncDisposeGuard
+public abstract class SlimNode : DisposeGuard
 {
-	public virtual bool IsRoot { get; init; }
+	protected bool IsRoot { get; init; }
 	public bool IsInitialized { get; private set; }
 
 	public virtual SlimNode Parent { get; private set; }
 
 
+	private RootNode _rootNode;
+	/// <summary>
+	/// quick access to the rootNode, eg for root specific features like time, or global services
+	/// <para>will be null until attached to node graph</para>
+	/// </summary>
+	public RootNode RootNode
+	{
+		get {
+			if(_rootNode is null)
+			{
+				_rootNode = Parent?.RootNode;
+				__.AssertIfNot(_rootNode is not null,"should be setable unless adding when not attached to node graph.  disable this assert if that's the case");
+			}
+			return _rootNode;
+		} protected set
+		{
+			_rootNode = value;
+		}
+	}
 
 
 
@@ -92,11 +111,16 @@ public abstract class SlimNode : AsyncDisposeGuard
 	/// <returns></returns>
 	protected async ValueTask Update(TickState currentTick)
 	{
+		_updateCount = currentTick.UpdateCount;
 		var tempCounter = _callCounter;
 		await OnUpdate(currentTick);
 		__.AssertIfNot(_callCounter > tempCounter, "didn't call base method?");
 		_lifecycleCt.ThrowIfCancellationRequested();
 	}
+	/// <summary>
+	/// the rootNode's frame count (when this node's update was last invoked)
+	/// </summary>
+	protected ulong _updateCount;
 
 	/// <summary>
 	/// <para>children are updated inside the base call, so you can execute before/after.</para>
@@ -126,11 +150,15 @@ public abstract class SlimNode : AsyncDisposeGuard
 		_children.Add(child);
 
 		child.Parent = this;
-
+		child.RootNode = this.RootNode;		
 		if (IsInitialized)
 		{
 			await child.Initialize(_lifecycleCt);
 			_lifecycleCt.ThrowIfCancellationRequested();
+		}
+		if (child is ISingletonNode singletonNode)
+		{
+			RootNode._DoRegisterSingleton(singletonNode);		
 		}
 
 		var childCounter = child._callCounter;
@@ -158,6 +186,14 @@ public abstract class SlimNode : AsyncDisposeGuard
 		child.OnRemove();
 		__.AssertIfNot(child._callCounter > childCounter, "didn't call base method?");
 
+
+		if (child is ISingletonNode singletonNode)
+		{
+			RootNode._DoUnRegisterSingleton(singletonNode);
+		}
+
+		child.Parent = null;
+		child.RootNode = null;
 		_children.Remove(child);
 	}
 
@@ -174,17 +210,66 @@ public abstract class SlimNode : AsyncDisposeGuard
 	/// </summary>
 	/// <param name="managedDisposing"></param>
 	/// <returns></returns>
-	protected override async ValueTask OnDispose(bool managedDisposing)
+	protected override void OnDispose(bool managedDisposing)
 	{
 
-		await base.OnDispose(managedDisposing);
+		
 		if (managedDisposing)
 		{
-			using var copy = _children._MemoryOwnerCopy();
-			foreach (var child in copy)
+			//using var copy = _children._MemoryOwnerCopy();
+			foreach (var child in _children)
 			{
-				await child.DisposeAsync();
+				child.Dispose();
 			}
 		}
+		base.OnDispose(managedDisposing);
+		_children = null;		
 	}
+
+	/// <summary>
+	/// when ISingletonNode's are added to the node graph, they are registered in the root node for easy access.
+	/// <para>this easily lets you refernce it.  target Must already have been added, and max 1 per type.</para>
+	/// </summary>
+	public TSingletonNode GetSingletonNode<TSingletonNode>() where TSingletonNode : SlimNode, ISingletonNode
+	{
+		__.AssertIfNot(RootNode is not null, "not attached to node graph");
+		
+		if(RootNode._singletonCache.TryGetValue(typeof(TSingletonNode), out var node))
+		{
+			return (TSingletonNode)node;
+		}
+		else
+		{
+			//search for derived types in the dictionary.  if just one, add it to the dictionary cache for next time then return it.
+			//if multiple, throw error.
+			TSingletonNode? found = null;
+			foreach(var kvp in RootNode._singletonCache)
+			{
+				if(typeof(TSingletonNode).IsAssignableFrom(kvp.Key))
+				{
+					if(found is not null)
+					{
+						__.GetLogger()._EzError(false, "multiple singleton nodes found for type "+typeof(TSingletonNode).FullName+".  cannot determine which to return.  use exact type instead of base type.");
+						__.AssertIfNot(false);
+					}
+					found = (TSingletonNode)kvp.Value;
+				}
+			}
+			if(found is not null)
+			{
+				RootNode._singletonCache.Add(typeof(TSingletonNode), found);
+				return found;
+			}
+			throw __.Throw("no singleton node found for type " + typeof(TSingletonNode).FullName);
+
+		}
+	}
+}
+
+/// <summary>
+/// allows psudo-singleton / DI Service behavior.  There should only be one of this type added to the node-graph at once.
+/// <para>you can retrieve using mySlimNode.GetSingletonNode{TSingletonNode}()</para>
+/// </summary>
+public interface ISingletonNode
+{
 }
