@@ -496,14 +496,14 @@ public partial class LoLoRoot
 		}
 	}
 	/// <summary>
-	/// returns true if we are running in production environment.  false otherwise
+	/// returns true if environment contains the string "production", eg: "PreProduction".  false otherwise
 	/// <para>Note: production==true when no ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT is specified</para>
 	/// </summary>
 	public bool IsProduction
 	{
 		get
 		{
-			return RuntimeEnv._AproxEqual("production");
+			return RuntimeEnv._Contains("production");
 		}
 	}
 
@@ -511,7 +511,7 @@ public partial class LoLoRoot
 	{
 		get
 		{
-			return RuntimeEnv._AproxEqual("test");
+			return RuntimeEnv._Contains("test");
 		}
 	}
 
@@ -520,7 +520,7 @@ public partial class LoLoRoot
 	{
 		get
 		{
-			return RuntimeEnv._AproxEqual("development");
+			return RuntimeEnv._Contains("development");
 		}
 	}
 	///// <summary>
