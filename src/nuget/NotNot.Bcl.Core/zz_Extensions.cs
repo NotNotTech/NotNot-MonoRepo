@@ -8235,15 +8235,15 @@ public static class zz_Extensions_Point
 		return new System.Drawing.Point((int)point.X, (int)point.Y);
 	}
 
-	public static Vector3 _ToVector3XY(this System.Drawing.Point point, float z=0)
+	public static Vector3 _ToMsVec3XY(this System.Drawing.Point point, float z=0)
 	{
 		return new Vector3(point.X, point.Y, z);
 	}
-	public static Vector3 _ToVector3XZ(this System.Drawing.Point point, float y=0)
+	public static Vector3 _ToMsVec3XZ(this System.Drawing.Point point, float y=0)
 	{
 		return new Vector3(point.X, y, point.Y);
 	}
-	public static Vector2 _ToVector2(this System.Drawing.Point point)
+	public static Vector2 _ToMsVec2(this System.Drawing.Point point)
 	{
 		return new Vector2(point.X, point.Y);
 	}
