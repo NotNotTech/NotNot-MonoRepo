@@ -22,6 +22,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Blake3;
+using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Helpers;
 // using Newtonsoft.Json.Linq; // Removed - no longer needed
 using Nito.AsyncEx.Synchronous;
@@ -7645,6 +7646,15 @@ public static class zz_Extensions_Array
 		array._Clear(0, array.Length);
 	}
 
+	public static Span<T> _AsSpan<T>(this T[] array)
+	{
+		return new Span<T>(array);
+	}
+	public static Span2D<T> _AsSpan<T>(this T[,] array)
+	{
+		return new Span2D<T>(array);
+	}
+
 	public static void _Clear(this Array array, int offset, int count)
 	{
 		Array.Clear(array, offset, count);
@@ -8235,15 +8245,15 @@ public static class zz_Extensions_Point
 		return new System.Drawing.Point((int)point.X, (int)point.Y);
 	}
 
-	public static Vector3 _ToVector3XY(this System.Drawing.Point point, float z=0)
+	public static Vector3 _ToMsVec3XY(this System.Drawing.Point point, float z=0)
 	{
 		return new Vector3(point.X, point.Y, z);
 	}
-	public static Vector3 _ToVector3XZ(this System.Drawing.Point point, float y=0)
+	public static Vector3 _ToMsVec3XZ(this System.Drawing.Point point, float y=0)
 	{
 		return new Vector3(point.X, y, point.Y);
 	}
-	public static Vector2 _ToVector2(this System.Drawing.Point point)
+	public static Vector2 _ToMsVec2(this System.Drawing.Point point)
 	{
 		return new Vector2(point.X, point.Y);
 	}
