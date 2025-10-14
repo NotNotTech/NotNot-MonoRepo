@@ -22,6 +22,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Blake3;
+using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Helpers;
 // using Newtonsoft.Json.Linq; // Removed - no longer needed
 using Nito.AsyncEx.Synchronous;
@@ -7643,6 +7644,15 @@ public static class zz_Extensions_Array
 	public static void _Clear(this Array array)
 	{
 		array._Clear(0, array.Length);
+	}
+
+	public static Span<T> _AsSpan<T>(this T[] array)
+	{
+		return new Span<T>(array);
+	}
+	public static Span2D<T> _AsSpan<T>(this T[,] array)
+	{
+		return new Span2D<T>(array);
 	}
 
 	public static void _Clear(this Array array, int offset, int count)
