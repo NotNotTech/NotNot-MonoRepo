@@ -515,7 +515,9 @@ public partial class LoLoRoot
 		}
 	}
 
-
+	/// <summary>
+	/// true if environment contains the string "development", eg: "Development" or "LocalAuthdevelopment".  false otherwise
+	/// </summary>
 	public bool IsDevelopment
 	{
 		get
