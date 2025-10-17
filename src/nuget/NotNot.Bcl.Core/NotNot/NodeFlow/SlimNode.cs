@@ -34,14 +34,16 @@ public abstract class SlimNode : DisposeGuard
 	/// </summary>
 	public RootNode RootNode
 	{
-		get {
-			if(_rootNode is null)
+		get
+		{
+			if (_rootNode is null)
 			{
 				_rootNode = Parent?.RootNode;
-				__.AssertIfNot(_rootNode is not null,"should be setable unless adding when not attached to node graph.  disable this assert if that's the case");
+				__.AssertIfNot(_rootNode is not null, "should be setable unless adding when not attached to node graph.  disable this assert if that's the case");
 			}
 			return _rootNode;
-		} protected set
+		}
+		protected set
 		{
 			_rootNode = value;
 		}
@@ -150,15 +152,15 @@ public abstract class SlimNode : DisposeGuard
 		_children.Add(child);
 
 		child.Parent = this;
-		child.RootNode = this.RootNode;		
+		child.RootNode = this.RootNode;
+		if (child is ISingletonNode singletonNode)
+		{
+			RootNode._DoRegisterSingleton(singletonNode);
+		}
 		if (IsInitialized)
 		{
 			await child.Initialize(_lifecycleCt);
 			_lifecycleCt.ThrowIfCancellationRequested();
-		}
-		if (child is ISingletonNode singletonNode)
-		{
-			RootNode._DoRegisterSingleton(singletonNode);		
 		}
 
 		var childCounter = child._callCounter;
@@ -213,7 +215,7 @@ public abstract class SlimNode : DisposeGuard
 	protected override void OnDispose(bool managedDisposing)
 	{
 
-		
+
 		if (managedDisposing)
 		{
 			//using var copy = _children._MemoryOwnerCopy();
@@ -223,7 +225,7 @@ public abstract class SlimNode : DisposeGuard
 			}
 		}
 		base.OnDispose(managedDisposing);
-		_children = null;		
+		_children = null;
 	}
 
 	/// <summary>
@@ -233,8 +235,8 @@ public abstract class SlimNode : DisposeGuard
 	public TSingletonNode GetSingletonNode<TSingletonNode>() where TSingletonNode : SlimNode, ISingletonNode
 	{
 		__.AssertIfNot(RootNode is not null, "not attached to node graph");
-		
-		if(RootNode._singletonCache.TryGetValue(typeof(TSingletonNode), out var node))
+
+		if (RootNode._singletonCache.TryGetValue(typeof(TSingletonNode), out var node))
 		{
 			return (TSingletonNode)node;
 		}
@@ -243,19 +245,19 @@ public abstract class SlimNode : DisposeGuard
 			//search for derived types in the dictionary.  if just one, add it to the dictionary cache for next time then return it.
 			//if multiple, throw error.
 			TSingletonNode? found = null;
-			foreach(var kvp in RootNode._singletonCache)
+			foreach (var kvp in RootNode._singletonCache)
 			{
-				if(typeof(TSingletonNode).IsAssignableFrom(kvp.Key))
+				if (typeof(TSingletonNode).IsAssignableFrom(kvp.Key))
 				{
-					if(found is not null)
+					if (found is not null)
 					{
-						__.GetLogger()._EzError(false, "multiple singleton nodes found for type "+typeof(TSingletonNode).FullName+".  cannot determine which to return.  use exact type instead of base type.");
+						__.GetLogger()._EzError(false, "multiple singleton nodes found for type " + typeof(TSingletonNode).FullName + ".  cannot determine which to return.  use exact type instead of base type.");
 						__.AssertIfNot(false);
 					}
 					found = (TSingletonNode)kvp.Value;
 				}
 			}
-			if(found is not null)
+			if (found is not null)
 			{
 				RootNode._singletonCache.Add(typeof(TSingletonNode), found);
 				return found;
