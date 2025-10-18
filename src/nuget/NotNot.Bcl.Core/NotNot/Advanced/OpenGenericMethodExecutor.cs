@@ -5,6 +5,8 @@ using NotNot;
 
 namespace NotNot.Advanced
 {
+
+
 	/// <summary>
 	/// Builds strongly typed delegates that can invoke open generic instance methods once supplied with a concrete type argument.
 	/// The purpose of OpenGenericMethodExecutor is to allow the user to exactly match existing generic methods using known types.
@@ -14,8 +16,9 @@ namespace NotNot.Advanced
 	/// The helpers in this class close a single generic parameter, validate delegate signatures against the resolved method, and refuse static bindings.
 	/// IMPORTANT: This implementation requires exact type matching - no variance is supported. The delegate's parameter and return types
 	/// must exactly match the closed method's signature.
+	/// <para>This partial class contains static methods, which DO NOT cache, just focus on the logic of creating the delegates</para>
 	/// </remarks>
-	public static class OpenGenericMethodExecutor
+	public partial class OpenGenericMethodExecutor
 	{
 		/// <summary>
 		/// Creates a delegate of type <typeparamref name="TDelegate"/> that closes and invokes an open generic method on the specified <paramref name="declaringType"/>.
@@ -40,13 +43,13 @@ namespace NotNot.Advanced
 		/// invoker(partitionInstance, slotSpan);
 		/// </code>
 		/// </example>
-		public static TDelegate CreateInvoker<TDelegate>(
+		public static TDelegate CreateInstanceInvoker<TDelegate>(
 			Type declaringType,
 			string methodName,
 			params Type[] genericTypeArguments)
 			where TDelegate : Delegate
 		{
-			return CreateInvoker<TDelegate>(declaringType, methodName,
+			return CreateInstanceInvoker<TDelegate>(declaringType, methodName,
 				BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
@@ -61,7 +64,7 @@ namespace NotNot.Advanced
 		/// invoker(partitionInstance, slotSpan);
 		/// </code>
 		/// </example>
-		public static TDelegate CreateInvoker<TDelegate>(
+		public static TDelegate CreateInstanceInvoker<TDelegate>(
 			Type declaringType,
 			string methodName,
 			BindingFlags bindingFlags,
@@ -101,7 +104,7 @@ namespace NotNot.Advanced
 		/// invoker(partitionInstance, slotSpan);
 		/// </code>
 		/// </example>
-		public static TDelegate CreateExactInvoker<TDelegate>(
+		public static TDelegate CreateExactInstanceInvoker<TDelegate>(
 			MethodInfo method,
 			params Type[] genericTypeArguments)
 			where TDelegate : Delegate
@@ -179,12 +182,12 @@ namespace NotNot.Advanced
 		/// action(partitionInstance);
 		/// </code>
 		/// </example>
-		public static Action<TTarget> CreateAction<TTarget>(
+		public static Action<TTarget> CreateInstanceAction<TTarget>(
 			string methodName,
 			params Type[] genericTypeArguments)
 			where TTarget : class
 		{
-			return CreateInvoker<Action<TTarget>>(
+			return CreateInstanceInvoker<Action<TTarget>>(
 				typeof(TTarget), methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
@@ -206,12 +209,12 @@ namespace NotNot.Advanced
 		/// var count = func(partitionInstance);
 		/// </code>
 		/// </example>
-		public static Func<TTarget, TResult> CreateFunc<TTarget, TResult>(
+		public static Func<TTarget, TResult> CreateInstanceFunc<TTarget, TResult>(
 			string methodName,
 			params Type[] genericTypeArguments)
 			where TTarget : class
 		{
-			return CreateInvoker<Func<TTarget, TResult>>(
+			return CreateInstanceInvoker<Func<TTarget, TResult>>(
 				typeof(TTarget), methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
