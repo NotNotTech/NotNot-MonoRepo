@@ -69,6 +69,10 @@ namespace NotNot.Advanced
 			where TDelegate : Delegate
 		{
 			if (declaringType == null) throw new ArgumentNullException(nameof(declaringType));
+			if (declaringType.ContainsGenericParameters)
+				throw new ArgumentException(
+					$"Declaring type '{declaringType}' contains open generic parameters. " +
+					"Provide a fully closed generic type instead.", nameof(declaringType));
 			if (string.IsNullOrWhiteSpace(methodName)) throw new ArgumentException("Method name is required", nameof(methodName));
 			ValidateTypeArguments(genericTypeArguments);
 
@@ -118,6 +122,9 @@ namespace NotNot.Advanced
 				}
 				if (method.GetGenericArguments().Length != genericTypeArguments.Length)
 					throw new ArgumentException($"Method requires {method.GetGenericArguments().Length} type arguments");
+
+				// Validate constraints before attempting to close the method
+				ValidateGenericConstraints(method, genericTypeArguments);
 				targetMethod = method.MakeGenericMethod(genericTypeArguments);
 			}
 			else if (genericTypeArguments.Length == 0)
@@ -218,15 +225,64 @@ namespace NotNot.Advanced
 		/// <exception cref="ArgumentNullException">When the array is null or contains null elements.</exception>
 		private static void ValidateTypeArguments(Type[] genericTypeArguments)
 		{
-			if (genericTypeArguments == null) 
+			if (genericTypeArguments == null)
 				throw new ArgumentNullException(nameof(genericTypeArguments));
-			
+
 			for (int i = 0; i < genericTypeArguments.Length; i++)
 			{
 				if (genericTypeArguments[i] == null)
 					throw new ArgumentNullException(
 						$"{nameof(genericTypeArguments)}[{i}]",
 						"Type arguments cannot be null");
+			}
+		}
+
+		/// <summary>
+		/// Validates that type arguments satisfy the generic constraints of a method.
+		/// </summary>
+		/// <param name="method">The generic method definition.</param>
+		/// <param name="typeArguments">The type arguments to validate.</param>
+		/// <exception cref="ArgumentException">When type arguments violate method constraints.</exception>
+		private static void ValidateGenericConstraints(MethodInfo method, Type[] typeArguments)
+		{
+			var genericParams = method.GetGenericArguments();
+			if (genericParams.Length != typeArguments.Length)
+				return; // Arity mismatch handled elsewhere
+
+			for (int i = 0; i < genericParams.Length; i++)
+			{
+				var param = genericParams[i];
+				var arg = typeArguments[i];
+				var constraints = param.GetGenericParameterConstraints();
+
+				// Check class/struct/new() constraints
+				var attrs = param.GenericParameterAttributes;
+				if ((attrs & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0)
+				{
+					if (!arg.IsValueType || (Nullable.GetUnderlyingType(arg) != null))
+						throw new ArgumentException(
+							$"Type argument '{arg.Name}' for generic parameter '{param.Name}' must be a non-nullable value type (struct constraint).");
+				}
+				if ((attrs & GenericParameterAttributes.ReferenceTypeConstraint) != 0)
+				{
+					if (arg.IsValueType)
+						throw new ArgumentException(
+							$"Type argument '{arg.Name}' for generic parameter '{param.Name}' must be a reference type (class constraint).");
+				}
+				if ((attrs & GenericParameterAttributes.DefaultConstructorConstraint) != 0)
+				{
+					if (!arg.IsValueType && arg.GetConstructor(Type.EmptyTypes) == null)
+						throw new ArgumentException(
+							$"Type argument '{arg.Name}' for generic parameter '{param.Name}' must have a parameterless constructor (new() constraint).");
+				}
+
+				// Check interface/base class constraints
+				foreach (var constraint in constraints)
+				{
+					if (!constraint.IsAssignableFrom(arg))
+						throw new ArgumentException(
+							$"Type argument '{arg.Name}' does not satisfy constraint '{constraint.Name}' for generic parameter '{param.Name}'.");
+				}
 			}
 		}
 
@@ -251,6 +307,10 @@ namespace NotNot.Advanced
 			BindingFlags bindingFlags)
 		{
 			if (declaringType is null) throw new ArgumentNullException(nameof(declaringType));
+			if (declaringType.ContainsGenericParameters)
+				throw new ArgumentException(
+					$"Declaring type '{declaringType}' contains open generic parameters. " +
+					"Provide a fully closed generic type instead.", nameof(declaringType));
 			ValidateTypeArguments(genericTypeArguments);
 			if (string.IsNullOrWhiteSpace(methodName)) throw new ArgumentException("Method name is required", nameof(methodName));
 			if ((bindingFlags & BindingFlags.Static) != 0) throw new NotSupportedException("Static method binding is not supported.");
@@ -323,6 +383,8 @@ namespace NotNot.Advanced
 					MethodInfo closedMethod;
 					try
 					{
+						// Pre-validate constraints for clearer error messages
+						ValidateGenericConstraints(method, genericTypeArguments);
 						closedMethod = method.MakeGenericMethod(genericTypeArguments);
 					}
 					catch (ArgumentException ex)
@@ -389,12 +451,14 @@ namespace NotNot.Advanced
 						$"Delegate parameter count mismatch. Expected {methodParameters.Length + 1} but got {invokeParameters.Length}");
 
 				// Verify first parameter is compatible with declaring type
+				// The delegate's first parameter type must be assignable from the declaring type
+				// Example: if method is on Animal, delegate can accept Animal or Dog : Animal
 				if (invokeParameters.Length > 0 && method.DeclaringType != null)
 				{
-					if (!method.DeclaringType.IsAssignableFrom(invokeParameters[0].ParameterType))
+					if (!invokeParameters[0].ParameterType.IsAssignableFrom(method.DeclaringType))
 						throw new NotSupportedException(
 							$"Delegate's first parameter type {invokeParameters[0].ParameterType} " +
-							$"is not compatible with declaring type {method.DeclaringType}");
+							$"cannot accept instances of declaring type {method.DeclaringType}");
 				}
 
 				// Verify remaining parameters match
