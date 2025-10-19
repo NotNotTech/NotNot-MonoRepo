@@ -240,9 +240,9 @@ namespace {config.StartingNamespace}
 			if (appSettingsFileNames is null)
 			{{
 				//figure out what env
-				var env = Environment.GetEnvironmentVariable(""DOTNET_ENVIRONMENT"");
-				env ??= Environment.GetEnvironmentVariable(""ASPNETCORE_ENVIRONMENT"");
-				env ??= Environment.GetEnvironmentVariable(""ENVIRONMENT"");
+				var env = System.Environment.GetEnvironmentVariable(""DOTNET_ENVIRONMENT"");
+				env ??= System.Environment.GetEnvironmentVariable(""ASPNETCORE_ENVIRONMENT"");
+				env ??= System.Environment.GetEnvironmentVariable(""ENVIRONMENT"");
 				//env ??= ""Development""; //default to ""Development
 				if (env is null)
 				{{

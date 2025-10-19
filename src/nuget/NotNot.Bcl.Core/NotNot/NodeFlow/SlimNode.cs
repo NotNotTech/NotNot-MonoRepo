@@ -214,14 +214,15 @@ public abstract class SlimNode : DisposeGuard
 	/// <returns></returns>
 	protected override void OnDispose(bool managedDisposing)
 	{
-
-
 		if (managedDisposing)
 		{
 			//using var copy = _children._MemoryOwnerCopy();
-			foreach (var child in _children)
+			if (_children is not null) //children object null if no children ever added
 			{
-				child.Dispose();
+				foreach (var child in _children)
+				{
+					child.Dispose();
+				}
 			}
 		}
 		base.OnDispose(managedDisposing);
