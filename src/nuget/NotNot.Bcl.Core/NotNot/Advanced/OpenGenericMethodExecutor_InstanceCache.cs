@@ -294,5 +294,168 @@ namespace NotNot.Advanced
 
 			public override int GetHashCode() => _hashCode;
 		}
+
+		#region Static Method Caching
+
+		/// <summary>
+		/// Gets or creates a cached delegate for a static method with the specified signature.
+		/// Thread-safe for concurrent access.
+		/// </summary>
+		/// <typeparam name="TDelegate">The delegate type to create.</typeparam>
+		/// <param name="declaringType">The type that declares the static method.</param>
+		/// <param name="methodName">The name of the static method to invoke.</param>
+		/// <param name="genericTypeArguments">The type arguments to close the generic method.</param>
+		/// <returns>A cached delegate that invokes the specified static method.</returns>
+		/// <remarks>
+		/// First call performs full reflection and caches the result.
+		/// Subsequent calls with identical parameters return the cached delegate.
+		/// Uses default binding flags: Public | NonPublic | Static.
+		/// </remarks>
+		public TDelegate GetCachedStaticInvoker<TDelegate>(
+			Type declaringType,
+			string methodName,
+			params Type[] genericTypeArguments)
+			where TDelegate : Delegate
+		{
+			return GetCachedStaticInvoker<TDelegate>(
+				declaringType,
+				methodName,
+				BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+				genericTypeArguments);
+		}
+
+		/// <summary>
+		/// Gets or creates a cached delegate for a static method with the specified signature and binding flags.
+		/// Thread-safe for concurrent access.
+		/// </summary>
+		/// <typeparam name="TDelegate">The delegate type to create.</typeparam>
+		/// <param name="declaringType">The type that declares the static method.</param>
+		/// <param name="methodName">The name of the static method to invoke.</param>
+		/// <param name="bindingFlags">Binding flags to control method lookup.</param>
+		/// <param name="genericTypeArguments">The type arguments to close the generic method.</param>
+		/// <returns>A cached delegate that invokes the specified static method.</returns>
+		public TDelegate GetCachedStaticInvoker<TDelegate>(
+			Type declaringType,
+			string methodName,
+			BindingFlags bindingFlags,
+			params Type[] genericTypeArguments)
+			where TDelegate : Delegate
+		{
+			var key = new DelegateCacheKey(
+				declaringType,
+				methodName,
+				bindingFlags,
+				genericTypeArguments,
+				typeof(TDelegate));
+
+			lock (_cacheLock)
+			{
+				if (_delegateCache.TryGetValue(key, out var cached))
+				{
+					return (TDelegate)cached;
+				}
+
+				var newDelegate = CreateStaticInvoker<TDelegate>(
+					declaringType,
+					methodName,
+					bindingFlags,
+					genericTypeArguments);
+
+				_delegateCache[key] = newDelegate;
+				return newDelegate;
+			}
+		}
+
+		/// <summary>
+		/// Gets or creates a cached delegate for a known static MethodInfo.
+		/// Thread-safe for concurrent access.
+		/// </summary>
+		/// <typeparam name="TDelegate">The delegate type to create.</typeparam>
+		/// <param name="method">The static method to create a delegate for.</param>
+		/// <param name="genericTypeArguments">Type arguments to close the generic method.</param>
+		/// <returns>A cached delegate that invokes the specified static method.</returns>
+		/// <remarks>
+		/// Cache key includes method's declaring type, name, and type arguments.
+		/// Faster than search-based caching for known MethodInfo.
+		/// </remarks>
+		public TDelegate GetCachedExactStaticInvoker<TDelegate>(
+			MethodInfo method,
+			params Type[] genericTypeArguments)
+			where TDelegate : Delegate
+		{
+			if (method == null) throw new ArgumentNullException(nameof(method));
+			if (!method.IsStatic)
+				throw new ArgumentException($"Method '{method.Name}' is not static. Use GetCachedExactInstanceInvoker for instance methods.", nameof(method));
+
+			// Use method's declaring type and name for cache key
+			// This allows caching even when MethodInfo instance differs
+			var bindingFlags = method.IsPublic ? BindingFlags.Public : BindingFlags.NonPublic;
+			bindingFlags |= BindingFlags.Static;
+
+			var key = new DelegateCacheKey(
+				method.DeclaringType!,
+				method.Name,
+				bindingFlags,
+				genericTypeArguments,
+				typeof(TDelegate));
+
+			lock (_cacheLock)
+			{
+				if (_delegateCache.TryGetValue(key, out var cached))
+				{
+					return (TDelegate)cached;
+				}
+
+				var newDelegate = CreateExactStaticInvoker<TDelegate>(
+					method,
+					genericTypeArguments);
+
+				_delegateCache[key] = newDelegate;
+				return newDelegate;
+			}
+		}
+
+		/// <summary>
+		/// Gets or creates a cached Action delegate for a static method.
+		/// Thread-safe for concurrent access.
+		/// </summary>
+		/// <param name="declaringType">The type that declares the static method.</param>
+		/// <param name="methodName">The name of the static method to invoke.</param>
+		/// <param name="genericTypeArguments">The type arguments to close the generic method.</param>
+		/// <returns>A cached Action delegate.</returns>
+		public Action GetCachedStaticAction(
+			Type declaringType,
+			string methodName,
+			params Type[] genericTypeArguments)
+		{
+			return GetCachedStaticInvoker<Action>(
+				declaringType,
+				methodName,
+				BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+				genericTypeArguments);
+		}
+
+		/// <summary>
+		/// Gets or creates a cached Func delegate for a static method.
+		/// Thread-safe for concurrent access.
+		/// </summary>
+		/// <typeparam name="TResult">The return type of the static method.</typeparam>
+		/// <param name="declaringType">The type that declares the static method.</param>
+		/// <param name="methodName">The name of the static method to invoke.</param>
+		/// <param name="genericTypeArguments">The type arguments to close the generic method.</param>
+		/// <returns>A cached Func delegate.</returns>
+		public Func<TResult> GetCachedStaticFunc<TResult>(
+			Type declaringType,
+			string methodName,
+			params Type[] genericTypeArguments)
+		{
+			return GetCachedStaticInvoker<Func<TResult>>(
+				declaringType,
+				methodName,
+				BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+				genericTypeArguments);
+		}
+
+		#endregion
 	}
 }
