@@ -19,6 +19,11 @@ namespace NotNot;
 internal enum MemBackingStorageType
 {
 	/// <summary>
+	/// not initialized.  an error if being used.
+	/// </summary>
+	None = 0,
+
+	/// <summary>
 	/// if pooled (Mem.Alloc()), this will be set. a reference to the pooled location so it can be recycled
 	/// while this will naturally be GC'd when all referencing Mem{T}'s go out-of-scope, you can manually do so by calling Dispose or the using pattern
 	/// </summary>
@@ -684,7 +689,7 @@ public readonly struct Mem<T> : IDisposable
 		while (batchStart < this.Count)
 		{
 			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
-			await worker(this.Slice(batchStart, batchEnd - batchStart),otherToMapWith.Slice(batchStart, batchEnd - batchStart));
+			await worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
 			batchStart = batchEnd;
 		}
 	}
@@ -785,6 +790,9 @@ public readonly struct Mem<T> : IDisposable
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.Memory:
 				//do nothing, let the GC handle backing.
+				break;
+			case MemBackingStorageType.None:
+				//disposal of non-initialized/used storage.  ignore
 				break;
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
@@ -1374,6 +1382,9 @@ public readonly struct ReadMem<T> : IDisposable
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.Memory:
 				//do nothing, let the GC handle backing.
+				break;
+			case MemBackingStorageType.None:
+				//disposal of non-initialized/used storage.  ignore
 				break;
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
