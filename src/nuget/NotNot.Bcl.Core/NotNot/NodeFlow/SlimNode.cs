@@ -262,7 +262,7 @@ public abstract class SlimNode : DisposeGuard
 				RootNode._singletonCache.Add(typeof(TSingletonNode), found);
 				return found;
 			}
-			throw __.Throw("no singleton node found for type " + typeof(TSingletonNode).FullName);
+			throw __.Throw($"no singleton node found for type {typeof(TSingletonNode).FullName}.  Be sure it's already added (once) to the nodeTree");
 
 		}
 	}

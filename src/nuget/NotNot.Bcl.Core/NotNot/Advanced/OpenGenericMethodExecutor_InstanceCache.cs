@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Reflection;
 
 namespace NotNot.Advanced
@@ -39,14 +40,10 @@ namespace NotNot.Advanced
 	public partial class OpenGenericMethodExecutor
 	{
 		/// <summary>
-		/// Thread-safe delegate cache. Key uniquely identifies delegate signature.
+		/// Thread-safe delegate cache using ConcurrentDictionary for lock-free reads and scalable writes.
+		/// Key uniquely identifies delegate signature.
 		/// </summary>
-		private readonly Dictionary<DelegateCacheKey, Delegate> _delegateCache = new();
-
-		/// <summary>
-		/// Lock for thread-safe cache access in concurrent scenarios.
-		/// </summary>
-		private readonly object _cacheLock = new object();
+		private readonly ConcurrentDictionary<DelegateCacheKey, Delegate> _delegateCache = new();
 
 		/// <summary>
 		/// Gets or creates a cached delegate for an instance method with the specified signature.
@@ -103,22 +100,12 @@ namespace NotNot.Advanced
 				genericTypeArguments,
 				typeof(TDelegate));
 
-			lock (_cacheLock)
-			{
-				if (_delegateCache.TryGetValue(key, out var cached))
-				{
-					return (TDelegate)cached;
-				}
-
-				var newDelegate = CreateInstanceInvoker<TDelegate>(
+			return (TDelegate)_delegateCache.GetOrAdd(key, _ =>
+				CreateInstanceInvoker<TDelegate>(
 					declaringType,
 					methodName,
 					bindingFlags,
-					genericTypeArguments);
-
-				_delegateCache[key] = newDelegate;
-				return newDelegate;
-			}
+					genericTypeArguments));
 		}
 
 		/// <summary>
@@ -150,20 +137,10 @@ namespace NotNot.Advanced
 				genericTypeArguments,
 				typeof(TDelegate));
 
-			lock (_cacheLock)
-			{
-				if (_delegateCache.TryGetValue(key, out var cached))
-				{
-					return (TDelegate)cached;
-				}
-
-				var newDelegate = CreateExactInstanceInvoker<TDelegate>(
+			return (TDelegate)_delegateCache.GetOrAdd(key, _ =>
+				CreateExactInstanceInvoker<TDelegate>(
 					method,
-					genericTypeArguments);
-
-				_delegateCache[key] = newDelegate;
-				return newDelegate;
-			}
+					genericTypeArguments));
 		}
 
 		/// <summary>
@@ -212,25 +189,13 @@ namespace NotNot.Advanced
 		/// </summary>
 		public void ClearCache()
 		{
-			lock (_cacheLock)
-			{
-				_delegateCache.Clear();
-			}
+			_delegateCache.Clear();
 		}
 
 		/// <summary>
 		/// Gets the current number of cached delegates.
 		/// </summary>
-		public int CachedDelegateCount
-		{
-			get
-			{
-				lock (_cacheLock)
-				{
-					return _delegateCache.Count;
-				}
-			}
-		}
+		public int CachedDelegateCount => _delegateCache.Count;
 
 		/// <summary>
 		/// Cache key that uniquely identifies a delegate signature.
@@ -348,22 +313,12 @@ namespace NotNot.Advanced
 				genericTypeArguments,
 				typeof(TDelegate));
 
-			lock (_cacheLock)
-			{
-				if (_delegateCache.TryGetValue(key, out var cached))
-				{
-					return (TDelegate)cached;
-				}
-
-				var newDelegate = CreateStaticInvoker<TDelegate>(
+			return (TDelegate)_delegateCache.GetOrAdd(key, _ =>
+				CreateStaticInvoker<TDelegate>(
 					declaringType,
 					methodName,
 					bindingFlags,
-					genericTypeArguments);
-
-				_delegateCache[key] = newDelegate;
-				return newDelegate;
-			}
+					genericTypeArguments));
 		}
 
 		/// <summary>
@@ -399,20 +354,10 @@ namespace NotNot.Advanced
 				genericTypeArguments,
 				typeof(TDelegate));
 
-			lock (_cacheLock)
-			{
-				if (_delegateCache.TryGetValue(key, out var cached))
-				{
-					return (TDelegate)cached;
-				}
-
-				var newDelegate = CreateExactStaticInvoker<TDelegate>(
+			return (TDelegate)_delegateCache.GetOrAdd(key, _ =>
+				CreateExactStaticInvoker<TDelegate>(
 					method,
-					genericTypeArguments);
-
-				_delegateCache[key] = newDelegate;
-				return newDelegate;
-			}
+					genericTypeArguments));
 		}
 
 		/// <summary>
