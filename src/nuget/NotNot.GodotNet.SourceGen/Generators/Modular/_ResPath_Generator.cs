@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using Microsoft.CodeAnalysis.CSharp;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using NotNot.GodotNet.SourceGen.Helpers;
 using NotNot.GodotNet.SourceGen.Generators.Modular;
+using NotNot.GodotNet.SourceGen.Helpers;
 
 
 /// <summary>
@@ -28,6 +28,7 @@ public class _ResPath_Generator : ModularGenerator_Base
 		TargetAdditionalFiles =
 		[
 			new Regex(@"\.import$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled),
+			new Regex(@"\.uid", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled),
 			//new Regex(@".*", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled),
 		];
 
@@ -98,22 +99,30 @@ public partial class {{className}}
 	{
 		var lines = new StringBuilder();
 
-		foreach (var importFileName in config.AllAdditionalFilePaths)
+		foreach (var originalFileName in config.AllAdditionalFilePaths)
 		{
+			var importFileName = originalFileName;
+			var originalExtension = originalFileName.Substring(importFileName.LastIndexOf('.'));
+
+			//remove known secondary extensions
+			switch (originalExtension)
+			{
+				case ".import":
+				case ".uid":
+					importFileName = originalFileName.Remove(originalFileName.LastIndexOf(originalExtension));
+					break;
+				default:
+					importFileName = originalFileName;
+					break;
+			}
 			var extension = importFileName.Substring(importFileName.LastIndexOf('.'));
+
+
+
 			switch (extension)
 			{
 				case ".import":
-					{
-						var assetFilePath = importFileName.Replace(".import", "");
-						var assetId = assetFilePath.Replace(config.resRootPath, "");
-						var id = assetId._ConvertToAlphanumericCaps();
-						if (config.TryConvertFilePathToResPath(assetFilePath, out var resPath))
-						{
-							lines.AppendLine($""" public static StringName {id} = "{resPath}";""");
-						}
-					}
-					break;
+				case ".uid":
 				case ".gd":
 				case ".tres":
 				case ".txt":
@@ -121,6 +130,7 @@ public partial class {{className}}
 				case ".res":
 				case ".model":
 				case ".gdshader":
+				default:
 					{
 						if (config.TryConvertFilePathToResPath(importFileName, out var resPath))
 						{
