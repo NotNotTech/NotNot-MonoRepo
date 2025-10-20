@@ -112,7 +112,9 @@ public partial class {{className}}
 					importFileName = originalFileName.Remove(originalFileName.LastIndexOf(originalExtension));
 					break;
 				default:
-					importFileName = originalFileName;
+					//only allow above
+					continue;
+					//importFileName = originalFileName;
 					break;
 			}
 			var extension = importFileName.Substring(importFileName.LastIndexOf('.'));
@@ -123,6 +125,11 @@ public partial class {{className}}
 			{
 				case ".import":
 				case ".uid":
+					//import suffixes should have been removed already
+					throw new Exception("should have been removed already");
+				case ".glsl":
+					//ignore above
+					continue;
 				case ".gd":
 				case ".tres":
 				case ".txt":
@@ -143,40 +150,6 @@ public partial class {{className}}
 			}
 
 		}
-		//foreach (var kvp in config.AdditionalFiles)
-		//{
-		//	var importFileName = kvp.Key;
-		//	var sourceText = kvp.Value;
-		//	var extension = importFileName.Substring(importFileName.LastIndexOf('.'));
-		//	switch (extension)
-		//	{
-		//		case ".import":
-		//			{
-		//				var assetFilePath = importFileName.Replace(".import", "");
-		//				var assetId = assetFilePath.Replace(config.resRootPath, "");
-		//				var id = assetId._ConvertToAlphanumericCaps();
-		//				if (config.TryConvertFilePathToResPath(assetFilePath, out var resPath))
-		//				{
-		//					lines.AppendLine($""" public static StringName {id} = "{resPath}";""");
-		//				}
-		//			}
-		//			break;
-		//		case ".tres":
-		//		case ".txt":
-		//		case ".json":
-		//		case ".res":
-		//			{
-		//				if (config.TryConvertFilePathToResPath(importFileName, out var resPath))
-		//				{
-		//					var assetId = importFileName.Replace(config.resRootPath, "");
-		//					var id = assetId._ConvertToAlphanumericCaps();
-		//					lines.AppendLine($""" public static StringName {id} = "{resPath}";""");
-		//				}
-		//			}
-		//			break;
-		//	}
-
-		//}
 
 		return lines;
 	})}}
