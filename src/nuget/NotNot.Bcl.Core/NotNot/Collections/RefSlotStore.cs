@@ -111,6 +111,7 @@ public abstract class RefSlotStore
 /// for doing reads/edits in bulk, use the `_AsSpan_Unsafe()` method.
 /// </summary>
 /// <typeparam name="T">The type of item to store.</typeparam>
+[Obsolete("RefSlotStore is deprecated, use RefSlotStore_ArchetypeOptimized instead")]
 public class RefSlotStore<T> : RefSlotStore
 {
 	/// <summary>
@@ -363,9 +364,6 @@ public class RefSlotStore<T> : RefSlotStore
 /// <typeparam name="T">The type of item to store.</typeparam>
 public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore, IDisposable
 {
-
-
-
 	/// <summary>
 	/// tracks allocations, to ensure a slot is not used after being freed.
 	/// </summary>
