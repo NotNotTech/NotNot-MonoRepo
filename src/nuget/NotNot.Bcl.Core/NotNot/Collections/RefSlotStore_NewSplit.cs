@@ -60,14 +60,26 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 
 	/// <summary>
 	/// Used slots count: calculated as total allocated minus free slots.
-	/// <para>important: used slots may not be contiguous, so use <see cref="Capacity"/> for looping </para>
+	/// <para>important: used slots may not be contiguous, so use <see cref="StorageCapacity"/> for looping </para>
 	/// </summary>
 	public int Count => _allocTracker.Count - _freeSlots.Count;
 
 	/// <summary>
-	/// Total capacity of the storage (used and free slots).
+	/// length of the allocated storage (used + free slots)
 	/// </summary>
-	public int Capacity => _allocTracker.Count;
+	public int AllocatedLength => _allocTracker.Count;
+
+	/// <summary>
+	/// Total capacity of the storage (used and free slots, AND unallocated capacity).
+	/// </summary>
+	public int StorageCapacity
+	{
+		get
+		{
+			__.AssertIfNot(_allocTracker.Capacity == _data.Length, "internal error: capacity mismatch between alloc tracker and data array");
+			return _allocTracker.Capacity;
+		}
+	}
 
 	public RefEnumerable GetEnumerable(bool includeFree=false)
 	{
