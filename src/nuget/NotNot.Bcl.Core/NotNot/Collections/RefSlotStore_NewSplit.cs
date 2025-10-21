@@ -16,12 +16,19 @@ using NotNot.Collections;
 
 namespace NotNot.Collections;
 
+
+
+internal class RefSlotStore_NewSplit_VersionTracker
+{
+	internal static byte _initialVersion = 1;
+
+}
 /// <summary>
 /// a prototype version of RefSlotStore that is optimized for archetype storage.
 /// <para>optimized for batch operations, not setting value upon allocation</para>
 /// </summary>
 /// <typeparam name="T">The type of item to store.</typeparam>
-public class RefSlotStore_NewSplit<T> : RefSlotStore, IDisposable
+public class RefSlotStore_NewSplit<T> : IDisposeGuard
 {
 	/// <summary>
 	/// tracks allocations, to ensure a slot is not used after being freed.
@@ -29,35 +36,34 @@ public class RefSlotStore_NewSplit<T> : RefSlotStore, IDisposable
 	private byte _nextVersion;
 
 	/// <summary>
-	/// storage for the data and their handles (for tracking lifetime)
+	/// storage for the data handles (for tracking lifetime)
 	/// </summary>
-	private List<(SlotHandle handle, T slotData)> _storage;
+	private List<SlotHandle> _allocTracker;
 
 	/// <summary>
-	/// for use when reading/writing existing elements in bulk.  be sure not to allocate when using this (but free is ok)
-	/// <para>skip items with `handle.IsAllocated==false</para>
+	/// storage for the slot data
 	/// </summary>
-	/// <returns></returns>
-	public Span<(SlotHandle handle, T slotData)> _AsSpan_Unsafe() => _storage._AsSpan_Unsafe();
+	private T[] _data;
 
 	/// <summary>
 	/// Used slots count: calculated as total allocated minus free slots.
 	/// </summary>
-	public int Count => _storage.Count - _freeSlots.Count;
+	public  int Count => _allocTracker.Count - _freeSlots.Count;
 
 	/// <summary>
 	/// Total capacity of the storage (used and free slots).
 	/// </summary>
-	public int Capacity => _storage.Capacity;
+	public  int Capacity => _allocTracker.Capacity;
 
 
 	/// <summary>
 	/// Count of free slots
 	/// </summary>
-	public int FreeCount => _freeSlots.Count;
+	public  int FreeCount => _freeSlots.Count;
 
+	public bool IsDisposed { get; private set; }
 
-	private readonly Stack<int> _freeSlots; // **Stack to track free slot indices**
+	private Stack<int> _freeSlots; // **Stack to track free slot indices**
 
 	/// <summary>
 	/// Lock for thread safety when allocating/freeing slots.
@@ -67,13 +73,14 @@ public class RefSlotStore_NewSplit<T> : RefSlotStore, IDisposable
 	public RefSlotStore_NewSplit(int initialCapacity = 10)
 	{
 
-		_nextVersion = _initialVersion++;
+		_nextVersion = RefSlotStore_NewSplit_VersionTracker._initialVersion++;
 
 
 
 
 		// **Initialize the underlying storage** with the initial capacity.
-		_storage = new(initialCapacity);
+		_allocTracker = new(initialCapacity);
+		_data = new T[initialCapacity];
 		_freeSlots = new Stack<int>(initialCapacity);
 	}
 
@@ -97,7 +104,7 @@ public class RefSlotStore_NewSplit<T> : RefSlotStore, IDisposable
 					throw new InvalidOperationException($"Invalid slot access: {validResult.invalidReason}");
 				}
 
-				return ref _storage._AsSpan_Unsafe()[slot.Index].slotData;
+				return ref _data[slot.Index];
 			}
 		}
 	}
@@ -116,23 +123,36 @@ public class RefSlotStore_NewSplit<T> : RefSlotStore, IDisposable
 		{
 			for (var i = 0; i < count; i++)
 			{
-				var hSlot = _AllocSlot();
+				var hSlot = AllocSingleSlot();
 				slotSpan[i] = hSlot;
 			}
 
 			return toReturn;//.AsReadMem();
 		}
 	}
+	/// <summary>
+	/// allocate slots and set their values
+	/// </summary>
+	/// <param name="values"></param>
+	/// <returns></returns>
+	public Mem<SlotHandle> Alloc(Mem<T> values)
+	{
+		var toReturn = Alloc(values.Count);
+
+		values.MapWith(toReturn, (ref T value,ref SlotHandle slot) =>
+		{
+			_data[slot.Index] = value;
+		});
+
+		return toReturn;
+	}
 
 
 
 	/// <summary>
-	/// **Alloc** a free slot.
-	/// - Increases **Version**.
-	/// - If no free slot is available, expands the storage.
-	/// - **DEBUG mode:** tracks allocation via _CHECKED_allocationTracker.
+	/// **Alloc** a free slot.  data value will be `default`.
 	/// </summary>
-	private SlotHandle _AllocSlot()
+	public SlotHandle AllocSingleSlot()
 	{
 		lock (_lock)
 		{
@@ -150,27 +170,38 @@ public class RefSlotStore_NewSplit<T> : RefSlotStore, IDisposable
 			{
 
 				// **Grow storage:** no free slot available, so allocate a new slot.
-				index = _storage.Count;
-				_storage.Add(default);
-				__.DebugAssertIfNot(index == _storage.Count - 1, "race condition: something else allocating even though we are in a lock?");
+				index = _allocTracker.Count;
+				_allocTracker.Add(default);
+				if (_data.Length != _allocTracker.Capacity)
+				{
+					// resize data array to match list capacity
+					Array.Resize(ref _data, _allocTracker.Capacity);
+				}
+				__.DebugAssertIfNot(index == _allocTracker.Count - 1, "race condition: something else allocating even though we are in a lock?");
 			}
-			ref var p_element = ref _storage._AsSpan_Unsafe()[index];
-
-
 
 			//verify allocated but unused
-			__.DebugAssertIfNot(_storage.Count > index && _storage[index].handle.IsAllocated is false);
+			__.DebugAssertIfNot(_allocTracker.Count > index && _allocTracker[index].IsAllocated is false);
 
 			var toReturn = new SlotHandle(index, version, true);
 
-			p_element.handle = toReturn;
+			_allocTracker[index] = toReturn;
+			_data[index] = default;
+
 
 			//verify allocated and ref ok
-			__.DebugAssertIfNot(_storage[index].handle.IsAllocated);
+			__.DebugAssertIfNot(_allocTracker[index].IsAllocated);
 
 
 			return toReturn;
 		}
+	}
+
+	public SlotHandle AllocSingleSlot(ref T value)
+	{
+		var toReturn = AllocSingleSlot();
+		_data[toReturn.Index] = value;
+		return toReturn;
 	}
 
 
@@ -194,12 +225,12 @@ public class RefSlotStore_NewSplit<T> : RefSlotStore, IDisposable
 			return (false, "slot.IsEmpty");
 		}
 
-		if (_storage.Count <= slot.Index)
+		if (_allocTracker.Count <= slot.Index)
 		{
 			return (false, "storage not long enough");
 		}
 
-		if (_storage[slot.Index].handle.Version == slot.Version)
+		if (_allocTracker[slot.Index].Version == slot.Version)
 		{
 			return (true, null);
 		}
@@ -221,22 +252,36 @@ public class RefSlotStore_NewSplit<T> : RefSlotStore, IDisposable
 		{
 			foreach (var slot in slotsToFree)
 			{
-				var validResult = _IsHandleValid_Unsafe(slot);
-				if (!validResult.isValid)
-				{
-					__.DebugAssertIfNot(validResult.isValid);
-					throw new InvalidOperationException($"attempt to free invalid slot: {validResult.invalidReason}");
-				}
-				_freeSlots.Push(slot.Index); // **Mark slot as free**
-				_storage[slot.Index] = default; // **Clear the slot's data**
+				FreeSingleSlot(slot);				
 			}
+		}
+	}
+
+	public void FreeSingleSlot(SlotHandle slot)
+	{
+		lock (_lock)
+		{
+			var validResult = _IsHandleValid_Unsafe(slot);
+			if (!validResult.isValid)
+			{
+				__.DebugAssertIfNot(validResult.isValid);
+				throw new InvalidOperationException($"attempt to free invalid slot: {validResult.invalidReason}");
+			}
+			_freeSlots.Push(slot.Index); // **Mark slot as free**
+			_allocTracker[slot.Index] = default; // **Clear the slot's handle**
+			_data[slot.Index] = default; // **Clear the slot's data**
 		}
 	}
 
 	public void Dispose()
 	{
-		_storage.Clear();
+		IsDisposed = true;
+		_allocTracker.Clear();
+		_allocTracker = null;
+		_data._Clear();
+		_data = null;
 		_freeSlots.Clear();
+		_freeSlots = null;
 	}
 
 }
