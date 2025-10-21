@@ -16,8 +16,9 @@ using NotNot.Collections;
 
 namespace NotNot.Collections;
 
-
-
+/// <summary>
+/// for internal use only, tracking allocations for debug assistance.
+/// </summary>
 internal class RefSlotStore_NewSplit_VersionTracker
 {
 	internal static byte _initialVersion = 1;
@@ -46,20 +47,37 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	private T[] _data;
 
 	/// <summary>
-	/// Used slots count: calculated as total allocated minus free slots.
+	/// obtain the backing data (allocated +free slots)
+	/// <para>Unsafe:  be sure you do not allocate while using this.</para>
 	/// </summary>
-	public  int Count => _allocTracker.Count - _freeSlots.Count;
+	public Mem<T> Data_Unsafe => _data;
+
+	/// <summary>
+	/// obtain the backing data (allocated +free slots)
+	/// <para>Unsafe:  be sure you do not allocate while using this.</para>
+	/// </summary>
+	public Mem<SlotHandle> AllocTracker_Unsafe => _allocTracker;
+
+	/// <summary>
+	/// Used slots count: calculated as total allocated minus free slots.
+	/// <para>important: used slots may not be contiguous, so use <see cref="Capacity"/> for looping </para>
+	/// </summary>
+	public int Count => _allocTracker.Count - _freeSlots.Count;
 
 	/// <summary>
 	/// Total capacity of the storage (used and free slots).
 	/// </summary>
-	public  int Capacity => _allocTracker.Capacity;
+	public int Capacity => _allocTracker.Count;
 
+	public RefEnumerable GetEnumerable(bool includeFree=false)
+	{
+		return new RefEnumerable(this, includeFree);
+	}
 
 	/// <summary>
 	/// Count of free slots
 	/// </summary>
-	public  int FreeCount => _freeSlots.Count;
+	public int FreeCount => _freeSlots.Count;
 
 	public bool IsDisposed { get; private set; }
 
@@ -74,6 +92,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	{
 
 		_nextVersion = RefSlotStore_NewSplit_VersionTracker._initialVersion++;
+
 
 
 
@@ -110,6 +129,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	}
 
 
+
 	/// <summary>
 	/// allocate slots, all will be uninitialized ("default")
 	/// </summary>
@@ -117,6 +137,10 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	/// <returns></returns>
 	public Mem<SlotHandle> Alloc(int count)
 	{
+
+	
+
+
 		var toReturn = Mem<SlotHandle>.Alloc(count);
 		var slotSpan = toReturn.Span;
 		lock (_lock)
@@ -139,7 +163,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	{
 		var toReturn = Alloc(values.Count);
 
-		values.MapWith(toReturn, (ref T value,ref SlotHandle slot) =>
+		values.MapWith(toReturn, (ref T value, ref SlotHandle slot) =>
 		{
 			_data[slot.Index] = value;
 		});
@@ -252,7 +276,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 		{
 			foreach (var slot in slotsToFree)
 			{
-				FreeSingleSlot(slot);				
+				FreeSingleSlot(slot);
 			}
 		}
 	}
@@ -283,5 +307,64 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 		_freeSlots.Clear();
 		_freeSlots = null;
 	}
+
+
+	#region Enumeration
+	public readonly ref struct RefEnumerable
+	{
+		private readonly RefSlotStore_NewSplit<T> _store;
+		private readonly bool _includeFree;
+
+		public RefEnumerable(RefSlotStore_NewSplit<T> store, bool includeFree)
+		{
+			_store = store;
+			_includeFree = includeFree;
+		}
+
+		public RefEnumerator GetEnumerator()
+		{
+			return new RefEnumerator(_store, _includeFree);
+		}
+	}
+
+	public ref struct RefEnumerator
+	{
+		private readonly Span<SlotHandle> _allocTrackerSpan;
+		private readonly Span<T> _dataSpan;
+		private readonly bool _includeFree;
+		private int _index;
+
+		public RefEnumerator(RefSlotStore_NewSplit<T> store, bool includeFree)
+		{
+			_allocTrackerSpan = CollectionsMarshal.AsSpan(store._allocTracker);
+			_dataSpan = store._data.AsSpan();
+			_includeFree = includeFree;
+			_index = -1;
+		}
+
+		public bool MoveNext()
+		{
+			while (++_index < _allocTrackerSpan.Length)
+			{
+				if (_includeFree || _allocTrackerSpan[_index].IsAllocated)
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+
+
+		public RefValueTuple<SlotHandle, T> Current
+		{
+			get
+			{
+				//RefValueTuple<SlotHandle, T> unused = default;
+				return new RefValueTuple<SlotHandle, T>(ref _allocTrackerSpan[_index], ref _dataSpan[_index]);
+			}
+		}
+	}
+	#endregion
 
 }
