@@ -19,7 +19,7 @@ namespace NotNot.Advanced;
 /// </summary>
 /// <typeparam name="T"></typeparam>
 
-public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T>> where T : DisposeGuard //class, IDisposeGuard
+public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T>> where T : class, IDisposeGuard
 {
 	private static readonly RefSlotStore<T> _store = new(initialCapacity: 100);
 

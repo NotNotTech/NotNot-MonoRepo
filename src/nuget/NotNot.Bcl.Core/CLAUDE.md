@@ -35,6 +35,21 @@
 - Custom converters for Maybe<T> types
 - Framework-agnostic serialization patterns
 
+### OpenGenericMethodExecutor
+- Reflection utility for creating strongly-typed delegates from generic methods
+- Supports both instance and static generic methods
+- **Instance Methods**: Use `CreateInstanceInvoker<TDelegate>` or `CreateExactInstanceInvoker<TDelegate>`
+  - Delegate first parameter must accept the declaring type instance
+  - Example: `Action<MyClass, string>` for instance method `void Foo<T>(T value)`
+- **Static Methods**: Use `CreateStaticInvoker<TDelegate>` or `CreateExactStaticInvoker<TDelegate>`
+  - Delegate parameters match method parameters directly (no instance parameter)
+  - Example: `Action<string>` for static method `static void Bar<T>(T value)`
+- **Exact-Match Semantics**: No fuzzy matching, exact type equality required
+- **Caching Support**: Use `GetCachedInstanceInvoker` or `GetCachedStaticInvoker` for repeated invocations
+- **Search-based**: Name-based lookup with binding flags control
+- **Direct MethodInfo**: `CreateExact*Invoker` bypasses search for known methods
+- See [OpenGenericMethodExecutor.cs](./NotNot/Advanced/OpenGenericMethodExecutor.cs) and [OpenGenericMethodExecutor_Static.cs](./NotNot/Advanced/OpenGenericMethodExecutor_Static.cs)
+
 ### Extensions
 - Pure .NET extension methods only.   
 - conventions:
