@@ -106,7 +106,7 @@ internal class AppSettingsGen : IncrementalGenerator
 						 ExecuteGenerator(spc, config);
 					});
 		  }
-	 
+
 
 		  ////////////////  OLD FILE.IO WORKFLOW  Works but frowned upon for sourcegen.  Switched to SourceText
 		  //{
@@ -348,6 +348,28 @@ namespace {config.StartingNamespace}
 			var binder = new AppSettingsBinder(configuration);
 			return binder.AppSettings;
 		}}
+
+
+		 public static AppSettings LoadDirectFromStreams(List<Stream> appSettingsStreams)
+		 {{
+
+			 //build a config from the specified files
+			 var configurationBuilder = new ConfigurationBuilder();
+
+			 foreach (var stream in appSettingsStreams)
+			 {{
+				 configurationBuilder.AddJsonStream(stream);
+			 }}
+
+			 var configurationRoot = configurationBuilder.Build();
+
+			 //now finally get the appsettings we care about
+			 var binder = new AppSettingsBinder(configurationRoot);
+			 return binder.AppSettings;
+
+
+		 }}
+
 	}}
 
 	/// <summary>
