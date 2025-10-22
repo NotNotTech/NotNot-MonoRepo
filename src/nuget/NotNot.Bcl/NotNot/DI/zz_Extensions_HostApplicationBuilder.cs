@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NotNot.Collections;
@@ -67,7 +68,14 @@ public static class zz_Extensions_HostApplicationBuilder
 	{
 
 		//config logging
-		builder.Logging.ClearProviders();
+		//before aspire, we cleared all providers then rebuilt our logging providers.  we can't do that now, because it will unhook aspire, which was configured earlier.
+		//builder.Logging.ClearProviders();
+		//serilog will log to console, so we will remove the default console logger
+		builder.Services.RemoveAll<Microsoft.Extensions.Logging.Console.ConsoleLoggerProvider>();
+		//also remove default debug provider, as this is also what serilog does.
+		builder.Services.RemoveAll<Microsoft.Extensions.Logging.Debug.DebugLoggerProvider>();
+
+
 		builder.Services.AddSerilog((hostingContext, loggerConfiguration) =>
 			{
 				loggerConfiguration = loggerConfiguration.ReadFrom.Configuration(builder.Configuration)
