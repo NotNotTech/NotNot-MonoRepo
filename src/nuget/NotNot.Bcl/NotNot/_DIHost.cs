@@ -59,21 +59,21 @@ public static class AssemblyReflectionHelper
 /// <summary>
 /// mark a DI services and it will be auto-registered for use.  It will have lifetime Singleton, 
 /// </summary>
-public interface ISingletonService
+public interface IDiSingletonService
 {
 }
 
 /// <summary>
 /// mark a DI services and it will be auto-registered for use.  It will have lifetime Transient, 
 /// </summary>
-public interface ITransientService
+public interface IDiTransientService
 {
 }
 
 /// <summary>
 /// mark a DI services and it will be auto-registered for use.  It will have lifetime Scoped, 
 /// </summary>
-public interface IScopedService
+public interface IDiScopedService
 {
 }
 
@@ -82,7 +82,7 @@ public interface IScopedService
 /// <para>note:  already created services returned by serviceDescriptor.ImplementationInstance will not have AutoInitialize() called.</para>
 /// <para>also note:  "open generics" services  can not implement a DI decorator interface like IAutoInitialize. Open generic types are not supported for decoration because generic factories are not supported in C# DI. You must do a workaround (for example, init via the ctor instead of IAutoInitialize)</para>
 /// </summary>
-public interface IAutoInitialize
+public interface IDiAutoInitialize
 {
 	/// <summary>
 	/// override to provide (optional) custom initialization logic for your service
@@ -100,7 +100,7 @@ public interface IAutoInitialize
 /// <summary>
 ///  helper  DI service for letting LoLo automatically get a reference to services (__.Services)
 /// </summary>
-public class LoLoRunner(IServiceProvider _services) : IHostedLifecycleService, IAutoInitialize
+public class LoLoRunner(IServiceProvider _services) : IHostedLifecycleService, IDiAutoInitialize
 {
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{

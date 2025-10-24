@@ -5,7 +5,7 @@ using Nito.AsyncEx;
 using NotNot;
 
 
-public class GCloudUtils(ILogger<GCloudUtils> _logger) : ISingletonService, IAutoInitialize
+public class GCloudUtils(ILogger<GCloudUtils> _logger) : IDiSingletonService, IDiAutoInitialize
 {
 	private AsyncLock _lock = new();
 
@@ -59,7 +59,7 @@ public class GCloudUtils(ILogger<GCloudUtils> _logger) : ISingletonService, IAut
 		}
 	}
 
-	async ValueTask IAutoInitialize.AutoInitialize(IServiceProvider services, CancellationToken ct)
+	async ValueTask IDiAutoInitialize.AutoInitialize(IServiceProvider services, CancellationToken ct)
 	{
 		await TryLogin();
 	}

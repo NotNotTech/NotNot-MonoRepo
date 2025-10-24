@@ -32,7 +32,7 @@ public class DecoratorFactory_AutoInit<TService>
 	{
 		var (isNew, service) = _CreateHelper();
 
-		if (isNew && service is IAutoInitialize autoInitialize)
+		if (isNew && service is IDiAutoInitialize autoInitialize)
 		{
 			autoInitialize.AutoInitialize(_serviceProvider, default)._SyncWait();
 		}

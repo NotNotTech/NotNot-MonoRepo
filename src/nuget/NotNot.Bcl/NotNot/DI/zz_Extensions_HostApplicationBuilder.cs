@@ -151,17 +151,17 @@ public static class zz_Extensions_HostApplicationBuilder
 		var invalidServices = targetAssemblies
 			 .SelectMany(assembly => assembly.GetTypes())
 			 .Where(type => typeof(IHostedService).IsAssignableFrom(type) &&
-								(typeof(ISingletonService).IsAssignableFrom(type) ||
-								 typeof(ITransientService).IsAssignableFrom(type) ||
-								 typeof(IScopedService).IsAssignableFrom(type)))
+								(typeof(IDiSingletonService).IsAssignableFrom(type) ||
+								 typeof(IDiTransientService).IsAssignableFrom(type) ||
+								 typeof(IDiScopedService).IsAssignableFrom(type)))
 			 .Select(type => new
 			 {
 				 Type = type,
 				 Violations = new[]
 				  {
-						  typeof(ISingletonService).IsAssignableFrom(type) ? "ISingletonService" : null,
-						  typeof(ITransientService).IsAssignableFrom(type) ? "ITransientService" : null,
-						  typeof(IScopedService).IsAssignableFrom(type) ? "IScopedService" : null
+						  typeof(IDiSingletonService).IsAssignableFrom(type) ? "ISingletonService" : null,
+						  typeof(IDiTransientService).IsAssignableFrom(type) ? "ITransientService" : null,
+						  typeof(IDiScopedService).IsAssignableFrom(type) ? "IScopedService" : null
 				  }.Where(x => x != null)
 			 })
 			 .ToList();
@@ -198,7 +198,7 @@ public static class zz_Extensions_HostApplicationBuilder
 				scan.FromAssemblies(targetAssemblies)
 					.AddClasses((classes) =>
 					{
-						var result = classes.AssignableTo<ISingletonService>();
+						var result = classes.AssignableTo<IDiSingletonService>();
 
 					})
 					//.AddClasses(classes => classes.Where(t => !t.IsGenericTypeDefinition &&
@@ -220,7 +220,7 @@ public static class zz_Extensions_HostApplicationBuilder
 				//			//register all services that implement ITransientService
 				//as interface, append
 				scan.FromAssemblies(targetAssemblies)
-					.AddClasses(classes => classes.AssignableTo<ITransientService>())
+					.AddClasses(classes => classes.AssignableTo<IDiTransientService>())
 					.UsingRegistrationStrategy(RegistrationStrategy.Append)
 					.AsSelfWithInterfaces()
 					.WithTransientLifetime();
@@ -230,7 +230,7 @@ public static class zz_Extensions_HostApplicationBuilder
 				//register all services that implement IScopedService
 				//as interface, append
 				scan.FromAssemblies(targetAssemblies)
-					.AddClasses(classes => classes.AssignableTo<IScopedService>())
+					.AddClasses(classes => classes.AssignableTo<IDiScopedService>())
 					.UsingRegistrationStrategy(RegistrationStrategy.Append)
 					.AsSelfWithInterfaces()
 					.WithScopedLifetime()
@@ -293,15 +293,15 @@ public static class zz_Extensions_HostApplicationBuilder
 			var serviceType = serviceDescriptor.ServiceType;
 
 
-			if (typeof(IAutoInitialize).IsAssignableFrom(serviceType))
+			if (typeof(IDiAutoInitialize).IsAssignableFrom(serviceType))
 			{
 				//ok
 			}
-			else if (serviceDescriptor.ImplementationType != null && typeof(IAutoInitialize).IsAssignableFrom(serviceDescriptor.ImplementationType))
+			else if (serviceDescriptor.ImplementationType != null && typeof(IDiAutoInitialize).IsAssignableFrom(serviceDescriptor.ImplementationType))
 			{
 				//ok
 			}
-			else if (serviceDescriptor.ImplementationInstance != null && typeof(IAutoInitialize).IsAssignableFrom(serviceDescriptor.ImplementationInstance.GetType()))
+			else if (serviceDescriptor.ImplementationInstance != null && typeof(IDiAutoInitialize).IsAssignableFrom(serviceDescriptor.ImplementationInstance.GetType()))
 			{
 				//ok
 			}
@@ -326,7 +326,7 @@ public static class zz_Extensions_HostApplicationBuilder
 		{
 			var serviceType = sd.ServiceType;
 
-			if (typeof(IAutoInitialize).IsAssignableFrom(serviceType))
+			if (typeof(IDiAutoInitialize).IsAssignableFrom(serviceType))
 			{
 				return true;
 			}
@@ -340,7 +340,7 @@ public static class zz_Extensions_HostApplicationBuilder
 			//check if ImplementationInstance inherits from IInitializeableService
 			if (sd.ImplementationInstance != null)
 			{
-				if (typeof(IAutoInitialize).IsAssignableFrom(sd.ImplementationInstance.GetType()))
+				if (typeof(IDiAutoInitialize).IsAssignableFrom(sd.ImplementationInstance.GetType()))
 				{
 					return true;
 				}
@@ -351,7 +351,7 @@ public static class zz_Extensions_HostApplicationBuilder
 			//check if ImplementationType inherits from IInitializeableService
 			if (sd.ImplementationType != null)
 			{
-				if (typeof(IAutoInitialize).IsAssignableFrom(sd.ImplementationType))
+				if (typeof(IDiAutoInitialize).IsAssignableFrom(sd.ImplementationType))
 				{
 					return true;
 				}
@@ -375,7 +375,7 @@ public static class zz_Extensions_HostApplicationBuilder
 				builder.Services.Decorate(serviceType, (innerService, serviceProvider) =>
 				{
 					var _myServiceType2 = serviceType;
-					if (innerService is IAutoInitialize initService)
+					if (innerService is IDiAutoInitialize initService)
 					{
 						//ensure that we only call .AutoInitialize() once per object, first time it's requested
 						if (_initializedServiceTracker.TryAdd(innerService))

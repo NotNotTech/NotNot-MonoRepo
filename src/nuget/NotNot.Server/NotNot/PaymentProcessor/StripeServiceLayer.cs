@@ -15,7 +15,7 @@ namespace NotNot.PaymentProcessor;
 /// </summary>
 /// <param name="_logger"></param>
 /// <param name="_optionsBinder"></param>
-public class StripeServiceLayer(ILogger<StripeServiceLayer> _logger, IOptions<StripeServiceLayer.Options> _optionsBinder) : ISingletonService, IAutoInitialize
+public class StripeServiceLayer(ILogger<StripeServiceLayer> _logger, IOptions<StripeServiceLayer.Options> _optionsBinder) : IDiSingletonService, IDiAutoInitialize
 {
 	public class Options
 	{

@@ -6,7 +6,7 @@ namespace NotNot;
 /// <summary>
 /// ez console based I/O for "operator" use.
 /// </summary>
-public class OperatorService : ISingletonService
+public class OperatorService : IDiSingletonService
 {
 	public bool Confirm(Color color, string message, bool defaultValue = false)
 	{
