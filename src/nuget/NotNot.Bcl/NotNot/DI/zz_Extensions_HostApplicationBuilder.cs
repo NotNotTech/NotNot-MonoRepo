@@ -26,7 +26,8 @@ public static class zz_Extensions_HostApplicationBuilder
 	/// <param name="services"></param>
 	/// <param name="ct"></param>
 	/// <param name="scanAssemblies">assemblies you want to scan for scrutor types.  default is everything: AppDomain.CurrentDomain.GetAssemblies()</param>
-	/// <param name="scanIgnore">assemblies to not scan for DI types.   if null is passed, the default will be ["Microsoft.*", "netstandard*", "Serilog*", "System*"] because ASP NetCore IHostedService internal registrations conflict, and others are internal packages.</param>
+	/// <param name="scanIgnore">assemblies to not scan for DI types.   if null is passed, the default will be ["Microsoft.*", "netstandard*", "Serilog*", "System*"] because ASP NetCore IHostedService internal registrations conflict, and others are internal packages.
+	/// <para>example of the assembly name that will be matched against:  "Cleartrix.Cloud.WebApi, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"</para></param>
 	/// <returns></returns>
 	public static async Task _NotNotEzSetup(this IHostApplicationBuilder builder, CancellationToken ct, IEnumerable<Assembly>? scanAssemblies = null
 		, IEnumerable<string>? scanIgnore = null, Action<IConfiguration, LoggerConfiguration> extraLoggerConfig = null)
