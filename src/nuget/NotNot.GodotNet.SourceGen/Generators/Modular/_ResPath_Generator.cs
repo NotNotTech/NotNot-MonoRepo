@@ -111,6 +111,9 @@ public partial class {{className}}
 				case ".uid":
 					importFileName = originalFileName.Remove(originalFileName.LastIndexOf(originalExtension));
 					break;
+				case ".json":
+					importFileName = originalFileName;
+					break;
 				default:
 					//only allow above
 					continue;

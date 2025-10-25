@@ -50,7 +50,14 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	/// obtain the backing data (allocated +free slots)
 	/// <para>Unsafe:  be sure you do not allocate while using this.</para>
 	/// </summary>
-	public Mem<T> Data_Unsafe => _data;
+	public Mem<T> Data_Mem => _data;
+
+	/// <summary>
+	/// obtain the backing data (allocated +free slots)
+	/// <para>Unsafe:  be sure you do not allocate while using this.</para>
+	/// </summary>
+	public Span<T> Data_Span => _data.AsSpan();
+
 
 	/// <summary>
 	/// obtain the backing data (allocated +free slots)
@@ -60,22 +67,38 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 
 	/// <summary>
 	/// Used slots count: calculated as total allocated minus free slots.
-	/// <para>important: used slots may not be contiguous, so use <see cref="Capacity"/> for looping </para>
+	/// <para>important: used slots may not be contiguous, so use <see cref="StorageCapacity"/> for looping </para>
+	/// <para>see <see cref="AllocatedLength"/>, <see cref="Count"/> <see cref="FreeCount"/>, and <see cref="StorageCapacity"/> </para>
 	/// </summary>
 	public int Count => _allocTracker.Count - _freeSlots.Count;
 
 	/// <summary>
-	/// Total capacity of the storage (used and free slots).
+	/// length of the allocated storage (used + free slots)
+	/// <para>see <see cref="AllocatedLength"/>, <see cref="Count"/> <see cref="FreeCount"/>, and <see cref="StorageCapacity"/> </para>
 	/// </summary>
-	public int Capacity => _allocTracker.Count;
+	public int AllocatedLength => _allocTracker.Count;
 
-	public RefEnumerable GetEnumerable(bool includeFree=false)
+	/// <summary>
+	/// Total capacity of the storage (used and free slots, AND unallocated capacity).
+	/// <para>see <see cref="AllocatedLength"/>, <see cref="Count"/> <see cref="FreeCount"/>, and <see cref="StorageCapacity"/> </para>
+	/// </summary>
+	public int StorageCapacity
+	{
+		get
+		{
+			__.AssertIfNot(_allocTracker.Capacity == _data.Length, "internal error: capacity mismatch between alloc tracker and data array");
+			return _allocTracker.Capacity;
+		}
+	}
+
+	public RefEnumerable GetEnumerable(bool includeFree = false)
 	{
 		return new RefEnumerable(this, includeFree);
 	}
 
 	/// <summary>
 	/// Count of free slots
+	/// <para>see <see cref="AllocatedLength"/>, <see cref="Count"/> <see cref="FreeCount"/>, and <see cref="StorageCapacity"/> </para>
 	/// </summary>
 	public int FreeCount => _freeSlots.Count;
 
@@ -135,10 +158,10 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	/// </summary>
 	/// <param name="count"></param>
 	/// <returns></returns>
-	public Mem<SlotHandle> Alloc(int count)
+	public Mem<SlotHandle> AllocSlots(int count)
 	{
 
-	
+
 
 
 		var toReturn = Mem<SlotHandle>.Alloc(count);
@@ -147,7 +170,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 		{
 			for (var i = 0; i < count; i++)
 			{
-				var hSlot = AllocSingleSlot();
+				var hSlot = AllocSlot();
 				slotSpan[i] = hSlot;
 			}
 
@@ -159,9 +182,9 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	/// </summary>
 	/// <param name="values"></param>
 	/// <returns></returns>
-	public Mem<SlotHandle> Alloc(Mem<T> values)
+	public Mem<SlotHandle> AllocValues(Mem<T> values)
 	{
-		var toReturn = Alloc(values.Count);
+		var toReturn = AllocSlots(values.Count);
 
 		values.MapWith(toReturn, (ref T value, ref SlotHandle slot) =>
 		{
@@ -176,7 +199,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	/// <summary>
 	/// **Alloc** a free slot.  data value will be `default`.
 	/// </summary>
-	public SlotHandle AllocSingleSlot()
+	public SlotHandle AllocSlot()
 	{
 		lock (_lock)
 		{
@@ -221,9 +244,9 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 		}
 	}
 
-	public SlotHandle AllocSingleSlot(ref T value)
+	public SlotHandle AllocValue(ref T value)
 	{
-		var toReturn = AllocSingleSlot();
+		var toReturn = AllocSlot();
 		_data[toReturn.Index] = value;
 		return toReturn;
 	}

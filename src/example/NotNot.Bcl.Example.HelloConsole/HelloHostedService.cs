@@ -6,7 +6,7 @@ namespace NotNot.Example.HelloConsole;
 public class HelloHostedService(ILogger<HelloHostedService> _logger)
 
 	: BackgroundService //background service implements IHostedService, which is automatically registered and launched on `host.RunAsync();`
-		, IAutoInitialize //allows this service to have an AutoInitialize() method called when it is created by DI, allowing for custom initialization logic.
+		, IDiAutoInitialize //allows this service to have an AutoInitialize() method called when it is created by DI, allowing for custom initialization logic.
 {
 
 	public async ValueTask AutoInitialize(IServiceProvider services, CancellationToken ct)

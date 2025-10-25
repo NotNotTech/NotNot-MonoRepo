@@ -16,7 +16,7 @@ namespace NotNot;
 /// <para>if you need a generic cache, you can use IFusionCache directly (very similar API)</para>
 /// </summary>
 /// <typeparam name="TValue"></typeparam>
-public class Cache<TValue> : ISingletonService //, IAutoInitialize //Scrutor bug, decoration doesn't work with generics.  so need to workaround by calling init in the .ctor
+public class Cache<TValue> : IDiSingletonService //, IAutoInitialize //Scrutor bug, decoration doesn't work with generics.  so need to workaround by calling init in the .ctor
 {
 	public Cache(IFusionCache fusionCache, IConfiguration config, ILogger<Cache<TValue>> logger)
 	{
@@ -131,7 +131,7 @@ public class Cache<TValue> : ISingletonService //, IAutoInitialize //Scrutor bug
 /// <param name="_fusionCache"></param>
 public class Cache(
 IFusionCache _fusionCache
-) : ISingletonService
+) : IDiSingletonService
 {
 	private IFusionCache _fusionCacheImplementation;
 
