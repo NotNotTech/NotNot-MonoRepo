@@ -466,7 +466,6 @@ public partial class LoLoRoot
 	public ObjectPool pool = new();
 
 
-	private string? _runtimeEnv;
 	/// <summary>
 	/// the current runtime $ENVIRONMENT, usually "Development", "Test", "Production"
 	/// <para>IMPORTANT: where is this set from? check launchSettings.json, ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT envvars</para>
@@ -477,22 +476,22 @@ public partial class LoLoRoot
 	{
 		get
 		{
-			if (_runtimeEnv is not null)
+			if (field is not null)
 			{
-				return _runtimeEnv;
+				return field;
 			}
 
 
-			_runtimeEnv = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
-			return _runtimeEnv;
+			field = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+			return field;
 		}
 		set
 		{
-			if (_runtimeEnv is not null && _runtimeEnv != value)
+			if (field is not null && field != value)
 			{
 				throw new LoLoException("RuntimeEnv is already set, cannot set it again.  Use __.RuntimeEnv = \"Development\"; only once, at startup, otherwise let it be set by ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT envvars");
 			}
-			_runtimeEnv = value;
+			field = value;
 		}
 	}
 	/// <summary>

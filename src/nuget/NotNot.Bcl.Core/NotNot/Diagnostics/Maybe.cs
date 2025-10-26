@@ -103,6 +103,19 @@ public record class Maybe : Maybe<OperationResult>
 			[CallerFilePath] string sourceFilePath = "",
 			[CallerLineNumber] int sourceLineNumber = 0) => Maybe<T>.Success(value, memberName, sourceFilePath, sourceLineNumber);
 
+
+	public static Maybe<TValue> Error<TValue>(Exception ex, [CallerMemberName]
+	string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0) => new Maybe<TValue>(Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber), memberName, sourceFilePath, sourceLineNumber);
+
+	/// <summary>
+	/// Creates an error <see cref="Maybe{TValue}"/> instance with the specified problem.
+	/// </summary>
+	public static Maybe<TValue> Error<TValue>(Problem problem, [CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0) => new Maybe<TValue>(problem, memberName, sourceFilePath, sourceLineNumber);
+
 	/// <summary>
 	/// an ez hack for development:  throw a ProblemException if the condition fails.  This is fast and easy but throwing exceptions is low performance.  should replace with a no-throw solution for hot paths
 	/// <para>this is different from __.Throw() in that it isn't logged as an error</para>
@@ -259,6 +272,12 @@ public record class Maybe<TValue> : IMaybe
 	public static Maybe<TValue> Error(Problem problem, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0) => new Maybe<TValue>(problem, memberName, sourceFilePath, sourceLineNumber);
+
+
+	public static Maybe<TValue> Error(Exception ex, [CallerMemberName]
+	string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0) => new Maybe<TValue>(Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber), memberName, sourceFilePath, sourceLineNumber);
 
 	/// <summary>
 	/// Converts a value to a <see cref="Maybe{TValue}"/> instance.

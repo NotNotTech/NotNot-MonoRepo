@@ -259,6 +259,11 @@ public record class Problem
 		return new ProblemException(this);
 	}
 
+	public Maybe<T> ToMaybe<T>() where T : class
+	{
+		return Maybe<T>.Error(this);
+	}
+
 	/// <summary>
 	/// the callsite (source) of the problem
 	/// </summary>
