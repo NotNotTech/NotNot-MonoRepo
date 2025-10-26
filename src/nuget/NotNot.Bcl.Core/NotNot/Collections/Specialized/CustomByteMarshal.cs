@@ -25,6 +25,31 @@ public ref struct UnionSpan
 
 
 }
+[StructLayout(LayoutKind.Explicit, Size = 16)]
+public unsafe struct CustomData16
+{
+	[FieldOffset(0)] public Floats4 floats;
+	[FieldOffset(0)] public Bytes16 bytes;
+
+
+}
+
+
+public unsafe struct Floats4
+{
+	public const int SIZE = 4;
+	public fixed float data[SIZE];
+	public ref float this[int index] => ref data[index];
+	public int Length => SIZE;
+}
+
+public unsafe struct Bytes16
+{
+	public const int SIZE = 16;
+	public fixed byte data[SIZE];
+	public ref byte this[int index] => ref data[index];
+	public int Length => SIZE;
+}
 
 /// <summary>
 /// a custom struct with 64 bytes accessable storage.  be aware that these indicies overlap
