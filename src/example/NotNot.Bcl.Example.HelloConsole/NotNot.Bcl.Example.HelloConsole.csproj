@@ -31,6 +31,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\nuget\NotNot.Bcl.Core\NotNot.Bcl.Core.csproj" />
+		<ProjectReference Include="..\..\nuget\NotNot.Bcl\NotNot.Bcl.csproj" />
 	</ItemGroup>
 
 	<Choose>
@@ -42,7 +43,7 @@
 		</When>
 		<When Condition="'$(Configuration)'=='DebugNuget'">
 			<ItemGroup>
-				<PackageReference Include="NotNot.Bcl" Version="0.0.0-0.localDebug"/>
+				<PackageReference Include="NotNot.Bcl" Version="0.0.0-0.localDebug" />
 			</ItemGroup>
 			<PropertyGroup>
 				<!--force nuget to restore without using cached packages, to ensure above wildcard always gets latest non-preview version in nuget-->
