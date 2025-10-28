@@ -40,9 +40,20 @@ public class AssertOnMsgSink : ILogEventSink
 		var patternSection = section.GetSection(key);
 		if (patternSection.Exists())
 		{
-			foreach (var pattern in patternSection.Get<IEnumerable<string>>())
+			// .NET 10 breaking change: Get<IEnumerable<string>>() can throw ArgumentNullException
+			// when binding to arrays with null element types
+			// See: https://learn.microsoft.com/en-us/dotnet/core/compatibility/extensions/10.0/configuration-null-values-preserved
+			try
 			{
-				patterns.Add(new Regex(pattern, RegexOptions.Compiled | RegexOptions.NonBacktracking));
+				var configPatterns = patternSection.Get<IEnumerable<string>>() ?? Enumerable.Empty<string>();
+				foreach (var pattern in configPatterns)
+				{
+					patterns.Add(new Regex(pattern, RegexOptions.Compiled | RegexOptions.NonBacktracking));
+				}
+			}
+			catch (ArgumentNullException)
+			{
+				// Section exists but contains no valid string array - treat as empty
 			}
 		}
 		return patterns;

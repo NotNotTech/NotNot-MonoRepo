@@ -2,10 +2,10 @@
 
 	<!--shared common .csproj settings-->
 	<Import Project="..\..\CommonSettings.targets" />
-	
+
 	<PropertyGroup>
 		<!--standard dotnet stuff-->
-		<TargetFramework>net9.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
@@ -38,7 +38,7 @@
 	<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 	<GenerateDocumentationFile>false</GenerateDocumentationFile>
 	<!--see https://github.com/adamralph/minver?tab=readme-ov-file#can-i-version-multiple-projects-in-a-single-repository-independently -->
-	<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>	
+	<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>
 	<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
 	<OutputType>Library</OutputType>
 	<Authors>Novaleaf</Authors>
