@@ -3539,7 +3539,7 @@ public static class zz_Extensions_Span
 		//return isSorted;		
 	}
 
-	public static bool _IsSorted<T>(this Span<T> target, Func_RefArg<T,T,int> compare)
+	public static bool _IsSorted<T>(this Span<T> target, Func_RefArg<T, T, int> compare)
 	{
 		if (target.Length < 2)
 		{
@@ -5754,6 +5754,29 @@ public static class zz_Extensions_TimeSpan
 	public static TimeSpan _IntervalNext(this TimeSpan target, TimeSpan interval)
 	{
 		return target._IntervalPrior(interval) + interval;
+	}
+
+	/// <summary>
+	/// use your timespan as an accumulator, add the given interval, and check if the accumulator has reached or exceeded the interval.
+	/// when the interval is reached, it will either reset to zero, or keep the remainder over the interval (see <see cref="keepRemainderOnInterval"/>)
+	/// </summary>
+	/// <returns></returns>
+	public static bool _RefIntervalUpdateCheck(this ref TimeSpan accumulator, TimeSpan interval, bool keepRemainderOnInterval = false)
+	{
+		accumulator += interval;
+		if (accumulator >= interval)
+		{
+			if (keepRemainderOnInterval)
+			{
+				accumulator -= interval;
+			}
+			else
+			{
+				accumulator = TimeSpan.Zero;
+			}
+			return true;
+		}
+		return false;
 	}
 
 
@@ -8245,11 +8268,11 @@ public static class zz_Extensions_Point
 		return new System.Drawing.Point((int)point.X, (int)point.Y);
 	}
 
-	public static Vector3 _ToMsVec3XY(this System.Drawing.Point point, float z=0)
+	public static Vector3 _ToMsVec3XY(this System.Drawing.Point point, float z = 0)
 	{
 		return new Vector3(point.X, point.Y, z);
 	}
-	public static Vector3 _ToMsVec3XZ(this System.Drawing.Point point, float y=0)
+	public static Vector3 _ToMsVec3XZ(this System.Drawing.Point point, float y = 0)
 	{
 		return new Vector3(point.X, y, point.Y);
 	}
