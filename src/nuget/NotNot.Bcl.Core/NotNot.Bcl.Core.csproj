@@ -63,31 +63,31 @@
 		<PackageReference Include="codeessentials.AspNetCore.Diagnostics.Demystifier" Version="1.1.66" />
 		<PackageReference Include="codeessentials.Extensions.Logging.Demystifier" Version="1.1.66" />
 		<PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
-		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.4.0-beta.1">
+		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.8.2-beta.1">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Glob" Version="1.1.9" />
+		<PackageReference Include="Glob" Version="1.2.0-alpha0037" />
 		<PackageReference Include="Isopoh.Cryptography.Argon2" Version="2.0.0" />
-		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0">
+		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.0.0-1.25277.114">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.8" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.8" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.8" />
-		<PackageReference Include="MinVer" Version="6.0.0">
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0-rc.2.25502.107" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0-rc.2.25502.107" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-rc.2.25502.107" />
+		<PackageReference Include="MinVer" Version="6.1.0-beta.1">
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="NewOrbit.CodeAnalysis.UtcTime" Version="1.0.2" />
 		<PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
 		<PackageReference Include="ParallelHelper" Version="3.6.1" />
-		<PackageReference Include="Roslynator.Analyzers" Version="4.14.0">
+		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="SimpleBase" Version="5.4.1" />
+		<PackageReference Include="SimpleBase" Version="5.5.0" />
 		<PackageReference Include="ZstdSharp.Port" Version="0.8.6" />
 	</ItemGroup>
 
