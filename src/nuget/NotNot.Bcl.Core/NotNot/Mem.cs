@@ -43,56 +43,6 @@ internal enum MemBackingStorageType
 }
 
 /// <summary>
-///    Use an array of {T} from the ArrayPool, without allocating any objects upon use. (no gc pressure)
-///    use this instead of <see cref="SpanOwner{T}" />.  This will alert you if you do not dispose properly.
-/// </summary>
-/// <typeparam name="T"></typeparam>
-public ref struct SpanGuard<T> : IDisposable
-{
-	/// <summary>
-	///    should dispose prior to exit function.   easiest way is to ex:  `using var spanGuard = SpanGuard{int}(42)
-	/// </summary>
-	/// <param name="size"></param>
-	/// <param name="allocationMode">if you only use NotNot based pooling (SpanGuard and Mem) you can leave this as default, because pooled arrays are cleared upon .Dispose().</param>
-	/// <returns></returns>
-	public static SpanGuard<T> Allocate(int size, AllocationMode allocationMode = AllocationMode.Default)
-	{
-		return new SpanGuard<T>(SpanOwner<T>.Allocate(size, allocationMode));
-	}
-
-	public SpanGuard(SpanOwner<T> owner)
-	{
-		_poolOwner = owner;
-#if CHECKED
-		_disposeGuard = new();
-#endif
-	}
-
-	public SpanOwner<T> _poolOwner;
-
-	public Span<T> Span => _poolOwner.Span;
-
-	public ArraySegment<T> DangerousGetArray()
-	{
-		return _poolOwner.DangerousGetArray();
-	}
-
-
-#if CHECKED
-	private DisposeGuard _disposeGuard;
-#endif
-	public void Dispose()
-	{
-		_poolOwner.Span.Clear();
-		_poolOwner.Dispose();
-
-#if CHECKED
-		_disposeGuard.Dispose();
-#endif
-	}
-}
-
-/// <summary>
 ///    helpers to allocate a WriteMem instance
 /// </summary>
 public static class Mem
@@ -690,6 +640,51 @@ public readonly struct Mem<T> : IDisposable
 		{
 			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
 			await worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
+			batchStart = batchEnd;
+		}
+	}
+	/// <summary>
+	/// Walks contiguous batches where isSameBatch returns true for each previous/current pair and calls worker once per range (synchronous version).
+	/// Use this to process subgroups without extra allocations.
+	/// IMPORTANT: we assume the underlying data is sorted so that your batching delegate is effective.
+	/// </summary>
+	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
+	/// <param name="worker">Action executed for each contiguous batch, receiving a Mem slice that references this instance's backing store.</param>
+	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<Mem<T>> worker)
+	{
+		if (this.Count == 0)
+		{
+			return;
+		}
+		var batchStart = 0;
+		while (batchStart < this.Count)
+		{
+			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+			worker(this.Slice(batchStart, batchEnd - batchStart));
+			batchStart = batchEnd;
+		}
+	}
+
+	/// <summary>
+	/// Walks contiguous batches with parallel memory and calls worker once per range (synchronous version).
+	/// IMPORTANT: we assume the underlying data is sorted so that your batching delegate is effective.
+	/// </summary>
+	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
+	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
+	/// <param name="worker">Action executed for each contiguous batch</param>
+	public void BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<Mem<T>, Mem<TOther>> worker)
+	{
+		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
+
+		if (this.Count == 0)
+		{
+			return;
+		}
+		var batchStart = 0;
+		while (batchStart < this.Count)
+		{
+			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+			worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
 			batchStart = batchEnd;
 		}
 	}
@@ -1485,5 +1480,480 @@ public readonly struct ReadMem<T> : IDisposable
 	public override string ToString()
 	{
 		return $"{GetType().Name}<{typeof(T).Name}>[{Count}]";
+	}
+}
+
+/// <summary>
+/// A ref struct that provides unified Mem-like API for both stack-allocated Span and heap/pooled Mem scenarios.
+/// Can wrap either a Span{T} for zero-allocation stack usage, or a Mem{T} for heap/pooled usage.
+/// </summary>
+/// <typeparam name="T">Element type</typeparam>
+/// <remarks>
+/// USAGE MODES:
+/// - Span Mode: Wraps Span{T} for pure stack allocation (zero GC pressure)
+/// - Mem Mode: Wraps Mem{T} for heap/pooled allocation (delegates all operations)
+///
+/// SPAN MODE LIMITATIONS:
+/// - DangerousGetArray(): NotSupportedException (span may not be array-backed)
+/// - Clone(): NotSupportedException (would allocate, defeats stack-only purpose)
+/// - Map/MapWith(): NotSupportedException (allocates new Mem, defeats purpose)
+/// - BatchMap/BatchMapWith(): NotSupportedException (async incompatible with ref struct lifetime)
+/// - AsReadMem(): NotSupportedException (cannot create ReadMem from raw Span)
+///
+/// EXAMPLES:
+/// // Span mode (stack allocation)
+/// Span{int} buffer = stackalloc int[128];
+/// RefMem{int} refMem = buffer;
+/// refMem[0] = 42;
+///
+/// // Mem mode (heap/pooled)
+/// var mem = Mem.Allocate{int}(128);
+/// RefMem{int} refMem = mem;
+/// refMem[0] = 42;
+/// refMem.Dispose(); // Returns to pool
+/// </remarks>
+public ref struct RefMem<T>
+{
+	/// <summary>
+	/// Span storage when in Span mode
+	/// </summary>
+	private Span<T> _span;
+
+	/// <summary>
+	/// Mem storage when in Mem mode
+	/// </summary>
+	private Mem<T> _mem;
+
+	/// <summary>
+	/// True if using Span storage, false if using Mem storage
+	/// </summary>
+	private readonly bool _isUsingSpan;
+
+	/// <summary>
+	/// Creates a RefMem wrapping a Span (stack mode)
+	/// </summary>
+	/// <param name="span">Span to wrap (typically stackalloc)</param>
+	public RefMem(Span<T> span)
+	{
+		_span = span;
+		_mem = default;
+		_isUsingSpan = true;
+	}
+
+	/// <summary>
+	/// Creates a RefMem wrapping a Mem (heap/pooled mode)
+	/// </summary>
+	/// <param name="mem">Mem to wrap</param>
+	public RefMem(Mem<T> mem)
+	{
+		_span = default;
+		_mem = mem;
+		_isUsingSpan = false;
+	}
+
+	/// <summary>
+	/// Implicit conversion from Span to RefMem (stack mode)
+	/// </summary>
+	public static implicit operator RefMem<T>(Span<T> span) => new RefMem<T>(span);
+
+	/// <summary>
+	/// Implicit conversion from Mem to RefMem (heap/pooled mode)
+	/// </summary>
+	public static implicit operator RefMem<T>(Mem<T> mem) => new RefMem<T>(mem);
+
+	/// <summary>
+	/// Gets a Span view over this memory
+	/// </summary>
+	public Span<T> Span
+	{
+		get
+		{
+			if (_isUsingSpan)
+			{
+				return _span;
+			}
+			else
+			{
+				return _mem.Span;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Gets the number of elements in this memory view
+	/// </summary>
+	public int Count
+	{
+		get
+		{
+			if (_isUsingSpan)
+			{
+				return _span.Length;
+			}
+			else
+			{
+				return _mem.Count;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Gets the number of elements in this memory view. Obsolete: use Count instead.
+	/// </summary>
+	[Obsolete("use .Count")]
+	public int Length
+	{
+		get
+		{
+			if (_isUsingSpan)
+			{
+				return _span.Length;
+			}
+			else
+			{
+				return _mem.Length;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Gets a reference to the element at the specified index
+	/// </summary>
+	/// <param name="index">Zero-based index of the element</param>
+	/// <returns>Reference to the element at the specified index</returns>
+	public ref T this[int index]
+	{
+		get
+		{
+			if (_isUsingSpan)
+			{
+				return ref _span[index];
+			}
+			else
+			{
+				return ref _mem[index];
+			}
+		}
+	}
+
+	/// <summary>
+	/// Creates a new memory view that is a slice of this memory
+	/// </summary>
+	/// <param name="offset">Starting offset within this memory</param>
+	/// <param name="count">Number of elements in the slice</param>
+	/// <returns>New memory view representing the slice</returns>
+	public RefMem<T> Slice(int offset, int count)
+	{
+		if (_isUsingSpan)
+		{
+			return new RefMem<T>(_span.Slice(offset, count));
+		}
+		else
+		{
+			return new RefMem<T>(_mem.Slice(offset, count));
+		}
+	}
+
+	/// <summary>
+	/// Allocates a new pooled Mem by applying the specified mapping function to each element of this Mem.
+	/// Span mode: NotSupportedException (allocates new Mem, defeats stack-only purpose).
+	/// </summary>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="mapFunc">Function that maps each element by reference, returning result by reference</param>
+	/// <returns>New pooled memory containing mapped results</returns>
+	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
+	{
+		if (_isUsingSpan)
+		{
+			throw new NotSupportedException("Map() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
+		}
+		else
+		{
+			return _mem.Map(mapFunc);
+		}
+	}
+
+	/// <summary>
+	/// Allocates a new pooled Mem by applying the specified mapping function to each element of this Mem.
+	/// Span mode: NotSupportedException (allocates new Mem, defeats stack-only purpose).
+	/// </summary>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
+	/// <returns>New pooled memory containing mapped results</returns>
+	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
+	{
+		if (_isUsingSpan)
+		{
+			throw new NotSupportedException("Map() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
+		}
+		else
+		{
+			return _mem.Map(mapFunc);
+		}
+	}
+
+	/// <summary>
+	/// Allocates a new pooled Mem by mapping two Mem instances in parallel using the specified function.
+	/// Span mode: NotSupportedException (allocates new Mem, defeats stack-only purpose).
+	/// </summary>
+	/// <typeparam name="TOther">Element type of the other memory</typeparam>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
+	/// <param name="mapFunc">Function that maps pairs of elements by reference, returning result by reference</param>
+	/// <returns>New pooled memory containing mapped results</returns>
+	public Mem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	{
+		if (_isUsingSpan)
+		{
+			throw new NotSupportedException("MapWith() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
+		}
+		else
+		{
+			return _mem.MapWith(otherToMapWith, mapFunc);
+		}
+	}
+
+	/// <summary>
+	/// Maps two Mem instances in parallel using the specified action, modifying elements in place.
+	/// Span mode: NotSupportedException (requires Mem instance).
+	/// </summary>
+	/// <typeparam name="TOther">Element type of the other memory</typeparam>
+	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
+	/// <param name="mapFunc">Action that processes pairs of elements by reference</param>
+	public void MapWith<TOther>(Mem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	{
+		if (_isUsingSpan)
+		{
+			throw new NotSupportedException("MapWith() not supported in Span mode (requires Mem instance). Use Mem mode or operate on Span directly.");
+		}
+		else
+		{
+			_mem.MapWith(otherToMapWith, mapFunc);
+		}
+	}
+
+	/// <summary>
+	/// Walks contiguous batches and calls worker once per range.
+	/// Span mode: NotSupportedException (async incompatible with ref struct lifetime).
+	/// </summary>
+	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
+	/// <param name="worker">Action executed for each contiguous batch</param>
+	/// <returns>A completed task once all batches have been processed</returns>
+	public ValueTask BatchMap(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, ValueTask> worker)
+	{
+		if (_isUsingSpan)
+		{
+			throw new NotSupportedException("BatchMap() not supported in Span mode (async incompatible with ref struct lifetime). Use Mem mode.");
+		}
+		else
+		{
+			return _mem.BatchMap(isSameBatch, worker);
+		}
+	}
+
+	/// <summary>
+	/// Walks contiguous batches with parallel memory and calls worker once per range.
+	/// Span mode: NotSupportedException (async incompatible with ref struct lifetime).
+	/// </summary>
+	public ValueTask BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, Mem<TOther>, ValueTask> worker)
+	{
+		if (_isUsingSpan)
+		{
+			throw new NotSupportedException("BatchMapWith() not supported in Span mode (async incompatible with ref struct lifetime). Use Mem mode.");
+		}
+		else
+		{
+			return _mem.BatchMapWith(otherToMapWith, isSameBatch, worker);
+		}
+	}
+
+	/// <summary>
+	/// Local synchronous scanner that finds the end of a contiguous batch; no awaits here, so using Span{T} is safe
+	/// </summary>
+	/// <param name="start">Starting index for batch scan</param>
+	/// <param name="thisMem">Memory to scan</param>
+	/// <param name="isSameBatch">Function determining if adjacent elements belong to same batch</param>
+	/// <returns>Exclusive end index of the batch</returns>
+	private static int _GetBatchEndExclusive(int start, RefMem<T> thisMem, Func_RefArg<T, T, bool> isSameBatch)
+	{
+		var span = thisMem.Span;
+		var length = thisMem.Count;
+
+		var end = start + 1;
+		while (end < length)
+		{
+			ref var previous = ref span[end - 1];
+			ref var current = ref span[end];
+			if (!isSameBatch(ref previous, ref current))
+			{
+				break;
+			}
+			end++;
+		}
+		return end;
+	}
+
+	/// <summary>
+	/// Walks contiguous batches where isSameBatch returns true for each previous/current pair and calls worker once per range (synchronous version).
+	/// Use this to process subgroups without extra allocations.
+	/// IMPORTANT: we assume the underlying data is sorted so that your batching delegate is effective.
+	/// </summary>
+	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
+	/// <param name="worker">Action executed for each contiguous batch, receiving a RefMem slice that references this instance's backing store.</param>
+	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>> worker)
+	{
+		if (this.Count == 0)
+		{
+			return;
+		}
+
+		if (_isUsingSpan)
+		{
+			// Inline implementation for Span mode
+			var span = this.Span;
+			var batchStart = 0;
+			while (batchStart < this.Count)
+			{
+				var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+				worker(this.Slice(batchStart, batchEnd - batchStart));
+				batchStart = batchEnd;
+			}
+		}
+		else
+		{
+			// Delegate to _mem.BatchMap when in Mem mode
+			_mem.BatchMap(isSameBatch, mem => worker(new RefMem<T>(mem)));
+		}
+	}
+
+	/// <summary>
+	/// Walks contiguous batches with parallel memory and calls worker once per range (synchronous version).
+	/// IMPORTANT: we assume the underlying data is sorted so that your batching delegate is effective.
+	/// </summary>
+	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
+	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
+	/// <param name="worker">Action executed for each contiguous batch</param>
+	public void BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>, Mem<TOther>> worker)
+	{
+		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this memory");
+
+		if (this.Count == 0)
+		{
+			return;
+		}
+
+		if (_isUsingSpan)
+		{
+			// Inline implementation for Span mode
+			var span = this.Span;
+			var batchStart = 0;
+			while (batchStart < this.Count)
+			{
+				var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+				worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
+				batchStart = batchEnd;
+			}
+		}
+		else
+		{
+			// Delegate to _mem.BatchMapWith when in Mem mode
+			_mem.BatchMapWith(otherToMapWith, isSameBatch, (mem, other) => worker(new RefMem<T>(mem), other));
+		}
+	}
+
+
+	/// <summary>
+	/// Creates a deep copy of this Mem with contents copied to new pool-backed storage.
+	/// Span mode: NotSupportedException (allocates new Mem, defeats stack-only purpose).
+	/// </summary>
+	/// <returns>New pooled memory containing a copy of this memory's contents</returns>
+	public Mem<T> Clone()
+	{
+		if (_isUsingSpan)
+		{
+			throw new NotSupportedException("Clone() not supported in Span mode (allocates new Mem, defeats stack-only purpose). Use Mem.Allocate(span) to copy to pooled memory.");
+		}
+		else
+		{
+			return _mem.Clone();
+		}
+	}
+
+	/// <summary>
+	/// DANGEROUS: Gets the underlying array segment.
+	/// Span mode: NotSupportedException (span may not be array-backed).
+	/// Mem mode: The array may be larger than this view and may be pooled. Use with caution.
+	/// </summary>
+	/// <returns>Array segment representing this memory's backing storage</returns>
+	public ArraySegment<T> DangerousGetArray()
+	{
+		if (_isUsingSpan)
+		{
+			throw new NotSupportedException("DangerousGetArray() not supported in Span mode (span may not be array-backed). Use Mem mode if array access required.");
+		}
+		else
+		{
+			return _mem.DangerousGetArray();
+		}
+	}
+
+	/// <summary>
+	/// Converts this writable memory view to a read-only memory view.
+	/// Span mode: NotSupportedException (cannot create ReadMem from raw Span).
+	/// </summary>
+	/// <returns>Read-only memory view over the same backing storage</returns>
+	public ReadMem<T> AsReadMem()
+	{
+		if (_isUsingSpan)
+		{
+			throw new NotSupportedException("AsReadMem() not supported in Span mode (cannot create ReadMem from raw Span). Use Mem mode.");
+		}
+		else
+		{
+			return _mem.AsReadMem();
+		}
+	}
+
+	/// <summary>
+	/// if owned by a pool, Disposes so the backing array can be recycled.
+	/// Span mode: No-op (stack lifetime managed automatically).
+	/// Mem mode: Delegates to wrapped Mem.Dispose().
+	/// </summary>
+	public void Dispose()
+	{
+		if (_isUsingSpan)
+		{
+			// No-op: stack lifetime managed automatically
+		}
+		else
+		{
+			_mem.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Returns an enumerator for iterating over the elements in this memory
+	/// </summary>
+	/// <returns>Span enumerator</returns>
+	public Span<T>.Enumerator GetEnumerator()
+	{
+		if (_isUsingSpan)
+		{
+			return _span.GetEnumerator();
+		}
+		else
+		{
+			return _mem.GetEnumerator();
+		}
+	}
+
+	/// <summary>
+	/// Returns a string representation of this memory view showing type and count
+	/// </summary>
+	/// <returns>String in format "RefMem&lt;Type&gt;[Count] (Span|Mem mode)"</returns>
+	public override string ToString()
+	{
+		var mode = _isUsingSpan ? "Span" : "Mem";
+		return $"RefMem<{typeof(T).Name}>[{Count}] ({mode} mode)";
 	}
 }

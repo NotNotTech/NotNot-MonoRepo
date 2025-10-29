@@ -20,14 +20,23 @@
 - `Problem.cs` - Structured error representation
 - Detection of IResult types by name (not reference) to avoid ASP.NET dependency
 
-### Pooled Arrays/Spans Pattern: Mem<T> and SpanGuard<T>
-- `Mem.cs` - Pooled array/span allocation cache.
-- use `Mem<T>` for high-performance scenarios where an array would commonly be used
-   - very low GC pressure: just a small tracking object.  (array is pooled))
-   - has fast reliable Span<T> access and conversion to/from Read-only mode (`ReadMem<T>`)
-- use `SpanGuard<T>` for "stackalloc"" scenarios where a large allocation is needed.
-   - no GC pressure: the array is pooled and reused.
-   - useful when you need an array for the lifetime of a method.  useful because the allocation is automatically freed when the method exits. 
+### Pooled Arrays/Spans Pattern: Mem<T>, RefMem<T>, and SpanGuard<T>
+- `Mem.cs` - Memory abstractions for different allocation strategies
+- **Mem<T>**: Pooled/wrapped memory for heap/pooled scenarios
+  - Very low GC pressure: just a small tracking object (array is pooled)
+  - Fast reliable Span<T> access and conversion to/from read-only mode (ReadMem<T>)
+  - Flexible backing stores: array, list, memory, pooled
+  - **Use for**: general-purpose, cross-method lifetime, async-compatible
+- **RefMem<T>**: Unified API for both stack-allocated Span<T> and Mem<T> (NEW)
+  - ref struct that wraps either Span<T> or Mem<T>
+  - Span mode: zero GC pressure (pure stack allocation)
+  - Mem mode: delegates all operations to wrapped Mem<T>
+  - Provides consistent API regardless of backing storage
+  - **Use for**: hot-path code that switches between stack/heap allocation
+  - **Limitations in Span mode**: Cannot use Clone(), Map(), BatchMap(), DangerousGetArray(), AsReadMem()
+- **SpanGuard<T>**: Pooled array with auto-return for "stackalloc" semantics
+  - No GC pressure: pooled array automatically freed on Dispose
+  - **Use for**: method-lifetime arrays with `using` pattern 
 
 
 ### Serialization
