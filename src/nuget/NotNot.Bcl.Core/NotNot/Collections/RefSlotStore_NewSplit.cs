@@ -184,7 +184,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 	/// <returns></returns>
 	public Mem<SlotHandle> AllocValues(Mem<T> values)
 	{
-		var toReturn = AllocSlots(values.Count);
+		var toReturn = AllocSlots(values.Length);
 
 		values.MapWith(toReturn, (ref T value, ref SlotHandle slot) =>
 		{

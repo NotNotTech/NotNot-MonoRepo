@@ -515,7 +515,7 @@ public partial class EntityManager //entity creation
 		}
 
 		///obtain the actual accessTokens for the entities to be deleted
-		using var accessTokensSO = SpanGuard<AccessToken>.Allocate(toDelete.Length);
+		using var accessTokensSO = ZeroAllocMem<AccessToken>.Allocate(toDelete.Length);
 		var accessTokens = accessTokensSO.Span;
 		_entityRegistry.Get(toDelete, accessTokens);
 
@@ -1473,7 +1473,7 @@ public class SharedComponentGroup
 
 	private bool Matches(Mem<object> components)
 	{
-		if (storage.Count != components.Count)
+		if (storage.Count != components.Length)
 		{
 			return false;
 		}

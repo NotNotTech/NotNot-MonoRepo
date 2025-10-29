@@ -361,8 +361,8 @@ public readonly struct Mem<T> : IDisposable
 	{
 		_backingStorageType = parentMem._backingStorageType;
 		_backingStorage = parentMem._backingStorage;
-		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Count);
-		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Count);
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Length);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Length);
 		_segmentOffset = parentMem._segmentOffset + sliceOffset;
 		_segmentCount = sliceCount;
 	}
@@ -377,8 +377,8 @@ public readonly struct Mem<T> : IDisposable
 	{
 		_backingStorageType = parentMem._backingStorageType;
 		_backingStorage = parentMem._backingStorage;
-		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Count);
-		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Count);
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Length);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Length);
 		_segmentOffset = parentMem._segmentOffset + sliceOffset;
 		_segmentCount = sliceCount;
 	}
@@ -506,9 +506,9 @@ public readonly struct Mem<T> : IDisposable
 	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
 		var thisSpan = this.Span;
-		var toReturn = Mem<TResult>.Alloc(Count);
+		var toReturn = Mem<TResult>.Alloc(Length);
 		var toReturnSpan = toReturn.Span;
-		for (var i = 0; i < Count; i++)
+		for (var i = 0; i < Length; i++)
 		{
 			ref var mappedResult = ref mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
@@ -525,9 +525,9 @@ public readonly struct Mem<T> : IDisposable
 	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
 		var thisSpan = this.Span;
-		var toReturn = Mem<TResult>.Alloc(Count);
+		var toReturn = Mem<TResult>.Alloc(Length);
 		var toReturnSpan = toReturn.Span;
-		for (var i = 0; i < Count; i++)
+		for (var i = 0; i < Length; i++)
 		{
 			var mappedResult = mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
@@ -544,13 +544,13 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
-		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
+		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = this.Span;
 		var otherSpan = otherToMapWith.Span;
-		var toReturn = Mem<TResult>.Alloc(Count);
+		var toReturn = Mem<TResult>.Alloc(Length);
 		var toReturnSpan = toReturn.Span;
 
-		for (var i = 0; i < Count; i++)
+		for (var i = 0; i < Length; i++)
 		{
 			ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
 			toReturnSpan[i] = mappedResult;
@@ -564,13 +564,13 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TOther">Element type of the other memory</typeparam>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Action that processes pairs of elements by reference</param>
-	public void MapWith<TOther>(RefMem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	public void MapWith<TOther>(UnifiedMem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
-		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
+		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = this.Span;
 		var otherSpan = otherToMapWith.Span;
 
-		for (var i = 0; i < Count; i++)
+		for (var i = 0; i < Length; i++)
 		{
 			mapFunc(ref thisSpan[i], ref otherSpan[i]);
 		}
@@ -586,12 +586,12 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>A completed task once all batches have been processed.</returns>
 	public async ValueTask BatchMap(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, ValueTask> worker)
 	{
-		if (this.Count == 0)
+		if (this.Length == 0)
 		{
 			return;
 		}
 		var batchStart = 0;
-		while (batchStart < this.Count)
+		while (batchStart < this.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
 			await worker(this.Slice(batchStart, batchEnd - batchStart));
@@ -611,7 +611,7 @@ public readonly struct Mem<T> : IDisposable
 	private static int _GetBatchEndExclusive(int start, Mem<T> thisMem, Func_RefArg<T, T, bool> isSameBatch)
 	{
 		var span = thisMem.Span;
-		var length = thisMem.Count;
+		var length = thisMem.Length;
 
 		var end = start + 1;
 		while (end < length)
@@ -629,14 +629,14 @@ public readonly struct Mem<T> : IDisposable
 
 	public async ValueTask BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, Mem<TOther>, ValueTask> worker)
 	{
-		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
+		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this Mem");
 
-		if (this.Count == 0)
+		if (this.Length == 0)
 		{
 			return;
 		}
 		var batchStart = 0;
-		while (batchStart < this.Count)
+		while (batchStart < this.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
 			await worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
@@ -650,14 +650,14 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
 	/// <param name="worker">Action executed for each contiguous batch, receiving a Mem slice that references this instance's backing store.</param>
-	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>> worker)
+	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<UnifiedMem<T>> worker)
 	{
-		if (this.Count == 0)
+		if (this.Length == 0)
 		{
 			return;
 		}
 		var batchStart = 0;
-		while (batchStart < this.Count)
+		while (batchStart < this.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
 			worker(this.Slice(batchStart, batchEnd - batchStart));
@@ -672,16 +672,16 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
 	/// <param name="worker">Action executed for each contiguous batch</param>
-	public void BatchMapWith<TOther>(RefMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>, RefMem<TOther>> worker)
+	public void BatchMapWith<TOther>(UnifiedMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<UnifiedMem<T>, UnifiedMem<TOther>> worker)
 	{
-		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
+		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this Mem");
 
-		if (this.Count == 0)
+		if (this.Length == 0)
 		{
 			return;
 		}
 		var batchStart = 0;
-		while (batchStart < this.Count)
+		while (batchStart < this.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
 			worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
@@ -695,7 +695,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>New pooled memory containing a copy of this memory's contents</returns>
 	public Mem<T> Clone()
 	{
-		var copy = Mem<T>.Alloc(Count);
+		var copy = Mem<T>.Alloc(Length);
 		this.Span.CopyTo(copy.Span);
 		return copy;
 	}
@@ -751,15 +751,10 @@ public readonly struct Mem<T> : IDisposable
 	//	_segment.AsMemory();
 
 	/// <summary>
-	/// Gets the number of elements in this memory view
+	/// Gets the number of slots in this memory view
 	/// </summary>
-	public int Count => _segmentCount;
-
-	/// <summary>
-	/// Gets the number of elements in this memory view. Obsolete: use Count instead.
-	/// </summary>
-	[Obsolete("use .Count")]
 	public int Length => _segmentCount;
+
 
 	/// <summary>
 	/// if owned by a pool, Disposes so the backing array can be recycled. DANGER: any other references to the same backing pool slot are also disposed at this time!
@@ -926,7 +921,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>String in format "Mem&lt;Type&gt;[Count]"</returns>
 	public override string ToString()
 	{
-		return $"{GetType().Name}<{typeof(T).Name}>[{Count}]";
+		return $"{GetType().Name}<{typeof(T).Name}>[{Length}]";
 	}
 }
 
@@ -1088,8 +1083,8 @@ public readonly struct ReadMem<T> : IDisposable
 	{
 		_backingStorageType = parentMem._backingStorageType;
 		_backingStorage = parentMem._backingStorage;
-		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Count);
-		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Count);
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Length);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Length);
 		_segmentOffset = parentMem._segmentOffset + sliceOffset;
 		_segmentCount = sliceCount;
 	}
@@ -1104,8 +1099,8 @@ public readonly struct ReadMem<T> : IDisposable
 	{
 		_backingStorageType = parentMem._backingStorageType;
 		_backingStorage = parentMem._backingStorage;
-		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Count);
-		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Count);
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Length);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Length);
 		_segmentOffset = parentMem._segmentOffset + sliceOffset;
 		_segmentCount = sliceCount;
 	}
@@ -1343,15 +1338,11 @@ public readonly struct ReadMem<T> : IDisposable
 		}
 	}
 
-	/// <summary>
-	/// Gets the number of elements in this memory view
-	/// </summary>
-	public int Length => _segmentCount;
 
 	/// <summary>
-	/// Gets the number of elements in this memory view
+	/// Gets the number of slots in this memory view
 	/// </summary>
-	public int Count => _segmentCount;
+	public int Length => _segmentCount;
 
 	/// <summary>
 	/// if owned by a pool, Disposes so the backing array can be recycled. DANGER: any other references to the same backing pool slot are also disposed at this time!
@@ -1479,7 +1470,7 @@ public readonly struct ReadMem<T> : IDisposable
 	/// <returns>String in format "ReadMem&lt;Type&gt;[Count]"</returns>
 	public override string ToString()
 	{
-		return $"{GetType().Name}<{typeof(T).Name}>[{Count}]";
+		return $"{GetType().Name}<{typeof(T).Name}>[{Length}]";
 	}
 }
 
@@ -1533,7 +1524,7 @@ internal enum RefMemBackingStorageType
 /// refMem[0] = 42;
 /// refMem.Dispose(); // Returns to pool
 /// </remarks>
-public ref struct RefMem<T> : IDisposable
+public ref struct UnifiedMem<T> : IDisposable
 {
 	/// <summary>
 	/// Span storage when in Span mode
@@ -1548,7 +1539,7 @@ public ref struct RefMem<T> : IDisposable
 	/// <summary>
 	/// SpanGuard storage when in SpanGuard mode
 	/// </summary>
-	private SpanGuard<T> _spanGuard;
+	private ZeroAllocMem<T> _spanGuard;
 
 	/// <summary>
 	/// Identifies which backing storage type is active
@@ -1566,7 +1557,7 @@ public ref struct RefMem<T> : IDisposable
 	/// Creates a RefMem wrapping a Span (stack mode)
 	/// </summary>
 	/// <param name="span">Span to wrap (typically stackalloc)</param>
-	public RefMem(Span<T> span)
+	public UnifiedMem(Span<T> span)
 	{
 		_span = span;
 		_mem = default;
@@ -1581,7 +1572,7 @@ public ref struct RefMem<T> : IDisposable
 	/// Creates a RefMem wrapping a Mem (heap/pooled mode)
 	/// </summary>
 	/// <param name="mem">Mem to wrap</param>
-	public RefMem(Mem<T> mem)
+	public UnifiedMem(Mem<T> mem)
 	{
 		_span = default;
 		_mem = mem;
@@ -1595,7 +1586,7 @@ public ref struct RefMem<T> : IDisposable
 	/// Creates a RefMem wrapping a SpanGuard (pooled with dispose protection)
 	/// </summary>
 	/// <param name="spanGuard">SpanGuard to wrap</param>
-	public RefMem(SpanGuard<T> spanGuard)
+	public UnifiedMem(ZeroAllocMem<T> spanGuard)
 	{
 		_span = default;
 		_mem = default;
@@ -1610,17 +1601,17 @@ public ref struct RefMem<T> : IDisposable
 	/// <summary>
 	/// Implicit conversion from Span to RefMem (stack mode)
 	/// </summary>
-	public static implicit operator RefMem<T>(Span<T> span) => new RefMem<T>(span);
+	public static implicit operator UnifiedMem<T>(Span<T> span) => new UnifiedMem<T>(span);
 
 	/// <summary>
 	/// Implicit conversion from Mem to RefMem (heap/pooled mode)
 	/// </summary>
-	public static implicit operator RefMem<T>(Mem<T> mem) => new RefMem<T>(mem);
+	public static implicit operator UnifiedMem<T>(Mem<T> mem) => new UnifiedMem<T>(mem);
 
 	/// <summary>
 	/// Implicit conversion from SpanGuard to RefMem (pooled with dispose protection)
 	/// </summary>
-	public static implicit operator RefMem<T>(SpanGuard<T> spanGuard) => new RefMem<T>(spanGuard);
+	public static implicit operator UnifiedMem<T>(ZeroAllocMem<T> spanGuard) => new UnifiedMem<T>(spanGuard);
 
 	/// <summary>
 	/// Gets a Span view over this memory
@@ -1644,30 +1635,8 @@ public ref struct RefMem<T> : IDisposable
 	}
 
 	/// <summary>
-	/// Gets the number of elements in this memory view
+	/// Gets the number of slots in this memory view
 	/// </summary>
-	public int Count
-	{
-		get
-		{
-			switch (_backingStorageType)
-			{
-				case RefMemBackingStorageType.Span:
-					return _span.Length;
-				case RefMemBackingStorageType.Mem:
-					return _mem.Count;
-				case RefMemBackingStorageType.SpanGuard:
-					return _spanGuard.Count;
-				default:
-					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
-			}
-		}
-	}
-
-	/// <summary>
-	/// Gets the number of elements in this memory view. Obsolete: use Count instead.
-	/// </summary>
-	[Obsolete("use .Count")]
 	public int Length
 	{
 		get
@@ -1679,12 +1648,34 @@ public ref struct RefMem<T> : IDisposable
 				case RefMemBackingStorageType.Mem:
 					return _mem.Length;
 				case RefMemBackingStorageType.SpanGuard:
-					return _spanGuard.Length;
+					return _spanGuard.Count;
 				default:
 					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 			}
 		}
 	}
+
+	///// <summary>
+	///// Gets the number of elements in this memory view. Obsolete: use Count instead.
+	///// </summary>
+	//[Obsolete("use .Count")]
+	//public int Length
+	//{
+	//	get
+	//	{
+	//		switch (_backingStorageType)
+	//		{
+	//			case RefMemBackingStorageType.Span:
+	//				return _span.Length;
+	//			case RefMemBackingStorageType.Mem:
+	//				return _mem.Length;
+	//			case RefMemBackingStorageType.SpanGuard:
+	//				return _spanGuard.Length;
+	//			default:
+	//				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
+	//		}
+	//	}
+	//}
 
 	/// <summary>
 	/// Gets a reference to the element at the specified index
@@ -1715,14 +1706,14 @@ public ref struct RefMem<T> : IDisposable
 	/// <param name="offset">Starting offset within this memory</param>
 	/// <param name="count">Number of elements in the slice</param>
 	/// <returns>New memory view representing the slice</returns>
-	public RefMem<T> Slice(int offset, int count)
+	public UnifiedMem<T> Slice(int offset, int count)
 	{
 		switch (_backingStorageType)
 		{
 			case RefMemBackingStorageType.Span:
-				return new RefMem<T>(_span.Slice(offset, count));
+				return new UnifiedMem<T>(_span.Slice(offset, count));
 			case RefMemBackingStorageType.Mem:
-				return new RefMem<T>(_mem.Slice(offset, count));
+				return new UnifiedMem<T>(_mem.Slice(offset, count));
 			case RefMemBackingStorageType.SpanGuard:
 				return _spanGuard.Slice(offset, count);
 			default:
@@ -1805,13 +1796,13 @@ public ref struct RefMem<T> : IDisposable
 	/// <typeparam name="TOther">Element type of the other memory</typeparam>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Action that processes pairs of elements by reference</param>
-	public void MapWith<TOther>(RefMem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	public void MapWith<TOther>(UnifiedMem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
-		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this RefMem");
+		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this RefMem");
 		var thisSpan = this.Span;
 		var otherSpan = otherToMapWith.Span;
 
-		for (var i = 0; i < Count; i++)
+		for (var i = 0; i < Length; i++)
 		{
 			mapFunc(ref thisSpan[i], ref otherSpan[i]);
 		}
@@ -1826,9 +1817,9 @@ public ref struct RefMem<T> : IDisposable
 	/// </summary>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
 	/// <param name="worker">Action executed for each contiguous batch, receiving a RefMem slice that references this instance's backing store.</param>
-	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>> worker)
+	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<UnifiedMem<T>> worker)
 	{
-		if (this.Count == 0)
+		if (this.Length == 0)
 		{
 			return;
 		}
@@ -1839,7 +1830,7 @@ public ref struct RefMem<T> : IDisposable
 				// Inline implementation for Span mode
 				var span = this.Span;
 				var batchStart = 0;
-				while (batchStart < this.Count)
+				while (batchStart < this.Length)
 				{
 					var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
 					worker(this.Slice(batchStart, batchEnd - batchStart));
@@ -1866,11 +1857,11 @@ public ref struct RefMem<T> : IDisposable
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
 	/// <param name="worker">Action executed for each contiguous batch</param>
-	public void BatchMapWith<TOther>(RefMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>, RefMem<TOther>> worker)
+	public void BatchMapWith<TOther>(UnifiedMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<UnifiedMem<T>, UnifiedMem<TOther>> worker)
 	{
-		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this memory");
+		__.ThrowIfNot(otherToMapWith.Length == this.Length, "otherToMapWith must be the same length as this memory");
 
-		if (this.Count == 0)
+		if (this.Length == 0)
 		{
 			return;
 		}
@@ -1881,7 +1872,7 @@ public ref struct RefMem<T> : IDisposable
 				// Inline implementation for Span mode
 				var span = this.Span;
 				var batchStart = 0;
-				while (batchStart < this.Count)
+				while (batchStart < this.Length)
 				{
 					var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
 					worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
@@ -1906,10 +1897,10 @@ public ref struct RefMem<T> : IDisposable
 	/// <param name="thisRefMem">Memory to scan</param>
 	/// <param name="isSameBatch">Function determining if adjacent elements belong to same batch</param>
 	/// <returns>Exclusive end index of the batch</returns>
-	private static int _GetBatchEndExclusive(int start, RefMem<T> thisRefMem, Func_RefArg<T, T, bool> isSameBatch)
+	private static int _GetBatchEndExclusive(int start, UnifiedMem<T> thisRefMem, Func_RefArg<T, T, bool> isSameBatch)
 	{
 		var span = thisRefMem.Span;
-		var length = thisRefMem.Count;
+		var length = thisRefMem.Length;
 
 		var end = start + 1;
 		while (end < length)
@@ -2046,6 +2037,227 @@ public ref struct RefMem<T> : IDisposable
 			RefMemBackingStorageType.SpanGuard => "SpanGuard",
 			_ => "Unknown"
 		};
-		return $"RefMem<{typeof(T).Name}>[{Count}] ({mode} mode)";
+		return $"RefMem<{typeof(T).Name}>[{Length}] ({mode} mode)";
+	}
+}
+
+/// <summary>
+/// a `Mem` that you should dispose (use the `using` pattern) to return the memory to the pool.
+/// doing this will create zero allocations for temporary memory usage.
+/// </summary>
+/// <typeparam name="T"></typeparam>
+public ref struct ZeroAllocMem<T> : IDisposable
+{
+	public SpanOwner<T> _poolOwner;
+#if CHECKED
+	private DisposeGuard _disposeGuard;
+#endif
+
+	public static ZeroAllocMem<T> Allocate(int size, AllocationMode allocationMode = AllocationMode.Default)
+	{
+		return new ZeroAllocMem<T>(SpanOwner<T>.Allocate(size, allocationMode));
+	}
+
+	public static ZeroAllocMem<T> Allocate(ReadOnlySpan<T> span)
+	{
+		var toReturn = Allocate(span.Length);
+		span.CopyTo(toReturn.Span);
+		return toReturn;
+	}
+
+	public static ZeroAllocMem<T> AllocateAndAssign(T singleItem)
+	{
+		var guard = Allocate(1);
+		guard[0] = singleItem;
+		return guard;
+	}
+
+	public ZeroAllocMem(SpanOwner<T> owner)
+	{
+		_poolOwner = owner;
+#if CHECKED
+		_disposeGuard = new();
+#endif
+	}
+
+	public Span<T> Span => _poolOwner.Span;
+	public int Count => _poolOwner.Length;
+	[Obsolete("use .Count")]
+	public int Length => _poolOwner.Length;
+
+	public ref T this[int index]
+	{
+		get => ref _poolOwner.Span[index];
+	}
+
+	/// <summary>
+	/// Creates a RefMem view over a slice of this memory.
+	/// Returns a zero-allocation view (Span slice) referencing the original pooled data.
+	/// </summary>
+	/// <param name="offset">Starting offset within this memory</param>
+	/// <param name="count">Number of elements in the slice</param>
+	/// <returns>RefMem wrapping a Span slice over the original data</returns>
+	public UnifiedMem<T> Slice(int offset, int count)
+	{
+		var slicedSpan = _poolOwner.Span.Slice(offset, count);
+		return new UnifiedMem<T>(slicedSpan);
+	}
+
+	public ZeroAllocMem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
+	{
+		var thisSpan = this.Span;
+		var toReturn = ZeroAllocMem<TResult>.Allocate(Count);
+		var toReturnSpan = toReturn.Span;
+		for (var i = 0; i < Count; i++)
+		{
+			ref var mappedResult = ref mapFunc(ref thisSpan[i]);
+			toReturnSpan[i] = mappedResult;
+		}
+		return toReturn;
+	}
+
+	public ZeroAllocMem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
+	{
+		var thisSpan = this.Span;
+		var toReturn = ZeroAllocMem<TResult>.Allocate(Count);
+		var toReturnSpan = toReturn.Span;
+		for (var i = 0; i < Count; i++)
+		{
+			var mappedResult = mapFunc(ref thisSpan[i]);
+			toReturnSpan[i] = mappedResult;
+		}
+		return toReturn;
+	}
+
+	public ZeroAllocMem<TResult> MapWith<TOther, TResult>(UnifiedMem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	{
+		__.ThrowIfNot(otherToMapWith.Length == this.Count, "otherToMapWith must be the same length as this SpanGuard");
+		var thisSpan = this.Span;
+		var otherSpan = otherToMapWith.Span;
+		var toReturn = ZeroAllocMem<TResult>.Allocate(Count);
+		var toReturnSpan = toReturn.Span;
+
+		for (var i = 0; i < Count; i++)
+		{
+			ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
+			toReturnSpan[i] = mappedResult;
+		}
+		return toReturn;
+	}
+
+	public void MapWith<TOther>(UnifiedMem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	{
+		__.ThrowIfNot(otherToMapWith.Length == this.Count, "otherToMapWith must be the same length as this SpanGuard");
+		var thisSpan = this.Span;
+		var otherSpan = otherToMapWith.Span;
+
+		for (var i = 0; i < Count; i++)
+		{
+			mapFunc(ref thisSpan[i], ref otherSpan[i]);
+		}
+	}
+
+	/// <summary>
+	/// Walks contiguous batches where isSameBatch returns true for each previous/current pair and calls worker once per range.
+	/// Use this to process subgroups without extra allocations.
+	/// IMPORTANT: we assume the underlying data is sorted so that your batching delegate is effective.
+	/// </summary>
+	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
+	/// <param name="worker">Action executed for each contiguous batch, receiving a SpanGuard slice.</param>
+	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<UnifiedMem<T>> worker)
+	{
+		if (this.Count == 0)
+		{
+			return;
+		}
+		var batchStart = 0;
+		while (batchStart < this.Count)
+		{
+			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+			worker(this.Slice(batchStart, batchEnd - batchStart));
+			batchStart = batchEnd;
+		}
+	}
+
+	/// <summary>
+	/// Walks contiguous batches with parallel memory and calls worker once per range.
+	/// IMPORTANT: we assume the underlying data is sorted so that your batching delegate is effective.
+	/// </summary>
+	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
+	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
+	/// <param name="worker">Action executed for each contiguous batch</param>
+	public void BatchMapWith<TOther>(UnifiedMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<UnifiedMem<T>, UnifiedMem<TOther>> worker)
+	{
+		__.ThrowIfNot(otherToMapWith.Length == this.Count, "otherToMapWith must be the same length as this SpanGuard");
+
+		if (this.Count == 0)
+		{
+			return;
+		}
+		var batchStart = 0;
+		while (batchStart < this.Count)
+		{
+			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+			worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
+			batchStart = batchEnd;
+		}
+	}
+
+	/// <summary>
+	/// Local synchronous scanner that finds the end of a contiguous batch
+	/// </summary>
+	/// <param name="start">Starting index for batch scan</param>
+	/// <param name="thisGuard">Memory to scan</param>
+	/// <param name="isSameBatch">Function determining if adjacent elements belong to same batch</param>
+	/// <returns>Exclusive end index of the batch</returns>
+	private static int _GetBatchEndExclusive(int start, ZeroAllocMem<T> thisGuard, Func_RefArg<T, T, bool> isSameBatch)
+	{
+		var span = thisGuard.Span;
+		var length = thisGuard.Count;
+
+		var end = start + 1;
+		while (end < length)
+		{
+			ref var previous = ref span[end - 1];
+			ref var current = ref span[end];
+			if (!isSameBatch(ref previous, ref current))
+			{
+				break;
+			}
+			end++;
+		}
+		return end;
+	}
+
+	public ZeroAllocMem<T> Clone()
+	{
+		var copy = ZeroAllocMem<T>.Allocate(Count);
+		this.Span.CopyTo(copy.Span);
+		return copy;
+	}
+
+	public ArraySegment<T> DangerousGetArray()
+	{
+		return _poolOwner.DangerousGetArray();
+	}
+
+	public Span<T>.Enumerator GetEnumerator()
+	{
+		return Span.GetEnumerator();
+	}
+
+	public void Dispose()
+	{
+		_poolOwner.Span.Clear();
+		_poolOwner.Dispose();
+
+#if CHECKED
+		_disposeGuard.Dispose();
+#endif
+	}
+
+	public override string ToString()
+	{
+		return $"SpanGuard<{typeof(T).Name}>[{Count}]";
 	}
 }

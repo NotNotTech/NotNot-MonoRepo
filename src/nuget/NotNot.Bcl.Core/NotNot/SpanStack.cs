@@ -259,3 +259,4 @@ public ref struct SpanStack<T>
 		return _buffer.Slice(0, _count);
 	}
 }
+
