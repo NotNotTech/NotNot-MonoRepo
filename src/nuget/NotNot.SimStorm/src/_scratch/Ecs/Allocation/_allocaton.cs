@@ -10,6 +10,7 @@
 
 using NotNot.Collections;
 using NotNot.Collections._unused;
+using NotNot.Collections.SpanLike;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;

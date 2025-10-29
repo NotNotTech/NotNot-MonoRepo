@@ -1,4 +1,5 @@
 using NotNot.Advanced;
+using NotNot.Collections.SpanLike;
 using System.Collections;
 using System.Collections.Concurrent;
 

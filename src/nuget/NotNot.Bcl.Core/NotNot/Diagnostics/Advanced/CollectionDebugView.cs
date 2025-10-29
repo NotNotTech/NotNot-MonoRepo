@@ -5,6 +5,7 @@
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
 using System.Diagnostics;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.Diagnostics.Advanced;
 

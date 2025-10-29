@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 using NotNot.Advanced;
 using NotNot.Collections;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.Collections;
 

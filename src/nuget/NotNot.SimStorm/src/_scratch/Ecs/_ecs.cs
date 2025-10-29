@@ -13,6 +13,7 @@ using NotNot.SimStorm._scratch.Ecs.Allocation;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using NotNot.Advanced;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.SimStorm._scratch.Ecs;
 

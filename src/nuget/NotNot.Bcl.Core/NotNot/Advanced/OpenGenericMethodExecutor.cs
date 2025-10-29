@@ -2,6 +2,7 @@ using System;
 using System.Linq.Expressions;
 using System.Reflection;
 using NotNot;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.Advanced
 {

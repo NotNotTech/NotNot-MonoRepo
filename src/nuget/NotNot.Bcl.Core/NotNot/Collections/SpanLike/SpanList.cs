@@ -6,8 +6,11 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using NotNot;
+using NotNot.Collections;
+using NotNot.Collections.SpanLike;
 
-namespace NotNot.Collections;
+namespace NotNot.Collections.SpanLike;
 
 /// <summary>
 /// A dynamic list backed by a caller-provided <see cref="Span{T}"/> buffer.
@@ -305,7 +308,7 @@ public ref struct SpanList<T>
 	public int IndexOf(T item)
 	{
 		var comparer = EqualityComparer<T>.Default;
-		for (int i = 0; i < _count; i++)
+		for (var i = 0; i < _count; i++)
 		{
 			if (comparer.Equals(_buffer[i], item))
 			{

@@ -6,8 +6,11 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using NotNot;
+using NotNot.Collections;
+using NotNot.Collections.SpanLike;
 
-namespace NotNot.Collections;
+namespace NotNot.Collections.SpanLike;
 
 /// <summary>
 /// A circular buffer (ring buffer) backed by a caller-provided <see cref="Span{T}"/> buffer.
@@ -167,7 +170,7 @@ public ref struct SpanRingBuffer<T>
 	public T Dequeue()
 	{
 		__.ThrowIfNot(_count > 0, "SpanRingBuffer underflow: cannot dequeue from empty ring buffer.");
-		T item = _buffer[_head];
+		var item = _buffer[_head];
 		_head = (_head + 1) % _buffer.Length; // Wraparound
 		_count--;
 		return item;
@@ -293,7 +296,7 @@ public ref struct SpanRingBuffer<T>
 		else
 		{
 			// Wraparound: copy head to end, then start to tail
-			int firstPartLength = _buffer.Length - _head;
+			var firstPartLength = _buffer.Length - _head;
 			_buffer.Slice(_head, firstPartLength).CopyTo(destination);
 			_buffer.Slice(0, _tail).CopyTo(destination.Slice(firstPartLength));
 		}

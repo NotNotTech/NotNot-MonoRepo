@@ -29,6 +29,7 @@ using Nito.AsyncEx.Synchronous;
 using NotNot;
 using NotNot._internal.Threading;
 using NotNot.Collections.Advanced;
+using NotNot.Collections.SpanLike;
 using NotNot.Data;
 using NotNot.Diagnostics;
 

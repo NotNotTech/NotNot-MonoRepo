@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot;
 

@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 using NotNot.Advanced;
 using NotNot.Collections;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.Collections;
 
@@ -101,7 +102,7 @@ public readonly record struct SlotHandle : IComparable<SlotHandle>
 public abstract class RefSlotStore
 {
 	protected static byte _initialVersion = 1;
-	
+
 }
 /// <summary>
 /// provides a List backed storage where individual slots can be freed for reuse.
@@ -412,12 +413,12 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore, IDisposable
 
 		_nextVersion = _initialVersion++;
 
-		
+
 
 
 		// **Initialize the underlying storage** with the initial capacity.
 		_storage = new(initialCapacity);
-		_freeSlots = new Stack<int>(initialCapacity);		
+		_freeSlots = new Stack<int>(initialCapacity);
 	}
 
 

@@ -6,8 +6,11 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using NotNot;
+using NotNot.Collections;
+using NotNot.Collections.SpanLike;
 
-namespace NotNot.Collections;
+namespace NotNot.Collections.SpanLike;
 
 /// <summary>
 /// A stack data structure backed by a caller-provided <see cref="Span{T}"/> buffer.
