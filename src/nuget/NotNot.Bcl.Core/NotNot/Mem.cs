@@ -564,7 +564,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TOther">Element type of the other memory</typeparam>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Action that processes pairs of elements by reference</param>
-	public void MapWith<TOther>(Mem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	public void MapWith<TOther>(RefMem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
 		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = this.Span;
@@ -650,7 +650,7 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
 	/// <param name="worker">Action executed for each contiguous batch, receiving a Mem slice that references this instance's backing store.</param>
-	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<Mem<T>> worker)
+	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>> worker)
 	{
 		if (this.Count == 0)
 		{
@@ -672,7 +672,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
 	/// <param name="worker">Action executed for each contiguous batch</param>
-	public void BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<Mem<T>, Mem<TOther>> worker)
+	public void BatchMapWith<TOther>(RefMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>, RefMem<TOther>> worker)
 	{
 		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this Mem");
 
@@ -1484,6 +1484,27 @@ public readonly struct ReadMem<T> : IDisposable
 }
 
 /// <summary>
+/// Identifies which type of backing store is being used by RefMem{T}
+/// </summary>
+internal enum RefMemBackingStorageType
+{
+	/// <summary>
+	/// Stack-allocated Span{T} (zero GC pressure)
+	/// </summary>
+	Span = 0,
+
+	/// <summary>
+	/// Heap/pooled Mem{T} (low GC pressure, flexible backing)
+	/// </summary>
+	Mem,
+
+	/// <summary>
+	/// Pooled SpanGuard{T} with dispose protection (zero GC pressure, auto-return to pool)
+	/// </summary>
+	SpanGuard,
+}
+
+/// <summary>
 /// A ref struct that provides unified Mem-like API for both stack-allocated Span and heap/pooled Mem scenarios.
 /// Can wrap either a Span{T} for zero-allocation stack usage, or a Mem{T} for heap/pooled usage.
 /// </summary>
@@ -1512,7 +1533,7 @@ public readonly struct ReadMem<T> : IDisposable
 /// refMem[0] = 42;
 /// refMem.Dispose(); // Returns to pool
 /// </remarks>
-public ref struct RefMem<T>
+public ref struct RefMem<T> : IDisposable
 {
 	/// <summary>
 	/// Span storage when in Span mode
@@ -1525,9 +1546,21 @@ public ref struct RefMem<T>
 	private Mem<T> _mem;
 
 	/// <summary>
-	/// True if using Span storage, false if using Mem storage
+	/// SpanGuard storage when in SpanGuard mode
 	/// </summary>
-	private readonly bool _isUsingSpan;
+	private SpanGuard<T> _spanGuard;
+
+	/// <summary>
+	/// Identifies which backing storage type is active
+	/// </summary>
+	private readonly RefMemBackingStorageType _backingStorageType;
+
+#if CHECKED
+	/// <summary>
+	/// Dispose guard to ensure proper cleanup when wrapping SpanGuard (CHECKED mode only)
+	/// </summary>
+	private DisposeGuard _disposeGuard;
+#endif
 
 	/// <summary>
 	/// Creates a RefMem wrapping a Span (stack mode)
@@ -1537,7 +1570,11 @@ public ref struct RefMem<T>
 	{
 		_span = span;
 		_mem = default;
-		_isUsingSpan = true;
+		_spanGuard = default;
+		_backingStorageType = RefMemBackingStorageType.Span;
+#if CHECKED
+		_disposeGuard = default;
+#endif
 	}
 
 	/// <summary>
@@ -1548,8 +1585,27 @@ public ref struct RefMem<T>
 	{
 		_span = default;
 		_mem = mem;
-		_isUsingSpan = false;
+		_spanGuard = default;
+		_backingStorageType = RefMemBackingStorageType.Mem;
+#if CHECKED
+		_disposeGuard = default;
+#endif
 	}
+	/// <summary>
+	/// Creates a RefMem wrapping a SpanGuard (pooled with dispose protection)
+	/// </summary>
+	/// <param name="spanGuard">SpanGuard to wrap</param>
+	public RefMem(SpanGuard<T> spanGuard)
+	{
+		_span = default;
+		_mem = default;
+		_spanGuard = spanGuard;
+		_backingStorageType = RefMemBackingStorageType.SpanGuard;
+#if CHECKED
+		_disposeGuard = new();
+#endif
+	}
+
 
 	/// <summary>
 	/// Implicit conversion from Span to RefMem (stack mode)
@@ -1562,19 +1618,27 @@ public ref struct RefMem<T>
 	public static implicit operator RefMem<T>(Mem<T> mem) => new RefMem<T>(mem);
 
 	/// <summary>
+	/// Implicit conversion from SpanGuard to RefMem (pooled with dispose protection)
+	/// </summary>
+	public static implicit operator RefMem<T>(SpanGuard<T> spanGuard) => new RefMem<T>(spanGuard);
+
+	/// <summary>
 	/// Gets a Span view over this memory
 	/// </summary>
 	public Span<T> Span
 	{
 		get
 		{
-			if (_isUsingSpan)
+			switch (_backingStorageType)
 			{
-				return _span;
-			}
-			else
-			{
-				return _mem.Span;
+				case RefMemBackingStorageType.Span:
+					return _span;
+				case RefMemBackingStorageType.Mem:
+					return _mem.Span;
+				case RefMemBackingStorageType.SpanGuard:
+					return _spanGuard.Span;
+				default:
+					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 			}
 		}
 	}
@@ -1586,13 +1650,16 @@ public ref struct RefMem<T>
 	{
 		get
 		{
-			if (_isUsingSpan)
+			switch (_backingStorageType)
 			{
-				return _span.Length;
-			}
-			else
-			{
-				return _mem.Count;
+				case RefMemBackingStorageType.Span:
+					return _span.Length;
+				case RefMemBackingStorageType.Mem:
+					return _mem.Count;
+				case RefMemBackingStorageType.SpanGuard:
+					return _spanGuard.Count;
+				default:
+					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 			}
 		}
 	}
@@ -1605,13 +1672,16 @@ public ref struct RefMem<T>
 	{
 		get
 		{
-			if (_isUsingSpan)
+			switch (_backingStorageType)
 			{
-				return _span.Length;
-			}
-			else
-			{
-				return _mem.Length;
+				case RefMemBackingStorageType.Span:
+					return _span.Length;
+				case RefMemBackingStorageType.Mem:
+					return _mem.Length;
+				case RefMemBackingStorageType.SpanGuard:
+					return _spanGuard.Length;
+				default:
+					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 			}
 		}
 	}
@@ -1625,13 +1695,16 @@ public ref struct RefMem<T>
 	{
 		get
 		{
-			if (_isUsingSpan)
+			switch (_backingStorageType)
 			{
-				return ref _span[index];
-			}
-			else
-			{
-				return ref _mem[index];
+				case RefMemBackingStorageType.Span:
+					return ref _span[index];
+				case RefMemBackingStorageType.Mem:
+					return ref _mem[index];
+				case RefMemBackingStorageType.SpanGuard:
+					return ref _spanGuard[index];
+				default:
+					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 			}
 		}
 	}
@@ -1644,13 +1717,16 @@ public ref struct RefMem<T>
 	/// <returns>New memory view representing the slice</returns>
 	public RefMem<T> Slice(int offset, int count)
 	{
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			return new RefMem<T>(_span.Slice(offset, count));
-		}
-		else
-		{
-			return new RefMem<T>(_mem.Slice(offset, count));
+			case RefMemBackingStorageType.Span:
+				return new RefMem<T>(_span.Slice(offset, count));
+			case RefMemBackingStorageType.Mem:
+				return new RefMem<T>(_mem.Slice(offset, count));
+			case RefMemBackingStorageType.SpanGuard:
+				return _spanGuard.Slice(offset, count);
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -1663,13 +1739,16 @@ public ref struct RefMem<T>
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			throw new NotSupportedException("Map() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
-		}
-		else
-		{
-			return _mem.Map(mapFunc);
+			case RefMemBackingStorageType.Span:
+				throw new NotSupportedException("Map() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
+			case RefMemBackingStorageType.Mem:
+				return _mem.Map(mapFunc);
+			case RefMemBackingStorageType.SpanGuard:
+				throw new NotSupportedException("Map() not supported for SpanGuard backing (returns Mem). Use SpanGuard<T>.Map() directly or convert to Mem.");
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -1682,13 +1761,16 @@ public ref struct RefMem<T>
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			throw new NotSupportedException("Map() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
-		}
-		else
-		{
-			return _mem.Map(mapFunc);
+			case RefMemBackingStorageType.Span:
+				throw new NotSupportedException("Map() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
+			case RefMemBackingStorageType.Mem:
+				return _mem.Map(mapFunc);
+			case RefMemBackingStorageType.SpanGuard:
+				throw new NotSupportedException("Map() not supported for SpanGuard backing (returns Mem). Use SpanGuard<T>.Map() directly or convert to Mem.");
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -1703,95 +1785,39 @@ public ref struct RefMem<T>
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			throw new NotSupportedException("MapWith() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
-		}
-		else
-		{
-			return _mem.MapWith(otherToMapWith, mapFunc);
+			case RefMemBackingStorageType.Span:
+				throw new NotSupportedException("MapWith() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
+			case RefMemBackingStorageType.Mem:
+				return _mem.MapWith(otherToMapWith, mapFunc);
+			case RefMemBackingStorageType.SpanGuard:
+				throw new NotSupportedException("MapWith() not supported for SpanGuard backing (returns Mem). Use SpanGuard<T>.MapWith() directly or convert to Mem.");
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
 	/// <summary>
-	/// Maps two Mem instances in parallel using the specified action, modifying elements in place.
-	/// Span mode: NotSupportedException (requires Mem instance).
+	/// Maps two memory instances in parallel using the specified action, modifying elements in place.
+	/// Works in all modes by operating on underlying Span data.
 	/// </summary>
 	/// <typeparam name="TOther">Element type of the other memory</typeparam>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Action that processes pairs of elements by reference</param>
-	public void MapWith<TOther>(Mem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	public void MapWith<TOther>(RefMem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
-		if (_isUsingSpan)
+		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this RefMem");
+		var thisSpan = this.Span;
+		var otherSpan = otherToMapWith.Span;
+
+		for (var i = 0; i < Count; i++)
 		{
-			throw new NotSupportedException("MapWith() not supported in Span mode (requires Mem instance). Use Mem mode or operate on Span directly.");
-		}
-		else
-		{
-			_mem.MapWith(otherToMapWith, mapFunc);
+			mapFunc(ref thisSpan[i], ref otherSpan[i]);
 		}
 	}
 
-	/// <summary>
-	/// Walks contiguous batches and calls worker once per range.
-	/// Span mode: NotSupportedException (async incompatible with ref struct lifetime).
-	/// </summary>
-	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
-	/// <param name="worker">Action executed for each contiguous batch</param>
-	/// <returns>A completed task once all batches have been processed</returns>
-	public ValueTask BatchMap(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, ValueTask> worker)
-	{
-		if (_isUsingSpan)
-		{
-			throw new NotSupportedException("BatchMap() not supported in Span mode (async incompatible with ref struct lifetime). Use Mem mode.");
-		}
-		else
-		{
-			return _mem.BatchMap(isSameBatch, worker);
-		}
-	}
 
-	/// <summary>
-	/// Walks contiguous batches with parallel memory and calls worker once per range.
-	/// Span mode: NotSupportedException (async incompatible with ref struct lifetime).
-	/// </summary>
-	public ValueTask BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, Mem<TOther>, ValueTask> worker)
-	{
-		if (_isUsingSpan)
-		{
-			throw new NotSupportedException("BatchMapWith() not supported in Span mode (async incompatible with ref struct lifetime). Use Mem mode.");
-		}
-		else
-		{
-			return _mem.BatchMapWith(otherToMapWith, isSameBatch, worker);
-		}
-	}
-
-	/// <summary>
-	/// Local synchronous scanner that finds the end of a contiguous batch; no awaits here, so using Span{T} is safe
-	/// </summary>
-	/// <param name="start">Starting index for batch scan</param>
-	/// <param name="thisMem">Memory to scan</param>
-	/// <param name="isSameBatch">Function determining if adjacent elements belong to same batch</param>
-	/// <returns>Exclusive end index of the batch</returns>
-	private static int _GetBatchEndExclusive(int start, RefMem<T> thisMem, Func_RefArg<T, T, bool> isSameBatch)
-	{
-		var span = thisMem.Span;
-		var length = thisMem.Count;
-
-		var end = start + 1;
-		while (end < length)
-		{
-			ref var previous = ref span[end - 1];
-			ref var current = ref span[end];
-			if (!isSameBatch(ref previous, ref current))
-			{
-				break;
-			}
-			end++;
-		}
-		return end;
-	}
 
 	/// <summary>
 	/// Walks contiguous batches where isSameBatch returns true for each previous/current pair and calls worker once per range (synchronous version).
@@ -1807,22 +1833,29 @@ public ref struct RefMem<T>
 			return;
 		}
 
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			// Inline implementation for Span mode
-			var span = this.Span;
-			var batchStart = 0;
-			while (batchStart < this.Count)
-			{
-				var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
-				worker(this.Slice(batchStart, batchEnd - batchStart));
-				batchStart = batchEnd;
-			}
-		}
-		else
-		{
-			// Delegate to _mem.BatchMap when in Mem mode
-			_mem.BatchMap(isSameBatch, mem => worker(new RefMem<T>(mem)));
+			case RefMemBackingStorageType.Span:
+				// Inline implementation for Span mode
+				var span = this.Span;
+				var batchStart = 0;
+				while (batchStart < this.Count)
+				{
+					var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+					worker(this.Slice(batchStart, batchEnd - batchStart));
+					batchStart = batchEnd;
+				}
+				break;
+			case RefMemBackingStorageType.Mem:
+				// Delegate to _mem.BatchMap (implicit conversion Mem<T> -> RefMem<T>)
+				_mem.BatchMap(isSameBatch, worker);
+				break;
+			case RefMemBackingStorageType.SpanGuard:
+				// Delegate to _spanGuard.BatchMap
+				_spanGuard.BatchMap(isSameBatch, worker);
+				break;
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -1833,7 +1866,7 @@ public ref struct RefMem<T>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
 	/// <param name="worker">Action executed for each contiguous batch</param>
-	public void BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>, Mem<TOther>> worker)
+	public void BatchMapWith<TOther>(RefMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>, RefMem<TOther>> worker)
 	{
 		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this memory");
 
@@ -1842,24 +1875,56 @@ public ref struct RefMem<T>
 			return;
 		}
 
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			// Inline implementation for Span mode
-			var span = this.Span;
-			var batchStart = 0;
-			while (batchStart < this.Count)
-			{
-				var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
-				worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
-				batchStart = batchEnd;
-			}
-		}
-		else
-		{
-			// Delegate to _mem.BatchMapWith when in Mem mode
-			_mem.BatchMapWith(otherToMapWith, isSameBatch, (mem, other) => worker(new RefMem<T>(mem), other));
+			case RefMemBackingStorageType.Span:
+				// Inline implementation for Span mode
+				var span = this.Span;
+				var batchStart = 0;
+				while (batchStart < this.Count)
+				{
+					var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
+					worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
+					batchStart = batchEnd;
+				}
+				break;
+			case RefMemBackingStorageType.Mem:
+				// Delegate to _mem.BatchMapWith (implicit conversions Mem<T> -> RefMem<T>)
+				_mem.BatchMapWith(otherToMapWith, isSameBatch, worker);
+				break;
+			case RefMemBackingStorageType.SpanGuard:
+				_spanGuard.BatchMapWith(otherToMapWith, isSameBatch, worker);
+				break;
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
+	/// <summary>
+	/// Local synchronous scanner that finds the end of a contiguous batch for RefMem
+	/// </summary>
+	/// <param name="start">Starting index for batch scan</param>
+	/// <param name="thisRefMem">Memory to scan</param>
+	/// <param name="isSameBatch">Function determining if adjacent elements belong to same batch</param>
+	/// <returns>Exclusive end index of the batch</returns>
+	private static int _GetBatchEndExclusive(int start, RefMem<T> thisRefMem, Func_RefArg<T, T, bool> isSameBatch)
+	{
+		var span = thisRefMem.Span;
+		var length = thisRefMem.Count;
+
+		var end = start + 1;
+		while (end < length)
+		{
+			ref var previous = ref span[end - 1];
+			ref var current = ref span[end];
+			if (!isSameBatch(ref previous, ref current))
+			{
+				break;
+			}
+			end++;
+		}
+		return end;
+	}
+
 
 
 	/// <summary>
@@ -1869,13 +1934,16 @@ public ref struct RefMem<T>
 	/// <returns>New pooled memory containing a copy of this memory's contents</returns>
 	public Mem<T> Clone()
 	{
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			throw new NotSupportedException("Clone() not supported in Span mode (allocates new Mem, defeats stack-only purpose). Use Mem.Allocate(span) to copy to pooled memory.");
-		}
-		else
-		{
-			return _mem.Clone();
+			case RefMemBackingStorageType.Span:
+				throw new NotSupportedException("Clone() not supported in Span mode (allocates new Mem, defeats stack-only purpose). Use Mem.Allocate(span) to copy to pooled memory.");
+			case RefMemBackingStorageType.Mem:
+				return _mem.Clone();
+			case RefMemBackingStorageType.SpanGuard:
+				throw new NotSupportedException("Clone() not supported for SpanGuard backing (returns SpanGuard). Use SpanGuard<T>.Clone() directly.");
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -1887,13 +1955,16 @@ public ref struct RefMem<T>
 	/// <returns>Array segment representing this memory's backing storage</returns>
 	public ArraySegment<T> DangerousGetArray()
 	{
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			throw new NotSupportedException("DangerousGetArray() not supported in Span mode (span may not be array-backed). Use Mem mode if array access required.");
-		}
-		else
-		{
-			return _mem.DangerousGetArray();
+			case RefMemBackingStorageType.Span:
+				throw new NotSupportedException("DangerousGetArray() not supported in Span mode (span may not be array-backed). Use Mem mode if array access required.");
+			case RefMemBackingStorageType.Mem:
+				return _mem.DangerousGetArray();
+			case RefMemBackingStorageType.SpanGuard:
+				return _spanGuard.DangerousGetArray();
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -1904,13 +1975,16 @@ public ref struct RefMem<T>
 	/// <returns>Read-only memory view over the same backing storage</returns>
 	public ReadMem<T> AsReadMem()
 	{
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			throw new NotSupportedException("AsReadMem() not supported in Span mode (cannot create ReadMem from raw Span). Use Mem mode.");
-		}
-		else
-		{
-			return _mem.AsReadMem();
+			case RefMemBackingStorageType.Span:
+				throw new NotSupportedException("AsReadMem() not supported in Span mode (cannot create ReadMem from raw Span). Use Mem mode.");
+			case RefMemBackingStorageType.Mem:
+				return _mem.AsReadMem();
+			case RefMemBackingStorageType.SpanGuard:
+				throw new NotSupportedException("AsReadMem() not supported for SpanGuard backing. Use Mem mode.");
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -1921,13 +1995,22 @@ public ref struct RefMem<T>
 	/// </summary>
 	public void Dispose()
 	{
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			// No-op: stack lifetime managed automatically
-		}
-		else
-		{
-			_mem.Dispose();
+			case RefMemBackingStorageType.Span:
+				// No-op: stack lifetime managed automatically
+				break;
+			case RefMemBackingStorageType.Mem:
+				_mem.Dispose();
+				break;
+			case RefMemBackingStorageType.SpanGuard:
+				_spanGuard.Dispose();
+#if CHECKED
+				_disposeGuard.Dispose();
+#endif
+				break;
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -1937,13 +2020,16 @@ public ref struct RefMem<T>
 	/// <returns>Span enumerator</returns>
 	public Span<T>.Enumerator GetEnumerator()
 	{
-		if (_isUsingSpan)
+		switch (_backingStorageType)
 		{
-			return _span.GetEnumerator();
-		}
-		else
-		{
-			return _mem.GetEnumerator();
+			case RefMemBackingStorageType.Span:
+				return _span.GetEnumerator();
+			case RefMemBackingStorageType.Mem:
+				return _mem.GetEnumerator();
+			case RefMemBackingStorageType.SpanGuard:
+				return _spanGuard.GetEnumerator();
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
@@ -1953,7 +2039,13 @@ public ref struct RefMem<T>
 	/// <returns>String in format "RefMem&lt;Type&gt;[Count] (Span|Mem mode)"</returns>
 	public override string ToString()
 	{
-		var mode = _isUsingSpan ? "Span" : "Mem";
+		var mode = _backingStorageType switch
+		{
+			RefMemBackingStorageType.Span => "Span",
+			RefMemBackingStorageType.Mem => "Mem",
+			RefMemBackingStorageType.SpanGuard => "SpanGuard",
+			_ => "Unknown"
+		};
 		return $"RefMem<{typeof(T).Name}>[{Count}] ({mode} mode)";
 	}
 }

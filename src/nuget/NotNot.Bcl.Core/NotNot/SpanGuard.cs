@@ -92,7 +92,7 @@ public ref struct SpanGuard<T> : IDisposable
 		return toReturn;
 	}
 
-	public SpanGuard<TResult> MapWith<TOther, TResult>(SpanGuard<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	public SpanGuard<TResult> MapWith<TOther, TResult>(RefMem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
 		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this SpanGuard");
 		var thisSpan = this.Span;
@@ -108,7 +108,7 @@ public ref struct SpanGuard<T> : IDisposable
 		return toReturn;
 	}
 
-	public void MapWith<TOther>(SpanGuard<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	public void MapWith<TOther>(RefMem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
 		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this SpanGuard");
 		var thisSpan = this.Span;
@@ -149,7 +149,7 @@ public ref struct SpanGuard<T> : IDisposable
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
 	/// <param name="worker">Action executed for each contiguous batch</param>
-	public void BatchMapWith<TOther>(SpanGuard<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>, RefMem<TOther>> worker)
+	public void BatchMapWith<TOther>(RefMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<RefMem<T>, RefMem<TOther>> worker)
 	{
 		__.ThrowIfNot(otherToMapWith.Count == this.Count, "otherToMapWith must be the same length as this SpanGuard");
 
