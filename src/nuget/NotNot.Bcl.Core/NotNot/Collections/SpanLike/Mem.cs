@@ -36,6 +36,13 @@ public static class Mem
 		return Mem<T>.Wrap(array);
 	}
 
+	public static Mem<T> Clone<T>(UnifiedMem<T> toClone)
+	{
+		var copy = Mem<T>.Alloc(toClone.Length);
+		toClone.Span.CopyTo(copy.Span);
+		return copy;
+	}
+
 	/// <summary>
 	///    use an existing collection as the backing storage
 	/// </summary>

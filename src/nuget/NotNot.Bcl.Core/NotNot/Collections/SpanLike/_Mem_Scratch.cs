@@ -208,7 +208,12 @@ public readonly struct Mem<T> : IDisposable
 		_segmentCount = sliceCount;
 	}
 
-
+	public static Mem<T> Clone(UnifiedMem<T> toClone)
+	{
+		var copy = Mem<T>.Alloc(toClone.Length);
+		toClone.Span.CopyTo(copy.Span);
+		return copy;
+	}
 
 	/// <summary>
 	///    allocate memory from the shared pool.
@@ -323,6 +328,24 @@ public readonly struct Mem<T> : IDisposable
 	}
 
 	/// <summary>
+	/// Applies the specified mapping function to each element of this Mem, writing results to the provided output buffer (zero-allocation version)
+	/// </summary>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
+	/// <param name="mapFunc">Function that maps each element by reference, returning result by reference</param>
+	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
+	{
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
+		var thisSpan = Span;
+		var toReturnSpan = toReturn.Span;
+		for (var i = 0; i < Length; i++)
+		{
+			ref var mappedResult = ref mapFunc(ref thisSpan[i]);
+			toReturnSpan[i] = mappedResult;
+		}
+	}
+
+	/// <summary>
 	/// Allocates a new pooled Mem by applying the specified mapping function to each element of this Mem
 	/// </summary>
 	/// <typeparam name="TResult">Result element type</typeparam>
@@ -330,15 +353,27 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
-		var thisSpan = Span;
 		var toReturn = Mem<TResult>.Alloc(Length);
+		Map(toReturn, mapFunc);
+		return toReturn;
+	}
+
+	/// <summary>
+	/// Applies the specified mapping function to each element of this Mem, writing results to the provided output buffer (zero-allocation version)
+	/// </summary>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
+	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
+	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
+	{
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
+		var thisSpan = Span;
 		var toReturnSpan = toReturn.Span;
 		for (var i = 0; i < Length; i++)
 		{
-			ref var mappedResult = ref mapFunc(ref thisSpan[i]);
+			var mappedResult = mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
 		}
-		return toReturn;
 	}
 
 	/// <summary>
@@ -349,15 +384,32 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
-		var thisSpan = Span;
 		var toReturn = Mem<TResult>.Alloc(Length);
+		Map(toReturn, mapFunc);
+		return toReturn;
+	}
+
+	/// <summary>
+	/// Maps two Mem instances in parallel using the specified function, writing results to the provided output buffer (zero-allocation version). All must have the same length.
+	/// </summary>
+	/// <typeparam name="TOther">Element type of the other memory</typeparam>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
+	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
+	/// <param name="mapFunc">Function that maps pairs of elements by reference, returning result by reference</param>
+	public void MapWith<TOther, TResult>(UnifiedMem<TResult> toReturn, Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	{
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
+		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
+		var thisSpan = Span;
+		var otherSpan = otherToMapWith.Span;
 		var toReturnSpan = toReturn.Span;
+
 		for (var i = 0; i < Length; i++)
 		{
-			var mappedResult = mapFunc(ref thisSpan[i]);
+			ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
 			toReturnSpan[i] = mappedResult;
 		}
-		return toReturn;
 	}
 
 	/// <summary>
@@ -370,17 +422,8 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
-		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
-		var thisSpan = Span;
-		var otherSpan = otherToMapWith.Span;
 		var toReturn = Mem<TResult>.Alloc(Length);
-		var toReturnSpan = toReturn.Span;
-
-		for (var i = 0; i < Length; i++)
-		{
-			ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
-			toReturnSpan[i] = mappedResult;
-		}
+		MapWith(toReturn, otherToMapWith, mapFunc);
 		return toReturn;
 	}
 
@@ -869,6 +912,14 @@ public ref struct UnifiedMem<T> : IDisposable
 	/// </summary>
 	public static implicit operator UnifiedMem<T>(ZeroAllocMem<T> zeroAllocMem) => new UnifiedMem<T>(zeroAllocMem);
 
+
+	public static implicit operator UnifiedMem<T>(List<T> toWrap) => new Mem<T>(toWrap);
+	public static implicit operator UnifiedMem<T>(ArraySegment<T> toWrap) => new Mem<T>(toWrap);
+	public static implicit operator UnifiedMem<T>(T[] toWrap) => new Mem<T>(toWrap);
+	public static implicit operator UnifiedMem<T>(Memory<T> toWrap) => new Mem<T>(toWrap);
+	public static implicit operator UnifiedMem<T>(MemoryOwner_Custom<T> toWrap) => new Mem<T>(toWrap);
+
+
 	/// <summary>
 	/// Gets a Span view over this memory
 	/// </summary>
@@ -978,68 +1029,118 @@ public ref struct UnifiedMem<T> : IDisposable
 	}
 
 	/// <summary>
-	/// Allocates a new pooled Mem by applying the specified mapping function to each element of this Mem.
-	/// Span mode: NotSupportedException (allocates new Mem, defeats stack-only purpose).
+	/// Applies the specified mapping function to each element of this memory, writing results to the provided output buffer (zero-allocation version)
 	/// </summary>
 	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this memory.</param>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by reference</param>
-	/// <returns>New pooled memory containing mapped results</returns>
-	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
+	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
 	{
 		switch (_backingStorageType)
 		{
 			case RefMemBackingStorageType.Span:
-				throw new NotSupportedException("Map() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
+				__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this memory");
+				var thisSpan = Span;
+				var toReturnSpan = toReturn.Span;
+				for (var i = 0; i < Length; i++)
+				{
+					ref var mappedResult = ref mapFunc(ref thisSpan[i]);
+					toReturnSpan[i] = mappedResult;
+				}
+				break;
 			case RefMemBackingStorageType.Mem:
-				return _mem.Map(mapFunc);
+				_mem.Map(toReturn, mapFunc);
+				break;
 			case RefMemBackingStorageType.ZeroAllocMem:
-				throw new NotSupportedException("Map() not supported for ZeroAllocMem backing (returns Mem). Use ZeroAllocMem<T>.Map() directly or convert to Mem.");
+				_zeroAllocMem.Map(toReturn, mapFunc);
+				break;
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
 	/// <summary>
-	/// Allocates a new pooled Mem by applying the specified mapping function to each element of this Mem.
-	/// Span mode: NotSupportedException (allocates new Mem, defeats stack-only purpose).
+	/// Applies the specified mapping function to each element of this memory, writing results to the provided output buffer (zero-allocation version)
 	/// </summary>
 	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this memory.</param>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
-	/// <returns>New pooled memory containing mapped results</returns>
-	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
+	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
 	{
 		switch (_backingStorageType)
 		{
 			case RefMemBackingStorageType.Span:
-				throw new NotSupportedException("Map() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
+				__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this memory");
+				var thisSpan = Span;
+				var toReturnSpan = toReturn.Span;
+				for (var i = 0; i < Length; i++)
+				{
+					var mappedResult = mapFunc(ref thisSpan[i]);
+					toReturnSpan[i] = mappedResult;
+				}
+				break;
 			case RefMemBackingStorageType.Mem:
-				return _mem.Map(mapFunc);
+				_mem.Map(toReturn, mapFunc);
+				break;
 			case RefMemBackingStorageType.ZeroAllocMem:
-				throw new NotSupportedException("Map() not supported for ZeroAllocMem backing (returns Mem). Use ZeroAllocMem<T>.Map() directly or convert to Mem.");
+				_zeroAllocMem.Map(toReturn, mapFunc);
+				break;
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
 
 	/// <summary>
-	/// Allocates a new pooled Mem by mapping two Mem instances in parallel using the specified function.
-	/// Span mode: NotSupportedException (allocates new Mem, defeats stack-only purpose).
+	/// Maps two memory instances in parallel using the specified function, writing results to the provided output buffer (zero-allocation version). All must have the same length.
 	/// </summary>
 	/// <typeparam name="TOther">Element type of the other memory</typeparam>
 	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this memory.</param>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Function that maps pairs of elements by reference, returning result by reference</param>
-	/// <returns>New pooled memory containing mapped results</returns>
-	public Mem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	public void MapWith<TOther, TResult>(UnifiedMem<TResult> toReturn, UnifiedMem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this memory");
+		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this memory");
+
 		switch (_backingStorageType)
 		{
 			case RefMemBackingStorageType.Span:
-				throw new NotSupportedException("MapWith() not supported in Span mode (allocates new Mem). Use Mem mode or operate on Span directly.");
+				{
+					var thisSpan = Span;
+					var otherSpan = otherToMapWith.Span;
+					var toReturnSpan = toReturn.Span;
+					for (var i = 0; i < Length; i++)
+					{
+						ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
+						toReturnSpan[i] = mappedResult;
+					}
+				}
+				break;
 			case RefMemBackingStorageType.Mem:
-				return _mem.MapWith(otherToMapWith, mapFunc);
+				{
+					// For Mem backing, extract Mem<TOther> if available, otherwise use inline implementation
+					if (otherToMapWith._backingStorageType == RefMemBackingStorageType.Mem)
+					{
+						_mem.MapWith(toReturn, otherToMapWith._mem, mapFunc);
+					}
+					else
+					{
+						// Fallback to Span-based implementation
+						var thisSpan = Span;
+						var otherSpan = otherToMapWith.Span;
+						var toReturnSpan = toReturn.Span;
+						for (var i = 0; i < Length; i++)
+						{
+							ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
+							toReturnSpan[i] = mappedResult;
+						}
+					}
+				}
+				break;
 			case RefMemBackingStorageType.ZeroAllocMem:
-				throw new NotSupportedException("MapWith() not supported for ZeroAllocMem backing (returns Mem). Use ZeroAllocMem<T>.MapWith() directly or convert to Mem.");
+				_zeroAllocMem.MapWith(toReturn, otherToMapWith, mapFunc);
+				break;
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
@@ -1175,67 +1276,6 @@ public ref struct UnifiedMem<T> : IDisposable
 
 
 	/// <summary>
-	/// Creates a deep copy of this Mem with contents copied to new pool-backed storage.
-	/// Span mode: NotSupportedException (allocates new Mem, defeats stack-only purpose).
-	/// </summary>
-	/// <returns>New pooled memory containing a copy of this memory's contents</returns>
-	public Mem<T> Clone()
-	{
-		switch (_backingStorageType)
-		{
-			case RefMemBackingStorageType.Span:
-				throw new NotSupportedException("Clone() not supported in Span mode (allocates new Mem, defeats stack-only purpose). Use Mem.Allocate(span) to copy to pooled memory.");
-			case RefMemBackingStorageType.Mem:
-				return _mem.Clone();
-			case RefMemBackingStorageType.ZeroAllocMem:
-				throw new NotSupportedException("Clone() not supported for ZeroAllocMem backing (returns ZeroAllocMem). Use ZeroAllocMem<T>.Clone() directly.");
-			default:
-				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
-		}
-	}
-
-	/// <summary>
-	/// DANGEROUS: Gets the underlying array segment.
-	/// Span mode: NotSupportedException (span may not be array-backed).
-	/// Mem mode: The array may be larger than this view and may be pooled. Use with caution.
-	/// </summary>
-	/// <returns>Array segment representing this memory's backing storage</returns>
-	public ArraySegment<T> DangerousGetArray()
-	{
-		switch (_backingStorageType)
-		{
-			case RefMemBackingStorageType.Span:
-				throw new NotSupportedException("DangerousGetArray() not supported in Span mode (span may not be array-backed). Use Mem mode if array access required.");
-			case RefMemBackingStorageType.Mem:
-				return _mem.DangerousGetArray();
-			case RefMemBackingStorageType.ZeroAllocMem:
-				return _zeroAllocMem.DangerousGetArray();
-			default:
-				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
-		}
-	}
-
-	/// <summary>
-	/// Converts this writable memory view to a read-only memory view.
-	/// Span mode: NotSupportedException (cannot create ReadMem from raw Span).
-	/// </summary>
-	/// <returns>Read-only memory view over the same backing storage</returns>
-	public ReadMem<T> AsReadMem()
-	{
-		switch (_backingStorageType)
-		{
-			case RefMemBackingStorageType.Span:
-				throw new NotSupportedException("AsReadMem() not supported in Span mode (cannot create ReadMem from raw Span). Use Mem mode.");
-			case RefMemBackingStorageType.Mem:
-				return _mem.AsReadMem();
-			case RefMemBackingStorageType.ZeroAllocMem:
-				throw new NotSupportedException("AsReadMem() not supported for ZeroAllocMem backing. Use Mem mode.");
-			default:
-				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
-		}
-	}
-
-	/// <summary>
 	/// if owned by a pool, Disposes so the backing array can be recycled.
 	/// Span mode: No-op (stack lifetime managed automatically).
 	/// Mem mode: Delegates to wrapped Mem.Dispose().
@@ -1309,6 +1349,14 @@ public ref struct ZeroAllocMem<T> : IDisposable
 	private DisposeGuard _disposeGuard;
 #endif
 
+
+	public static ZeroAllocMem<T> Clone(UnifiedMem<T> toClone)
+	{
+		var copy = ZeroAllocMem<T>.Allocate(toClone.Length);
+		toClone.Span.CopyTo(copy.Span);
+		return copy;
+	}
+
 	public static ZeroAllocMem<T> Allocate(int size, AllocationMode allocationMode = AllocationMode.Default)
 	{
 		return new ZeroAllocMem<T>(SpanOwner<T>.Allocate(size, allocationMode));
@@ -1359,38 +1407,82 @@ public ref struct ZeroAllocMem<T> : IDisposable
 		return new UnifiedMem<T>(slicedSpan);
 	}
 
-	public ZeroAllocMem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
+	/// <summary>
+	/// Applies the specified mapping function to each element of this ZeroAllocMem, writing results to the provided output buffer (zero-allocation version)
+	/// </summary>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this ZeroAllocMem.</param>
+	/// <param name="mapFunc">Function that maps each element by reference, returning result by reference</param>
+	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
 	{
+		__.ThrowIfNot(toReturn.Length == Count, "toReturn must be the same length as this ZeroAllocMem");
 		var thisSpan = Span;
-		var toReturn = ZeroAllocMem<TResult>.Allocate(Count);
 		var toReturnSpan = toReturn.Span;
 		for (var i = 0; i < Count; i++)
 		{
 			ref var mappedResult = ref mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
 		}
+	}
+
+	/// <summary>
+	/// Allocates a new pooled ZeroAllocMem by applying the specified mapping function to each element of this ZeroAllocMem
+	/// </summary>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="mapFunc">Function that maps each element by reference, returning result by reference</param>
+	/// <returns>New pooled memory containing mapped results</returns>
+	public ZeroAllocMem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
+	{
+		var toReturn = ZeroAllocMem<TResult>.Allocate(Count);
+		Map(toReturn, mapFunc);
 		return toReturn;
 	}
 
-	public ZeroAllocMem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
+	/// <summary>
+	/// Applies the specified mapping function to each element of this ZeroAllocMem, writing results to the provided output buffer (zero-allocation version)
+	/// </summary>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this ZeroAllocMem.</param>
+	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
+	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
 	{
+		__.ThrowIfNot(toReturn.Length == Count, "toReturn must be the same length as this ZeroAllocMem");
 		var thisSpan = Span;
-		var toReturn = ZeroAllocMem<TResult>.Allocate(Count);
 		var toReturnSpan = toReturn.Span;
 		for (var i = 0; i < Count; i++)
 		{
 			var mappedResult = mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
 		}
+	}
+
+	/// <summary>
+	/// Allocates a new pooled ZeroAllocMem by applying the specified mapping function to each element of this ZeroAllocMem
+	/// </summary>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
+	/// <returns>New pooled memory containing mapped results</returns>
+	public ZeroAllocMem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
+	{
+		var toReturn = ZeroAllocMem<TResult>.Allocate(Count);
+		Map(toReturn, mapFunc);
 		return toReturn;
 	}
 
-	public ZeroAllocMem<TResult> MapWith<TOther, TResult>(UnifiedMem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	/// <summary>
+	/// Maps two memory instances in parallel using the specified function, writing results to the provided output buffer (zero-allocation version). All must have the same length.
+	/// </summary>
+	/// <typeparam name="TOther">Element type of the other memory</typeparam>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this ZeroAllocMem.</param>
+	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
+	/// <param name="mapFunc">Function that maps pairs of elements by reference, returning result by reference</param>
+	public void MapWith<TOther, TResult>(UnifiedMem<TResult> toReturn, UnifiedMem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
+		__.ThrowIfNot(toReturn.Length == Count, "toReturn must be the same length as this ZeroAllocMem");
 		__.ThrowIfNot(otherToMapWith.Length == Count, "otherToMapWith must be the same length as this ZeroAllocMem");
 		var thisSpan = Span;
 		var otherSpan = otherToMapWith.Span;
-		var toReturn = ZeroAllocMem<TResult>.Allocate(Count);
 		var toReturnSpan = toReturn.Span;
 
 		for (var i = 0; i < Count; i++)
@@ -1398,6 +1490,20 @@ public ref struct ZeroAllocMem<T> : IDisposable
 			ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
 			toReturnSpan[i] = mappedResult;
 		}
+	}
+
+	/// <summary>
+	/// Allocates a new pooled ZeroAllocMem by mapping two memory instances in parallel using the specified function. Both must have the same length.
+	/// </summary>
+	/// <typeparam name="TOther">Element type of the other memory</typeparam>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
+	/// <param name="mapFunc">Function that maps pairs of elements by reference, returning result by reference</param>
+	/// <returns>New pooled memory containing mapped results</returns>
+	public ZeroAllocMem<TResult> MapWith<TOther, TResult>(UnifiedMem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	{
+		var toReturn = ZeroAllocMem<TResult>.Allocate(Count);
+		MapWith(toReturn, otherToMapWith, mapFunc);
 		return toReturn;
 	}
 
