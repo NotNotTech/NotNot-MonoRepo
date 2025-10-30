@@ -23,6 +23,7 @@ namespace NotNot.Collections.SpanLike;
 //[DebuggerTypeProxy(typeof(NotNot.Bcl.Collections.Advanced.CollectionDebugView<>))]
 //[DebuggerDisplay("{ToString(),raw}")]
 //[DebuggerDisplay("{ToString(),nq}")]
+[Obsolete("use UnifiedReadMem<T> instead")]
 public readonly struct ReadMem<T> : IDisposable
 {
 	//implicit operators
