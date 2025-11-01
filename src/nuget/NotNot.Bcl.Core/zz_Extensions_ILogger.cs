@@ -173,7 +173,7 @@ public static class zz_Extensions_ILogger
 				}
 
 				//if running XUnit, also write to test output (console)
-				if (__.Test.IsTestingActive)
+				if (TestHelper.isTestingActive)
 				{
 					__.Test.Write($"[{level.ToString().ToUpperInvariant()}] {originalMessage}", objToLog0, objToLog1, objToLog2, sourceMemberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name);
 				}

@@ -46,8 +46,10 @@ public class TestHelper
    }
 
    //private ITestOutputHelper _testOutputHelper;
+   [Obsolete("use InitTest() without parameters, likely no longer needed for xunit?")]
    private object _testOutputHelper;
 
+   [Obsolete("use InitTest() without parameters, likely no longer needed for xunit?")]
    IEnumerable<string> _ignoreOutputRegex;
 
    //  /// <summary>
@@ -70,7 +72,7 @@ public class TestHelper
    //  }
    public void InitTest()
    {
-      IsTestingActive = true;
+      isTestingActive = true;
 
    }
 
@@ -83,39 +85,39 @@ public class TestHelper
       _ignoreOutputRegex = null;
    }
 
-   private static readonly Lazy<bool> _isXunitTest = new(() =>
-   {
-      return AppDomain.CurrentDomain.GetAssemblies()
-          .Any(a => a.FullName?.StartsWith("xunit.", StringComparison.OrdinalIgnoreCase) == true);
-   });
 
-   public static bool IsXunitTest => _isXunitTest.Value;
-
-   private bool? _isTestingActive;
-   public bool IsTestingActive
+   private static bool? _isXUnitTest;
+   public static bool IsXunitTest
    {
       get
       {
-         if (_isTestingActive.HasValue is false)
+         if (_isXUnitTest.HasValue is false)
          {
-            if (_testOutputHelper is not null || _isXunitTest.Value)
-            {
-               _isTestingActive = true;
-            }
-            else
-            {
-               _isTestingActive = false;
-            }
+            _isXUnitTest = AppDomain.CurrentDomain.GetAssemblies()
+          .Any(a => a.FullName?.StartsWith("xunit.", StringComparison.OrdinalIgnoreCase) == true);
          }
-
-
-         return _isTestingActive.Value;
-
+         return _isXUnitTest.Value;
       }
-      set
+   }
+   /// <summary>
+   /// set to true by running `__.Test.InitTest() at test runner startup.`must be a static value type, otherwise some runtimes (Godot) can't unload properly
+   /// </summary>
+   public static bool isTestingActive
+   {
+      //   get; set;
+      get
       {
-         _isTestingActive = value;
+#if CHECKED
+         if (field is false && IsXunitTest)
+         {
+            __.Assert("running XUnit but you did not call `__.Test.InitTest()` at test startup.  Please call this to properly init runtime test notification.");
+         }
+#endif
+         return field;
+
+
       }
+      set;
    }
 
 
