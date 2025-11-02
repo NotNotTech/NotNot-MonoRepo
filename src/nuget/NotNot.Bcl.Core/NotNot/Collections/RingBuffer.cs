@@ -10,50 +10,15 @@ using NotNot;
 using NotNot.Collections;
 using NotNot.Collections.SpanLike;
 
-namespace NotNot.Collections.SpanLike;
+namespace NotNot.Collections;
 
 /// <summary>
-/// A circular buffer (ring buffer) backed by a caller-provided <see cref="Span{T}"/> buffer.
-/// Provides efficient FIFO operations with wraparound for zero-allocation queue implementations.
+/// wrap an array as a ring buffer.
 /// </summary>
-/// <typeparam name="T">The type of elements in the ring buffer.</typeparam>
-/// <remarks>
-/// SpanRingBuffer wraps a Span buffer with head/tail indices to create a circular view.
-/// Elements are enqueued at the tail and dequeued from the head, with automatic wraparound
-/// when indices reach the buffer end.
-///
-/// Key characteristics:
-/// - Zero heap allocation (uses caller-provided buffer)
-/// - Fixed capacity (determined by buffer size)
-/// - Efficient FIFO operations without element shifting
-/// - Throws on overflow (Enqueue when full) or underflow (Dequeue when empty)
-/// - Aggressive inlining for minimal overhead
-/// - Safe variants (TryEnqueue, TryDequeue) for defensive programming
-///
-/// Typical usage with stackalloc:
-/// <code>
-/// Span&lt;int&gt; buffer = stackalloc int[128];
-/// var ring = new SpanRingBuffer&lt;int&gt;(buffer);
-/// ring.Enqueue(42);
-/// ring.Enqueue(100);
-/// int first = ring.Dequeue(); // 42 (FIFO order)
-/// </code>
-///
-/// Limitations:
-/// - ref struct constraints apply (cannot be boxed, stored in fields, used in async methods)
-/// - Fixed capacity (no dynamic growth)
-/// - Buffer lifetime must exceed SpanRingBuffer usage (typically same stack frame)
-///
-/// IMPORTANT: SpanRingBuffer is a value type (ref struct). Passing by value creates an independent copy
-/// with its own _head, _tail, and _count fields. Always pass by ref or use within a single scope to avoid state divergence.
-/// <code>
-/// void BadExample(SpanRingBuffer&lt;int&gt; ring) { ring.Enqueue(1); } // Copy, caller won't see enqueue
-/// void GoodExample(ref SpanRingBuffer&lt;int&gt; ring) { ring.Enqueue(1); } // By ref, caller sees enqueue
-/// </code>
-/// </remarks>
-public ref struct SpanRingBuffer<T>
+/// <typeparam name="T"></typeparam>
+public class RingBuffer<T>
 {
-   private Span<T> _buffer;
+   private T[] _buffer;
    private int _head;  // Index where next dequeue happens
    private int _tail;  // Index where next enqueue happens
    private int _count; // Number of elements currently in buffer
@@ -67,13 +32,18 @@ public ref struct SpanRingBuffer<T>
    /// The buffer should typically be allocated via stackalloc for zero-allocation semantics.
    /// </remarks>
    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-   public SpanRingBuffer(Span<T> buffer)
+   public RingBuffer(int capacity) :
+      this(new T[capacity])
+   {
+   }
+   public RingBuffer(T[] buffer)
    {
       _buffer = buffer;
       _head = 0;
       _tail = 0;
       _count = 0;
    }
+
 
    public ref T this[int index]
    {
@@ -84,7 +54,7 @@ public ref struct SpanRingBuffer<T>
          {
             throw __.Throw($"Index was out of range. Must be non-negative and less than the size of the collection. Index: {index}, Count: {_count}");
          }
-         int actualIndex = (_head + index) % _buffer.Length;
+         var actualIndex = (_head + index) % _buffer.Length;
          return ref _buffer[actualIndex];
       }
    }
@@ -123,8 +93,6 @@ public ref struct SpanRingBuffer<T>
       _count++;
       return true;
    }
-
-
 
 
    /// <summary>
@@ -343,14 +311,14 @@ public ref struct SpanRingBuffer<T>
       if (_head < _tail)
       {
          // No wraparound: simple slice copy
-         _buffer.Slice(_head, _count).CopyTo(destination);
+         _buffer.AsSpan().Slice(_head, _count).CopyTo(destination);
       }
       else
       {
          // Wraparound: copy head to end, then start to tail
          var firstPartLength = _buffer.Length - _head;
-         _buffer.Slice(_head, firstPartLength).CopyTo(destination);
-         _buffer.Slice(0, _tail).CopyTo(destination.Slice(firstPartLength));
+         _buffer.AsSpan().Slice(_head, firstPartLength).CopyTo(destination);
+         _buffer.AsSpan().Slice(0, _tail).CopyTo(destination.Slice(firstPartLength));
       }
 
       return _count;
