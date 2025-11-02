@@ -16,36 +16,6 @@ public class ObjectPool : IDisposeGuard
    /// </summary>
    private ConcurrentDictionary<Type, Action<object>?> _clearDelegateCache = new();
 
-
-   /// <summary>
-   /// helper for the .GetUsing() method
-   /// </summary>
-   public struct UsingDisposable<T> : IDisposable where T : class
-   {
-      private readonly ObjectPool _pool;
-      public readonly T Item;
-      private Action<T>? _clearAction;
-      private readonly bool _skipAutoClear;
-
-      public UsingDisposable(ObjectPool pool, T item, Action<T>? clearAction = null, bool skipAutoClear = false)
-      {
-         _pool = pool;
-         Item = item;
-         _clearAction = clearAction;
-         _skipAutoClear = skipAutoClear;
-      }
-
-      public void Dispose()
-      {
-         if (_clearAction != null)
-         {
-            _clearAction(Item);
-         }
-
-         _pool.Return_New(Item, _skipAutoClear);
-      }
-   }
-
    /// <summary>
    /// Disposable wrapper for rented objects. Use with `using` pattern to auto-return to pool.
    /// </summary>
@@ -77,7 +47,7 @@ public class ObjectPool : IDisposeGuard
             _clearAction(Value);
          }
 
-         _pool.Return_New(Value, _skipAutoClear);
+         _pool.Return(Value, _skipAutoClear);
 
 #if CHECKED
          _disposeGuard.Dispose();
@@ -189,29 +159,15 @@ public class ObjectPool : IDisposeGuard
    }
 
    /// <summary>
-   ///    Get but can be wrapped in a using block.  will be returned to the pool when the using block is exited.
-   /// </summary>
-   /// <typeparam name="T"></typeparam>
-   /// <param name="item"></param>
-   /// <param name="clearAction">optional, for clearing the item before returning to the pool</param>
-   /// <param name="skipAutoClear">If false (default), will auto-clear the object when returned. If true, skip auto-clear.</param>
-   /// <returns></returns>
-   public UsingDisposable<T> GetUsing<T>(out T item, Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
-   {
-      item = Get<T>();
-      return new UsingDisposable<T>(this, item, clearAction, skipAutoClear);
-   }
-
-   /// <summary>
    ///    Rent an object from the pool. Use with `using` pattern to auto-return to pool.
    /// </summary>
    /// <typeparam name="T"></typeparam>
    /// <param name="clearAction">optional, for clearing the item before returning to the pool</param>
-   /// <param name="skipAutoClear">If false (default), will auto-clear the object when returned. If true, skip auto-clear.</param>
+   /// <param name="skipAutoClear">If false (default), will auto call `.Clear()` on the object when returned, if the method exists.</param>
    /// <returns></returns>
-   public Rented<T> Rent<T>(Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
+   public Rented<T> Rent<T>(out T item, Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
    {
-      var item = Get<T>();
+      item = Get<T>();
       return new Rented<T>(this, item, clearAction, skipAutoClear);
    }
 
@@ -230,23 +186,14 @@ public class ObjectPool : IDisposeGuard
 
 
 
-   public void Return<T>(T item)
-   {
-      if (item is null) { return; }
-
-      var queue = _GetItemTypePool<T>();
-      queue.Enqueue(item);
-   }
-
-
    /// <summary>
    /// Return an object to the pool with optional auto-clear support.
    /// If skipAutoClear is false (default), attempts to call Clear() method on the object before returning to pool.
    /// </summary>
    /// <typeparam name="T">Type of object to return</typeparam>
    /// <param name="item">The object to return to the pool</param>
-   /// <param name="skipAutoClear">If false, will attempt to auto-clear the object. If true, object returned as-is.</param>
-   public void Return_New<T>(T item, bool skipAutoClear = false)
+   /// <param name="skipAutoClear">If false (default), will auto call `.Clear()` on the object when returned, if the method exists.</param>
+   public void Return<T>(T item, bool skipAutoClear = false)
    {
       if (item is null) { return; }
 

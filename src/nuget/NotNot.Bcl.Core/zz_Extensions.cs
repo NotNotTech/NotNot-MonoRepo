@@ -6011,7 +6011,7 @@ public static class zz_Extensions_String
       //pass the finalLogMessage and all the values to the Microsoft.Extensions.Logging.ILogger.Log method
       //that ILogger.Log has the following signature: public static void Log(this ILogger logger, LogLevel logLevel, Exception? exception, string? message, params object?[] args)
 
-      using (__.pool.GetUsing<List<(string name, object? value)>>(out var argPairs, list => list.Clear()))
+      using (__.pool.Rent<List<(string name, object? value)>>(out var argPairs))
       {
          if (argPairs.Count > 0)
          {
