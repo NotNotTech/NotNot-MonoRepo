@@ -11,10 +11,10 @@ namespace NotNot._internal;
 [ThreadSafe]
 public class ObjectPool : IDisposeGuard
 {
-	/// <summary>
-	/// Cache for compiled Clear() method delegates. Shared across all ObjectPool instances for performance.
-	/// </summary>
-	private static readonly ConcurrentDictionary<Type, Action<object>?> _clearDelegateCache = new();
+   /// <summary>
+   /// Cache for compiled Clear() method delegates
+   /// </summary>
+   private ConcurrentDictionary<Type, Action<object>?> _clearDelegateCache = new();
 
 
    /// <summary>
@@ -153,6 +153,9 @@ public class ObjectPool : IDisposeGuard
       _itemStorage = null!;
       _arrayStore.Clear();
       _arrayStore = null!;
+
+      _clearDelegateCache.Clear();
+      _clearDelegateCache = null;
    }
    public bool IsDisposed { get; private set; } = false;
 
@@ -267,6 +270,22 @@ public class ObjectPool : IDisposeGuard
 
       var clearAction = _clearDelegateCache.GetOrAdd(typeof(T), type =>
       {
+         // Handle arrays specially - use Array.Clear()
+         if (type.IsArray)
+         {
+            // Create compiled delegate: (object obj) => Array.Clear((Array)obj, 0, ((Array)obj).Length)
+            var param = Expression.Parameter(typeof(object), "obj");
+            var arrayParam = Expression.Convert(param, typeof(Array));
+            var lengthExpr = Expression.Property(arrayParam, "Length");
+            var clearCall = Expression.Call(
+               typeof(Array).GetMethod("Clear", new[] { typeof(Array), typeof(int), typeof(int) })!,
+               arrayParam,
+               Expression.Constant(0),
+               lengthExpr);
+
+            return Expression.Lambda<Action<object>>(clearCall, param).Compile();
+         }
+
          // Look for public instance Clear() method with no parameters
          var clearMethod = type.GetMethod("Clear",
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy,
@@ -275,11 +294,11 @@ public class ObjectPool : IDisposeGuard
          if (clearMethod == null) { return null; }
 
          // Create compiled delegate for performance (~10-20ns vs ~100-1000ns for MethodInfo.Invoke)
-         var param = Expression.Parameter(typeof(object), "obj");
-         var castParam = Expression.Convert(param, type);
+         var param2 = Expression.Parameter(typeof(object), "obj");
+         var castParam = Expression.Convert(param2, type);
          var callExpr = Expression.Call(castParam, clearMethod);
 
-         return Expression.Lambda<Action<object>>(callExpr, param).Compile();
+         return Expression.Lambda<Action<object>>(callExpr, param2).Compile();
       });
 
       // Invoke compiled delegate if Clear method exists
@@ -337,10 +356,10 @@ public class ObjectPool : IDisposeGuard
 [ThreadSafe]
 public class StaticPool
 {
-	/// <summary>
-	/// Cache for compiled Clear() method delegates. Shared across all StaticPool instances for performance.
-	/// </summary>
-	private static readonly ConcurrentDictionary<Type, Action<object>?> _clearDelegateCache = new();
+   /// <summary>
+   /// Cache for compiled Clear() method delegates. Shared across all StaticPool instances for performance.
+   /// </summary>
+   private static readonly ConcurrentDictionary<Type, Action<object>?> _clearDelegateCache = new();
 
 
    public struct UsingDisposable<T> : IDisposable where T : class
@@ -529,6 +548,22 @@ public class StaticPool
 
       var clearAction = _clearDelegateCache.GetOrAdd(typeof(T), type =>
       {
+         // Handle arrays specially - use Array.Clear()
+         if (type.IsArray)
+         {
+            // Create compiled delegate: (object obj) => Array.Clear((Array)obj, 0, ((Array)obj).Length)
+            var param = Expression.Parameter(typeof(object), "obj");
+            var arrayParam = Expression.Convert(param, typeof(Array));
+            var lengthExpr = Expression.Property(arrayParam, "Length");
+            var clearCall = Expression.Call(
+               typeof(Array).GetMethod("Clear", new[] { typeof(Array), typeof(int), typeof(int) })!,
+               arrayParam,
+               Expression.Constant(0),
+               lengthExpr);
+
+            return Expression.Lambda<Action<object>>(clearCall, param).Compile();
+         }
+
          // Look for public instance Clear() method with no parameters
          var clearMethod = type.GetMethod("Clear",
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy,
@@ -537,11 +572,11 @@ public class StaticPool
          if (clearMethod == null) { return null; }
 
          // Create compiled delegate for performance (~10-20ns vs ~100-1000ns for MethodInfo.Invoke)
-         var param = Expression.Parameter(typeof(object), "obj");
-         var castParam = Expression.Convert(param, type);
+         var param2 = Expression.Parameter(typeof(object), "obj");
+         var castParam = Expression.Convert(param2, type);
          var callExpr = Expression.Call(castParam, clearMethod);
 
-         return Expression.Lambda<Action<object>>(callExpr, param).Compile();
+         return Expression.Lambda<Action<object>>(callExpr, param2).Compile();
       });
 
       // Invoke compiled delegate if Clear method exists

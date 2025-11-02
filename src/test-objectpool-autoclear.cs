@@ -67,6 +67,19 @@ var reusedObj = pool.Get<MyClassWithoutClear>();
 Console.WriteLine($"  Value preserved: {reusedObj.Value} (should be 42)");
 Console.WriteLine($"  ✓ Test 5: {(reusedObj.Value == 42 ? "PASS" : "FAIL")}\n");
 
+// Test 6: Array auto-clear
+Console.WriteLine("Test 6: Array auto-clear with Return_New");
+var arr = pool.Get<int[]>() ?? new int[5];
+if (arr.Length < 5) { arr = new int[5]; pool.Return_New(arr); arr = pool.Get<int[]>() ?? new int[5]; }
+for (int i = 0; i < arr.Length; i++) { arr[i] = i + 100; }
+Console.WriteLine($"  Before return: arr[0]={arr[0]}, arr[4]={arr[4]}");
+pool.Return_New(arr);
+var reusedArr = pool.Get<int[]>();
+Console.WriteLine($"  After return: arr[0]={reusedArr[0]}, arr[4]={reusedArr[4]} (should be 0, 0)");
+Console.WriteLine($"  Same instance: {object.ReferenceEquals(arr, reusedArr)} (should be True)");
+Console.WriteLine($"  ✓ Test 6: {(reusedArr[0] == 0 && reusedArr[4] == 0 && object.ReferenceEquals(arr, reusedArr) ? "PASS" : "FAIL")}\n");
+
+
 Console.WriteLine("========================================");
 Console.WriteLine("All tests completed!");
 
