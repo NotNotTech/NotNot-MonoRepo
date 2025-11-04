@@ -91,32 +91,35 @@ public class SerializationHelper
 	/// configure sane defaults for http json options (de)serializing post body
 	/// </summary>
 	/// <param name="options"></param>
+	[Obsolete("use yourOptions._CopyFrom(__.SerializationHelper._roundtripJsonOptions), or _logJsonOptions directly",true)]
 	public void ConfigureJsonOptions(JsonSerializerOptions options)
 	{
-		//be forgiving in parsing user json
-		options.ReadCommentHandling = JsonCommentHandling.Skip;
-		options.AllowTrailingCommas = true;
-		options.PropertyNameCaseInsensitive = true;
-		options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-		options.MaxDepth = 10;
-		options.NumberHandling = JsonNumberHandling.AllowReadingFromString;
-		options.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-		options.UnknownTypeHandling = JsonUnknownTypeHandling.JsonElement;
-		options.UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip;
-		options.WriteIndented = true;
-		var newConverters = new List<JsonConverter>
-		{
-			new ObjConverter<MethodBase>(value => value.Name),
-			new ObjConverter<Type>(value => value.FullName),
-			new ObjConverter<StackTrace>(value => value.GetFrames()),
-			new ObjConverter<StackFrame>(value =>
-				$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
-			//new ObjConverter<StackFrame>((value) => $"{value.ToString()}\n"),
-		};
-		foreach (var converter in newConverters)
-		{
-			options.Converters.Add(converter);
-		}
+		throw __.placeholder.NotImplemented();
+
+		////be forgiving in parsing user json
+		//options.ReadCommentHandling = JsonCommentHandling.Skip;
+		//options.AllowTrailingCommas = true;
+		//options.PropertyNameCaseInsensitive = true;
+		//options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+		//options.MaxDepth = 10;
+		//options.NumberHandling = JsonNumberHandling.Strict;
+		//options.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+		//options.UnknownTypeHandling = JsonUnknownTypeHandling.JsonElement;
+		//options.UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip;
+		//options.WriteIndented = true;
+		//var newConverters = new List<JsonConverter>
+		//{
+		//	new ObjConverter<MethodBase>(value => value.Name),
+		//	new ObjConverter<Type>(value => value.FullName),
+		//	new ObjConverter<StackTrace>(value => value.GetFrames()),
+		//	new ObjConverter<StackFrame>(value =>
+		//		$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
+		//	//new ObjConverter<StackFrame>((value) => $"{value.ToString()}\n"),
+		//};
+		//foreach (var converter in newConverters)
+		//{
+		//	options.Converters.Add(converter);
+		//}
 
 	}
 
@@ -153,31 +156,43 @@ public class SerializationHelper
 	};
 
 	/// <summary>
-	/// how the serialization helper should convert objects to json (for use with logging, etc).
-	/// <para>if you have a custom type that needs to be handled, add it to _jsonOptions.Converters at application start up.</para>
+	/// our general, standard way of serializing to/from JSON. 
+	/// <para>if you have a custom type that needs to be handled, add it to _roundtripJsonOptions.Converters at application start up.</para>
+	/// <para>use the jsonSerializerOptions _CopyFrom() extension method to copy this to your existing options, eg: `yourOptions._CopyFrom(__.SerializationHelper._roundtripJsonOptions)`</para>
 	/// </summary>
 	public JsonSerializerOptions _roundtripJsonOptions = new()
 	{
-		MaxDepth = 10,
-		IncludeFields = true,
-		ReferenceHandler = ReferenceHandler.IgnoreCycles,
+		
 
 		Converters = {
 			new CaseInsensitiveEnumConverter(),
 			new NumberHandlingConverter(),
+			new JsonStringEnumConverter(),
 			//VIBE_CRITICAL: Add Maybe converters for proper deserialization
 			new MaybeNonGenericJsonConverter(),
-			new MaybeJsonConverterFactory()
+			new MaybeJsonConverterFactory(),
+			//VIBE_CRITICAL: these objects below do not get serialized properly, leading to .net crashes, so need to summarize them
+			new ObjConverter<MethodBase>(value => value.Name),
+			new ObjConverter<Type>(value => value.FullName),
+			new ObjConverter<StackTrace>(value => value.GetFrames()),
+			new ObjConverter<StackFrame>(value =>
+				$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
+
 		},
 
 		AllowTrailingCommas = true,
 		WriteIndented = true,
 		NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals | JsonNumberHandling.AllowReadingFromString,
-
-
 		ReadCommentHandling = JsonCommentHandling.Skip,
 		PropertyNameCaseInsensitive = true,
 		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+		MaxDepth = 10,
+		IncludeFields = true,
+		ReferenceHandler = ReferenceHandler.IgnoreCycles,
+		DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+		UnknownTypeHandling = JsonUnknownTypeHandling.JsonElement,
+		UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
+		
 
 	};
 

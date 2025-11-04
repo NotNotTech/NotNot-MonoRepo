@@ -19,7 +19,7 @@ public class Placeholder
 		//throw new NotImplementedException();
 		//__.GetLogger._EzWarn("DEPRECATED");
 		__.GetLogger<Placeholder>()._EzWarn("DEPRECATED", sourceMemberName: sourceMemberName, sourceFilePath: sourceFilePath,
-			sourceLineNumber: sourceLineNumber);
+			sourceLineNumber: sourceLineNumber);		
 	}
 
 	[DebuggerHidden]
