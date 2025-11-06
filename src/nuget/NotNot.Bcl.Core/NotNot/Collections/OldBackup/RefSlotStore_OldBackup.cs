@@ -306,7 +306,7 @@ public class RefSlotStore_OldBackup<T> : RefSlotStore_OldBackup
 			p_element.slotData = data;
 
 
-			OnAlloc.Invoke(toReturn);
+			OnAlloc.Raise(toReturn);
 
 			return toReturn;
 		}
@@ -431,7 +431,7 @@ public class RefSlotStore_OldBackup<T> : RefSlotStore_OldBackup
 			}
 
 
-			OnFree.Invoke(slot);
+			OnFree.Raise(slot);
 
 			_freeSlots.Push(slot.Index); // **Mark slot as free**
 			_storage[slot.Index] = default; // **Clear the slot's data**
@@ -612,7 +612,7 @@ public class RefSlotStore_ArchetypeOptimized_OldBackup<T> : RefSlotStore_OldBack
 				slotSpan[i] = hSlot;
 			}
 
-			AfterAlloc.Invoke(toReturn);
+			AfterAlloc.Raise(toReturn);
 
 
 			return toReturn;//.AsReadMem();
@@ -740,7 +740,7 @@ public class RefSlotStore_ArchetypeOptimized_OldBackup<T> : RefSlotStore_OldBack
 				_storage[slot.Index] = default; // **Clear the slot's data**
 			}
 
-			AfterFree.Invoke(slotsToFree);
+			AfterFree.Raise(slotsToFree);
 		}
 	}
 

@@ -225,7 +225,7 @@ public class RefSlotStore<T> : RefSlotStore
 			p_element.slotData = data;
 
 
-			OnAlloc.Invoke(toReturn);
+			OnAlloc.Raise(toReturn);
 
 			return toReturn;
 		}
@@ -346,7 +346,7 @@ public class RefSlotStore<T> : RefSlotStore
 			}
 
 
-			OnFree.Invoke(slot);
+			OnFree.Raise(slot);
 
 			_freeSlots.Push(slot.Index); // **Mark slot as free**
 			_storage[slot.Index] = default; // **Clear the slot's data**
