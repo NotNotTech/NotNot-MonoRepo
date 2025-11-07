@@ -181,5 +181,10 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 		// Clear handle on this copy to make IsAllocated accurate
 		// Note: other struct copies will still have the old handle value
 		_slotHandle = default;
+
+
+      // Run incremental validation in CHECKED builds to detect usage errors
+      _ValidateNextSlots(5);
+   
 	}
 }
