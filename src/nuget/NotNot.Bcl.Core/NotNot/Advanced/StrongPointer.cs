@@ -6,6 +6,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using NotNot.Collections;
 
@@ -72,14 +73,42 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 
 			var slot = span[_cleanupCursor];
 
+
+		
+			
 			var target = slot.slotData;
-			__.AssertIfNot(target != null, "StrongPointer target is null - was it disposed without freeing the StrongPointer?");
-			__.AssertIfNot(target.IsDisposed == false, "StrongPointer target is disposed - was it disposed without freeing the StrongPointer?");
-			if (target.IsDisposed)
-			{
-				// Disposed reference found - free the slot, even though this should not happen if used correctly
-				_store.Free(slot.handle);
-			}
+			ref var r_handle = ref slot.handle;
+         //////////////NEW
+         var handleInfo = _store._IsHandleValid(r_handle);
+         if (r_handle.IsAllocated)
+         {
+            __.AssertIfNot(handleInfo.isValid && target != null && target.IsDisposed is false, "StrongPointer target is null - was it disposed without freeing the StrongPointer?");
+            if (target.IsDisposed)
+            {
+               // Disposed reference found - free the slot, even though this should not happen if used correctly
+               _store.Free(slot.handle);
+            }
+         }
+         else
+         {
+            __.AssertIfNot(handleInfo.isValid is false && target == null, "StrongPointer target is not null but handle is not allocated - inconsistent state.");
+
+         }
+
+
+   //      //	////////old
+   //      __.AssertIfNot(target != null, "StrongPointer target is null - was it disposed without freeing the StrongPointer?");
+			//__.AssertIfNot(target.IsDisposed == false, "StrongPointer target is disposed - was it disposed without freeing the StrongPointer?");
+			//if (target.IsDisposed)
+			//{
+			//	// Disposed reference found - free the slot, even though this should not happen if used correctly
+			//	_store.Free(slot.handle);
+			//}
+
+
+
+
+
 			_cleanupCursor++;
 		}
 	}
@@ -88,7 +117,9 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 	public static void OnFree(StrongPointer<T> managedPointer)
 	{
 		_store.Free(managedPointer._slotHandle);
-	}
+      // Run incremental cleanup of 5 slots
+      _GCNextSlots(5);
+   }
 
 	/// <summary>
 	/// Internal handle to the slot in RefSlotStore
@@ -105,8 +136,7 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 	public bool CheckIsAlive()
 	{
 		if (!IsAllocated) return false;
-		//var response = _store._IsHandleValid(_slotHandle).isValid;
-		return _store._AsSpan_Unsafe()[_slotHandle.Index].handle == _slotHandle;
+		return _store._IsHandleValid(_slotHandle).isValid;
 	}
 
 	[Conditional("DEBUG")]
@@ -141,11 +171,11 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 			throw new ObjectDisposedException("Target has been disposed already");
 		}
 
-		// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
-		lock (_allocLock)
-		{
-			_GCNextSlots(3);
-		}
+		//// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
+		//lock (_allocLock)
+		//{
+		//	_GCNextSlots(3);
+		//}
 
 		return target;
 	}
@@ -156,6 +186,7 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 		if (IsAllocated)
 		{
 			OnFree(this);
+			_slotHandle = default; // Clear handle to prevent double-dispose and make IsAllocated accurate
 		}
 	}
 }
