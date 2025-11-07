@@ -1,37 +1,24 @@
 using Xunit;
-using NotNot.Collections;
+using NotNot.Collections.SpanLike;
 
-namespace NotNot.Bcl.Test.Simple;
+namespace NotNot.Bcl.Test.Simple.Collections;
 
 /// <summary>
-/// Tests for RingBuffer{T} circular buffer.
-/// Covers basic operations, discard-oldest feature, wraparound edge cases, and state consistency.
+/// Tests for SpanRingBuffer{T} stack-allocated circular buffer.
+/// Covers basic operations, discard-oldest feature, wraparound edge cases, state consistency, and ref struct semantics.
 /// </summary>
-public class RingBufferTests
+public class SpanRingBufferTests
 {
     #region Basic Construction and Properties Tests
 
     [Fact]
-    public void Constructor_WithCapacity_InitializesEmpty()
-    {
-        // Arrange & Act
-        var ring = new RingBuffer<int>(10);
-
-        // Assert
-        Assert.Equal(10, ring.Capacity);
-        Assert.Equal(0, ring.Count);
-        Assert.True(ring.IsEmpty);
-        Assert.False(ring.IsFull);
-    }
-
-    [Fact]
-    public void Constructor_WithArray_InitializesEmpty()
+    public void Constructor_WithSpan_InitializesEmpty()
     {
         // Arrange
-        var buffer = new int[10];
+        Span<int> buffer = stackalloc int[10];
 
         // Act
-        var ring = new RingBuffer<int>(buffer);
+        var ring = new SpanRingBuffer<int>(buffer);
 
         // Assert
         Assert.Equal(10, ring.Capacity);
@@ -48,7 +35,8 @@ public class RingBufferTests
     public void Enqueue_SingleItem_IncreasesCount()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
 
         // Act
         ring.Enqueue(42);
@@ -63,7 +51,8 @@ public class RingBufferTests
     public void Dequeue_SingleItem_ReturnsCorrectValue()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(42);
 
         // Act
@@ -79,7 +68,8 @@ public class RingBufferTests
     public void EnqueueDequeue_MaintainsFifoOrder()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -94,7 +84,8 @@ public class RingBufferTests
     public void Enqueue_FillToCapacity_SetsFull()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
 
         // Act
         ring.Enqueue(1);
@@ -110,7 +101,8 @@ public class RingBufferTests
     public void Enqueue_BeyondCapacity_Throws()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -132,7 +124,8 @@ public class RingBufferTests
     public void TryEnqueue_BeyondCapacity_ReturnsFalse()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -149,7 +142,8 @@ public class RingBufferTests
     public void Dequeue_EmptyBuffer_Throws()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
 
         // Act & Assert - LoLoRoot in test mode throws DebugAssertException
         bool threw = false;
@@ -168,7 +162,8 @@ public class RingBufferTests
     public void TryDequeue_EmptyBuffer_ReturnsFalse()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
 
         // Act
         bool result = ring.TryDequeue(out var value);
@@ -186,7 +181,8 @@ public class RingBufferTests
     public void Enqueue_WithDiscardOldest_RemovesOldestItem()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -206,7 +202,8 @@ public class RingBufferTests
     public void Enqueue_WithDiscardOldest_MultipleDiscards_MaintainsFifo()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -227,7 +224,8 @@ public class RingBufferTests
     public void Enqueue_WithDiscardOldest_OnNonFullBuffer_DoesNotDiscard()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
 
         // Act
@@ -243,7 +241,8 @@ public class RingBufferTests
     public void Enqueue_WithoutDiscardOldest_OnFullBuffer_Throws()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -265,7 +264,8 @@ public class RingBufferTests
     public void Enqueue_WithDiscardOldestFalse_OnFullBuffer_Throws()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -291,7 +291,8 @@ public class RingBufferTests
     public void TryEnqueue_WithDiscardOldest_RemovesOldestItem()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -311,7 +312,8 @@ public class RingBufferTests
     public void TryEnqueue_WithDiscardOldest_AlwaysSucceeds()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -327,7 +329,8 @@ public class RingBufferTests
     public void TryEnqueue_WithoutDiscardOldest_OnFullBuffer_ReturnsFalse()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -345,7 +348,8 @@ public class RingBufferTests
     public void TryEnqueue_WithDiscardOldestFalse_OnFullBuffer_ReturnsFalse()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -366,7 +370,8 @@ public class RingBufferTests
     public void Enqueue_WithDiscardOldest_AtWraparoundBoundary_WorksCorrectly()
     {
         // Arrange - fill buffer, dequeue some, enqueue to wraparound
-        var ring = new RingBuffer<int>(4);
+        Span<int> buffer = stackalloc int[4];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -391,7 +396,8 @@ public class RingBufferTests
     public void Enqueue_WithDiscardOldest_AfterMultipleWraparounds_MaintainsCorrectOrder()
     {
         // Arrange - simulate many wraparounds
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         for (int i = 0; i < 100; i++)
         {
             ring.Enqueue(i, discardOldestOnFull: i >= 3);
@@ -412,7 +418,8 @@ public class RingBufferTests
     public void Count_AfterDiscardOldest_RemainsAtCapacity()
     {
         // Arrange
-        var ring = new RingBuffer<int>(5);
+        Span<int> buffer = stackalloc int[5];
+        var ring = new SpanRingBuffer<int>(buffer);
         for (int i = 0; i < 5; i++) ring.Enqueue(i);
 
         // Act
@@ -427,7 +434,8 @@ public class RingBufferTests
     public void IsFull_AfterDiscardOldest_RemainsTrue()
     {
         // Arrange
-        var ring = new RingBuffer<int>(5);
+        Span<int> buffer = stackalloc int[5];
+        var ring = new SpanRingBuffer<int>(buffer);
         for (int i = 0; i < 5; i++) ring.Enqueue(i);
 
         // Act
@@ -441,7 +449,8 @@ public class RingBufferTests
     public void IsEmpty_AfterDiscardAndDequeueAll_ReturnsTrue()
     {
         // Arrange
-        var ring = new RingBuffer<int>(3);
+        Span<int> buffer = stackalloc int[3];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -464,7 +473,8 @@ public class RingBufferTests
     public void Peek_ReturnsOldestWithoutRemoving()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
 
@@ -480,7 +490,8 @@ public class RingBufferTests
     public void TryPeek_OnNonEmptyBuffer_ReturnsTrue()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(42);
 
         // Act
@@ -495,7 +506,8 @@ public class RingBufferTests
     public void Clear_ResetsBufferToEmpty()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
         ring.Enqueue(2);
         ring.Enqueue(3);
@@ -512,7 +524,8 @@ public class RingBufferTests
     public void Indexer_ReturnsItemsInFifoOrder()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(10);
         ring.Enqueue(20);
         ring.Enqueue(30);
@@ -527,7 +540,8 @@ public class RingBufferTests
     public void Indexer_OutOfRange_Throws()
     {
         // Arrange
-        var ring = new RingBuffer<int>(10);
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
         ring.Enqueue(1);
 
         // Act & Assert - LoLoRoot in test mode throws DebugAssertException
@@ -543,26 +557,77 @@ public class RingBufferTests
         Assert.True(threw, "Expected exception for out of range access");
     }
 
-    #endregion
-
-    #region String Type Tests
-
     [Fact]
-    public void RingBuffer_WithStrings_WorksCorrectly()
+    public void CopyTo_LinearizesCircularBuffer()
     {
         // Arrange
-        var ring = new RingBuffer<string>(3);
+        Span<int> buffer = stackalloc int[4];
+        var ring = new SpanRingBuffer<int>(buffer);
+        ring.Enqueue(1);
+        ring.Enqueue(2);
+        ring.Enqueue(3);
+        ring.Enqueue(4);
+        ring.Dequeue(); // Remove 1
+        ring.Enqueue(5); // Causes wraparound
+
+        Span<int> dest = stackalloc int[4];
 
         // Act
-        ring.Enqueue("first");
-        ring.Enqueue("second");
-        ring.Enqueue("third");
-        ring.Enqueue("fourth", discardOldestOnFull: true);
+        int copied = ring.CopyTo(dest);
 
         // Assert
-        Assert.Equal("second", ring.Dequeue());
-        Assert.Equal("third", ring.Dequeue());
-        Assert.Equal("fourth", ring.Dequeue());
+        Assert.Equal(4, copied);
+        Assert.Equal(2, dest[0]);
+        Assert.Equal(3, dest[1]);
+        Assert.Equal(4, dest[2]);
+        Assert.Equal(5, dest[3]);
+    }
+
+    #endregion
+
+    #region Ref Struct Semantics Tests
+
+    [Fact]
+    public void PassByValue_CreatesIndependentCopy()
+    {
+        // Arrange
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
+        ring.Enqueue(1);
+
+        // Act - pass by value to helper method
+        EnqueueByValue(ring, 2);
+
+        // Assert - original ring unchanged (copy was modified)
+        Assert.Equal(1, ring.Count);
+    }
+
+    [Fact]
+    public void PassByRef_ModifiesOriginal()
+    {
+        // Arrange
+        Span<int> buffer = stackalloc int[10];
+        var ring = new SpanRingBuffer<int>(buffer);
+        ring.Enqueue(1);
+
+        // Act - pass by ref to helper method
+        EnqueueByRef(ref ring, 2);
+
+        // Assert - original ring modified
+        Assert.Equal(2, ring.Count);
+        Assert.Equal(1, ring.Dequeue());
+        Assert.Equal(2, ring.Dequeue());
+    }
+
+    // Helper methods for ref struct semantics tests
+    private static void EnqueueByValue(SpanRingBuffer<int> ring, int value)
+    {
+        ring.Enqueue(value); // Modifies copy, not original
+    }
+
+    private static void EnqueueByRef(ref SpanRingBuffer<int> ring, int value)
+    {
+        ring.Enqueue(value); // Modifies original
     }
 
     #endregion
