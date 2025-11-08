@@ -225,7 +225,7 @@ public class RefSlotStore<T> : RefSlotStore
 			p_element.slotData = data;
 
 
-			OnAlloc.Invoke(toReturn);
+			OnAlloc.Raise(toReturn);
 
 			return toReturn;
 		}
@@ -346,7 +346,7 @@ public class RefSlotStore<T> : RefSlotStore
 			}
 
 
-			OnFree.Invoke(slot);
+			OnFree.Raise(slot);
 
 			_freeSlots.Push(slot.Index); // **Mark slot as free**
 			_storage[slot.Index] = default; // **Clear the slot's data**
@@ -481,10 +481,11 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore, IDisposable
 		lock (_lock)
 		{
 			var version = _nextVersion++;
-			if (_nextVersion <= 0)
+			if (version == 0)
 			{
-				_nextVersion = 1;
-			}
+            //we use version 0 as "unallocated", so skip that.
+            version = _nextVersion++;
+         }
 			int index;
 			if (_freeSlots.Count > 0)
 			{

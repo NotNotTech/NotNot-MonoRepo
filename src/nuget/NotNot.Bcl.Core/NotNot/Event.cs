@@ -141,7 +141,7 @@ public class ActionEvent<TArgs>
 	/// <summary>
 	///    only the owner should call this
 	/// </summary>
-	public void Invoke(TArgs args)
+	public void Raise(TArgs args)
 	{
 		if (_storage.Count == 0)
 		{

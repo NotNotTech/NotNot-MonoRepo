@@ -12,6 +12,7 @@
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
 using NotNot.Collections._unused;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.Diagnostics;
 
@@ -125,7 +126,7 @@ public unsafe struct PercentileSampler800<T> where T : unmanaged, IComparable<T>
 ///    https://www.dynatrace.com/news/blog/why-averages-suck-and-percentiles-are-great/
 /// </remarks>
 /// <typeparam name="T"></typeparam>
-public struct Percentiles<T> where T : unmanaged, IComparable<T>
+public struct Percentiles<T> where T : IComparable<T>
 {
 	/// <summary>
 	///    how many samples were present on the input data
@@ -177,8 +178,9 @@ public struct Percentiles<T> where T : unmanaged, IComparable<T>
 
 		var len = samples.Length;
 		sampleCount = len;
-		Span<T> sortedSamples = stackalloc T[len];
-		samples.CopyTo(sortedSamples);
+		using var mem = ZeroAllocMem<T>.Allocate(len);
+		var sortedSamples = mem.Span;
+      samples.CopyTo(sortedSamples);
 		sortedSamples.Sort();
 		p0 = sortedSamples[0];
 		p5 = sortedSamples[5 * len / 100];

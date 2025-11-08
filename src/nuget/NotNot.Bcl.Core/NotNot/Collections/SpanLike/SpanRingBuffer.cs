@@ -167,18 +167,29 @@ public ref struct SpanRingBuffer<T>
    /// Enqueues an item at the tail of the ring buffer.
    /// </summary>
    /// <param name="item">The item to enqueue.</param>
-   /// <exception cref="InvalidOperationException">Thrown when the ring buffer is at full capacity (overflow).</exception>
+   /// <param name="discardOldestOnFull">When true, automatically discards the oldest item when buffer is full instead of throwing.</param>
+   /// <exception cref="InvalidOperationException">Thrown when the ring buffer is at full capacity and discardOldestOnFull is false.</exception>
    /// <remarks>
-   /// This method throws on overflow. For defensive programming, use <see cref="TryEnqueue"/> instead.
+   /// This method throws on overflow unless discardOldestOnFull is true. For defensive programming, use <see cref="TryEnqueue"/> instead.
+   /// When discardOldestOnFull is true, the oldest item is automatically removed to make room for the new item.
    /// The tail automatically wraps to index 0 when reaching buffer end.
    /// Performance: O(1) with aggressive inlining.
    /// </remarks>
    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-   public void Enqueue(T item)
+   public void Enqueue(T item, bool discardOldestOnFull = false)
    {
       if (_count >= _buffer.Length)
       {
-         throw __.Throw($"SpanRingBuffer overflow: count {_count} equals capacity {_buffer.Length}. Consider increasing buffer size.");
+         if (discardOldestOnFull)
+         {
+            // Remove oldest item to make room
+            _head = (_head + 1) % _buffer.Length;
+            _count--;
+         }
+         else
+         {
+            throw __.Throw($"SpanRingBuffer overflow: count {_count} equals capacity {_buffer.Length}. Consider increasing buffer size.");
+         }
       }
       _buffer[_tail] = item;
       _tail = (_tail + 1) % _buffer.Length; // Wraparound
@@ -189,18 +200,29 @@ public ref struct SpanRingBuffer<T>
    /// Attempts to enqueue an item at the tail of the ring buffer.
    /// </summary>
    /// <param name="item">The item to enqueue.</param>
-   /// <returns>True if the item was enqueued successfully; false if the ring buffer is at full capacity.</returns>
+   /// <param name="discardOldestOnFull">When true, automatically discards the oldest item when buffer is full and always succeeds.</param>
+   /// <returns>True if the item was enqueued successfully; false if the ring buffer is at full capacity and discardOldestOnFull is false.</returns>
    /// <remarks>
    /// This is the safe variant of <see cref="Enqueue"/> that returns false instead of throwing on overflow.
+   /// When discardOldestOnFull is true, the oldest item is automatically removed to make room and the method always returns true.
    /// Use this when overflow is a valid condition that should be handled gracefully.
    /// Performance: O(1) with aggressive inlining.
    /// </remarks>
    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-   public bool TryEnqueue(T item)
+   public bool TryEnqueue(T item, bool discardOldestOnFull = false)
    {
       if (_count >= _buffer.Length)
       {
-         return false;
+         if (discardOldestOnFull)
+         {
+            // Remove oldest item to make room
+            _head = (_head + 1) % _buffer.Length;
+            _count--;
+         }
+         else
+         {
+            return false;
+         }
       }
       _buffer[_tail] = item;
       _tail = (_tail + 1) % _buffer.Length;

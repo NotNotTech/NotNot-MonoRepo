@@ -4,90 +4,103 @@
 // [!!] See the LICENSE.md file in the project root for more info.
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
-using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using NotNot.Collections;
 
 namespace NotNot.Advanced;
 
 /// <summary>
-/// a lightweight handle to an owner object.  Useful for 1-to-many references without object reference overhead.
+/// A lightweight handle to an owner object. Useful for 1-to-many references without object reference overhead.
 /// <para>More lightweight than WeakPointer{T} but requires explicit disposal. You must dispose this when done with it, prior to the target being disposed.</para>
 /// <para>Treat this struct as a move-only handle: copying (assignment, pass-by-value, closure captures, etc.) duplicates the SlotHandle but not the ownership. Disposing any copy invalidates every copy, so all other copies must be considered dead immediately.</para>
-/// <para>Disposal is one-shot and not idempotent; double-dispose or using a stale copy will trigger the RefSlotStore guard. Call <see cref="CheckIsAlive"/> if you need to verify a handle before use.</para>
+/// <para>Disposal checks handle validity before freeing, making it safe to call Dispose on stale copies (though using stale copies for other operations will throw).</para>
+/// <para>In CHECKED builds, incremental validation runs during allocation to detect targets disposed without disposing their StrongPointer.</para>
 /// </summary>
-/// <typeparam name="T"></typeparam>
-
+/// <typeparam name="T">The target type, must be a class implementing IDisposeGuard</typeparam>
 public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T>> where T : class, IDisposeGuard
 {
-	private static readonly RefSlotStore<T> _store = new(initialCapacity: 100);
+	private static readonly RefSlotStore_NewSplit<T> _store = new(initialCapacity: 100);
+	
+	// Cursor for incremental validation - tracks position in store for next check
+	private static int _validationCursor = 0;
 
-	// Lock for thread-safe allocation operations
-	private static readonly Lock _allocLock = new();
-
-	// Cursor for incremental cleanup - tracks position in array
-	private static int _cleanupCursor = 0;
-
+	/// <summary>
+	/// Allocates a new StrongPointer handle for the given target.
+	/// In CHECKED builds, also performs incremental validation to detect improperly disposed targets.
+	/// </summary>
+	/// <param name="target">The target object to create a pointer to</param>
+	/// <returns>A new StrongPointer handle</returns>
 	public static StrongPointer<T> Alloc(T target)
 	{
-		lock (_allocLock)
+		__.AssertIfNot(target != null, "Cannot create StrongPointer to null target");
+		__.AssertIfNot(!target.IsDisposed, "Cannot create StrongPointer to already-disposed target");
+
+		var slotHandle = _store.AllocValue(ref target);
+
+		// Run incremental validation in CHECKED builds to detect usage errors
+		_ValidateNextSlots(5);
+
+		return new StrongPointer<T>
 		{
-
-			// Allocate slot in RefSlotStore
-			var slotHandle = _store.Alloc(target);
-
-			// Run incremental cleanup of 5 slots
-			_GCNextSlots(5);
-
-			// Return ManagedPointer with the SlotHandle
-			return new StrongPointer<T>
-			{
-				_slotHandle = slotHandle
-			};
-		}
-	}
-	public int CompareTo(StrongPointer<T> other)
-	{
-		return _slotHandle.CompareTo(other._slotHandle);
+			_slotHandle = slotHandle
+		};
 	}
 
 	/// <summary>
-	/// Incremental cleanup - checks next 'count' slots for dead WeakReferences
+	/// Incremental validation - checks next 'count' slots for targets disposed without disposing their StrongPointer.
+	/// Only runs in CHECKED builds. Uses unsafe store access under store's lock to coordinate with allocations.
 	/// </summary>
+	/// <param name="count">Number of slots to check this iteration</param>
 	[Conditional("CHECKED")]
-	private static void _GCNextSlots(int count)
+	private static void _ValidateNextSlots(int count)
 	{
-		// Must be called within _allocLock to ensure thread safety with _AsSpan_Unsafe
-		var span = _store._AsSpan_Unsafe();
-		if (span.Length == 0) return;
-
-		for (int i = 0; i < count; i++)
+		lock (_store._Lock_Unsafe)
 		{
-			// Wrap around at end of array
-			if (_cleanupCursor >= span.Length)
-			{
-				_cleanupCursor = 0;
-			}
+			// Access store's internal data for validation under store's lock
+			// This coordinates with allocations/frees to prevent concurrent modifications
+			var allocTracker = _store.AllocTracker_Unsafe;
+			var dataSpan = _store.Data_Span;
+			
+			var len = Math.Min(allocTracker.Length, dataSpan.Length);
+			if (len == 0) return;
 
-			var slot = span[_cleanupCursor];
-
-			var target = slot.slotData;
-			__.AssertIfNot(target != null, "StrongPointer target is null - was it disposed without freeing the StrongPointer?");
-			__.AssertIfNot(target.IsDisposed == false, "StrongPointer target is disposed - was it disposed without freeing the StrongPointer?");
-			if (target.IsDisposed)
+			for (int i = 0; i < count; i++)
 			{
-				// Disposed reference found - free the slot, even though this should not happen if used correctly
-				_store.Free(slot.handle);
+				// Wrap around at end of array
+				if (_validationCursor >= len)
+				{
+					_validationCursor = 0;
+				}
+
+				var handle = allocTracker.Span[_validationCursor];
+				
+				// Only check allocated slots
+				if (handle.IsAllocated)
+				{
+					var target = dataSpan[_validationCursor];
+					
+					// Check for the error condition: target disposed but StrongPointer not disposed
+					if (target != null && target.IsDisposed)
+					{
+						__.AssertIfNot(false, 
+							$"StrongPointer ERROR: Target at index {_validationCursor} is disposed but its StrongPointer was not disposed. " +
+							$"Always dispose StrongPointer before disposing the target, or use CheckIsAlive() before accessing.");
+					}
+				}
+
+				_validationCursor++;
 			}
-			_cleanupCursor++;
 		}
 	}
 
-
-	public static void OnFree(StrongPointer<T> managedPointer)
+	/// <summary>
+	/// Compares this handle to another based on internal slot handle value.
+	/// </summary>
+	/// <param name="other">The other handle to compare to</param>
+	/// <returns>Comparison result following IComparable contract</returns>
+	public int CompareTo(StrongPointer<T> other)
 	{
-		_store.Free(managedPointer._slotHandle);
+		return _slotHandle.CompareTo(other._slotHandle);
 	}
 
 	/// <summary>
@@ -95,45 +108,51 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 	/// </summary>
 	private SlotHandle _slotHandle;
 
+	/// <summary>
+	/// Indicates whether this handle has been allocated and not yet disposed.
+	/// </summary>
 	public bool IsAllocated => _slotHandle.IsAllocated;
 
+	/// <summary>
+	/// The internal index of this handle in the backing store.
+	/// </summary>
 	public int Index => _slotHandle.Index;
 
 	/// <summary>
-	/// checks if this handle is allocated (valid) and if so, will check the backing store to ensure it still actually is.
+	/// Checks if this handle is allocated and valid in the backing store.
+	/// Thread-safe.
 	/// </summary>
+	/// <returns>True if the handle is valid and alive, false otherwise</returns>
 	public bool CheckIsAlive()
 	{
 		if (!IsAllocated) return false;
-		//var response = _store._IsHandleValid(_slotHandle).isValid;
-		return _store._AsSpan_Unsafe()[_slotHandle.Index].handle == _slotHandle;
+		return _store._IsHandleValid(_slotHandle).isValid;
 	}
 
+	/// <summary>
+	/// Debug-only assertion that this handle is alive.
+	/// Throws if handle is invalid.
+	/// </summary>
 	[Conditional("DEBUG")]
 	public void AssertIsAlive()
 	{
-		__.AssertIfNot(CheckIsAlive());
-
-		//if (_targets.TryGetValue(this, out var weakRef) is false)
-		//{
-		//	throw new ObjectDisposedException("owner no longer exists, likely disposed");
-		//}
-		//if (weakRef.TryGetTarget(out var toReturn) is false)
-		//{
-		//	throw new ObjectDisposedException("owner no longer exists, likely disposed");
-		//}
+		__.AssertIfNot(CheckIsAlive(), "StrongPointer handle is not alive");
 	}
 
+	/// <summary>
+	/// Gets the target object referenced by this handle.
+	/// Throws if handle is invalid or target has been disposed.
+	/// </summary>
+	/// <returns>The target object</returns>
+	/// <exception cref="ObjectDisposedException">If handle is invalid or target is disposed</exception>
 	public T GetTarget()
 	{
-		this.AssertIsAlive();
-
-		if (!_slotHandle.IsAllocated)
+		// Runtime validation (not debug-only) - critical for release builds
+		if (!CheckIsAlive())
 		{
-			throw new ObjectDisposedException("Handle not allocated");
+			throw new ObjectDisposedException("StrongPointer handle is not alive - was it disposed or is it a stale copy?");
 		}
 
-		// Get WeakReference from RefSlotStore
 		var target = _store[_slotHandle];
 
 		if (target.IsDisposed)
@@ -141,21 +160,31 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 			throw new ObjectDisposedException("Target has been disposed already");
 		}
 
-		// Run incremental cleanup of 3 slots (must be inside lock for thread safety)
-		lock (_allocLock)
-		{
-			_GCNextSlots(3);
-		}
-
 		return target;
 	}
 
-
+	/// <summary>
+	/// Disposes this handle, freeing its slot in the backing store.
+	/// Safe to call on stale copies - will validate handle before freeing.
+	/// After disposal, IsAllocated will return false on the copy that called Dispose,
+	/// but other copies will still have the old (now invalid) handle value.
+	/// </summary>
 	public void Dispose()
 	{
-		if (IsAllocated)
+		// Check if handle is still valid before attempting to free
+		// This makes Dispose safe to call on stale copies (from struct copying)
+		if (CheckIsAlive())
 		{
-			OnFree(this);
+			_store.FreeSingleSlot(_slotHandle);
 		}
+		
+		// Clear handle on this copy to make IsAllocated accurate
+		// Note: other struct copies will still have the old handle value
+		_slotHandle = default;
+
+
+      // Run incremental validation in CHECKED builds to detect usage errors
+      _ValidateNextSlots(5);
+   
 	}
 }

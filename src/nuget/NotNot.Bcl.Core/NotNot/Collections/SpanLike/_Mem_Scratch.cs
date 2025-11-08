@@ -823,10 +823,10 @@ public ref struct ZeroAllocMem<T> : IDisposable
       return new ZeroAllocMem<T>(SpanOwner<T>.Allocate(size, allocationMode));
    }
 
-   public static ZeroAllocMem<T> Allocate(ReadOnlySpan<T> span)
+   public static ZeroAllocMem<T> Allocate(ReadOnlySpan<T> copyFrom)
    {
-      var toReturn = Allocate(span.Length);
-      span.CopyTo(toReturn.Span);
+      var toReturn = Allocate(copyFrom.Length);
+      copyFrom.CopyTo(toReturn.Span);
       return toReturn;
    }
 
