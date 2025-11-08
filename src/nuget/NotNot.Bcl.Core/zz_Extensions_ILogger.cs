@@ -150,7 +150,7 @@ public static class zz_Extensions_ILogger
             }
 
             //copy argValues for passing to base logger (object[] params)
-            var argValues = __.pool.GetArray<object?>(argPairs.Count);
+            using var _ = __.pool.RentArray<object?>(argPairs.Count, out var argValues);
             for (var i = 0; i < argPairs.Count; i++)
             {
                argValues[i] = argPairs[i].value;

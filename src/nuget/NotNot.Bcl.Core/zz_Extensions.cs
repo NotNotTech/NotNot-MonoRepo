@@ -2893,7 +2893,7 @@ public static class zz_Extensions_IEnumerable
 
    public static string _ToStringAll<T>(this IEnumerable<T> source, string? seperator = ", ")
    {
-      var sb = __.pool.Get<StringBuilder>();
+      using var _ = __.pool.Rent<StringBuilder>(out var sb);
       __.GetLogger()._EzError(sb.Length == 0, "StringBuilder should be empty");
 
       var count = 0;
@@ -2908,7 +2908,6 @@ public static class zz_Extensions_IEnumerable
 
       var toReturn = $"count={count}[" + sb;
       sb.Clear();
-      __.pool.Return(sb);
       return toReturn;
    }
 
@@ -3166,7 +3165,7 @@ public static class zz_Extensions_Dictionary
    public static string _ToStringAll<TKey, TValue>(this IDictionary<TKey, TValue> dict)
    {
       //var sb = new StringBuilder();//  __.pool.Get<StringBuilder>();
-      var sb = __.pool.Get<StringBuilder>();
+      using var _ = __.pool.Rent<StringBuilder>(out var sb);
       sb.Append($"count={dict.Count} [");
       foreach (var pair in dict)
       {
@@ -3177,7 +3176,6 @@ public static class zz_Extensions_Dictionary
 
       var toReturn = sb.ToString();
       sb.Clear();
-      __.pool.Return(sb);
       return toReturn;
    }
 

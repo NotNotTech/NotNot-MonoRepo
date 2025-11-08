@@ -223,7 +223,7 @@ public static class ParallelFor
 		var remaining = source.ToList();
 
 		var queue = new ConcurrentQueue<TResult>();
-		var batch = __.pool.Get<List<TItem>>();
+		using var _ = __.pool.Rent<List<TItem>>(out var batch);
 
 		while (remaining.Count > 0)
 		{
@@ -235,8 +235,8 @@ public static class ParallelFor
 		}
 
 		batch.Clear();
-		__.pool.Return(batch);
 
 		return queue;
+
 	}
 }
