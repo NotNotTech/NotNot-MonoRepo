@@ -30,6 +30,55 @@ Classes marked with `[NotNotSceneRoot]` attribute get generated partial classes 
 ### _ResPath Generated Class
 Compile-time listing of all imported Godot assets. Provides `StringName` constants for type-safe resource loading. Only includes assets explicitly added to .csproj via `<AdditionalFiles>`.
 
+## Code Fix Requirements (VS Light Bulb)
+
+Use this checklist if Visual Studio shows the diagnostic but does not offer the code-fix (Ctrl+.):
+
+1) Consume the analyzer correctly
+- Project reference: add analyzer metadata so VS loads it as an analyzer (not a normal library)
+  ```xml
+  <ProjectReference Include="..\..\external-repo\NotNot-MonoRepo\src\nuget\NotNot.GodotNet.SourceGen\NotNot.GodotNet.SourceGen.csproj"
+                    OutputItemType="Analyzer"
+                    ReferenceOutputAssembly="false" />
+  ```
+- NuGet reference: ensure `NotNot.GodotNet.SourceGen.dll` and its deps are inside `analyzers/dotnet/cs/` in the package (this project already packs them).
+
+2) Roslyn binary compatibility (important)
+- VS ships specific Microsoft.CodeAnalysis binaries. If the analyzer references newer assemblies, MEF composition can fail silently and code fixes won’t load.
+- Known-good versions for VS 2022 17.11.x:
+  ```xml
+  <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
+  <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" PrivateAssets="all" />
+  <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
+  <PackageReference Include="System.Composition" Version="9.0.8" PrivateAssets="all" />
+  ```
+- Mismatched versions commonly result in diagnostics appearing but no code-fix suggestion.
+
+3) MEF discovery of code fixes
+- Code-fix types must be exported via MEF:
+  - Add `[ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(YourCodeFix))]` and `[Shared]` attributes.
+  - Keep a reference to `System.Composition` in the analyzer project.
+
+4) The analyzer assembly must load cleanly
+- The analyzer project must compile without errors. A broken build prevents VS from loading the new assembly.
+- If the project contains both generators and analyzers, avoid generator crashes (exceptions during initialization can block analyzer/code-fix load).
+
+5) VS state and UX
+- After changing analyzer assemblies or Roslyn package versions, rebuild the analyzer project and the consuming solution. Restart VS if needed.
+- Place the caret on the diagnostic span (squiggle) and press Ctrl+.; some fixes only show when the caret is exactly on the reported span.
+
+6) Quick troubleshooting
+- Solution Explorer → Analyzers node: confirm `NotNot.GodotNet.SourceGen` is listed.
+- Enable ActivityLog (`devenv /log`) and check for MEF load errors mentioning Microsoft.CodeAnalysis or System.Composition.
+- Ensure the diagnostic ID matches a code fix provider’s `FixableDiagnosticIds`.
+
+### GODOT003 specifics
+- The analyzer reports for `protected override void Dispose(bool disposing)` in `GodotObject`-derived types when cleanup code isn’t exception-protected.
+- Report location can be either the `if (disposing)` statement or the method body’s opening brace.
+- The `GodotDisposeExceptionSafetyCodeFixProvider` offers:
+  - “Wrap disposing block in try/catch” (when an `if (disposing)` block exists)
+  - “Add disposing guard and wrap in try/catch” (when guard is missing)
+
 ## Known Limitations
 
 ### Source Generator Debugging
@@ -99,7 +148,7 @@ None. This is a leaf library project with no sub-modules.
 4. **Configuration** (Root)
    - `GodotResourceGeneratorContextConfig.cs` - Shared context for generators
    - `NotNot.GodotNet.SourceGen.props` - MSBuild configuration for consuming projects
-   - `NotNot.GodotNet.SourceGen.targets` - PrivateAssets configuration
+   - `NotNot.GodotNet.SourceGen.targets` - Package configuration
 
 ### Data Flow
 
@@ -222,7 +271,7 @@ NotNot.GodotNet.SourceGen.nupkg
 
 ## Dependencies
 
-**Roslyn APIs** (Microsoft.CodeAnalysis.CSharp 4.14.0): Required for all source generation and analysis operations. Provides semantic model, syntax tree access, and compilation context.
+**Roslyn APIs** (Microsoft.CodeAnalysis.CSharp 4.11.0): Required for all source generation and analysis operations. Provides semantic model, syntax tree access, and compilation context. Versions must be compatible with Visual Studio.
 
 **System.Text.Json** (9.0.8): Used for parsing Godot .import and project.godot files. Complex scaffolding required due to netstandard2.0 target - all transitive dependencies must be packaged in analyzers/dotnet/cs folder.
 
