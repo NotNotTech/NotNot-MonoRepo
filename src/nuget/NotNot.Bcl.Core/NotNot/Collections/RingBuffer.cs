@@ -364,4 +364,5 @@ public class RingBuffer<T>
    {
       return _buffer;
    }
+
 }
