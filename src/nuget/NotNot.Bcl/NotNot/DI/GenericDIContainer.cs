@@ -61,8 +61,7 @@ public class GenericDIContainer : DisposeGuard
 		base.OnDispose(managedDisposing);
 		if (managedDisposing)
 		{
-			//_host.StopAsync()._SyncWait(); //prevents code-reload in godot editor
-
+			//_host.StopAsync()._SyncWait(); //prevents code-reload in godot editor			
 			_host?.Dispose();
 		}
 		_host = null;

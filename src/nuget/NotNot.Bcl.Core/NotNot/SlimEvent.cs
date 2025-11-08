@@ -14,106 +14,97 @@ namespace NotNot;
 /// Exceptions thrown by handlers bubble to caller and stop invocation.
 /// Use Clear() for bulk unsubscribe.
 /// </remarks>
-public class SlimEvent<TSender> where TSender : IDisposeGuard
+public class SlimEvent<TSender> : DisposeGuard
 {
-	private List<Action<TSender>> _storage = new();
+   private List<Action<TSender>> _storage = new();
 
-	/// <summary>
-	/// Subscribe/unsubscribe to this event
-	/// </summary>
-	public event Action<TSender> Handler
+   /// <summary>
+   /// Subscribe/unsubscribe to this event
+   /// </summary>
+   public event Action<TSender> Handler
+   {
+      add
+      {
+         __.AssertIfNot(value.Target != null && value.Target is IDisposeGuard, $"SlimEvent subscriber target ({value.Target?.GetType().Name}) must implement IDisposeGuard for disposal validation");
+         lock (_storage)
+         {
+            if (IsDisposed)
+            {
+               __.Assert($"Cannot subscribe to disposed SlimEvent<{typeof(TSender).Name}>"); 
+               return;
+            }
+            _storage.Add(value);
+         }
+      }
+      remove
+      {
+         lock (_storage)
+         {
+            var index = _storage.FindLastIndex(x => x == value);
+            if (index >= 0)
+            {
+               _storage.RemoveAt(index);
+            }
+         }
+      }
+   }
+
+	protected override void OnDispose(bool managedDisposing)
 	{
-		add
+		base.OnDispose(managedDisposing);
+		if (managedDisposing)
 		{
-			lock (_storage)
-			{
-				_storage.Add(value);
-			}
-		}
-		remove
-		{
-			lock (_storage)
-			{
-				var index = _storage.FindLastIndex(x => x == value);
-				if (index >= 0)
-				{
-					_storage.RemoveAt(index);
-				}
-			}
+         _storage.Clear();
 		}
 	}
 
-	/// <summary>
-	/// Invoke all subscribed handlers. Only the owner should call this.
-	/// Exceptions thrown by handlers bubble to caller.
-	/// In CHECKED builds, detects and removes disposed recipients.
-	/// </summary>
-	/// <param name="sender">The event sender</param>
-	public void Invoke(TSender sender)
-	{
-		__.AssertIfNot(sender != null, "Sender cannot be null");
-		__.AssertIfNot(!sender.IsDisposed, "Sender is disposed");
+   /// <summary>
+   /// Invoke all subscribed handlers. Only the owner should call this.
+   /// Exceptions thrown by handlers bubble to caller.
+   /// In CHECKED builds, detects and removes disposed recipients.
+   /// </summary>
+   /// <param name="sender">The event sender</param>
+   public void Raise(TSender sender)
+   {
+      __.AssertIfNot(sender != null, "Sender cannot be null");
+      //__.AssertIfNot(!sender.IsDisposed, "Sender is disposed");
 
-		if (_storage.Count == 0) return;
+      if (_storage.Count == 0) return;
 
-		var tempList = __.pool.Get<List<Action<TSender>>>();
-		var disposedHandlers = __.pool.Get<List<Action<TSender>>>();
+      using (__.pool.Rent<List<Action<TSender>>>(out var tempList))
+      {
+         lock (_storage)
+         {
+            tempList.AddRange(_storage);
+         }
 
-		try
-		{
-			lock (_storage)
-			{
-				tempList.AddRange(_storage);
-			}
+         foreach (var handler in tempList)
+         {
+            // Check if recipient is disposed
+            if (handler.Target is IDisposeGuard guard && guard.IsDisposed)
+            {
+               _storage.Remove(handler); // Remove BEFORE asserting so cleanup happens even when assertion throws
+               __.Assert($"SlimEvent auto-removing disposed recipient.  you need to detach from the handler yourself! ({handler.Target.GetType().Name})");
+               continue;
+            }
 
-			foreach (var handler in tempList)
-			{
-				// Check if recipient is disposed
-				if (handler.Target is IDisposeGuard guard && guard.IsDisposed)
-				{
-					disposedHandlers.Add(handler);
-					continue;
-				}
+            // Exception bubbles - stops invocation
+            handler(sender);
+         }
+      }
+   
+   }
 
-				// Exception bubbles - stops invocation
-				handler(sender);
-			}
-
-			// Auto-remove disposed recipients
-			if (disposedHandlers.Count > 0)
-			{
-				lock (_storage)
-				{
-					foreach (var disposed in disposedHandlers)
-					{
-						_storage.Remove(disposed);
-					}
-				}
-
-				// Assert after auto-removal so cleanup happens even in DEBUG builds
-				__.AssertIfNot(false, "Disposed recipients still subscribed - memory leak detected",
-					"Count", disposedHandlers.Count);
-			}
-		}
-		finally
-		{
-			tempList.Clear();
-			__.pool.Return(tempList);
-			disposedHandlers.Clear();
-			__.pool.Return(disposedHandlers);
-		}
-	}
-
-	/// <summary>
-	/// Remove all subscribed handlers
-	/// </summary>
-	public void Clear()
-	{
-		lock (_storage)
-		{
-			_storage.Clear();
-		}
-	}
+   /// <summary>
+   /// Remove all subscribed handlers
+   /// </summary>
+   public void Clear()
+   {
+      lock (_storage)
+      {
+         _storage.Clear();
+      }
+   }
 }
 
 /// <summary>
@@ -130,105 +121,96 @@ public class SlimEvent<TSender> where TSender : IDisposeGuard
 /// Exceptions thrown by handlers bubble to caller and stop invocation.
 /// Use Clear() for bulk unsubscribe.
 /// </remarks>
-public class SlimEvent<TSender, TArgs> where TSender : IDisposeGuard
+public class SlimEvent<TSender, TArgs> : DisposeGuard
 {
-	private List<Action<TSender, TArgs>> _storage = new();
+   private List<Action<TSender, TArgs>> _storage = new();
 
-	/// <summary>
-	/// Subscribe/unsubscribe to this event
-	/// </summary>
-	public event Action<TSender, TArgs> Handler
-	{
-		add
-		{
-			lock (_storage)
-			{
-				_storage.Add(value);
-			}
-		}
-		remove
-		{
-			lock (_storage)
-			{
-				var index = _storage.FindLastIndex(x => x == value);
-				if (index >= 0)
-				{
-					_storage.RemoveAt(index);
-				}
-			}
-		}
-	}
+   /// <summary>
+   /// Subscribe/unsubscribe to this event
+   /// </summary>
+   public event Action<TSender, TArgs> Handler
+   {
+      add
+      {
+         __.AssertIfNot(value.Target != null && value.Target is IDisposeGuard, $"SlimEvent subscriber target ({value.Target?.GetType().Name}) must implement IDisposeGuard for disposal validation");
+         lock (_storage)
+         {
+            if (IsDisposed)
+            {
+               __.Assert($"Cannot subscribe to disposed SlimEvent<{typeof(TSender).Name}>");
+               return;
+            }
+            _storage.Add(value);
+         }
+      }
+      remove
+      {
+         lock (_storage)
+         {
+            var index = _storage.FindLastIndex(x => x == value);
+            if (index >= 0)
+            {
+               _storage.RemoveAt(index);
+            }
+         }
+      }
+   }
 
-	/// <summary>
-	/// Invoke all subscribed handlers. Only the owner should call this.
-	/// Exceptions thrown by handlers bubble to caller.
-	/// In CHECKED builds, detects and removes disposed recipients.
-	/// </summary>
-	/// <param name="sender">The event sender</param>
-	/// <param name="args">The event arguments</param>
-	public void Invoke(TSender sender, TArgs args)
-	{
-		__.AssertIfNot(sender != null, "Sender cannot be null");
-		__.AssertIfNot(!sender.IsDisposed, "Sender is disposed");
+   protected override void OnDispose(bool managedDisposing)
+   {
+      base.OnDispose(managedDisposing);
+      if (managedDisposing)
+      {
+         _storage.Clear();
+      }
+   }
 
-		if (_storage.Count == 0) return;
 
-		var tempList = __.pool.Get<List<Action<TSender, TArgs>>>();
-		var disposedHandlers = __.pool.Get<List<Action<TSender, TArgs>>>();
+   /// <summary>
+   /// Invoke all subscribed handlers. Only the owner should call this.
+   /// Exceptions thrown by handlers bubble to caller.
+   /// In CHECKED builds, detects and removes disposed recipients.
+   /// </summary>
+   /// <param name="sender">The event sender</param>
+   /// <param name="args">The event arguments</param>
+   public void Raise(TSender sender, TArgs args)
+   {
+      __.AssertIfNot(sender != null, "Sender cannot be null");
 
-		try
-		{
-			lock (_storage)
-			{
-				tempList.AddRange(_storage);
-			}
+      if (_storage.Count == 0) return;
 
-			foreach (var handler in tempList)
-			{
-				// Check if recipient is disposed
-				if (handler.Target is IDisposeGuard guard && guard.IsDisposed)
-				{
-					disposedHandlers.Add(handler);
-					continue;
-				}
+      using (__.pool.Rent<List<Action<TSender, TArgs>>>(out var tempList))
+      {
+         lock (_storage)
+         {
+            tempList.AddRange(_storage);
+         }
 
-				// Exception bubbles - stops invocation
-				handler(sender, args);
-			}
+         foreach (var handler in tempList)
+         {
+            // Check if recipient is disposed
+            if (handler.Target is IDisposeGuard guard && guard.IsDisposed)
+            {
+               _storage.Remove(handler); // Remove BEFORE asserting so cleanup happens even when assertion throws
+               __.Assert($"SlimEvent auto-removing disposed recipient.  you need to detach from the handler yourself! ({handler.Target.GetType().Name})");
+               continue;
+            }
 
-			// Auto-remove disposed recipients
-			if (disposedHandlers.Count > 0)
-			{
-				lock (_storage)
-				{
-					foreach (var disposed in disposedHandlers)
-					{
-						_storage.Remove(disposed);
-					}
-				}
+            // Exception bubbles - stops invocation
+            handler(sender, args);
+         }
+      }
 
-				// Assert after auto-removal so cleanup happens even in DEBUG builds
-				__.AssertIfNot(false, "Disposed recipients still subscribed - memory leak detected",
-					"Count", disposedHandlers.Count);
-			}
-		}
-		finally
-		{
-			tempList.Clear();
-			__.pool.Return(tempList);
-			disposedHandlers.Clear();
-			__.pool.Return(disposedHandlers);
-		}
-	}
+   }
 
-	/// <summary>
-	/// Remove all subscribed handlers
-	/// </summary>
-	public void Clear()
-	{
-		lock (_storage)
-		{
-			_storage.Clear();
-		}
-	}
+   /// <summary>
+   /// Remove all subscribed handlers
+   /// </summary>
+   public void Clear()
+   {
+      lock (_storage)
+      {
+         _storage.Clear();
+      }
+   }
 }

@@ -8,317 +8,387 @@ namespace NotNot.Bcl.Test.Simple;
 /// </summary>
 public class SlimEventTests
 {
-	#region Test Helper Classes
-
-	/// <summary>
-	/// Test sender class implementing IDisposeGuard
-	/// </summary>
-	private class TestSender : IDisposeGuard
-	{
-		public bool IsDisposed { get; private set; }
-		public string Name { get; set; }
-
-		public TestSender(string name = "sender")
-		{
-			Name = name;
-		}
-
-		public void Dispose()
-		{
-			__.AssertIfNot(!IsDisposed, "Double dispose detected");
-			IsDisposed = true;
-		}
-	}
-
-	/// <summary>
-	/// Test recipient class implementing IDisposeGuard with event handlers
-	/// </summary>
-	private class TestRecipient : IDisposeGuard
-	{
-		public bool IsDisposed { get; private set; }
-		public string Name { get; set; }
-		public int CallCount { get; set; }
-		public TestSender? LastSender { get; set; }
-
-		public TestRecipient(string name = "recipient")
-		{
-			Name = name;
-		}
-
-		public void OnEvent(TestSender sender)
-		{
-			CallCount++;
-			LastSender = sender;
-		}
-
-		public void OnEventWithArgs(TestSender sender, string args)
-		{
-			CallCount++;
-			LastSender = sender;
-		}
-
-		public void Dispose()
-		{
-			__.AssertIfNot(!IsDisposed, "Double dispose detected");
-			IsDisposed = true;
-		}
-	}
-
-	/// <summary>
-	/// Test args struct
-	/// </summary>
-	private record struct TestArgs(int Value, string Text);
-
-	#endregion
-
-	#region SlimEvent<TSender> Basic Tests
-
-	[Fact]
-	public void SlimEvent_BasicSubscribeInvoke_Works()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender("test");
-		var callCount = 0;
-
-		slimEvent.Handler += s => callCount++;
-
-		// Act
-		slimEvent.Invoke(sender);
-
-		// Assert
-		Assert.Equal(1, callCount);
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	[Fact]
-	public void SlimEvent_MultipleSubscribers_AllInvoked()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var count1 = 0;
-		var count2 = 0;
-		var count3 = 0;
-
-		slimEvent.Handler += s => count1++;
-		slimEvent.Handler += s => count2++;
-		slimEvent.Handler += s => count3++;
-
-		// Act
-		slimEvent.Invoke(sender);
-
-		// Assert
-		Assert.Equal(1, count1);
-		Assert.Equal(1, count2);
-		Assert.Equal(1, count3);
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	[Fact]
-	public void SlimEvent_Unsubscribe_RemovesHandler()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var callCount = 0;
-		Action<TestSender> handler = s => callCount++;
-
-		slimEvent.Handler += handler;
-		slimEvent.Invoke(sender);
-		Assert.Equal(1, callCount);
-
-		// Act
-		slimEvent.Handler -= handler;
-		slimEvent.Invoke(sender);
-
-		// Assert
-		Assert.Equal(1, callCount); // Still 1 - handler was removed
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	[Fact]
-	public void SlimEvent_Clear_RemovesAllHandlers()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var callCount = 0;
-
-		slimEvent.Handler += s => callCount++;
-		slimEvent.Handler += s => callCount++;
-		slimEvent.Handler += s => callCount++;
-
-		// Act
-		slimEvent.Clear();
-		slimEvent.Invoke(sender);
-
-		// Assert
-		Assert.Equal(0, callCount);
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	[Fact]
-	public void SlimEvent_EmptyHandlerList_DoesNotThrow()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-
-		// Act & Assert
-		slimEvent.Invoke(sender); // Should not throw
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	[Fact]
-	public void SlimEvent_InstanceMethodHandler_Invoked()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var recipient = new TestRecipient();
-
-		slimEvent.Handler += recipient.OnEvent;
-
-		// Act
-		slimEvent.Invoke(sender);
-
-		// Assert
-		Assert.Equal(1, recipient.CallCount);
-		Assert.Same(sender, recipient.LastSender);
-
-		// Cleanup
-		sender.Dispose();
-		recipient.Dispose();
-	}
-
-	#endregion
-
-	#region SlimEvent<TSender, TArgs> Basic Tests
-
-	[Fact]
-	public void SlimEventWithArgs_BasicSubscribeInvoke_Works()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender, string>();
-		var sender = new TestSender("test");
-		var receivedArgs = "";
-
-		slimEvent.Handler += (s, args) => receivedArgs = args;
-
-		// Act
-		slimEvent.Invoke(sender, "hello");
-
-		// Assert
-		Assert.Equal("hello", receivedArgs);
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	[Fact]
-	public void SlimEventWithArgs_IntArg_Works()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender, int>();
-		var sender = new TestSender();
-		var receivedValue = 0;
-
-		slimEvent.Handler += (s, value) => receivedValue = value;
-
-		// Act
-		slimEvent.Invoke(sender, 42);
-
-		// Assert
-		Assert.Equal(42, receivedValue);
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	[Fact]
-	public void SlimEventWithArgs_StructArg_Works()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender, TestArgs>();
-		var sender = new TestSender();
-		TestArgs receivedArgs = default;
-
-		slimEvent.Handler += (s, args) => receivedArgs = args;
-
-		// Act
-		var testArgs = new TestArgs(123, "test");
-		slimEvent.Invoke(sender, testArgs);
-
-		// Assert
-		Assert.Equal(123, receivedArgs.Value);
-		Assert.Equal("test", receivedArgs.Text);
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	[Fact]
-	public void SlimEventWithArgs_CustomClassArg_Works()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender, TestRecipient>();
-		var sender = new TestSender();
-		TestRecipient? receivedRecipient = null;
-		var testRecipient = new TestRecipient("arg");
-
-		slimEvent.Handler += (s, recipient) => receivedRecipient = recipient;
-
-		// Act
-		slimEvent.Invoke(sender, testRecipient);
-
-		// Assert
-		Assert.Same(testRecipient, receivedRecipient);
-
-		// Cleanup
-		sender.Dispose();
-		testRecipient.Dispose();
-	}
-
-	[Fact]
-	public void SlimEventWithArgs_InstanceMethodHandler_Invoked()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender, string>();
-		var sender = new TestSender();
-		var recipient = new TestRecipient();
-
-		slimEvent.Handler += recipient.OnEventWithArgs;
-
-		// Act
-		slimEvent.Invoke(sender, "test");
-
-		// Assert
-		Assert.Equal(1, recipient.CallCount);
-		Assert.Same(sender, recipient.LastSender);
-
-		// Cleanup
-		sender.Dispose();
-		recipient.Dispose();
-	}
-
-	#endregion
-
-	#region Disposed Recipient Detection Tests (CRITICAL)
-
-	[Fact]
-	public void SlimEvent_DisposedRecipient_DetectedInDebugBuild()
-	{
+   #region Test Helper Classes
+
+   /// <summary>
+   /// Test sender class implementing IDisposeGuard
+   /// </summary>
+   private class TestSender : IDisposeGuard
+   {
+      public bool IsDisposed { get; private set; }
+      public string Name { get; set; }
+
+      public TestSender(string name = "sender")
+      {
+         Name = name;
+      }
+
+      public void Dispose()
+      {
+         __.AssertIfNot(!IsDisposed, "Double dispose detected");
+         IsDisposed = true;
+      }
+   }
+
+   /// <summary>
+   /// Test recipient class implementing IDisposeGuard with event handlers
+   /// </summary>
+   private class TestRecipient : IDisposeGuard
+   {
+      public bool IsDisposed { get; private set; }
+      public string Name { get; set; }
+      public int CallCount; // Field for Interlocked.Increment
+      public TestSender? LastSender { get; set; }
+      public string? ReceivedString { get; set; }
+      public int ReceivedInt { get; set; }
+      public TestArgs ReceivedTestArgs { get; set; }
+      public TestRecipient? ReceivedRecipient { get; set; }
+
+      // For self-modifying handler tests
+      public SlimEvent<TestSender>? EventToModify { get; set; }
+      public TestRecipient? OtherRecipientToSubscribe { get; set; }
+
+      public TestRecipient(string name = "recipient")
+      {
+         Name = name;
+      }
+
+      public void OnEvent(TestSender sender)
+      {
+         Interlocked.Increment(ref CallCount);
+         LastSender = sender;
+      }
+
+      public void OnEventWithString(TestSender sender, string args)
+      {
+         Interlocked.Increment(ref CallCount);
+         LastSender = sender;
+         ReceivedString = args;
+      }
+
+      public void OnEventWithInt(TestSender sender, int value)
+      {
+         Interlocked.Increment(ref CallCount);
+         ReceivedInt = value;
+      }
+
+      public void OnEventWithTestArgs(TestSender sender, TestArgs args)
+      {
+         Interlocked.Increment(ref CallCount);
+         ReceivedTestArgs = args;
+      }
+
+      public void OnEventWithRecipient(TestSender sender, TestRecipient recipient)
+      {
+         Interlocked.Increment(ref CallCount);
+         ReceivedRecipient = recipient;
+      }
+
+      public void OnEventThrows(TestSender sender)
+      {
+         Interlocked.Increment(ref CallCount);
+         throw new InvalidOperationException("Test exception");
+      }
+
+      public void OnEventAndUnsubscribeSelf(TestSender sender)
+      {
+         Interlocked.Increment(ref CallCount);
+         if (EventToModify != null)
+         {
+            EventToModify.Handler -= OnEventAndUnsubscribeSelf;
+         }
+      }
+
+      public void OnEventAndSubscribeOther(TestSender sender)
+      {
+         Interlocked.Increment(ref CallCount);
+         if (EventToModify != null && OtherRecipientToSubscribe != null)
+         {
+            EventToModify.Handler += OtherRecipientToSubscribe.OnEvent;
+         }
+      }
+
+      public void Dispose()
+      {
+         __.AssertIfNot(!IsDisposed, "Double dispose detected");
+         IsDisposed = true;
+      }
+   }
+
+   /// <summary>
+   /// Test args struct
+   /// </summary>
+   private record struct TestArgs(int Value, string Text);
+
+   #endregion
+
+   #region SlimEvent<TSender> Basic Tests
+
+   [Fact]
+   public void SlimEvent_BasicSubscribeInvoke_Works()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender("test");
+      var recipient = new TestRecipient();
+
+      slimEvent.Handler += recipient.OnEvent;
+
+      // Act
+      slimEvent.Raise(sender);
+
+      // Assert
+      Assert.Equal(1, recipient.CallCount);
+
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
+
+   [Fact]
+   public void SlimEvent_MultipleSubscribers_AllInvoked()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient1 = new TestRecipient("r1");
+      var recipient2 = new TestRecipient("r2");
+      var recipient3 = new TestRecipient("r3");
+
+      slimEvent.Handler += recipient1.OnEvent;
+      slimEvent.Handler += recipient2.OnEvent;
+      slimEvent.Handler += recipient3.OnEvent;
+
+      // Act
+      slimEvent.Raise(sender);
+
+      // Assert
+      Assert.Equal(1, recipient1.CallCount);
+      Assert.Equal(1, recipient2.CallCount);
+      Assert.Equal(1, recipient3.CallCount);
+
+      // Cleanup
+      sender.Dispose();
+      recipient1.Dispose();
+      recipient2.Dispose();
+      recipient3.Dispose();
+   }
+
+   [Fact]
+   public void SlimEvent_Unsubscribe_RemovesHandler()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient = new TestRecipient();
+
+      slimEvent.Handler += recipient.OnEvent;
+      slimEvent.Raise(sender);
+      Assert.Equal(1, recipient.CallCount);
+
+      // Act
+      slimEvent.Handler -= recipient.OnEvent;
+      slimEvent.Raise(sender);
+
+      // Assert
+      Assert.Equal(1, recipient.CallCount); // Still 1 - handler was removed
+
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
+
+   [Fact]
+   public void SlimEvent_Clear_RemovesAllHandlers()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient1 = new TestRecipient("r1");
+      var recipient2 = new TestRecipient("r2");
+      var recipient3 = new TestRecipient("r3");
+
+      slimEvent.Handler += recipient1.OnEvent;
+      slimEvent.Handler += recipient2.OnEvent;
+      slimEvent.Handler += recipient3.OnEvent;
+
+      // Act
+      slimEvent.Clear();
+      slimEvent.Raise(sender);
+
+      // Assert
+      Assert.Equal(0, recipient1.CallCount);
+      Assert.Equal(0, recipient2.CallCount);
+      Assert.Equal(0, recipient3.CallCount);
+
+      // Cleanup
+      sender.Dispose();
+      recipient1.Dispose();
+      recipient2.Dispose();
+      recipient3.Dispose();
+   }
+
+   [Fact]
+   public void SlimEvent_EmptyHandlerList_DoesNotThrow()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+
+      // Act & Assert
+      slimEvent.Raise(sender); // Should not throw
+
+      // Cleanup
+      sender.Dispose();
+   }
+
+   [Fact]
+   public void SlimEvent_InstanceMethodHandler_Invoked()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient = new TestRecipient();
+
+      slimEvent.Handler += recipient.OnEvent;
+
+      // Act
+      slimEvent.Raise(sender);
+
+      // Assert
+      Assert.Equal(1, recipient.CallCount);
+      Assert.Same(sender, recipient.LastSender);
+
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
+
+   #endregion
+
+   #region SlimEvent<TSender, TArgs> Basic Tests
+
+   [Fact]
+   public void SlimEventWithArgs_BasicSubscribeInvoke_Works()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender, string>();
+      var sender = new TestSender("test");
+      var recipient = new TestRecipient();
+
+      slimEvent.Handler += recipient.OnEventWithString;
+
+      // Act
+      slimEvent.Raise(sender, "hello");
+
+      // Assert
+      Assert.Equal("hello", recipient.ReceivedString);
+      Assert.Equal(1, recipient.CallCount);
+
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
+
+   [Fact]
+   public void SlimEventWithArgs_IntArg_Works()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender, int>();
+      var sender = new TestSender();
+      var recipient = new TestRecipient();
+
+      slimEvent.Handler += recipient.OnEventWithInt;
+
+      // Act
+      slimEvent.Raise(sender, 42);
+
+      // Assert
+      Assert.Equal(42, recipient.ReceivedInt);
+      Assert.Equal(1, recipient.CallCount);
+
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
+
+   [Fact]
+   public void SlimEventWithArgs_StructArg_Works()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender, TestArgs>();
+      var sender = new TestSender();
+      var recipient = new TestRecipient();
+
+      slimEvent.Handler += recipient.OnEventWithTestArgs;
+
+      // Act
+      var testArgs = new TestArgs(123, "test");
+      slimEvent.Raise(sender, testArgs);
+
+      // Assert
+      Assert.Equal(123, recipient.ReceivedTestArgs.Value);
+      Assert.Equal("test", recipient.ReceivedTestArgs.Text);
+      Assert.Equal(1, recipient.CallCount);
+
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
+
+   [Fact]
+   public void SlimEventWithArgs_CustomClassArg_Works()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender, TestRecipient>();
+      var sender = new TestSender();
+      var recipient = new TestRecipient();
+      var testRecipient = new TestRecipient("arg");
+
+      slimEvent.Handler += recipient.OnEventWithRecipient;
+
+      // Act
+      slimEvent.Raise(sender, testRecipient);
+
+      // Assert
+      Assert.Same(testRecipient, recipient.ReceivedRecipient);
+      Assert.Equal(1, recipient.CallCount);
+
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+      testRecipient.Dispose();
+   }
+
+   [Fact]
+   public void SlimEventWithArgs_InstanceMethodHandler_Invoked()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender, string>();
+      var sender = new TestSender();
+      var recipient = new TestRecipient();
+
+      slimEvent.Handler += recipient.OnEventWithString;
+
+      // Act
+      slimEvent.Raise(sender, "test");
+
+      // Assert
+      Assert.Equal(1, recipient.CallCount);
+      Assert.Same(sender, recipient.LastSender);
+
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
+
+   #endregion
+
+   #region Disposed Recipient Detection Tests (CRITICAL)
+
+   [Fact]
+   public void SlimEvent_DisposedRecipient_DetectedInDebugBuild()
+   {
 #if DEBUG
 		// Arrange
 		var slimEvent = new SlimEvent<TestSender>();
@@ -332,7 +402,7 @@ public class SlimEventTests
 
 		// Act & Assert
 		// In DEBUG builds, assertion should fire
-		var exception = Record.Exception(() => slimEvent.Invoke(sender));
+		var exception = Record.Exception(() => slimEvent.Raise(sender));
 
 		// Assertion fires, exception thrown
 		Assert.NotNull(exception);
@@ -340,63 +410,66 @@ public class SlimEventTests
 		// Cleanup
 		sender.Dispose();
 #endif
-	}
+   }
 
-	[Fact]
-	public void SlimEvent_DisposedRecipient_AutoRemoved()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var recipient1 = new TestRecipient("r1");
-		var recipient2 = new TestRecipient("r2");
+   [Fact]
+   public void SlimEvent_DisposedRecipient_AutoRemoved()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient1 = new TestRecipient("r1");
+      var recipient2 = new TestRecipient("r2");
 
-		slimEvent.Handler += recipient1.OnEvent;
-		slimEvent.Handler += recipient2.OnEvent;
+      slimEvent.Handler += recipient1.OnEvent;
+      slimEvent.Handler += recipient2.OnEvent;
 
-		// First invoke - both should be called
-		slimEvent.Invoke(sender);
-		Assert.Equal(1, recipient1.CallCount);
-		Assert.Equal(1, recipient2.CallCount);
+      // First invoke - both should be called
+      slimEvent.Raise(sender);
+      Assert.Equal(1, recipient1.CallCount);
+      Assert.Equal(1, recipient2.CallCount);
 
-		// Dispose first recipient
-		recipient1.Dispose();
+      // Dispose first recipient
+      recipient1.Dispose();
 
-		// Act - invoke (will detect and remove disposed recipient)
+      // Act - invoke (will detect and remove disposed recipient)
 #if DEBUG
-		// In DEBUG builds, assertion fires
-		var exception = Record.Exception(() => slimEvent.Invoke(sender));
-		Assert.NotNull(exception); // Assertion throws
+		// In DEBUG builds, assertion fires and stops invocation
+		var exception = Record.Exception(() => slimEvent.Raise(sender));
+		Assert.NotNull(exception); // Assertion throws - remaining handlers not invoked
+
+		// Handler was auto-removed before assertion, so third invoke works
+		slimEvent.Raise(sender);
 #else
-		// In RELEASE builds, just skips disposed recipient
-		slimEvent.Invoke(sender);
+      // In RELEASE builds, just skips disposed recipient
+      slimEvent.Raise(sender);
 #endif
 
-		// Assert - recipient1 still at 1, recipient2 now at 2
-		Assert.Equal(1, recipient1.CallCount); // Not called because disposed
-		Assert.Equal(2, recipient2.CallCount); // Called on second invoke
+      // Assert - recipient1 still at 1, recipient2 now at 2
+      Assert.Equal(1, recipient1.CallCount); // Not called because disposed
+      Assert.Equal(2, recipient2.CallCount); // Called on second (RELEASE) or third (DEBUG) invoke
 
-		// Cleanup
-		sender.Dispose();
-		recipient2.Dispose();
-	}
+      // Cleanup
+      sender.Dispose();
+      recipient2.Dispose();
+   }
 
-	[Fact]
-	public void SlimEventWithArgs_DisposedRecipient_DetectedInDebugBuild()
-	{
+   [Fact]
+   public void SlimEventWithArgs_DisposedRecipient_DetectedInDebugBuild()
+   {
 #if DEBUG
 		// Arrange
 		var slimEvent = new SlimEvent<TestSender, string>();
 		var sender = new TestSender();
 		var recipient = new TestRecipient();
 
-		slimEvent.Handler += recipient.OnEventWithArgs;
+		slimEvent.Handler += recipient.OnEventWithString;
 
 		// Dispose recipient (memory leak scenario)
 		recipient.Dispose();
 
 		// Act & Assert
-		var exception = Record.Exception(() => slimEvent.Invoke(sender, "test"));
+		var exception = Record.Exception(() => slimEvent.Raise(sender, "test"));
 
 		// Assertion fires in DEBUG
 		Assert.NotNull(exception);
@@ -404,271 +477,296 @@ public class SlimEventTests
 		// Cleanup
 		sender.Dispose();
 #endif
-	}
+   }
 
-	[Fact]
-	public void SlimEvent_MultipleDisposedRecipients_AllDetected()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var recipient1 = new TestRecipient("r1");
-		var recipient2 = new TestRecipient("r2");
-		var recipient3 = new TestRecipient("r3");
-		var liveRecipient = new TestRecipient("live");
+   [Fact]
+   public void SlimEvent_MultipleDisposedRecipients_AllDetected()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient1 = new TestRecipient("r1");
+      var recipient2 = new TestRecipient("r2");
+      var recipient3 = new TestRecipient("r3");
+      var liveRecipient = new TestRecipient("live");
 
-		slimEvent.Handler += recipient1.OnEvent;
-		slimEvent.Handler += recipient2.OnEvent;
-		slimEvent.Handler += liveRecipient.OnEvent;
-		slimEvent.Handler += recipient3.OnEvent;
+      slimEvent.Handler += recipient1.OnEvent;
+      slimEvent.Handler += recipient2.OnEvent;
+      slimEvent.Handler += liveRecipient.OnEvent;
+      slimEvent.Handler += recipient3.OnEvent;
 
-		// First invoke - all called
-		slimEvent.Invoke(sender);
-		Assert.Equal(1, recipient1.CallCount);
-		Assert.Equal(1, recipient2.CallCount);
-		Assert.Equal(1, liveRecipient.CallCount);
-		Assert.Equal(1, recipient3.CallCount);
+      // First invoke - all called
+      slimEvent.Raise(sender);
+      Assert.Equal(1, recipient1.CallCount);
+      Assert.Equal(1, recipient2.CallCount);
+      Assert.Equal(1, liveRecipient.CallCount);
+      Assert.Equal(1, recipient3.CallCount);
 
-		// Dispose some recipients
-		recipient1.Dispose();
-		recipient2.Dispose();
-		recipient3.Dispose();
+      // Dispose some recipients
+      recipient1.Dispose();
+      recipient2.Dispose();
+      recipient3.Dispose();
 
-		// Act - invoke (will detect and remove disposed recipients)
+      // Act - invoke (will detect and remove disposed recipients)
 #if DEBUG
-		// In DEBUG builds, assertions fire - first disposed recipient triggers exception
-		var exception = Record.Exception(() => slimEvent.Invoke(sender));
-		Assert.NotNull(exception); // Assertion throws
+		// In DEBUG builds, each invoke removes ONE disposed recipient and throws
+		// Need multiple invokes to clean all 3 disposed recipients
+		var exception1 = Record.Exception(() => slimEvent.Raise(sender));
+		Assert.NotNull(exception1); // Removed recipient1, threw
+
+		var exception2 = Record.Exception(() => slimEvent.Raise(sender));
+		Assert.NotNull(exception2); // Removed recipient2, threw
+
+		var exception3 = Record.Exception(() => slimEvent.Raise(sender));
+		Assert.NotNull(exception3); // Removed recipient3, threw
+
+		// Fourth invoke - all disposed handlers removed, only liveRecipient left
+		slimEvent.Raise(sender);
 #else
-		// In RELEASE builds, skips disposed recipients
-		slimEvent.Invoke(sender);
+      // In RELEASE builds, skips all disposed recipients in one invoke
+      slimEvent.Raise(sender);
 #endif
 
-		// Assert - disposed recipients still at 1, live recipient at 2
-		Assert.Equal(1, recipient1.CallCount);
-		Assert.Equal(1, recipient2.CallCount);
-		Assert.Equal(2, liveRecipient.CallCount); // Called on second invoke
-		Assert.Equal(1, recipient3.CallCount);
+      // Assert - disposed recipients still at 1, live recipient called during cleanup
+      Assert.Equal(1, recipient1.CallCount);
+      Assert.Equal(1, recipient2.CallCount);
+#if DEBUG
+		Assert.Equal(3, liveRecipient.CallCount); // Called 1 (first) + 1 (fourth invoke) + 1 (fifth invoke) = 3
+#else
+      Assert.Equal(2, liveRecipient.CallCount); // Called 1 (first) + 1 (second invoke) = 2
+#endif
+      Assert.Equal(1, recipient3.CallCount);
 
-		// Cleanup
-		sender.Dispose();
-		liveRecipient.Dispose();
-	}
+      // Cleanup
+      sender.Dispose();
+      liveRecipient.Dispose();
+   }
 
-	#endregion
+   #endregion
 
-	#region Thread Safety Tests
+   #region Thread Safety Tests
 
-	[Fact]
-	public void SlimEvent_ConcurrentSubscription_ThreadSafe()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		const int threadCount = 10;
-		const int subscriptionsPerThread = 100;
-		var callCount = 0;
+   [Fact]
+   public void SlimEvent_ConcurrentSubscription_ThreadSafe()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      const int threadCount = 10;
+      const int subscriptionsPerThread = 100;
+      var recipients = new List<TestRecipient>();
 
-		// Act - concurrent subscription
-		Parallel.For(0, threadCount, _ =>
-		{
-			for (int i = 0; i < subscriptionsPerThread; i++)
-			{
-				slimEvent.Handler += s => Interlocked.Increment(ref callCount);
-			}
-		});
+      // Create recipients
+      for (int i = 0; i < threadCount * subscriptionsPerThread; i++)
+      {
+         recipients.Add(new TestRecipient($"r{i}"));
+      }
 
-		slimEvent.Invoke(sender);
+      // Act - concurrent subscription
+      Parallel.For(0, threadCount, threadIndex =>
+      {
+         for (int i = 0; i < subscriptionsPerThread; i++)
+         {
+            var recipientIndex = threadIndex * subscriptionsPerThread + i;
+            slimEvent.Handler += recipients[recipientIndex].OnEvent;
+         }
+      });
 
-		// Assert
-		Assert.Equal(threadCount * subscriptionsPerThread, callCount);
+      slimEvent.Raise(sender);
 
-		// Cleanup
-		sender.Dispose();
-	}
+      // Assert
+      var totalCalls = recipients.Sum(r => r.CallCount);
+      Assert.Equal(threadCount * subscriptionsPerThread, totalCalls);
 
-	[Fact]
-	public void SlimEvent_ConcurrentInvocation_ThreadSafe()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var callCount = 0;
+      // Cleanup
+      sender.Dispose();
+      foreach (var r in recipients) r.Dispose();
+   }
 
-		slimEvent.Handler += s => Interlocked.Increment(ref callCount);
+   [Fact]
+   public void SlimEvent_ConcurrentInvocation_ThreadSafe()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient = new TestRecipient();
 
-		// Act - concurrent invocation
-		const int invocations = 1000;
-		Parallel.For(0, invocations, _ =>
-		{
-			slimEvent.Invoke(sender);
-		});
+      slimEvent.Handler += recipient.OnEvent;
 
-		// Assert
-		Assert.Equal(invocations, callCount);
+      // Act - concurrent invocation
+      const int invocations = 1000;
+      Parallel.For(0, invocations, _ =>
+      {
+         slimEvent.Raise(sender);
+      });
 
-		// Cleanup
-		sender.Dispose();
-	}
+      // Assert
+      Assert.Equal(invocations, recipient.CallCount);
 
-	[Fact]
-	public void SlimEvent_ConcurrentSubscribeUnsubscribeInvoke_ThreadSafe()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var callCount = 0;
-		var handlers = new List<Action<TestSender>>();
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
 
-		// Create handlers
-		for (int i = 0; i < 100; i++)
-		{
-			handlers.Add(s => Interlocked.Increment(ref callCount));
-		}
+   [Fact]
+   public void SlimEvent_ConcurrentSubscribeUnsubscribeInvoke_ThreadSafe()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipients = new List<TestRecipient>();
 
-		// Act - concurrent operations
-		Parallel.Invoke(
-			// Subscribe
-			() =>
-			{
-				foreach (var handler in handlers)
-				{
-					slimEvent.Handler += handler;
-				}
-			},
-			// Unsubscribe
-			() =>
-			{
-				Thread.Sleep(5); // Let some subscribe first
-				foreach (var handler in handlers.Take(50))
-				{
-					slimEvent.Handler -= handler;
-				}
-			},
-			// Invoke
-			() =>
-			{
-				for (int i = 0; i < 100; i++)
-				{
-					slimEvent.Invoke(sender);
-					Thread.Sleep(1);
-				}
-			}
-		);
+      // Create recipients
+      for (int i = 0; i < 100; i++)
+      {
+         recipients.Add(new TestRecipient($"r{i}"));
+      }
 
-		// Assert - no exceptions thrown, operations completed
-		Assert.True(callCount > 0); // Some handlers were invoked
+      // Act - concurrent operations
+      Parallel.Invoke(
+         // Subscribe
+         () =>
+         {
+            foreach (var recipient in recipients)
+            {
+               slimEvent.Handler += recipient.OnEvent;
+            }
+         },
+         // Unsubscribe
+         () =>
+         {
+            Thread.Sleep(5); // Let some subscribe first
+            foreach (var recipient in recipients.Take(50))
+            {
+               slimEvent.Handler -= recipient.OnEvent;
+            }
+         },
+         // Invoke
+         () =>
+         {
+            for (int i = 0; i < 100; i++)
+            {
+               slimEvent.Raise(sender);
+               Thread.Sleep(1);
+            }
+         }
+      );
 
-		// Cleanup
-		sender.Dispose();
-	}
+      // Assert - no exceptions thrown, operations completed
+      var totalCalls = recipients.Sum(r => r.CallCount);
+      Assert.True(totalCalls > 0); // Some handlers were invoked
 
-	#endregion
+      // Cleanup
+      sender.Dispose();
+      foreach (var r in recipients) r.Dispose();
+   }
 
-	#region Edge Cases
+   #endregion
 
-	[Fact]
-	public void SlimEvent_HandlerThrowsException_BubblesAndStopsInvocation()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var count1 = 0;
-		var count2 = 0;
+   #region Edge Cases
 
-		slimEvent.Handler += s => count1++;
-		slimEvent.Handler += s => throw new InvalidOperationException("Test exception");
-		slimEvent.Handler += s => count2++; // Should not be called
+   [Fact]
+   public void SlimEvent_HandlerThrowsException_BubblesAndStopsInvocation()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient1 = new TestRecipient("r1");
+      var recipient2 = new TestRecipient("r2");
+      var recipient3 = new TestRecipient("r3");
 
-		// Act & Assert
-		Assert.Throws<InvalidOperationException>(() => slimEvent.Invoke(sender));
+      slimEvent.Handler += recipient1.OnEvent;
+      slimEvent.Handler += recipient2.OnEventThrows; // Throws exception
+      slimEvent.Handler += recipient3.OnEvent; // Should not be called
 
-		Assert.Equal(1, count1); // First handler called
-		Assert.Equal(0, count2); // Third handler not called - exception stopped invocation
+      // Act & Assert
+      Assert.Throws<InvalidOperationException>(() => slimEvent.Raise(sender));
 
-		// Cleanup
-		sender.Dispose();
-	}
+      Assert.Equal(1, recipient1.CallCount); // First handler called
+      Assert.Equal(1, recipient2.CallCount); // Second handler called (then threw)
+      Assert.Equal(0, recipient3.CallCount); // Third handler not called - exception stopped invocation
 
-	[Fact]
-	public void SlimEvent_HandlerUnsubscribesSelfDuringInvocation_Safe()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		Action<TestSender>? selfRemovingHandler = null;
-		var callCount = 0;
+      // Cleanup
+      sender.Dispose();
+      recipient1.Dispose();
+      recipient2.Dispose();
+      recipient3.Dispose();
+   }
 
-		selfRemovingHandler = s =>
-		{
-			callCount++;
-			slimEvent.Handler -= selfRemovingHandler!;
-		};
+   [Fact]
+   public void SlimEvent_HandlerUnsubscribesSelfDuringInvocation_Safe()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient = new TestRecipient();
+      recipient.EventToModify = slimEvent;
 
-		slimEvent.Handler += selfRemovingHandler;
+      slimEvent.Handler += recipient.OnEventAndUnsubscribeSelf;
 
-		// Act
-		slimEvent.Invoke(sender);
-		slimEvent.Invoke(sender); // Second invoke - handler removed
+      // Act
+      slimEvent.Raise(sender);
+      slimEvent.Raise(sender); // Second invoke - handler removed
 
-		// Assert
-		Assert.Equal(1, callCount); // Only called once
+      // Assert
+      Assert.Equal(1, recipient.CallCount); // Only called once
 
-		// Cleanup
-		sender.Dispose();
-	}
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
 
-	[Fact]
-	public void SlimEvent_HandlerSubscribesNewHandlerDuringInvocation_NewHandlerNotInvokedImmediately()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var count1 = 0;
-		var count2 = 0;
+   [Fact]
+   public void SlimEvent_HandlerSubscribesNewHandlerDuringInvocation_NewHandlerNotInvokedImmediately()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient1 = new TestRecipient("r1");
+      var recipient2 = new TestRecipient("r2");
 
-		slimEvent.Handler += s =>
-		{
-			count1++;
-			// Subscribe new handler during invocation
-			slimEvent.Handler += s2 => count2++;
-		};
+      recipient1.EventToModify = slimEvent;
+      recipient1.OtherRecipientToSubscribe = recipient2;
 
-		// Act
-		slimEvent.Invoke(sender); // First handler subscribes second handler
+      slimEvent.Handler += recipient1.OnEventAndSubscribeOther;
 
-		// Assert
-		Assert.Equal(1, count1);
-		Assert.Equal(0, count2); // Second handler not invoked during same invoke
+      // Act
+      slimEvent.Raise(sender); // First handler subscribes second handler
 
-		// Act - second invoke
-		slimEvent.Invoke(sender);
+      // Assert
+      Assert.Equal(1, recipient1.CallCount);
+      Assert.Equal(0, recipient2.CallCount); // Second handler not invoked during same invoke
 
-		// Assert
-		Assert.Equal(2, count1);
-		Assert.Equal(1, count2); // Now second handler invoked
+      // Act - second invoke
+      slimEvent.Raise(sender);
 
-		// Cleanup
-		sender.Dispose();
-	}
+      // Assert
+      Assert.Equal(2, recipient1.CallCount);
+      Assert.Equal(1, recipient2.CallCount); // Now second handler invoked
 
-	[Fact]
-	public void SlimEvent_NullSender_AssertsInDebugBuild()
-	{
+      // Cleanup
+      sender.Dispose();
+      recipient1.Dispose();
+      recipient2.Dispose();
+   }
+
+   [Fact]
+   public void SlimEvent_NullSender_AssertsInDebugBuild()
+   {
 #if DEBUG
 		// Arrange
 		var slimEvent = new SlimEvent<TestSender>();
 
 		// Act & Assert
-		var exception = Record.Exception(() => slimEvent.Invoke(null!));
+		var exception = Record.Exception(() => slimEvent.Raise(null!));
 		Assert.NotNull(exception); // Assertion fires
 
 #endif
-	}
+   }
 
-	[Fact]
-	public void SlimEvent_DisposedSender_AssertsInDebugBuild()
-	{
+   [Fact]
+   public void SlimEvent_DisposedSender_AssertsInDebugBuild()
+   {
 #if DEBUG
 		// Arrange
 		var slimEvent = new SlimEvent<TestSender>();
@@ -676,119 +774,105 @@ public class SlimEventTests
 		sender.Dispose();
 
 		// Act & Assert
-		var exception = Record.Exception(() => slimEvent.Invoke(sender));
+		var exception = Record.Exception(() => slimEvent.Raise(sender));
 		Assert.NotNull(exception); // Assertion fires
 #endif
-	}
+   }
 
-	[Fact]
-	public void SlimEvent_StaticMethodHandler_WorksWithoutDisposalCheck()
-	{
+   [Fact]
+   public void SlimEvent_StaticMethodHandler_WorksWithoutDisposalCheck()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+
+      // Static method handler has null Target - should work fine
+      slimEvent.Handler += StaticHandler;
+
+      // Act & Assert - should not throw
+      slimEvent.Raise(sender);
+
+      // Cleanup
+      sender.Dispose();
+   }
+
+   private static void StaticHandler(TestSender sender)
+   {
+      // Static handler for testing
+   }
+
+   [Fact]
+   public void SlimEvent_LambdasNotAllowed_AssertsInDebugBuild()
+   {
+#if DEBUG
 		// Arrange
 		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-
-		// Static method handler has null Target - should work fine
-		slimEvent.Handler += StaticHandler;
-
-		// Act & Assert - should not throw
-		slimEvent.Invoke(sender);
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	private static void StaticHandler(TestSender sender)
-	{
-		// Static handler for testing
-	}
-
-	[Fact]
-	public void SlimEvent_LambdaCapturingDisposedRecipient_CannotBeDetected()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
 		var recipient = new TestRecipient();
 
-		// Lambda captures recipient - Target is closure object, not recipient
-		slimEvent.Handler += s => recipient.OnEvent(s);
+		// Act & Assert
+		// Lambdas not allowed - Target is closure object, not IDisposeGuard
+		var exception = Record.Exception(() => slimEvent.Handler += s => recipient.OnEvent(s));
+		Assert.NotNull(exception); // Assertion fires - closure doesn't implement IDisposeGuard
+#endif
+   }
 
-		// Dispose recipient
-		recipient.Dispose();
+   #endregion
 
-		// Act
-		// Lambda disposal cannot be detected - Target is closure, not captured variable
-		// This will still invoke the handler, but with a disposed recipient
-		// User responsibility to unsubscribe lambdas that capture disposable objects
-		slimEvent.Invoke(sender);
+   #region Remove Specific Handler Tests
 
-		// Assert - handler was called (no disposal detection for lambdas)
-		Assert.Equal(1, recipient.CallCount);
+   [Fact]
+   public void SlimEvent_RemoveSpecificHandler_OnlyRemovesMatchingHandler()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient1 = new TestRecipient("r1");
+      var recipient2 = new TestRecipient("r2");
+      var recipient3 = new TestRecipient("r3");
 
-		// Cleanup
-		sender.Dispose();
-	}
+      slimEvent.Handler += recipient1.OnEvent;
+      slimEvent.Handler += recipient2.OnEvent;
+      slimEvent.Handler += recipient3.OnEvent;
 
-	#endregion
+      // Act - remove middle handler
+      slimEvent.Handler -= recipient2.OnEvent;
+      slimEvent.Raise(sender);
 
-	#region Remove Specific Handler Tests
+      // Assert
+      Assert.Equal(1, recipient1.CallCount);
+      Assert.Equal(0, recipient2.CallCount); // Removed
+      Assert.Equal(1, recipient3.CallCount);
 
-	[Fact]
-	public void SlimEvent_RemoveSpecificHandler_OnlyRemovesMatchingHandler()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var count1 = 0;
-		var count2 = 0;
-		var count3 = 0;
+      // Cleanup
+      sender.Dispose();
+      recipient1.Dispose();
+      recipient2.Dispose();
+      recipient3.Dispose();
+   }
 
-		Action<TestSender> handler1 = s => count1++;
-		Action<TestSender> handler2 = s => count2++;
-		Action<TestSender> handler3 = s => count3++;
+   [Fact]
+   public void SlimEvent_RemoveSameHandlerAddedMultipleTimes_RemovesLastOccurrence()
+   {
+      // Arrange
+      var slimEvent = new SlimEvent<TestSender>();
+      var sender = new TestSender();
+      var recipient = new TestRecipient();
 
-		slimEvent.Handler += handler1;
-		slimEvent.Handler += handler2;
-		slimEvent.Handler += handler3;
+      slimEvent.Handler += recipient.OnEvent;
+      slimEvent.Handler += recipient.OnEvent;
+      slimEvent.Handler += recipient.OnEvent;
 
-		// Act - remove middle handler
-		slimEvent.Handler -= handler2;
-		slimEvent.Invoke(sender);
+      // Act - remove once (should remove last occurrence)
+      slimEvent.Handler -= recipient.OnEvent;
+      slimEvent.Raise(sender);
 
-		// Assert
-		Assert.Equal(1, count1);
-		Assert.Equal(0, count2); // Removed
-		Assert.Equal(1, count3);
+      // Assert
+      Assert.Equal(2, recipient.CallCount); // Two occurrences remain
 
-		// Cleanup
-		sender.Dispose();
-	}
+      // Cleanup
+      sender.Dispose();
+      recipient.Dispose();
+   }
 
-	[Fact]
-	public void SlimEvent_RemoveSameHandlerAddedMultipleTimes_RemovesLastOccurrence()
-	{
-		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
-		var sender = new TestSender();
-		var callCount = 0;
-
-		Action<TestSender> handler = s => callCount++;
-
-		slimEvent.Handler += handler;
-		slimEvent.Handler += handler;
-		slimEvent.Handler += handler;
-
-		// Act - remove once (should remove last occurrence)
-		slimEvent.Handler -= handler;
-		slimEvent.Invoke(sender);
-
-		// Assert
-		Assert.Equal(2, callCount); // Two occurrences remain
-
-		// Cleanup
-		sender.Dispose();
-	}
-
-	#endregion
+   #endregion
 }
