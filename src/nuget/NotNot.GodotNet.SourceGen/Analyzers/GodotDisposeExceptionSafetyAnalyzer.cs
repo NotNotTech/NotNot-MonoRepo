@@ -87,7 +87,7 @@ public class GodotDisposeExceptionSafetyAnalyzer : DiagnosticAnalyzer
 			var typeName = symbol.ContainingType.Name;
 			var diagnostic = Diagnostic.Create(
 				RuleNoDisposingGuard,
-				method.Identifier.GetLocation(),
+				method.ExpressionBody.GetLocation(),
 				typeName);
 			context.ReportDiagnostic(diagnostic);
 			return;
@@ -99,21 +99,31 @@ public class GodotDisposeExceptionSafetyAnalyzer : DiagnosticAnalyzer
 		if (IsEmptyOrOnlyBaseDispose(body)) return;
 
 		// Check if has comprehensive try/catch protection
-		if (HasComprehensiveTryCatch(body, parameterSymbol, context.SemanticModel, out var hasDisposingGuard))
+		if (HasComprehensiveTryCatch(body, parameterSymbol, context.SemanticModel, out var hasDisposingGuard, out var disposingIfStatement))
 		{
 			return; // Already protected
 		}
 
-		// Report diagnostic
+		// Report diagnostic at the specific location that needs fixing
+		Location diagnosticLocation;
+		if (disposingIfStatement != null)
 		{
-			var typeName = symbol.ContainingType.Name;
-			var diagnostic = Diagnostic.Create(
-				hasDisposingGuard ? Rule : RuleNoDisposingGuard,
-				method.Identifier.GetLocation(),
-				typeName);
-
-			context.ReportDiagnostic(diagnostic);
+			// Report at the if (disposing) statement that needs try/catch wrapper
+			diagnosticLocation = disposingIfStatement.GetLocation();
 		}
+		else
+		{
+			// No guard exists - report at method body opening to indicate entire body needs wrapping
+			diagnosticLocation = body.OpenBraceToken.GetLocation();
+		}
+
+		var typeName2 = symbol.ContainingType.Name;
+		var diagnostic2 = Diagnostic.Create(
+			hasDisposingGuard ? Rule : RuleNoDisposingGuard,
+			diagnosticLocation,
+			typeName2);
+
+		context.ReportDiagnostic(diagnostic2);
 	}
 
 	/// <summary>
@@ -167,14 +177,15 @@ public class GodotDisposeExceptionSafetyAnalyzer : DiagnosticAnalyzer
 	/// <summary>
 	/// Checks if method body has comprehensive try/catch protection.
 	/// Uses semantic analysis to verify disposing parameter references.
+	/// Returns the disposing if statement via out parameter for diagnostic location.
 	/// </summary>
-	private static bool HasComprehensiveTryCatch(BlockSyntax body, IParameterSymbol disposingParameter, SemanticModel semanticModel, out bool hasDisposingGuard)
+	private static bool HasComprehensiveTryCatch(BlockSyntax body, IParameterSymbol disposingParameter, SemanticModel semanticModel, out bool hasDisposingGuard, out IfStatementSyntax? disposingIfStatement)
 	{
 		hasDisposingGuard = false;
+		disposingIfStatement = null;
 		var statements = body.Statements;
 
 		// Look for if (disposing) pattern using semantic analysis
-		IfStatementSyntax? disposingIfStatement = null;
 		foreach (var statement in statements)
 		{
 			if (statement is IfStatementSyntax ifStmt)

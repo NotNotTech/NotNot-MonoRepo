@@ -34,29 +34,29 @@ public class GodotDisposeExceptionSafetyCodeFixProvider : CodeFixProvider
 		var diagnostic = context.Diagnostics.First();
 		var diagnosticSpan = diagnostic.Location.SourceSpan;
 
-		// Find the Dispose method
-		var method = root.FindToken(diagnosticSpan.Start).Parent?.AncestorsAndSelf()
-			.OfType<MethodDeclarationSyntax>()
-			.FirstOrDefault();
+		// Find the syntax node at the diagnostic location
+		var node = root.FindToken(diagnosticSpan.Start).Parent?.AncestorsAndSelf().FirstOrDefault();
+		if (node == null) return;
 
-		if (method == null || method.Body == null) return;
+		// Check if diagnostic is at if (disposing) statement or method body brace
+		var disposingIf = node.AncestorsAndSelf().OfType<IfStatementSyntax>().FirstOrDefault();
 
-		// Check if method has disposing guard
-		var hasDisposingGuard = HasDisposingGuard(method.Body);
-
-		if (hasDisposingGuard)
+		if (disposingIf != null)
 		{
-			// Wrap the if (disposing) block content in try/catch
+			// Diagnostic at if (disposing) statement - wrap its content in try/catch
 			context.RegisterCodeFix(
 				CodeAction.Create(
 					title: "Wrap disposing block in try/catch",
-					createChangedDocument: c => WrapDisposingBlockAsync(context.Document, method, c),
+					createChangedDocument: c => WrapDisposingBlockAsync(context.Document, disposingIf, c),
 					equivalenceKey: "WrapDisposingBlock"),
 				diagnostic);
 		}
 		else
 		{
-			// Add disposing guard and wrap in try/catch
+			// Diagnostic at method body brace - need to add guard and wrap
+			var method = node.AncestorsAndSelf().OfType<MethodDeclarationSyntax>().FirstOrDefault();
+			if (method == null || method.Body == null) return;
+
 			context.RegisterCodeFix(
 				CodeAction.Create(
 					title: "Add disposing guard and wrap in try/catch",
@@ -67,29 +67,38 @@ public class GodotDisposeExceptionSafetyCodeFixProvider : CodeFixProvider
 	}
 
 	/// <summary>
-	/// Checks if method has if (disposing) guard.
-	/// NOTE: This uses textual matching for simplicity in code fix context.
-	/// The analyzer uses proper semantic analysis.
+	/// Creates catch clause using SyntaxFactory for IDE reliability
 	/// </summary>
-	private static bool HasDisposingGuard(BlockSyntax body)
+	private static CatchClauseSyntax CreateCatchClause()
 	{
-		return body.Statements.OfType<IfStatementSyntax>()
-			.Any(ifStmt => ifStmt.Condition.ToString().Contains("disposing"));
+		// Build: catch (Exception ex) { _GD.ThrowError(ex); }
+		return SyntaxFactory.CatchClause()
+			.WithDeclaration(
+				SyntaxFactory.CatchDeclaration(
+					SyntaxFactory.IdentifierName("Exception"),
+					SyntaxFactory.Identifier("ex")))
+			.WithBlock(
+				SyntaxFactory.Block(
+					SyntaxFactory.ExpressionStatement(
+						SyntaxFactory.InvocationExpression(
+							SyntaxFactory.MemberAccessExpression(
+								SyntaxKind.SimpleMemberAccessExpression,
+								SyntaxFactory.IdentifierName("_GD"),
+								SyntaxFactory.IdentifierName("ThrowError")))
+						.WithArgumentList(
+							SyntaxFactory.ArgumentList(
+								SyntaxFactory.SingletonSeparatedList(
+									SyntaxFactory.Argument(
+										SyntaxFactory.IdentifierName("ex"))))))));
 	}
 
 	/// <summary>
 	/// Wraps the content of the if (disposing) block in try/catch
 	/// </summary>
-	private async Task<Document> WrapDisposingBlockAsync(Document document, MethodDeclarationSyntax method, CancellationToken cancellationToken)
+	private async Task<Document> WrapDisposingBlockAsync(Document document, IfStatementSyntax disposingIf, CancellationToken cancellationToken)
 	{
 		var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-		if (root == null || method.Body == null) return document;
-
-		// Find the if (disposing) statement
-		var disposingIf = method.Body.Statements.OfType<IfStatementSyntax>()
-			.FirstOrDefault(ifStmt => ifStmt.Condition.ToString().Contains("disposing"));
-
-		if (disposingIf == null) return document;
+		if (root == null) return document;
 
 		// Get the if block content
 		var ifBlock = disposingIf.Statement as BlockSyntax;
@@ -99,21 +108,10 @@ public class GodotDisposeExceptionSafetyCodeFixProvider : CodeFixProvider
 			ifBlock = SyntaxFactory.Block(disposingIf.Statement);
 		}
 
-		// Create catch block using ParseStatement for simplicity
-		var catchBlockCode = @"catch (Exception ex)
-{
-    _GD.ThrowError(ex);
-}";
-
-		var catchClause = SyntaxFactory.ParseCompilationUnit(catchBlockCode)
-			.DescendantNodes()
-			.OfType<CatchClauseSyntax>()
-			.First();
-
 		// Create try/catch block wrapping the if block content
 		var tryBlock = SyntaxFactory.TryStatement()
 			.WithBlock(SyntaxFactory.Block(ifBlock.Statements))
-			.WithCatches(SyntaxFactory.SingletonList(catchClause))
+			.WithCatches(SyntaxFactory.SingletonList(CreateCatchClause()))
 			.WithAdditionalAnnotations(Formatter.Annotation);
 
 		// Create new if block with try/catch
@@ -178,21 +176,10 @@ public class GodotDisposeExceptionSafetyCodeFixProvider : CodeFixProvider
 		// If nothing to wrap, return unchanged
 		if (statementsToWrap.Count == 0) return document;
 
-		// Create catch block
-		var catchBlockCode = @"catch (Exception ex)
-{
-    _GD.ThrowError(ex);
-}";
-
-		var catchClause = SyntaxFactory.ParseCompilationUnit(catchBlockCode)
-			.DescendantNodes()
-			.OfType<CatchClauseSyntax>()
-			.First();
-
 		// Create try/catch block
 		var tryBlock = SyntaxFactory.TryStatement()
 			.WithBlock(SyntaxFactory.Block(statementsToWrap))
-			.WithCatches(SyntaxFactory.SingletonList(catchClause))
+			.WithCatches(SyntaxFactory.SingletonList(CreateCatchClause()))
 			.WithAdditionalAnnotations(Formatter.Annotation);
 
 		// Create if (disposing) block
