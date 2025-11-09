@@ -15,6 +15,10 @@ public interface IDisposeGuard : IDisposable
 /// </summary>
 public class DisposeGuard : IDisposeGuard
 {
+	/// <summary>
+	/// set to true to signal a runtime (such as godot editor) cold reload is occuring, in which case we will not throw exceptions for improperly disposed objects
+	/// </summary>
+	public static bool IsRuntimeColdReloadOccuring = false;
 	private bool _IsDisposed;
 
 	public DisposeGuard()
@@ -66,13 +70,17 @@ public class DisposeGuard : IDisposeGuard
 	{
 		if (!IsDisposed)
 		{
-			var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) type properly.  Stack=\n\t\t";
+			if (IsRuntimeColdReloadOccuring is false)
+			{
+				var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) type properly.  Stack=\n\t\t";
 
-			//Debug.WriteLine(msg);
+				//Debug.WriteLine(msg);
 
-			__.GetLogger()._EzError(false, msg, CtorStackTraceMsg);
-			__.Assert(msg);
+				__.GetLogger()._EzError(false, msg, CtorStackTraceMsg);
+				__.Assert(msg);
 
+
+			}
 			OnDispose(false);
 		}
 	}
