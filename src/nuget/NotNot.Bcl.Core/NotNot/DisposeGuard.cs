@@ -70,20 +70,26 @@ public class DisposeGuard : IDisposeGuard
 
 	~DisposeGuard()
 	{
-		if (!IsDisposed)
+		try
 		{
-			if (_suppressNonDisposalExceptions is false)
+			if (!IsDisposed)
 			{
-				var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) type properly.  Stack=\n\t\t";
+				if (_suppressNonDisposalExceptions is false)
+				{
+					var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) type properly.  Stack=\n\t\t";
 
-				//Debug.WriteLine(msg);
+					//Debug.WriteLine(msg);
 
-				__.GetLogger()._EzError(false, msg, CtorStackTraceMsg);
-				__.Assert(msg);
+					__.GetLogger()._EzError(false, msg, CtorStackTraceMsg);
+					__.Assert(msg);
 
 
+				}
+				OnDispose(false);
 			}
-			OnDispose(false);
+		}catch(Exception ex)
+		{
+			ex._RethrowUnlessAppShutdownOrRelease();
 		}
 	}
 
@@ -198,14 +204,21 @@ public class AsyncDisposeGuard : IAsyncDisposable
 
 	~AsyncDisposeGuard()
 	{
-		if (!IsDisposed)
+		try
 		{
-			var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) properly.  Stack=\n\t\t";
-			msg += (CtorStackTrace is null ? "Callstack is only set in #DEBUG" : string.Join("\n\t\t", CtorStackTrace.ToString()));
-			//Debug.WriteLine(msg);
-			//__.Assert(false, msg);
-			__.GetLogger()._EzError(false, msg);
-			OnDispose(false)._SyncWait();
+			if (!IsDisposed)
+			{
+				var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) properly.  Stack=\n\t\t";
+				msg += (CtorStackTrace is null ? "Callstack is only set in #DEBUG" : string.Join("\n\t\t", CtorStackTrace.ToString()));
+				//Debug.WriteLine(msg);
+				//__.Assert(false, msg);
+				__.GetLogger()._EzError(false, msg);
+				OnDispose(false)._SyncWait();
+			}
+		}
+		catch (Exception ex)
+		{
+			ex._RethrowUnlessAppShutdownOrRelease();
 		}
 	}
 

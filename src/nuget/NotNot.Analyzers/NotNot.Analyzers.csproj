@@ -20,25 +20,24 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	<Compile Remove="bin\**" />
-	<Compile Remove="Documentation\**" />
-	<EmbeddedResource Remove="bin\**" />
-	<EmbeddedResource Remove="Documentation\**" />
-	<None Remove="bin\**" />
-	<None Remove="Documentation\**" />
-  </ItemGroup>
+		<Compile Remove="bin\**" />
+		<Compile Remove="Documentation\**" />
+		<EmbeddedResource Remove="bin\**" />
+		<EmbeddedResource Remove="Documentation\**" />
+		<None Remove="bin\**" />
+		<None Remove="Documentation\**" />
+	</ItemGroup>
 
-
-	<!-- Core analyzer dependencies -->
+	<!-- Core analyzer dependencies (aligned with VS 17.11.x) -->
 	<ItemGroup>
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
 		<!-- Code Fix Provider dependencies -->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" PrivateAssets="all" />
 		<PackageReference Include="System.Composition" Version="9.0.8" PrivateAssets="all" />
 	</ItemGroup>
 	
-	<!-- Development-time analyzers -->
+	<!-- Development-time analyzers (for this project only) -->
 	<ItemGroup>
 		<PackageReference Include="Roslynator.Analyzers" Version="4.14.0" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

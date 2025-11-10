@@ -5,128 +5,86 @@
 		<Configurations>Debug;Release;DebugNuget</Configurations>
 	</PropertyGroup>
 
-
 	<!--shared common .csproj settings-->
 	<Import Project="..\..\CommonSettings.targets" />
 
-
 	<PropertyGroup>
-		<!--standard dotnet stuff-->
-		<!--<TargetFramework>net8.0</TargetFramework>-->
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 		<LangVersion>preview</LangVersion>
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 		<InvariantGlobalization>true</InvariantGlobalization>
+		<!-- ensure analyzer/generator deps copied locally for VS MEF resolution -->
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 	</PropertyGroup>
 
-
-	<!--disable warnings for libraries in DEBUG-->
 	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
 		<WarningLevel>0</WarningLevel>
 	</PropertyGroup>
 
-	<!--LOCAL DEV NOTES:  To reference `.csproj`, not Nuget: Add ` OutputItemType="Analyzer" ReferenceOutputAssembly="false"` to the `ProjectReference`-->
-
-	<!--Using SourceGenerator.Foundations for automatic dependency management-->
 	<ItemGroup>
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<!--removed hardcoded path reference-->
 		<PackageReference Include="SourceGenerator.Foundations" Version="2.0.13" PrivateAssets="all" />
 		<PackageReference Include="System.Text.Json" Version="9.0.8" PrivateAssets="all" />
 	</ItemGroup>
 
-
-	<!--Removed GetDependencyTargetPaths target - SourceGenerator.Foundations handles this automatically-->
-
-
 	<!-- standard nuget package details -->
 	<ItemGroup>
-		<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
-		<None Include=".\README.md">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
+		<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png" Pack="True" PackagePath="\" />
+		<None Include=".\README.md" Pack="True" PackagePath="\" />
 	</ItemGroup>
-	<!-- standard nuget package details -->
+
 	<PropertyGroup>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<!--see https://github.com/adamralph/minver?tab=readme-ov-file#can-i-version-multiple-projects-in-a-single-repository-independently -->
 		<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>
 		<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
 		<OutputType>Library</OutputType>
-
-		<!--for other macro properties, see https://learn.microsoft.com/en-us/visualstudio/msbuild/common-msbuild-project-properties?view=vs-2022 -->
 		<Authors>Novaleaf</Authors>
 		<Copyright>$(Authors)</Copyright>
 		<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/$(AssemblyName)/</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
 		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
 		<Version>0.0.0-0.invalidMinverProcess</Version>
 	</PropertyGroup>
 
-
-	<!--stuff for nuget package publishing-->
 	<ItemGroup>
-		<!--removed hardcoded path reference-->
-
-		<PackageReference Include="MinVer" Version="6.0.0">
-			<PrivateAssets>all</PrivateAssets>
+		<PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-
 	</ItemGroup>
-
-
 
 	<PropertyGroup>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 		<Deterministic>true</Deterministic>
 	</PropertyGroup>
 
-
-	<!--project specific nuget settings-->
 	<PropertyGroup>
-		<!--Removed GetDependencyTargetPaths dependency - SourceGenerator.Foundations handles this-->
 		<Title>NotNot.AppSettings</Title>
 		<Authors>Jason Swearingen</Authors>
 		<PackageTags>AppSettings; Source Generator; SourceGenerator; Json; NotNot; Novaleaf;</PackageTags>
 		<Description>Automatically create strongly typed C# settings classes from AppSettings.json. Uses Source Generators. Includes a simple deserialization helper for when you are using Dependency Injection, or not.</Description>
-
 	</PropertyGroup>
 
-
 	<ItemGroup>
-		<!--required for sourcegen-->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0">
-			<PrivateAssets>all</PrivateAssets>
-			<!--required so that the .props file is included in the target project build-->
+		<!-- Downgraded Roslyn versions to align with other analyzer projects (4.11.0) for MEF compatibility -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<!--required for json IConfiguration.Bind()  _BinderShims.cs-->
 		<PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.8" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.8" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.8" />
-
 	</ItemGroup>
 
 	<ItemGroup>
-		<!--attaches this .props file to the target project. required so target project appsettings.json files are included for sourcegen scanning-->
 		<None Update="NotNot.AppSettings.props" Pack="true" PackagePath="build" Visible="true" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<!--attaches this .targets file to the target project.  (this file make this package a private asset).  Can't be rolled into the above .props sadly-->
 		<None Include="NotNot.AppSettings.targets" Pack="true" PackagePath="build" />
 	</ItemGroup>
-
 
 </Project>
