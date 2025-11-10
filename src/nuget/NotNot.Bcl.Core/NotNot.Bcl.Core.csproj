@@ -91,5 +91,8 @@
 		<PackageReference Include="ZstdSharp.Port" Version="0.8.6" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<ProjectReference Include="..\NotNot.Analyzers\NotNot.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
 
 </Project>
