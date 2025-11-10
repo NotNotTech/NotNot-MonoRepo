@@ -212,6 +212,23 @@ public static class zz_Extensions_Exception
    }
 
    /// <summary>
+   /// rethrow the exception using it's original stack trace.
+   /// </summary>
+   /// <typeparam name="T"></typeparam>
+   /// <param name="exception"></param>
+   /// <returns>This function WILL NOT return.   pretends to return the exception if you want to use the keyword `throw` for control flow analysis purposes.</returns>
+   [DoesNotReturn]
+	public static T _Rethrow<T>(this T exception) where T : Exception
+   {
+		// capture now to preserve the current stack trace
+		var captured = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+      captured.Throw();
+      return exception;
+	}
+
+
+
+   /// <summary>
    /// search self and inner exceptions for the exception type.  if found, return true and set found to the exception.
    /// </summary>
    /// <typeparam name="TException"></typeparam>
