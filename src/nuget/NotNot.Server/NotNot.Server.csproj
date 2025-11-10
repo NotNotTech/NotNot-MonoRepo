@@ -34,8 +34,8 @@
 
 	<ItemGroup>
 		<!--server-app specific libraries-->
-		<PackageReference Include="Google.Cloud.SecretManager.V1" Version="2.6.0" />
-		<PackageReference Include="Stripe.net" Version="48.5.0" />
+		<PackageReference Include="Google.Cloud.SecretManager.V1" Version="2.7.0" />
+		<PackageReference Include="Stripe.net" Version="49.2.0" />
 		<PackageReference Include="ZiggyCreatures.FusionCache" Version="2.4.0" />
 	</ItemGroup>
 
@@ -43,7 +43,7 @@
 
 	<ItemGroup>
 		<!--db stuff-->
-		<PackageReference Include="Google.Cloud.Datastore.V1" Version="4.15.0" />
+		<PackageReference Include="Google.Cloud.Datastore.V1" Version="4.16.0" />
 
 
 	</ItemGroup>

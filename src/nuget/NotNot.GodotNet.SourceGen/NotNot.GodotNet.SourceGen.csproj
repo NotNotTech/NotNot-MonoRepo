@@ -18,6 +18,8 @@
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 		<Deterministic>true</Deterministic>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<!-- Ensure analyzer deps are copied to bin for VS MEF resolution when referenced as ProjectReference -->
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 	</PropertyGroup>
 
 
@@ -129,14 +131,14 @@
 
 		<ItemGroup>
 			<!--required for sourcegen-->
-			<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
-			<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4">
+			<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+			<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
 				<PrivateAssets>all</PrivateAssets>
 				<!--required so that the .props file is included in the target project build-->
 				<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			</PackageReference>
 			<!--required for code fix providers-->
-			<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" PrivateAssets="all" />
+			<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" PrivateAssets="all" />
 			<PackageReference Include="System.Composition" Version="9.0.8" PrivateAssets="all" />
 			<!--required for json IConfiguration.Bind()  _BinderShims.cs-->
 			<PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.8" />
