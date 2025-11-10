@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace NotNot;
@@ -16,10 +17,11 @@ public interface IDisposeGuard : IDisposable
 public class DisposeGuard : IDisposeGuard
 {
 	/// <summary>
-	/// set to true to signal a runtime (such as godot editor) cold reload is occuring, in which case we will not throw exceptions for improperly disposed objects
+	/// set to true to avoid throwing exceptions from DisposeGuard.   useful for low-level runtime debugging (ie: assembly cold-reload situations), but otherwise should be avoided.
 	/// </summary>
-	public static bool IsRuntimeColdReloadOccuring = false;
-	private bool _IsDisposed;
+	[EditorBrowsable(EditorBrowsableState.Never)]	
+	public static bool _suppressNonDisposalExceptions = false;
+	private bool _isDisposed;
 
 	public DisposeGuard()
 	{
@@ -31,7 +33,7 @@ public class DisposeGuard : IDisposeGuard
 #endif
 	}
 
-	public bool IsDisposed { get => _IsDisposed; init => _IsDisposed = value; }
+	public bool IsDisposed { get => _isDisposed; init => _isDisposed = value; }
 
 
 	private List<string> CtorStackTrace { get; set; } //= "Callstack is only set in #DEBUG";
@@ -63,14 +65,14 @@ public class DisposeGuard : IDisposeGuard
 	/// </param>
 	protected virtual void OnDispose(bool managedDisposing)
 	{
-		_IsDisposed = true;
+		_isDisposed = true;
 	}
 
 	~DisposeGuard()
 	{
 		if (!IsDisposed)
 		{
-			if (IsRuntimeColdReloadOccuring is false)
+			if (_suppressNonDisposalExceptions is false)
 			{
 				var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) type properly.  Stack=\n\t\t";
 
