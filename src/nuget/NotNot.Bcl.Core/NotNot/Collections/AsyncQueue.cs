@@ -161,13 +161,13 @@ public class AsyncQueue<T> : IProducerConsumerCollection<T>, IReadOnlyCollection
 
 	public async Task<T> DequeueAsync(TimeSpan timeSpan)
 	{
-		await _slim.WaitAsync(timeSpan);
+		_ = await _slim.WaitAsync(timeSpan);
 		return _DoUnlockedDequeue();
 	}
 
 	public async Task<T> DequeueAsync(int msTimeout)
 	{
-		await _slim.WaitAsync(msTimeout);
+		_ = await _slim.WaitAsync(msTimeout);
 		return _DoUnlockedDequeue();
 	}
 }

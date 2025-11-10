@@ -340,8 +340,8 @@ public readonly struct Mem<T> : IDisposable
       var toReturnSpan = toReturn.Span;
       for (var i = 0; i < Length; i++)
       {
-         ref var mappedResult = ref mapFunc(ref thisSpan[i]);
-         toReturnSpan[i] = mappedResult;
+         ref var r_mappedResult = ref mapFunc(ref thisSpan[i]);
+         toReturnSpan[i] = r_mappedResult;
       }
    }
 
@@ -407,8 +407,8 @@ public readonly struct Mem<T> : IDisposable
 
       for (var i = 0; i < Length; i++)
       {
-         ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
-         toReturnSpan[i] = mappedResult;
+         ref var r_mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
+         toReturnSpan[i] = r_mappedResult;
       }
    }
 
@@ -485,9 +485,9 @@ public readonly struct Mem<T> : IDisposable
       var end = start + 1;
       while (end < length)
       {
-         ref var previous = ref span[end - 1];
-         ref var current = ref span[end];
-         if (!isSameBatch(ref previous, ref current))
+         ref var r_previous = ref span[end - 1];
+         ref var r_current = ref span[end];
+         if (!isSameBatch(ref r_previous, ref r_current))
          {
             break;
          }
@@ -881,8 +881,8 @@ public ref struct ZeroAllocMem<T> : IDisposable
       var toReturnSpan = toReturn.Span;
       for (var i = 0; i < Count; i++)
       {
-         ref var mappedResult = ref mapFunc(ref thisSpan[i]);
-         toReturnSpan[i] = mappedResult;
+         ref var r_mappedResult = ref mapFunc(ref thisSpan[i]);
+         toReturnSpan[i] = r_mappedResult;
       }
    }
 
@@ -948,8 +948,8 @@ public ref struct ZeroAllocMem<T> : IDisposable
 
       for (var i = 0; i < Count; i++)
       {
-         ref var mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
-         toReturnSpan[i] = mappedResult;
+         ref var r_mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
+         toReturnSpan[i] = r_mappedResult;
       }
    }
 
@@ -1041,9 +1041,9 @@ public ref struct ZeroAllocMem<T> : IDisposable
       var end = start + 1;
       while (end < length)
       {
-         ref var previous = ref span[end - 1];
-         ref var current = ref span[end];
-         if (!isSameBatch(ref previous, ref current))
+         ref var r_previous = ref span[end - 1];
+         ref var r_current = ref span[end];
+         if (!isSameBatch(ref r_previous, ref r_current))
          {
             break;
          }

@@ -103,7 +103,7 @@ internal static class DedicatedThreads
 
 			public override void Post(SendOrPostCallback d, object? state)
 			{
-				Task.Factory.StartNew
+				_ = Task.Factory.StartNew
 				(
 					 () => d(state),
 					 CancellationToken.None,

@@ -55,7 +55,8 @@ public partial class Debouncer
 			//await ongoingTask;
 
 			__.DevTrace("await the ongoingTask, or the cancelation token, whichever comes first", debounceKey);
-			await await Task.WhenAny(ongoingTask, Task.Delay(-1, ct));
+			var result= await Task.WhenAny(ongoingTask, Task.Delay(-1, ct));
+			await result;
 		}
 		else
 		{

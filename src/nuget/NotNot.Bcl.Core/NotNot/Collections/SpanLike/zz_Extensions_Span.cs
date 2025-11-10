@@ -31,8 +31,8 @@ public static class zz_Extensions_Span
 
       for (var i = 0; i < source.Length; i++)
       {
-         ref var mappedResult = ref mapFunc(ref source[i]);
-         output[i] = mappedResult;
+         ref var r_mappedResult = ref mapFunc(ref source[i]);
+         output[i] = r_mappedResult;
       }
    }
 
@@ -97,8 +97,8 @@ public static class zz_Extensions_Span
 
       for (var i = 0; i < source.Length; i++)
       {
-         ref var mappedResult = ref mapFunc(ref source[i], ref other[i]);
-         output[i] = mappedResult;
+         ref var r_mappedResult = ref mapFunc(ref source[i], ref other[i]);
+         output[i] = r_mappedResult;
       }
    }
 
@@ -191,9 +191,9 @@ public static class zz_Extensions_Span
       var end = start + 1;
       while (end < span.Length)
       {
-         ref var previous = ref span[end - 1];
-         ref var current = ref span[end];
-         if (!isSameBatch(ref previous, ref current))
+         ref var r_previous = ref span[end - 1];
+         ref var r_current = ref span[end];
+         if (!isSameBatch(ref r_previous, ref r_current))
          {
             break;
          }
@@ -221,8 +221,8 @@ public static class zz_Extensions_Span
 
       for (var i = 0; i < source.Length; i++)
       {
-         ref readonly var sourceRef = ref source[i];
-         var mappedResult = mapFunc(ref System.Runtime.CompilerServices.Unsafe.AsRef(in sourceRef));
+         ref readonly var r_sourceRef = ref source[i];
+         var mappedResult = mapFunc(ref System.Runtime.CompilerServices.Unsafe.AsRef(in r_sourceRef));
          output[i] = mappedResult;
       }
    }
@@ -249,9 +249,9 @@ public static class zz_Extensions_Span
 
       for (var i = 0; i < source.Length; i++)
       {
-         ref readonly var sourceRef = ref source[i];
-         ref readonly var otherRef = ref other[i];
-         var mappedResult = mapFunc(ref System.Runtime.CompilerServices.Unsafe.AsRef(in sourceRef), ref System.Runtime.CompilerServices.Unsafe.AsRef(in otherRef));
+         ref readonly var r_sourceRef = ref source[i];
+         ref readonly var r_otherRef = ref other[i];
+         var mappedResult = mapFunc(ref System.Runtime.CompilerServices.Unsafe.AsRef(in r_sourceRef), ref System.Runtime.CompilerServices.Unsafe.AsRef(in r_otherRef));
          output[i] = mappedResult;
       }
    }
@@ -322,9 +322,9 @@ public static class zz_Extensions_Span
       var end = start + 1;
       while (end < span.Length)
       {
-         ref readonly var previous = ref span[end - 1];
-         ref readonly var current = ref span[end];
-         if (!isSameBatch(ref System.Runtime.CompilerServices.Unsafe.AsRef(in previous), ref System.Runtime.CompilerServices.Unsafe.AsRef(in current)))
+         ref readonly var r_previous = ref span[end - 1];
+         ref readonly var r_current = ref span[end];
+         if (!isSameBatch(ref System.Runtime.CompilerServices.Unsafe.AsRef(in r_previous), ref System.Runtime.CompilerServices.Unsafe.AsRef(in r_current)))
          {
             break;
          }

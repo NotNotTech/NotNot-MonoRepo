@@ -225,17 +225,36 @@ public static class zz_Extensions_Exception
       captured.Throw();
       return exception;
 	}
+	/// <summary>
+	/// certain runtimes like godot do weird shutdown logic.
+   /// we might not want to throw exceptions when a shutdown is occuring
+   /// <para>also does not rethrow if in RELEASE build</para>
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="exception"></param>
+	public static void _RethrowUnlessAppShutdownOrRelease<T>(this T exception) where T : Exception
+	{
+#if RELEASE
+      return;
+#else
+      if (NotNot.Internal.NotNotBclConfig.IsAppShutdownInProgress)
+      {
+         return;
+      }
+		exception._Rethrow();
+#endif
+	}
 
 
 
-   /// <summary>
-   /// search self and inner exceptions for the exception type.  if found, return true and set found to the exception.
-   /// </summary>
-   /// <typeparam name="TException"></typeparam>
-   /// <param name="exception"></param>
-   /// <param name="found"></param>
-   /// <returns></returns>
-   public static bool _Find<TException>(this Exception? exception, [NotNullWhen(true)] out TException? found) where TException : Exception
+	/// <summary>
+	/// search self and inner exceptions for the exception type.  if found, return true and set found to the exception.
+	/// </summary>
+	/// <typeparam name="TException"></typeparam>
+	/// <param name="exception"></param>
+	/// <param name="found"></param>
+	/// <returns></returns>
+	public static bool _Find<TException>(this Exception? exception, [NotNullWhen(true)] out TException? found) where TException : Exception
    {
       if (exception is null)
       {
