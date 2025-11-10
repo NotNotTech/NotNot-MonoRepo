@@ -207,8 +207,14 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 	/// </summary>
 	~MemoryOwner_Custom()
 	{
-		// Finalizers should never throw
-		Dispose();
+		try
+		{
+			Dispose();
+		}catch(Exception ex)
+		{
+			ex._RethrowUnlessAppShutdownOrRelease();
+		}
+		
 	}
 
 		[Conditional("CHECKED")]

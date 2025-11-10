@@ -31,8 +31,8 @@ public static class InstanceNameHelper
 		var name = type.Name;
 		lock (_countTracker)
 		{
-			ref var counter = ref _countTracker._GetValueRefOrAddDefault_Unsafe(name, out _);
-			return $"{name}_{counter++}";
+			ref var r_counter = ref _countTracker._GetValueRefOrAddDefault_Unsafe(name, out _);
+			return $"{name}_{r_counter++}";
 		}
 	}
 
@@ -44,8 +44,8 @@ public static class InstanceNameHelper
 		var name = type.Name;
 		lock (_countTracker)
 		{
-			ref var counter = ref _countTracker._GetValueRefOrAddDefault_Unsafe(name, out _);
-			return $"{name}_{counter++}";
+			ref var r_counter = ref _countTracker._GetValueRefOrAddDefault_Unsafe(name, out _);
+			return $"{name}_{r_counter++}";
 		}
 	}
 
@@ -58,8 +58,8 @@ public static class InstanceNameHelper
 		var name = type.FullName;
 		lock (_countTracker)
 		{
-			ref var counter = ref _countTracker._GetValueRefOrAddDefault_Unsafe(name, out _);
-			return $"{name}_{counter++}";
+			ref var r_counter = ref _countTracker._GetValueRefOrAddDefault_Unsafe(name, out _);
+			return $"{name}_{r_counter++}";
 		}
 	}
 }

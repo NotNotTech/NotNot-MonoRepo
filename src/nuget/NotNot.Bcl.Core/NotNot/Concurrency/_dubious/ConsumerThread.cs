@@ -46,7 +46,8 @@ public class ConsumerThread<TItem>
 					return;
 				}
 
-				await dequeueAction(nextItem, CT);
+				var result = await dequeueAction(nextItem, CT);
+
 			}
 		}, CT);
 	}

@@ -3357,9 +3357,9 @@ public static class zz_Extensions_Dictionary
       where TKey : notnull
       where TValue : struct
    {
-      ref var toReturn = ref CollectionsMarshal.GetValueRefOrNullRef(dict, key);
-      exists = Unsafe.IsNullRef(ref toReturn) == false;
-      return ref toReturn;
+      ref var r_toReturn = ref CollectionsMarshal.GetValueRefOrNullRef(dict, key);
+      exists = Unsafe.IsNullRef(ref r_toReturn) == false;
+      return ref r_toReturn;
    }
 
    /// <summary>
@@ -3547,15 +3547,15 @@ public static class zz_Extensions_Span
 
       var isSorted = true;
 
-      ref var previous = ref target[0]!;
+      ref var r_previous = ref target[0]!;
       for (var i = 1; i < target.Length; i++)
       {
-         if (previous.CompareTo(target[i]) > 0) //ex: 1.CompareTo(2) == -1
+         if (r_previous.CompareTo(target[i]) > 0) //ex: 1.CompareTo(2) == -1
          {
             return false;
          }
 
-         previous = ref target[i]!;
+         r_previous = ref target[i]!;
       }
 
       return true;
@@ -3583,15 +3583,15 @@ public static class zz_Extensions_Span
 
       var isSorted = true;
 
-      ref var previous = ref target[0]!;
+      ref var r_previous = ref target[0]!;
       for (var i = 1; i < target.Length; i++)
       {
-         if (compare(ref previous, ref target[i]) > 0) //ex: 1.CompareTo(2) == -1
+         if (compare(ref r_previous, ref target[i]) > 0) //ex: 1.CompareTo(2) == -1
          {
             return false;
          }
 
-         previous = ref target[i]!;
+         r_previous = ref target[i]!;
       }
 
       return true;
