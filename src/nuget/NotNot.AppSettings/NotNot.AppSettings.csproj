@@ -26,7 +26,7 @@
 	<ItemGroup>
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<PackageReference Include="SourceGenerator.Foundations" Version="2.0.13" PrivateAssets="all" />
-		<PackageReference Include="System.Text.Json" Version="9.0.10" PrivateAssets="all" />
+		<PackageReference Include="System.Text.Json" Version="10.0.0" PrivateAssets="all" />
 	</ItemGroup>
 
 	<!-- standard nuget package details -->
@@ -51,7 +51,10 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all">
+		<!--removed hardcoded path reference-->
+
+		<PackageReference Include="MinVer" Version="6.1.0-beta.1">
+			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 	</ItemGroup>
@@ -69,14 +72,18 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- Downgraded Roslyn versions to align with other analyzer projects (4.11.0) for MEF compatibility -->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all">
+		<!--required for sourcegen-->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.12.0-beta1.25218.8">
+			<PrivateAssets>all</PrivateAssets>
+			<!--required so that the .props file is included in the target project build-->
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.10" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.10" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.10" />
+		<!--required for json IConfiguration.Bind()  _BinderShims.cs-->
+		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+
 	</ItemGroup>
 
 	<ItemGroup>

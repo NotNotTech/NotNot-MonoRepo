@@ -2,9 +2,9 @@
 
 	<!--shared common .csproj settings-->
 	<Import Project="..\..\CommonSettings.targets" />
-	
+
 	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<LangVersion>preview</LangVersion>
@@ -22,14 +22,17 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" Version="1.1.2" />
 		<!-- Force correct CodeAnalysis versions to match the analyzer project -->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
-		
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0-2.final" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.0.0-1.25277.114">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+
 		<!-- Test framework - match Cleartrix.Cloud.Tests versions -->
-		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
 		<PackageReference Include="xunit" Version="2.9.3" />
-		<PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+		<PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
@@ -37,19 +40,19 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		
+
 		<!-- Fluent assertions for better test readability -->
-		<PackageReference Include="FluentAssertions" Version="8.6.0" />
-		
+		<PackageReference Include="FluentAssertions" Version="8.8.0" />
+
 		<!-- DiffPlex for test comparison - required by Microsoft.CodeAnalysis.CSharp.Analyzer.Testing -->
-		<PackageReference Include="DiffPlex" Version="1.8.0" />
-		
+		<PackageReference Include="DiffPlex" Version="1.9.0" />
+
 		<!-- ASP.NET Core references for analyzer tests -->
 		<PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.3.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
-		
+
 		<!-- Explicit System.Composition reference to resolve MSB3277 warnings -->
-		<PackageReference Include="System.Composition.AttributedModel" Version="9.0.8" />
+		<PackageReference Include="System.Composition.AttributedModel" Version="10.0.0-rc.2.25502.107" />
 	</ItemGroup>
 
 	<ItemGroup>

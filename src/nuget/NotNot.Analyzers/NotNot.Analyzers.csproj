@@ -32,22 +32,22 @@
 
 	<!-- Core analyzer dependencies (aligned with VS 17.11.x) -->
 	<ItemGroup>
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0-2.final" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.12.0-beta1.25218.8" PrivateAssets="all" />
 		<!-- Code Fix Provider dependencies -->
-		<PackageReference Include="System.Composition" Version="9.0.8" PrivateAssets="all" />
+		<PackageReference Include="System.Composition" Version="10.0.0" PrivateAssets="all" />
 	</ItemGroup>
 	
 	<!-- Development-time analyzers (for this project only) -->
 	<ItemGroup>
-		<PackageReference Include="Roslynator.Analyzers" Version="4.14.0" PrivateAssets="all">
+		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0" PrivateAssets="all">
+		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.0.0-1.25277.114" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.4.0-beta.1" PrivateAssets="all">
+		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.8.2-beta.1" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 	</ItemGroup>
@@ -55,7 +55,7 @@
 	<!-- Build tools -->
 	<ItemGroup>
 		<PackageReference Include="editorconfig" Version="0.15.0" PrivateAssets="all" />
-		<PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all">
+		<PackageReference Include="MinVer" Version="6.1.0-beta.1" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 	</ItemGroup>
