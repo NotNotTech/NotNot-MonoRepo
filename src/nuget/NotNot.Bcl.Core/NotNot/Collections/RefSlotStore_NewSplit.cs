@@ -342,6 +342,71 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
       _freeSlots = null;
    }
 
+   /// <summary>
+   /// Returns the maximum allocated index (last valid slot index).
+   /// Returns -1 if no slots are allocated.
+   /// </summary>
+   public int GetMaxAllocatedIndex()
+   {
+      lock (_lock)
+      {
+         return _allocTracker.Count - 1;
+      }
+   }
+
+   /// <summary>
+   /// Finds the last allocated (non-free) slot starting from startIndex and searching backwards.
+   /// Returns -1 if no allocated slot found.
+   /// </summary>
+   public int FindLastAllocatedSlot(int startIndex)
+   {
+      lock (_lock)
+      {
+         for (int i = startIndex; i >= 0; i--)
+         {
+            if (i < _allocTracker.Count && _allocTracker[i].IsAllocated)
+            {
+               return i;
+            }
+         }
+         return -1;
+      }
+   }
+
+   /// <summary>
+   /// Swaps the data and handle between two slots atomically.
+   /// Both slots must be valid and allocated.
+   /// </summary>
+   public void SwapSlots(SlotHandle fromSlot, SlotHandle toSlot)
+   {
+      lock (_lock)
+      {
+         var fromValidation = _IsHandleValid_Unsafe(fromSlot);
+         var toValidation = _IsHandleValid_Unsafe(toSlot);
+
+         __.DebugAssertIfNot(fromValidation.isValid, $"Invalid fromSlot: {fromValidation.invalidReason}");
+         __.DebugAssertIfNot(toValidation.isValid, $"Invalid toSlot: {toValidation.invalidReason}");
+
+         if (!fromValidation.isValid || !toValidation.isValid)
+         {
+            throw new InvalidOperationException($"Cannot swap invalid slots: from={fromValidation.invalidReason}, to={toValidation.invalidReason}");
+         }
+
+         int fromIndex = fromSlot.Index;
+         int toIndex = toSlot.Index;
+
+         // Swap data
+         var tempData = _data[fromIndex];
+         _data[fromIndex] = _data[toIndex];
+         _data[toIndex] = tempData;
+
+         // Swap handles in allocTracker
+         var tempHandle = _allocTracker[fromIndex];
+         _allocTracker[fromIndex] = _allocTracker[toIndex];
+         _allocTracker[toIndex] = tempHandle;
+      }
+   }
+
 
    #region Enumeration
    public readonly ref struct RefEnumerable
