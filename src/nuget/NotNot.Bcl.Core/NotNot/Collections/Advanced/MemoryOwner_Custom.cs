@@ -210,7 +210,8 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 		try
 		{
 			Dispose();
-		}catch(Exception ex)
+		}
+		catch(Exception ex)
 		{
 			ex._RethrowUnlessAppShutdownOrRelease();
 		}

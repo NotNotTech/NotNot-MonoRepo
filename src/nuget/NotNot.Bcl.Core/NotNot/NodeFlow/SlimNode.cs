@@ -85,7 +85,7 @@ public abstract class SlimNode : DisposeGuard
 
 		await OnInitialize();
 		lifecycleCt.ThrowIfCancellationRequested();
-		__.AssertIfNot(IsInitialized);
+		__.AssertIfNot(IsInitialized,$"did {this.GetType().Name} forget to call base.OnInitialize()");
 	}
 
 	/// <summary>
