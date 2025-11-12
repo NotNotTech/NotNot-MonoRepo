@@ -59,11 +59,11 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-			<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
+			<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.12.0-beta1.25218.8">
 			  <PrivateAssets>all</PrivateAssets>
 			  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			</PackageReference> 
-			<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" /> 
+			<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0-2.final" /> 
 
 
 
@@ -83,7 +83,7 @@
 		<PackageReference Include="Serilog.Settings.Configuration" Version="9.0.1-dev-02317" />
 		<PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
 		<PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
-		<PackageReference Include="Serilog.Sinks.ApplicationInsights" Version="4.1.0-dev-02304" />
+		<PackageReference Include="Serilog.Sinks.ApplicationInsights" Version="4.1.0" />
 		<PackageReference Include="CsvHelper" Version="33.1.0" />
 		<PackageReference Include="FluentValidation" Version="12.1.0" />
 		<PackageReference Include="Spectre.Console.Cli" Version="0.53.0" />
