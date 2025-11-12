@@ -59,16 +59,12 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
- <!--nuget versioning--> 
 			<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
 			  <PrivateAssets>all</PrivateAssets>
 			  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			</PackageReference> 
 			<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" /> 
-			<PackageReference Include="MinVer" Version="6.0.0">
-				<PrivateAssets>all</PrivateAssets>
-				<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-			</PackageReference>
+
 
 
 		<!--NotNot.Utils nugets-->
