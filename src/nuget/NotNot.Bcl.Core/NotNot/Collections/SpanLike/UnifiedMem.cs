@@ -139,9 +139,10 @@ public ref struct UnifiedMem<T> : IDisposable
    public static implicit operator UnifiedMem<T>(ArraySegment<T> toWrap) => new Mem<T>(toWrap);
    public static implicit operator UnifiedMem<T>(T[] toWrap) => new Mem<T>(toWrap);
    public static implicit operator UnifiedMem<T>(Memory<T> toWrap) => new Mem<T>(toWrap);
-   public static implicit operator UnifiedMem<T>(MemoryOwner_Custom<T> toWrap) => new Mem<T>(toWrap);
+	//disabling conversion from MemoryOwner_Custom to avoid ambiguity with pool recycling
+	//public static implicit operator UnifiedMem<T>(MemoryOwner_Custom<T> toWrap) => new Mem<T>(toWrap,);
 
-   public static implicit operator Span<T>(UnifiedMem<T> refMem) => refMem.Span;
+	public static implicit operator Span<T>(UnifiedMem<T> refMem) => refMem.Span;
    public static implicit operator ReadOnlySpan<T>(UnifiedMem<T> refMem) => refMem.Span;
 
    /// <summary>

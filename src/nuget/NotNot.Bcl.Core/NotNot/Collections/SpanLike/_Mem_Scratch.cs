@@ -27,7 +27,10 @@ public readonly struct Mem<T> : IDisposable
    public static implicit operator Mem<T>(ArraySegment<T> arraySegment) => new Mem<T>(arraySegment);
    public static implicit operator Mem<T>(List<T> list) => new Mem<T>(list);
    public static implicit operator Mem<T>(Memory<T> memory) => new Mem<T>(memory);
-   public static implicit operator Mem<T>(MemoryOwner_Custom<T> owner) => new Mem<T>(owner);
+   /// <summary>
+   /// disabling because of ambiguity of who the owner should be.   can do wrapping
+   /// </summary>
+   //public static implicit operator Mem<T>(MemoryOwner_Custom<T> owner) => new Mem<T>(owner);
    public static implicit operator Span<T>(Mem<T> refMem) => refMem.Span;
    public static implicit operator ReadOnlySpan<T>(Mem<T> refMem) => refMem.Span;
 
@@ -52,19 +55,24 @@ public readonly struct Mem<T> : IDisposable
    /// </summary>
    internal readonly int _segmentOffset;
 
+	/// <summary>
+	/// if true, it's disposal will return a `MemoryOwner_Custom` to the pool; if false, it's a slice and should not dispose the owner
+	/// </summary>
+	private readonly bool _isTrueOwner = false;
+	
    ///// <summary>
-   /////    details the backing storage
-   ///// </summary>
-   //private readonly ArraySegment<T> _segment;
+	/////    details the backing storage
+	///// </summary>
+	//private readonly ArraySegment<T> _segment;
 
-   //private readonly T[] _array;
-   //private readonly int _offset;
-   //public readonly int length;
+	//private readonly T[] _array;
+	//private readonly int _offset;
+	//public readonly int length;
 
-   /// <summary>
-   /// Represents an empty memory view with zero elements
-   /// </summary>
-   public static readonly Mem<T> Empty = new(ArraySegment<T>.Empty, 0, 0);
+	/// <summary>
+	/// Represents an empty memory view with zero elements
+	/// </summary>
+	public static readonly Mem<T> Empty = new(ArraySegment<T>.Empty, 0, 0);
 
    /// <summary>
    /// Cached reflection info for accessing List{T}'s internal array field
@@ -83,7 +91,7 @@ public readonly struct Mem<T> : IDisposable
    /// <summary>
    /// Creates a memory view backed by a pooled memory owner
    /// </summary>
-   internal Mem(MemoryOwner_Custom<T> owner) : this(owner, 0, owner.Length) { }
+   internal Mem(MemoryOwner_Custom<T> owner, bool isTrueOwner) : this(owner, 0, owner.Length, isTrueOwner) { }
 
    /// <summary>
    /// Creates a memory view backed by an array segment
@@ -103,14 +111,16 @@ public readonly struct Mem<T> : IDisposable
 
 
 
-   /// <summary>
-   /// Creates a sliced memory view from a pooled memory owner
-   /// </summary>
-   /// <param name="owner">Pooled memory owner</param>
-   /// <param name="sliceOffset">Offset within the owner to start</param>
-   /// <param name="sliceCount">Number of elements in the slice</param>
-   internal Mem(MemoryOwner_Custom<T> owner, int sliceOffset, int sliceCount)
+	/// <summary>
+	/// Creates a sliced memory view from a pooled memory owner
+	/// </summary>
+	/// <param name="owner">Pooled memory owner</param>
+	/// <param name="sliceOffset">Offset within the owner to start</param>
+	/// <param name="sliceCount">Number of elements in the slice</param>
+	/// <param name="isTrueOwner">if true, it's disposal will return a `MemoryOwner_Custom` to the pool; if false, it's a slice and should not dispose the owner</param>
+	internal Mem(MemoryOwner_Custom<T> owner, int sliceOffset, int sliceCount, bool isTrueOwner)
    {
+      _isTrueOwner = isTrueOwner;
       _backingStorageType = MemBackingStorageType.MemoryOwner_Custom;
       _backingStorage = owner;
       var ownerArraySegment = owner.DangerousGetArray();
@@ -184,7 +194,8 @@ public readonly struct Mem<T> : IDisposable
    /// <param name="sliceCount">Number of elements in the slice</param>
    internal Mem(Mem<T> parentMem, int sliceOffset, int sliceCount)
    {
-      _backingStorageType = parentMem._backingStorageType;
+		_isTrueOwner = false;
+		_backingStorageType = parentMem._backingStorageType;
       _backingStorage = parentMem._backingStorage;
       __.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Length);
       __.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Length);
@@ -199,8 +210,9 @@ public readonly struct Mem<T> : IDisposable
    /// <param name="sliceOffset">Offset within the parent to start</param>
    /// <param name="sliceCount">Number of elements in the slice</param>
    internal Mem(ReadMem<T> parentMem, int sliceOffset, int sliceCount)
-   {
-      _backingStorageType = parentMem._backingStorageType;
+	{
+		_isTrueOwner = false;
+		_backingStorageType = parentMem._backingStorageType;
       _backingStorage = parentMem._backingStorage;
       __.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Length);
       __.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Length);
@@ -226,7 +238,7 @@ public readonly struct Mem<T> : IDisposable
       //__.AssertOnce(RuntimeHelpers.IsReferenceOrContainsReferences<T>() == false || clearOnDispose, "alloc of classes via memPool can/will cause leaks");
       var mo = MemoryOwner_Custom<T>.Allocate(size, AllocationMode.Clear);
       //mo.ClearOnDispose = clearOnDispose;
-      return new Mem<T>(mo);
+      return new Mem<T>(mo,isTrueOwner:true);
    }
 
    /// <summary>
@@ -294,14 +306,15 @@ public readonly struct Mem<T> : IDisposable
       return new Mem<T>(backingStore);
    }
 
-   /// <summary>
-   /// Creates a memory view using an existing pooled memory owner
-   /// </summary>
-   /// <param name="MemoryOwnerNew">Pooled memory owner to wrap</param>
-   /// <returns>Memory view over the pooled memory</returns>
-   internal static Mem<T> Wrap(MemoryOwner_Custom<T> MemoryOwnerNew)
+	/// <summary>
+	/// Creates a memory view using an existing pooled memory owner
+	/// </summary>
+	/// <param name="MemoryOwnerNew">Pooled memory owner to wrap</param>
+	/// <param name="isTrueOwner">if true, it's disposal will return a `MemoryOwner_Custom` to the pool; if false, it's a slice and should not dispose the owner</param>
+	/// <returns>Memory view over the pooled memory</returns>
+	internal static Mem<T> Wrap(MemoryOwner_Custom<T> MemoryOwnerNew,bool isTrueOwner)
    {
-      return new Mem<T>(MemoryOwnerNew);
+      return new Mem<T>(MemoryOwnerNew, isTrueOwner);
    }
 
    /// <summary>
@@ -637,6 +650,10 @@ public readonly struct Mem<T> : IDisposable
       {
          case MemBackingStorageType.MemoryOwner_Custom:
             {
+               if (_isTrueOwner is false)
+               {
+                  break;
+               }
                var owner = (MemoryOwner_Custom<T>)_backingStorage;
                __.AssertNotNull(owner, "storage is null, was it already disposed?");
                if (owner is not null)

@@ -142,8 +142,9 @@ public readonly ref struct UnifiedReadMem<T>
 
    /// <summary>
    /// Implicit conversion from MemoryOwner_Custom to UnifiedReadMem (read-only view)
+   /// disabling because of ambiguity with who controls pool recycling
    /// </summary>
-   public static implicit operator UnifiedReadMem<T>(MemoryOwner_Custom<T> toWrap) => new UnifiedReadMem<T>(new UnifiedMem<T>(toWrap));
+   //public static implicit operator UnifiedReadMem<T>(MemoryOwner_Custom<T> toWrap) => new UnifiedReadMem<T>(new UnifiedMem<T>(toWrap));
 
 
    public static implicit operator ReadOnlySpan<T>(UnifiedReadMem<T> refMem) => refMem.Span;
