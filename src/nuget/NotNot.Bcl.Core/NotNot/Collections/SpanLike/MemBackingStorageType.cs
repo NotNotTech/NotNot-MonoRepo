@@ -42,4 +42,12 @@ internal enum MemBackingStorageType
 	/// manually constructed Mem using your own Memory. not disposed of when out-of-scope
 	/// </summary>
 	Memory,
+	/// <summary>
+	/// Mem backed by ObjectPool.RentedArray or StaticPool.RentedArray. Disposed via wrapper's Dispose() method when owner is disposed.
+	/// </summary>
+	RentedArray,
+	/// <summary>
+	/// Mem backed by ObjectPool.Rented&lt;List&lt;T&gt;&gt; or StaticPool.Rented&lt;List&lt;T&gt;&gt;. Disposed via wrapper's Dispose() method when owner is disposed.
+	/// </summary>
+	RentedList,
 }

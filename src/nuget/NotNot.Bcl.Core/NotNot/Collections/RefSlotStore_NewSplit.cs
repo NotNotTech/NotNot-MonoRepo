@@ -105,7 +105,18 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 
    public bool IsDisposed { get; private set; }
 
-   private Stack<int> _freeSlots; // **Stack to track free slot indices**
+   /// <summary>
+   /// Sorted list of free slot indices, maintained in ascending order (lowest first).
+   /// Enables allocation to preferentially fill lowest gaps for better cache locality.
+   /// </summary>
+   private List<int> _freeSlots;
+
+   /// <summary>
+   /// Tracks the highest occupied slot index for O(1) GetMaxAllocatedIndex() operations.
+   /// Updated when allocating new slots or freeing the last occupied slot.
+   /// Value of -1 indicates no allocated slots.
+   /// </summary>
+   private int _lastOccupiedSlotIndex = -1;
 
    /// <summary>
    /// Lock for thread safety when allocating/freeing slots.
@@ -134,7 +145,8 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
       // **Initialize the underlying storage** with the initial capacity.
       _allocTracker = new(initialCapacity);
       _data = new T[initialCapacity];
-      _freeSlots = new Stack<int>(initialCapacity);
+      _freeSlots = new List<int>(initialCapacity);
+      _lastOccupiedSlotIndex = -1; // No allocated slots initially
    }
 
 
@@ -209,6 +221,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
 
    /// <summary>
    /// **Alloc** a free slot.  data value will be `default`.
+   /// Preferentially reuses lowest available free slot index for improved cache locality.
    /// </summary>
    public SlotHandle AllocSlot()
    {
@@ -222,7 +235,16 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
          int index;
          if (_freeSlots.Count > 0)
          {
-            index = _freeSlots.Pop(); // **Reuse a free slot**
+            // **Reuse lowest free slot** for better cache locality
+            index = _freeSlots[0];  // O(1) access
+            _freeSlots.RemoveAt(0); // O(n) removal acceptable for small n
+            __.DebugAssertIfNot(_freeSlots.Count == 0 || _freeSlots[0] > index, "free slots must remain sorted ascending");
+
+            // Update last occupied index if reusing a slot beyond current max
+            if (index > _lastOccupiedSlotIndex)
+            {
+               _lastOccupiedSlotIndex = index;
+            }
          }
          else
          {
@@ -236,6 +258,12 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
                Array.Resize(ref _data, _allocTracker.Capacity);
             }
             __.DebugAssertIfNot(index == _allocTracker.Count - 1, "race condition: something else allocating even though we are in a lock?");
+
+            // Update last occupied index when growing storage
+            if (index > _lastOccupiedSlotIndex)
+            {
+               _lastOccupiedSlotIndex = index;
+            }
          }
 
          //verify allocated but unused
@@ -315,6 +343,9 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
       }
    }
 
+   /// <summary>
+   /// Frees a single slot, inserting it into the sorted free list and updating last occupied index if needed.
+   /// </summary>
    public void FreeSingleSlot(SlotHandle slot)
    {
       lock (_lock)
@@ -325,9 +356,74 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
             __.DebugAssertIfNot(validResult.isValid);
             throw new InvalidOperationException($"attempt to free invalid slot: {validResult.invalidReason}");
          }
-         _freeSlots.Push(slot.Index); // **Mark slot as free**
+
+         // Insert into sorted free list using binary search
+         InsertSorted(slot.Index);
+
          _allocTracker[slot.Index] = default; // **Clear the slot's handle**
          _data[slot.Index] = default; // **Clear the slot's data**
+
+         // Update _lastOccupiedSlotIndex if we freed the last occupied slot
+         if (slot.Index == _lastOccupiedSlotIndex)
+         {
+            UpdateLastOccupiedIndex();
+         }
+      }
+   }
+
+   /// <summary>
+   /// Inserts a free slot index into the sorted free list maintaining ascending order.
+   /// Uses binary search for O(log n) search + O(n) insertion.
+   /// </summary>
+   private void InsertSorted(int index)
+   {
+      int pos = _freeSlots.BinarySearch(index);
+      if (pos < 0)
+      {
+         pos = ~pos; // Convert to insertion index
+      }
+      _freeSlots.Insert(pos, index);
+
+      __.DebugAssertIfNot(pos == 0 || _freeSlots[pos - 1] < index, "free list must be sorted ascending (pre)");
+      __.DebugAssertIfNot(pos == _freeSlots.Count - 1 || _freeSlots[pos + 1] > index, "free list must be sorted ascending (post)");
+   }
+
+   /// <summary>
+   /// Updates _lastOccupiedSlotIndex after freeing the last occupied slot.
+   /// Walks backwards through sorted free list to find new last occupied index.
+   /// </summary>
+   private void UpdateLastOccupiedIndex()
+   {
+      int potentialLastOccupied = _lastOccupiedSlotIndex - 1;
+      int freeIdx = _freeSlots.Count - 1; // Last free index (highest value in ascending list)
+
+      while (freeIdx >= 0 && potentialLastOccupied >= 0)
+      {
+         int currentFree = _freeSlots[freeIdx];
+
+         if (currentFree < potentialLastOccupied)
+         {
+            // Found new last occupied slot
+            _lastOccupiedSlotIndex = potentialLastOccupied;
+            return;
+         }
+         else if (currentFree == potentialLastOccupied)
+         {
+            // This slot is also free, keep searching backwards
+            potentialLastOccupied--;
+            freeIdx--;
+         }
+         else // currentFree > potentialLastOccupied
+         {
+            // Semi-dirty state (shouldn't happen but handle gracefully)
+            _lastOccupiedSlotIndex = potentialLastOccupied;
+            return;
+         }
+      }
+
+      if (potentialLastOccupied < 0)
+      {
+         _lastOccupiedSlotIndex = -1; // No allocated slots remain
       }
    }
 
@@ -345,12 +441,13 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
    /// <summary>
    /// Returns the maximum allocated index (last valid slot index).
    /// Returns -1 if no slots are allocated.
+   /// Now O(1) via _lastOccupiedSlotIndex tracking.
    /// </summary>
    public int GetMaxAllocatedIndex()
    {
       lock (_lock)
       {
-         return _allocTracker.Count - 1;
+         return _lastOccupiedSlotIndex;
       }
    }
 
@@ -370,6 +467,75 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
             }
          }
          return -1;
+      }
+   }
+
+	/// <summary>
+	/// Compacts the memory by relocating slots, moving free slots to the end.
+	/// Returns a list of moved (allocated) slots with their new handles.
+	/// After compaction, all allocated slots are contiguous from index 0, and all free slots are trailing.
+	/// </summary>
+	/// <returns>Mappings of (fromSlot, toSlot) for all relocated slots. Caller must update external references.</returns>
+	/// <remarks>
+	/// VIBEGUIDE: Compact() relocates allocated slots, invalidating external indices.
+	/// - Callers MUST update external references using returned move mappings
+	/// - ComponentPartition example: update component arrays in sync
+	/// - NewArchetype example: update EntityPin.partitionSlotHandle
+	/// - Thread safety: Caller should coordinate locking across systems
+	/// - Version tracking: SlotHandle versions preserved during move
+	/// Post-compaction: _freeSlots is cleared (trailing free slots don't need tracking)
+	/// </remarks>
+	public Mem<(SlotHandle fromSlot, SlotHandle toSlot)> Compact()
+   {
+      lock (_lock)
+      {
+         var moves = new List<(SlotHandle, SlotHandle)>();
+
+         // _freeSlots already sorted ascending (lowest first)
+         int lastAllocIndex = _lastOccupiedSlotIndex;
+
+         foreach (var freeIndex in _freeSlots.ToList())  // ToList to avoid modifying during iteration
+         {
+            // Find next allocated slot from end (single backwards walk, no repeated searches)
+            while (lastAllocIndex >= 0 && !_allocTracker[lastAllocIndex].IsAllocated)
+            {
+               lastAllocIndex--;
+            }
+
+            // Stop if free slot already at end or no more allocated slots
+            if (lastAllocIndex < 0 || freeIndex >= lastAllocIndex)
+            {
+               break;
+            }
+
+            // Perform swap
+            var fromSlot = _allocTracker[lastAllocIndex];
+            var toSlot = new SlotHandle(freeIndex, fromSlot.Version, true);
+
+            SwapSlots(fromSlot, toSlot);
+            moves.Add((fromSlot, toSlot));
+
+            // Update tracking
+            _allocTracker[freeIndex] = toSlot;
+            _allocTracker[lastAllocIndex] = default;
+
+            // Move to next allocated slot
+            lastAllocIndex--;
+         }
+
+         // Optimization: Clear free slots - all trailing slots are free but don't need tracking
+         // Future allocations will grow storage from _lastOccupiedSlotIndex + 1
+         _freeSlots.Clear();
+         _lastOccupiedSlotIndex = lastAllocIndex;
+
+         // DEBUG: Verify all slots after lastAllocIndex are free
+         for (int i = lastAllocIndex + 1; i < _allocTracker.Count; i++)
+         {
+            __.DebugAssertIfNot(!_allocTracker[i].IsAllocated,
+               "Expected trailing free slot but found allocated");
+         }
+
+         return Mem.Wrap(moves.ToArray());
       }
    }
 

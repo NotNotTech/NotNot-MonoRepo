@@ -98,6 +98,38 @@ public static class Mem
 	{
 		return Mem<T>.Wrap(readMem);
 	}
+
+	/// <summary>
+	///   Wrap a rented array from ObjectPool as the backing storage
+	/// </summary>
+	public static Mem<T> WrapRented<T>(NotNot._internal.ObjectPool.RentedArray<T> rentedArray)
+	{
+		return new Mem<T>(rentedArray, isTrueOwner: true);
+	}
+
+	/// <summary>
+	///   Wrap a rented array from StaticPool as the backing storage
+	/// </summary>
+	public static Mem<T> WrapRented<T>(NotNot._internal.StaticPool.RentedArray<T> rentedArray)
+	{
+		return new Mem<T>(rentedArray, isTrueOwner: true);
+	}
+
+	/// <summary>
+	///   Wrap a rented list from ObjectPool as the backing storage
+	/// </summary>
+	public static Mem<T> WrapRented<T>(NotNot._internal.ObjectPool.Rented<List<T>> rentedList)
+	{
+		return new Mem<T>(rentedList, isTrueOwner: true);
+	}
+
+	/// <summary>
+	///   Wrap a rented list from StaticPool as the backing storage
+	/// </summary>
+	public static Mem<T> WrapRented<T>(NotNot._internal.StaticPool.Rented<List<T>> rentedList)
+	{
+		return new Mem<T>(rentedList, isTrueOwner: true);
+	}
 }
 
 
@@ -194,6 +226,60 @@ public readonly struct Mem<T> : IDisposable
 	/// Creates a memory view backed by Memory{T}
 	/// </summary>
 	internal Mem(Memory<T> owner) : this(owner, 0, owner.Length) { }
+
+
+	/// <summary>
+	/// Creates a memory view backed by ObjectPool rented array
+	/// </summary>
+	internal Mem(NotNot._internal.ObjectPool.RentedArray<T> rentedArray, bool isTrueOwner)
+	{
+		_isTrueOwner = isTrueOwner;
+		_backingStorageType = MemBackingStorageType.RentedArray;
+		_backingStorage = rentedArray; // Will be boxed
+		__.ThrowIfNot(rentedArray.Value != null);
+		_segmentOffset = 0;
+		_segmentCount = rentedArray.Value.Length;
+	}
+
+	/// <summary>
+	/// Creates a memory view backed by StaticPool rented array
+	/// </summary>
+	internal Mem(NotNot._internal.StaticPool.RentedArray<T> rentedArray, bool isTrueOwner)
+	{
+		_isTrueOwner = isTrueOwner;
+		_backingStorageType = MemBackingStorageType.RentedArray;
+		_backingStorage = rentedArray; // Will be boxed
+		__.ThrowIfNot(rentedArray.Value != null);
+		_segmentOffset = 0;
+		_segmentCount = rentedArray.Value.Length;
+	}
+
+	/// <summary>
+	/// Creates a memory view backed by ObjectPool rented list
+	/// </summary>
+	internal Mem(NotNot._internal.ObjectPool.Rented<List<T>> rentedList, bool isTrueOwner)
+	{
+		_isTrueOwner = isTrueOwner;
+		_backingStorageType = MemBackingStorageType.RentedList;
+		_backingStorage = rentedList; // Will be boxed
+		__.ThrowIfNot(rentedList.Value != null);
+		_segmentOffset = 0;
+		_segmentCount = rentedList.Value.Count;
+	}
+
+	/// <summary>
+	/// Creates a memory view backed by StaticPool rented list
+	/// </summary>
+	internal Mem(NotNot._internal.StaticPool.Rented<List<T>> rentedList, bool isTrueOwner)
+	{
+		_isTrueOwner = isTrueOwner;
+		_backingStorageType = MemBackingStorageType.RentedList;
+		_backingStorage = rentedList; // Will be boxed
+		__.ThrowIfNot(rentedList.Value != null);
+		_segmentOffset = 0;
+		_segmentCount = rentedList.Value.Count;
+	}
+
 
 
 
@@ -709,6 +795,32 @@ public readonly struct Mem<T> : IDisposable
 						var memory = (Memory<T>)_backingStorage;
 						return memory.Span.Slice(_segmentOffset, _segmentCount);
 					}
+				case MemBackingStorageType.RentedArray:
+					{
+						// Pattern match to handle both ObjectPool and StaticPool variants
+						if (_backingStorage is NotNot._internal.ObjectPool.RentedArray<T> objPoolRented)
+						{
+							return new Span<T>(objPoolRented.Value, _segmentOffset, _segmentCount);
+						}
+						else if (_backingStorage is NotNot._internal.StaticPool.RentedArray<T> staticPoolRented)
+						{
+							return new Span<T>(staticPoolRented.Value, _segmentOffset, _segmentCount);
+						}
+						throw __.Throw($"RentedArray backing storage has unexpected type: {_backingStorage?.GetType()}");
+					}
+				case MemBackingStorageType.RentedList:
+					{
+						// Pattern match to handle both ObjectPool and StaticPool variants
+						if (_backingStorage is NotNot._internal.ObjectPool.Rented<List<T>> objPoolRented)
+						{
+							return CollectionsMarshal.AsSpan(objPoolRented.Value).Slice(_segmentOffset, _segmentCount);
+						}
+						else if (_backingStorage is NotNot._internal.StaticPool.Rented<List<T>> staticPoolRented)
+						{
+							return CollectionsMarshal.AsSpan(staticPoolRented.Value).Slice(_segmentOffset, _segmentCount);
+						}
+						throw __.Throw($"RentedList backing storage has unexpected type: {_backingStorage?.GetType()}");
+					}
 				default:
 					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 			}
@@ -749,6 +861,44 @@ public readonly struct Mem<T> : IDisposable
 					}
 				}
 				break;
+			case MemBackingStorageType.RentedArray:
+				{
+					if (_isTrueOwner is false)
+					{
+						break;
+					}
+					__.AssertNotNull(_backingStorage, "storage is null, was it already disposed?");
+					
+					// Pattern match to handle both ObjectPool and StaticPool variants and call their Dispose()
+					if (_backingStorage is NotNot._internal.ObjectPool.RentedArray<T> objPoolRented)
+					{
+						objPoolRented.Dispose();
+					}
+					else if (_backingStorage is NotNot._internal.StaticPool.RentedArray<T> staticPoolRented)
+					{
+						staticPoolRented.Dispose();
+					}
+				}
+				break;
+			case MemBackingStorageType.RentedList:
+				{
+					if (_isTrueOwner is false)
+					{
+						break;
+					}
+					__.AssertNotNull(_backingStorage, "storage is null, was it already disposed?");
+					
+					// Pattern match to handle both ObjectPool and StaticPool variants and call their Dispose()
+					if (_backingStorage is NotNot._internal.ObjectPool.Rented<List<T>> objPoolRented)
+					{
+						objPoolRented.Dispose();
+					}
+					else if (_backingStorage is NotNot._internal.StaticPool.Rented<List<T>> staticPoolRented)
+					{
+						staticPoolRented.Dispose();
+					}
+				}
+				break;
 			case MemBackingStorageType.Array:
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.Memory:
@@ -761,6 +911,7 @@ public readonly struct Mem<T> : IDisposable
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
+
 
 	/// <summary>
 	/// Asserts that this memory has not been disposed. Only executes in CHECKED builds.
@@ -782,6 +933,12 @@ public readonly struct Mem<T> : IDisposable
 			case MemBackingStorageType.Memory:
 				//do nothing, let the GC handle backing.
 				break;
+			case MemBackingStorageType.RentedArray:
+			case MemBackingStorageType.RentedList:
+				// Rented wrappers become null when disposed
+				__.AssertIfNot(_backingStorage is not null, "storage is disposed, cannot use");
+				break;
+
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
@@ -857,6 +1014,45 @@ public readonly struct Mem<T> : IDisposable
 					}
 
 					throw __.Throw("Cannot expose array for memory that is not array-backed");
+			}
+		case MemBackingStorageType.RentedArray:
+			{
+				if (_backingStorage is NotNot._internal.ObjectPool.RentedArray<T> objPoolRented)
+				{
+					var array = objPoolRented.Value;
+					__.ThrowIfNot(array is not null, "RentedArray must have non-null array");
+					return new ArraySegment<T>(array, _segmentOffset, _segmentCount);
+				}
+				else if (_backingStorage is NotNot._internal.StaticPool.RentedArray<T> staticPoolRented)
+				{
+					var array = staticPoolRented.Value;
+					__.ThrowIfNot(array is not null, "RentedArray must have non-null array");
+					return new ArraySegment<T>(array, _segmentOffset, _segmentCount);
+				}
+				throw __.Throw($"RentedArray backing storage has unexpected type: {_backingStorage?.GetType()}");
+			}
+		case MemBackingStorageType.RentedList:
+			{
+				if (_backingStorage is NotNot._internal.ObjectPool.Rented<List<T>> objPoolRented)
+				{
+					var list = objPoolRented.Value;
+					__.ThrowIfNot(list is not null, "RentedList must have non-null list");
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= list.Count);
+					var items = _GetListItemsArray(list);
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= items.Length);
+					return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
+				}
+				else if (_backingStorage is NotNot._internal.StaticPool.Rented<List<T>> staticPoolRented)
+				{
+					var list = staticPoolRented.Value;
+					__.ThrowIfNot(list is not null, "RentedList must have non-null list");
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= list.Count);
+					var items = _GetListItemsArray(list);
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= items.Length);
+					return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
+				}
+				throw __.Throw($"RentedList backing storage has unexpected type: {_backingStorage?.GetType()}");
+
 				}
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
