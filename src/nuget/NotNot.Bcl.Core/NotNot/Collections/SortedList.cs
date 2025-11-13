@@ -120,7 +120,7 @@ public class SortedList<T> : IEnumerable<T>
 	}
 
 	/// <summary>
-	/// Returns an enumerator that iterates through the list in sorted order.
+	/// Returns an enumerator that iterates through the list in sorted order (ascending).
 	/// <para>This operation triggers sorting if the list is dirty.</para>
 	/// </summary>
 	/// <returns>An enumerator that can be used to iterate through the list.</returns>
@@ -135,6 +135,21 @@ public class SortedList<T> : IEnumerable<T>
 	/// </summary>
 	/// <returns>An <see cref="IEnumerator"/> object that can be used to iterate through the list.</returns>
 	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+	/// <summary>
+	/// Enumerates the list in reverse sorted order (descending, from end to beginning).
+	/// <para>This operation triggers sorting if the list is dirty.</para>
+	/// <para>Safe for removal: You can safely remove the current item or any items at higher indices during enumeration.</para>
+	/// </summary>
+	/// <returns>An enumerable that iterates through the list in reverse order.</returns>
+	public IEnumerable<T> ReverseEnumerate()
+	{
+		EnsureSorted();
+		for (int i = _list.Count - 1; i >= 0; i--)
+		{
+			yield return _list[i];
+		}
+	}
 
 	private void EnsureSorted()
 	{

@@ -636,4 +636,230 @@ public class SortedListTests
 	}
 
 	#endregion
+
+	#region ReverseEnumerate Tests
+
+	[Fact]
+	public void ReverseEnumerate_EmptyList_ReturnsNoItems()
+	{
+		// Arrange
+		var list = new SortedList<int>();
+
+		// Act
+		var items = list.ReverseEnumerate().ToList();
+
+		// Assert
+		Assert.Empty(items);
+	}
+
+	[Fact]
+	public void ReverseEnumerate_SingleItem_ReturnsItem()
+	{
+		// Arrange
+		var list = new SortedList<int>();
+		list.Add(42);
+
+		// Act
+		var items = list.ReverseEnumerate().ToList();
+
+		// Assert
+		Assert.Single(items);
+		Assert.Equal(42, items[0]);
+	}
+
+	[Fact]
+	public void ReverseEnumerate_MultipleItems_ReturnsDescendingOrder()
+	{
+		// Arrange
+		var list = new SortedList<int>();
+		list.Add(10);
+		list.Add(30);
+		list.Add(20);
+
+		// Act
+		var items = list.ReverseEnumerate().ToList();
+
+		// Assert
+		Assert.Equal(3, items.Count);
+		Assert.Equal(30, items[0]); // Highest first
+		Assert.Equal(20, items[1]);
+		Assert.Equal(10, items[2]); // Lowest last
+	}
+
+	[Fact]
+	public void ReverseEnumerate_OutOfOrderItems_SortsAndReturnsDescending()
+	{
+		// Arrange
+		var list = new SortedList<int>();
+		list.Add(5);
+		list.Add(1);
+		list.Add(9);
+		list.Add(3);
+
+		// Act
+		var items = list.ReverseEnumerate().ToList();
+
+		// Assert
+		Assert.Equal(new[] { 9, 5, 3, 1 }, items);
+	}
+
+	[Fact]
+	public void ReverseEnumerate_WithStrings_WorksCorrectly()
+	{
+		// Arrange
+		var list = new SortedList<string>();
+		list.Add("zebra");
+		list.Add("apple");
+		list.Add("mango");
+
+		// Act
+		var items = list.ReverseEnumerate().ToList();
+
+		// Assert
+		Assert.Equal(new[] { "zebra", "mango", "apple" }, items);
+	}
+
+	[Fact]
+	public void ReverseEnumerate_SafeRemovalOfCurrentItem_WorksCorrectly()
+	{
+		// Arrange
+		var list = new SortedList<int>();
+		list.Add(1);
+		list.Add(2);
+		list.Add(3);
+		list.Add(4);
+		list.Add(5);
+
+		// Act - remove items during reverse enumeration (safe pattern)
+		var visited = new List<int>();
+		foreach (var item in list.ReverseEnumerate())
+		{
+			visited.Add(item);
+			// Remove current item if it's even
+			if (item % 2 == 0)
+			{
+				list.Remove(item);
+			}
+		}
+
+		// Assert
+		Assert.Equal(new[] { 5, 4, 3, 2, 1 }, visited);
+		// Should have removed 2 and 4
+		var remaining = list.ToList();
+		Assert.Equal(new[] { 1, 3, 5 }, remaining);
+	}
+
+	[Fact]
+	public void ReverseEnumerate_SafeRemovalOfLaterItems_WorksCorrectly()
+	{
+		// Arrange
+		var list = new SortedList<int>();
+		for (int i = 1; i <= 10; i++)
+		{
+			list.Add(i);
+		}
+
+		// Act - remove items at higher indices during enumeration
+		var visited = new List<int>();
+		foreach (var item in list.ReverseEnumerate())
+		{
+			visited.Add(item);
+			// When we see 5, remove all items > 7 (which we've already visited)
+			if (item == 5)
+			{
+				list.Remove(10);
+				list.Remove(9);
+				list.Remove(8);
+			}
+		}
+
+		// Assert - we should have visited all 10 items (removal happens after visit)
+		Assert.Equal(new[] { 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 }, visited);
+		// Remaining should have 8, 9, 10 removed
+		var remaining = list.ToList();
+		Assert.Equal(new[] { 1, 2, 3, 4, 5, 6, 7 }, remaining);
+	}
+
+	[Fact]
+	public void ReverseEnumerate_RemoveAllDuringIteration_CompletesSuccessfully()
+	{
+		// Arrange
+		var list = new SortedList<int>();
+		list.Add(1);
+		list.Add(2);
+		list.Add(3);
+
+		// Act - remove all items during reverse enumeration
+		var visited = new List<int>();
+		foreach (var item in list.ReverseEnumerate())
+		{
+			visited.Add(item);
+			list.Remove(item);
+		}
+
+		// Assert
+		Assert.Equal(new[] { 3, 2, 1 }, visited);
+		Assert.Equal(0, list.Count);
+	}
+
+	[Fact]
+	public void ReverseEnumerate_WithDescendingComparer_ReturnsAscendingOrder()
+	{
+		// Arrange - descending comparer means 'highest' is actually smallest
+		var descendingComparer = Comparer<int>.Create((a, b) => b.CompareTo(a));
+		var list = new SortedList<int>(descendingComparer);
+		list.Add(10);
+		list.Add(30);
+		list.Add(20);
+
+		// Act - ReverseEnumerate goes from end to beginning
+		var items = list.ReverseEnumerate().ToList();
+
+		// Assert - descending sorted is [30,20,10], reversed is [10,20,30]
+		Assert.Equal(new[] { 10, 20, 30 }, items);
+	}
+
+	[Fact]
+	public void ReverseEnumerate_MultipleEnumerations_WorksCorrectly()
+	{
+		// Arrange
+		var list = new SortedList<int>();
+		list.Add(1);
+		list.Add(2);
+		list.Add(3);
+
+		// Act - enumerate multiple times
+		var first = list.ReverseEnumerate().ToList();
+		var second = list.ReverseEnumerate().ToList();
+
+		// Assert
+		Assert.Equal(new[] { 3, 2, 1 }, first);
+		Assert.Equal(new[] { 3, 2, 1 }, second);
+	}
+
+	[Fact]
+	public void ReverseEnumerate_AfterModifications_ReflectsChanges()
+	{
+		// Arrange
+		var list = new SortedList<int>();
+		list.Add(1);
+		list.Add(2);
+		list.Add(3);
+
+		// Act - first enumeration
+		var first = list.ReverseEnumerate().ToList();
+
+		// Modify list
+		list.Add(4);
+		list.Remove(1);
+
+		// Second enumeration
+		var second = list.ReverseEnumerate().ToList();
+
+		// Assert
+		Assert.Equal(new[] { 3, 2, 1 }, first);
+		Assert.Equal(new[] { 4, 3, 2 }, second);
+	}
+
+	#endregion
 }
