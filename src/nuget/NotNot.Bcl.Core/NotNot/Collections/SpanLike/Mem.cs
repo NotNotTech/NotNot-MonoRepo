@@ -118,7 +118,7 @@ public static class Mem
 	/// <summary>
 	///   Wrap a rented list from ObjectPool as the backing storage
 	/// </summary>
-	public static Mem<T> WrapRented<T>(NotNot._internal.ObjectPool.Rented<List<T>> rentedList)
+	public static Mem<T> Wrap<T>(NotNot._internal.ObjectPool.Rented<List<T>> rentedList)
 	{
 		return new Mem<T>(rentedList, isTrueOwner: true);
 	}

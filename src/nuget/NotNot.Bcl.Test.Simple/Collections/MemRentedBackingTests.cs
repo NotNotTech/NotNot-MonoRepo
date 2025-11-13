@@ -55,7 +55,7 @@ public class MemRentedBackingTests
 		rented.Value.Add(99);
 
 		// Act
-		var mem = Mem.WrapRented(rented);
+		var mem = Mem.Wrap(rented);
 
 		// Assert
 		Assert.Equal(2, mem.Length);
@@ -115,7 +115,7 @@ public class MemRentedBackingTests
 		{
 			rented.Value.Add(i * 10);
 		}
-		var mem = Mem.WrapRented(rented);
+		var mem = Mem.Wrap(rented);
 
 		// Act
 		var span = mem.Span;
@@ -151,7 +151,7 @@ public class MemRentedBackingTests
 		var rented = ObjectPool.Rent<List<int>>();
 		rented.Value.Add(1);
 		rented.Value.Add(2);
-		var mem = Mem.WrapRented(rented);
+		var mem = Mem.Wrap(rented);
 
 		// Act
 		mem.Span[0] = 42;
@@ -200,7 +200,7 @@ public class MemRentedBackingTests
 		// Arrange
 		var rented = ObjectPool.Rent<List<int>>();
 		rented.Value.Add(42);
-		var mem = Mem.WrapRented(rented);
+		var mem = Mem.Wrap(rented);
 
 		// Act
 		mem.Dispose();
@@ -277,7 +277,7 @@ public class MemRentedBackingTests
 		rented.Value.Add(42);
 
 		// Act
-		using (var mem = Mem.WrapRented(rented))
+		using (var mem = Mem.Wrap(rented))
 		{
 			mem.Span[0] = 99;
 		}
@@ -320,7 +320,7 @@ public class MemRentedBackingTests
 		{
 			rented.Value.Add(i);
 		}
-		var mem = Mem.WrapRented(rented);
+		var mem = Mem.Wrap(rented);
 
 		// Act
 		var segment = mem.DangerousGetArray();
@@ -364,7 +364,7 @@ public class MemRentedBackingTests
 		{
 			rented.Value.Add(i);
 		}
-		var mem = Mem.WrapRented(rented);
+		var mem = Mem.Wrap(rented);
 		var slice = mem.Slice(2, 5);
 
 		// Act
@@ -411,7 +411,7 @@ public class MemRentedBackingTests
 		{
 			rented.Value.Add(i);
 		}
-		var mem = Mem.WrapRented(rented);
+		var mem = Mem.Wrap(rented);
 
 		// Act
 		var slice = mem.Slice(2, 5);
