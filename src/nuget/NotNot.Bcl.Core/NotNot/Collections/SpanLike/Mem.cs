@@ -25,7 +25,7 @@ public static class Mem
 	/// </summary>
 	public static Mem<T> Wrap<T>(ArraySegment<T> backingStore)
 	{
-		return Mem<T>.Wrap(backingStore);
+		return new Mem<T>(backingStore);
 	}
 
 	/// <summary>
@@ -33,22 +33,16 @@ public static class Mem
 	/// </summary>
 	public static Mem<T> Wrap<T>(T[] array)
 	{
-		return Mem<T>.Wrap(array);
+		return new Mem<T>(array);
 	}
 
-	public static Mem<T> Clone<T>(UnifiedMem<T> toClone)
-	{
-		var copy = Mem<T>.Alloc(toClone.Length);
-		toClone.Span.CopyTo(copy.Span);
-		return copy;
-	}
 
 	/// <summary>
 	///    use an existing collection as the backing storage
 	/// </summary>
 	public static Mem<T> Wrap<T>(Memory<T> memory)
 	{
-		return Mem<T>.Wrap(memory);
+		return new Mem<T>(memory);
 	}
 
 	/// <summary>
@@ -56,7 +50,7 @@ public static class Mem
 	/// </summary>
 	public static Mem<T> Wrap<T>(List<T> list)
 	{
-		return Mem<T>.Wrap(list);
+		return new Mem<T>(list);
 	}
 
 	/// <summary>
@@ -72,7 +66,7 @@ public static class Mem
 	/// </summary>
 	public static Mem<T> Allocate<T>(int count)
 	{
-		return Mem<T>.Alloc(count);
+		return Mem<T>.Allocate(count);
 	}
 
 	/// <summary>
@@ -96,13 +90,13 @@ public static class Mem
 	/// </summary>
 	public static Mem<T> Wrap<T>(ReadMem<T> readMem)
 	{
-		return Mem<T>.Wrap(readMem);
+		return readMem.AsWriteMem();
 	}
 
 	/// <summary>
 	///   Wrap a rented array from ObjectPool as the backing storage
 	/// </summary>
-	public static Mem<T> WrapRented<T>(NotNot._internal.ObjectPool.RentedArray<T> rentedArray)
+	public static Mem<T> Wrap<T>(NotNot._internal.ObjectPool.RentedArray<T> rentedArray)
 	{
 		return new Mem<T>(rentedArray, isTrueOwner: true);
 	}
@@ -110,7 +104,7 @@ public static class Mem
 	/// <summary>
 	///   Wrap a rented array from StaticPool as the backing storage
 	/// </summary>
-	public static Mem<T> WrapRented<T>(NotNot._internal.StaticPool.RentedArray<T> rentedArray)
+	public static Mem<T> Wrap<T>(NotNot._internal.StaticPool.RentedArray<T> rentedArray)
 	{
 		return new Mem<T>(rentedArray, isTrueOwner: true);
 	}
@@ -126,7 +120,7 @@ public static class Mem
 	/// <summary>
 	///   Wrap a rented list from StaticPool as the backing storage
 	/// </summary>
-	public static Mem<T> WrapRented<T>(NotNot._internal.StaticPool.Rented<List<T>> rentedList)
+	public static Mem<T> Wrap<T>(NotNot._internal.StaticPool.Rented<List<T>> rentedList)
 	{
 		return new Mem<T>(rentedList, isTrueOwner: true);
 	}
@@ -135,7 +129,7 @@ public static class Mem
 
 
 /// <summary>
-/// A universal, write-capable view into a wrapped array/list/memory backing storage, with support for pooled allocation (renting) for temporary collections (see <see cref="Alloc(int)"/>).
+/// A universal, write-capable view into a wrapped array/list/memory backing storage, with support for pooled allocation (renting) for temporary collections (see <see cref="Allocate(int)"/>).
 /// Supports implicit casting from array/list/memory along with explicit via Mem.Wrap() methods.
 /// </summary>
 /// <typeparam name="T">Element type</typeparam>
@@ -395,7 +389,7 @@ public readonly struct Mem<T> : IDisposable
 
 	public static Mem<T> Clone(UnifiedMem<T> toClone)
 	{
-		var copy = Mem<T>.Alloc(toClone.Length);
+		var copy = Mem<T>.Allocate(toClone.Length);
 		toClone.Span.CopyTo(copy.Span);
 		return copy;
 	}
@@ -406,7 +400,7 @@ public readonly struct Mem<T> : IDisposable
 	///    memory leaks.
 	///    also note that the memory is not cleared by default.
 	/// </summary>
-	public static Mem<T> Alloc(int size)
+	public static Mem<T> Allocate(int size)
 	{
 		//__.AssertOnce(RuntimeHelpers.IsReferenceOrContainsReferences<T>() == false || clearOnDispose, "alloc of classes via memPool can/will cause leaks");
 		var mo = MemoryOwner_Custom<T>.Allocate(size, AllocationMode.Clear);
@@ -419,7 +413,7 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	public static Mem<T> Allocate(ReadOnlySpan<T> span)
 	{
-		var toReturn = Alloc(span.Length);
+		var toReturn = Allocate(span.Length);
 		span.CopyTo(toReturn.Span);
 		return toReturn;
 	}
@@ -431,78 +425,16 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>Pooled memory containing the single item</returns>
 	public static Mem<T> AllocateAndAssign(T singleItem)
 	{
-		var mem = Alloc(1);
+		var mem = Allocate(1);
 		mem[0] = singleItem;
 		return mem;
 	}
 
-	/// <summary>
-	/// Creates a non-pooled memory view using an existing array
-	/// </summary>
-	/// <param name="array">Array to wrap</param>
-	/// <returns>Memory view over the entire array</returns>
-	public static Mem<T> Wrap(T[] array)
-	{
-		return new Mem<T>(new ArraySegment<T>(array));
-	}
-
-
-	public static Mem<T> Wrap(List<T> list)
-	{
-		return new Mem<T>(list);
-	}
-	public static Mem<T> Wrap(Memory<T> memory)
-	{
-		return new Mem<T>(memory);
-	}
-
-
-	/// <summary>
-	/// Creates a non-pooled memory view using a slice of an existing array
-	/// </summary>
-	/// <param name="array">Array to wrap</param>
-	/// <param name="offset">Starting index in the array</param>
-	/// <param name="count">Number of elements</param>
-	/// <returns>Memory view over the specified array slice</returns>
-	public static Mem<T> Wrap(T[] array, int offset, int count)
-	{
-		return new Mem<T>(new ArraySegment<T>(array, offset, count));
-	}
-
-	/// <summary>
-	/// Creates a non-pooled memory view using an existing array segment
-	/// </summary>
-	/// <param name="backingStore">Array segment to wrap</param>
-	/// <returns>Memory view over the array segment</returns>
-	public static Mem<T> Wrap(ArraySegment<T> backingStore)
-	{
-		return new Mem<T>(backingStore);
-	}
-
-	/// <summary>
-	/// Creates a memory view using an existing pooled memory owner
-	/// </summary>
-	/// <param name="MemoryOwnerNew">Pooled memory owner to wrap</param>
-	/// <param name="isTrueOwner">if true, it's disposal will return a `MemoryOwner_Custom` to the pool; if false, it's a slice and should not dispose the owner</param>
-	/// <returns>Memory view over the pooled memory</returns>
-	internal static Mem<T> Wrap(MemoryOwner_Custom<T> MemoryOwnerNew, bool isTrueOwner)
-	{
-		return new Mem<T>(MemoryOwnerNew, isTrueOwner);
-	}
-
-	/// <summary>
-	/// Creates a writable memory view from a ReadMem{T}
-	/// </summary>
-	/// <param name="readMem">Read-only memory to convert</param>
-	/// <returns>Writable memory view</returns>
-	public static Mem<T> Wrap(ReadMem<T> readMem)
-	{
-		return readMem.AsWriteMem();
-	}
 
 
 	/// <summary>
 	/// Creates a new memory view that is a slice of this memory
+	/// <para>the original is the "owner" and the underlying storage is deallocated when it's disposed</para>
 	/// </summary>
 	/// <param name="offset">Starting offset within this memory</param>
 	/// <param name="count">Number of elements in the slice</param>
@@ -539,7 +471,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Alloc(Length);
+		var toReturn = Mem<TResult>.Allocate(Length);
 		Map(toReturn, mapFunc);
 		return toReturn;
 	}
@@ -570,7 +502,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Alloc(Length);
+		var toReturn = Mem<TResult>.Allocate(Length);
 		Map(toReturn, mapFunc);
 		return toReturn;
 	}
@@ -608,7 +540,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>New pooled memory containing mapped results</returns>
 	public Mem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Alloc(Length);
+		var toReturn = Mem<TResult>.Allocate(Length);
 		MapWith(toReturn, otherToMapWith, mapFunc);
 		return toReturn;
 	}
@@ -750,7 +682,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <returns>New pooled memory containing a copy of this memory's contents</returns>
 	public Mem<T> Clone()
 	{
-		var copy = Mem<T>.Alloc(Length);
+		var copy = Mem<T>.Allocate(Length);
 		Span.CopyTo(copy.Span);
 		return copy;
 	}

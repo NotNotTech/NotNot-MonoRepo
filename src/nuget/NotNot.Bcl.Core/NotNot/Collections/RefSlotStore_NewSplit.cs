@@ -337,11 +337,11 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
          lock (_lock)
          {
             var validResult = _IsHandleValid_Unsafe(slot);
-            __.DebugAssertIfNot(validResult.isValid, $"Invalid slot access: {validResult.invalidReason}");
-
             if (!validResult.isValid)
-            {
-               throw new InvalidOperationException($"Invalid slot access: {validResult.invalidReason}");
+				{
+					__.DebugAssertIfNot(validResult.isValid, $"Invalid slot access: {validResult.invalidReason}");
+
+					throw new InvalidOperationException($"Invalid slot access: {validResult.invalidReason}");
             }
 
             return ref _data[slot.Index];
@@ -372,7 +372,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
    /// </example>
    public Mem<SlotHandle> AllocSlots(int count)
    {
-      var toReturn = Mem<SlotHandle>.Alloc(count);
+      var toReturn = Mem<SlotHandle>.Allocate(count);
       var slotSpan = toReturn.Span;
       lock (_lock)
       {
@@ -510,7 +510,7 @@ public class RefSlotStore_NewSplit<T> : IDisposeGuard
    }
 
    /// <summary>
-   /// Validates whether a slot handle is currently valid.
+   /// Validates whether a slot handle is currently valid (for this storage)
    /// </summary>
    /// <param name="slot">The slot handle to validate.</param>
    /// <returns>A tuple indicating validity and reason if invalid.</returns>

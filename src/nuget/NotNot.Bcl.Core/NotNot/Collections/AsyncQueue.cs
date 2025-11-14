@@ -135,7 +135,7 @@ public class AsyncQueue<T> : IProducerConsumerCollection<T>, IReadOnlyCollection
 			return false;
 		}
 
-		var mem = Mem<T>.Alloc(count);
+		var mem = Mem<T>.Allocate(count);
 		for (var i = 0; i < count; i++)
 		{
 			var result = _storage.TryDequeue(out var item);

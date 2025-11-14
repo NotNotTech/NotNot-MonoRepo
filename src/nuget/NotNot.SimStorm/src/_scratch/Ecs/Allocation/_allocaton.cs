@@ -106,7 +106,7 @@ public class EntityRegistry
 
 	public Mem<EntityHandle> Alloc(int count)
 	{
-		var toReturn = Mem<EntityHandle>.Alloc(count);
+		var toReturn = Mem<EntityHandle>.Allocate(count);
 		Alloc(toReturn.Span);
 		return toReturn;
 	}
@@ -2324,7 +2324,7 @@ public class Chunk<TComponent> : Chunk
 		column._ExpandAndSet(chunkIndex, this);
 
 		//_storage = MemoryOwner<TComponent>.Allocate(_length, AllocationMode.Clear); //TODO: maybe no need to clear?
-		_storageRaw = Mem<TComponent>.Alloc(_length);
+		_storageRaw = Mem<TComponent>.Allocate(_length);
 
 		UnsafeArray = _storageRaw.DangerousGetArray().Array!;
 	}

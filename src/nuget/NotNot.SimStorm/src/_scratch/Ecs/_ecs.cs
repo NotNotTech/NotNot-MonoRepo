@@ -1270,9 +1270,9 @@ public partial class Archetype //passthrough of page stuff
 		//need to get a unique page per partitionComponent grouping
 
 		//create entityHandles
-		var entityHandlesMem = Mem<EntityHandle>.Alloc(count);
+		var entityHandlesMem = Mem<EntityHandle>.Allocate(count);
 		var entityHandles = entityHandlesMem.Span;
-		var accessTokensMem = Mem<AccessToken>.Alloc(count);
+		var accessTokensMem = Mem<AccessToken>.Allocate(count);
 		var accessTokens = accessTokensMem.Span;
 		_entityRegistry.Alloc(entityHandles);
 

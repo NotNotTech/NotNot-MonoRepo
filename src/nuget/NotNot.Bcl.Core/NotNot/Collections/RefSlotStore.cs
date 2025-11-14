@@ -372,7 +372,7 @@ public class RefSlotStore_ArchetypeOptimized<T> : RefSlotStore, IDisposable
 	/// <returns></returns>
 	public Mem<SlotHandle> Alloc(int count)
 	{
-		var toReturn = Mem<SlotHandle>.Alloc(count);
+		var toReturn = Mem<SlotHandle>.Allocate(count);
 		var slotSpan = toReturn.Span;
 		lock (_lock)
 		{

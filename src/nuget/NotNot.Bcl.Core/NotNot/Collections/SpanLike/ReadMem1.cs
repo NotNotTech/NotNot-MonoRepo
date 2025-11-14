@@ -223,7 +223,7 @@ public readonly struct ReadMem<T> : IDisposable
 
 	public static ReadMem<T> AllocateAndAssign(T singleItem)
 	{
-		var mem = Mem<T>.Alloc(1);
+		var mem = Mem<T>.Allocate(1);
 		mem[0] = singleItem;
 		return Wrap(mem);
 	}

@@ -3143,7 +3143,7 @@ public static class zz_Extensions_Dictionary
 
    public static Mem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source)
    {
-      var toReturn = Mem<(TKey key, TValue value)>.Alloc(source.Count);
+      var toReturn = Mem<(TKey key, TValue value)>.Allocate(source.Count);
       var i = 0;
       foreach (var kvp in source)
       {
