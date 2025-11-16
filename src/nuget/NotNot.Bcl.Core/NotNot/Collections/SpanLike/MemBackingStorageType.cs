@@ -43,11 +43,11 @@ internal enum MemBackingStorageType
 	/// </summary>
 	Memory,
 	/// <summary>
-	/// Mem backed by ObjectPool.RentedArray or StaticPool.RentedArray. Disposed via wrapper's Dispose() method when owner is disposed.
+	/// Mem backed by ObjectPool.RentedArray. Disposed via wrapper's Dispose() method when owner is disposed.
 	/// </summary>
 	RentedArray,
 	/// <summary>
-	/// Mem backed by ObjectPool.Rented&lt;List&lt;T&gt;&gt; or StaticPool.Rented&lt;List&lt;T&gt;&gt;. Disposed via wrapper's Dispose() method when owner is disposed.
+	/// Mem backed by ObjectPool.Rented&lt;List&lt;T&gt;&gt;. Disposed via wrapper's Dispose() method when owner is disposed.
 	/// </summary>
 	RentedList,
 }

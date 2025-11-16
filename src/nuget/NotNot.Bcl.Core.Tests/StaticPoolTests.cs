@@ -96,16 +96,15 @@ public class StaticPoolTests
     }
 
     [Fact]
-    public void GetUsing_ReturnsUsingDisposableWrapper()
+    public void Rent_WithDefaultClear_ClearsObject()
     {
         HashSet<string> reusedSet;
 
-        using (var wrapper = StaticPool.GetUsing<HashSet<string>>(out var set))
+        using (var rented = StaticPool.Rent<HashSet<string>>())
         {
-            set.Add("test1");
-            set.Add("test2");
-            Assert.Equal(2, set.Count);
-            Assert.Same(set, wrapper.Item);
+            rented.Value.Add("test1");
+            rented.Value.Add("test2");
+            Assert.Equal(2, rented.Value.Count);
         } // Auto-returns with clearing
 
         reusedSet = StaticPool.Get<HashSet<string>>();

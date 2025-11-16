@@ -21,8 +21,9 @@ public class ObjectPool : IDisposeGuard
 	/// </summary>
 	public struct Rented<T> : IDisposable where T : class
 	{
+		public readonly bool IsAllocated => Value is not null;
+		public T Value { get; private set; }
 		private readonly ObjectPool _pool;
-		public readonly T Value;
 		private Action<T>? _clearAction;
 		private readonly bool _skipAutoClear;
 #if CHECKED
@@ -31,6 +32,7 @@ public class ObjectPool : IDisposeGuard
 
 		public Rented(ObjectPool pool, T item, Action<T>? clearAction = null, bool skipAutoClear = false)
 		{
+
 			_pool = pool;
 			Value = item;
 			_clearAction = clearAction;
@@ -52,6 +54,7 @@ public class ObjectPool : IDisposeGuard
 #if CHECKED
 			_disposeGuard.Dispose();
 #endif
+			Value = null;
 		}
 	}
 
@@ -61,7 +64,8 @@ public class ObjectPool : IDisposeGuard
 	public struct RentedArray<T> : IDisposable
 	{
 		private readonly ObjectPool _pool;
-		public readonly T[] Value;
+		public readonly bool IsAllocated => Value is not null;
+		public T[] Value { get; private set; }
 		private readonly bool _preserveContents;
 #if CHECKED
 		private DisposeGuard _disposeGuard;
@@ -84,6 +88,7 @@ public class ObjectPool : IDisposeGuard
 #if CHECKED
 			_disposeGuard.Dispose();
 #endif
+			Value = null!;
 		}
 	}
 
@@ -311,112 +316,6 @@ public static class StaticPool
 	/// </summary>
 	private static readonly ObjectPool _shared = new();
 
-
-	public struct UsingDisposable<T> : IDisposable where T : class
-	{
-		public readonly T Item;
-		private Action<T>? _clearAction;
-		private readonly bool _skipAutoClear;
-
-		public UsingDisposable(T item, Action<T>? clearAction = null, bool skipAutoClear = false)
-		{
-			Item = item;
-			_clearAction = clearAction;
-			_skipAutoClear = skipAutoClear;
-		}
-
-		public void Dispose()
-		{
-			if (_clearAction != null)
-			{
-				_clearAction(Item);
-			}
-
-			StaticPool.Return_New(Item, _skipAutoClear);
-		}
-	}
-
-	/// <summary>
-	/// Disposable wrapper for rented objects from StaticPool. Use with `using` pattern to auto-return to pool.
-	/// </summary>
-	public struct Rented<T> : IDisposable where T : class
-	{
-		public readonly T Value;
-		private Action<T>? _clearAction;
-		private readonly bool _skipAutoClear;
-#if CHECKED
-		private DisposeGuard _disposeGuard;
-#endif
-
-		public Rented(T item, Action<T>? clearAction = null, bool skipAutoClear = false)
-		{
-			Value = item;
-			_clearAction = clearAction;
-			_skipAutoClear = skipAutoClear;
-#if CHECKED
-			_disposeGuard = new();
-#endif
-		}
-
-		public void Dispose()
-		{
-			if (_clearAction != null)
-			{
-				_clearAction(Value);
-			}
-
-			StaticPool.Return_New(Value, _skipAutoClear);
-
-#if CHECKED
-			_disposeGuard.Dispose();
-#endif
-		}
-	}
-
-	/// <summary>
-	/// Disposable wrapper for rented arrays from StaticPool. Use with `using` pattern to auto-return to pool.
-	/// </summary>
-	public struct RentedArray<T> : IDisposable
-	{
-		public readonly T[] Value;
-		private readonly bool _preserveContents;
-#if CHECKED
-		private DisposeGuard _disposeGuard;
-#endif
-
-		public RentedArray(T[] array, bool preserveContents = false)
-		{
-			Value = array;
-			_preserveContents = preserveContents;
-#if CHECKED
-			_disposeGuard = new();
-#endif
-		}
-
-		public void Dispose()
-		{
-			StaticPool.ReturnArray(Value, _preserveContents);
-
-#if CHECKED
-			_disposeGuard.Dispose();
-#endif
-		}
-	}
-
-	/// <summary>
-	///    Get but can be wrapped in a using block.  will be returned to the pool when the using block is exited.
-	/// </summary>
-	/// <typeparam name="T"></typeparam>
-	/// <param name="item"></param>
-	/// <param name="clearAction">optional, for clearing the item before returning to the pool</param>
-	/// <param name="skipAutoClear">If false (default), will auto-clear the object when returned. If true, skip auto-clear.</param>
-	/// <returns></returns>
-	public static UsingDisposable<T> GetUsing<T>(out T item, Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
-	{
-		item = Get<T>();
-		return new UsingDisposable<T>(item, clearAction, skipAutoClear);
-	}
-
 	/// <summary>
 	///    Rent an object from the static pool. Use with `using` pattern to auto-return to pool.
 	/// </summary>
@@ -424,10 +323,9 @@ public static class StaticPool
 	/// <param name="clearAction">optional, for clearing the item before returning to the pool</param>
 	/// <param name="skipAutoClear">If false (default), will auto-clear the object when returned. If true, skip auto-clear.</param>
 	/// <returns></returns>
-	public static Rented<T> Rent<T>(Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
+	public static ObjectPool.Rented<T> Rent<T>(Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
 	{
-		var item = _shared.Get_Unsafe<T>();
-		return new Rented<T>(item, clearAction, skipAutoClear);
+		return _shared.Rent(out _, clearAction, skipAutoClear);
 	}
 
 	/// <summary>
@@ -437,10 +335,9 @@ public static class StaticPool
 	/// <param name="length">Length of array to rent</param>
 	/// <param name="preserveContents">If true, contents will not be cleared when returned to pool</param>
 	/// <returns></returns>
-	public static RentedArray<T> RentArray<T>(int length, bool preserveContents = false)
+	public static ObjectPool.RentedArray<T> RentArray<T>(int length, bool preserveContents = false)
 	{
-		var array = _shared.GetArray_Unsafe<T>(length);
-		return new RentedArray<T>(array, preserveContents);
+		return _shared.RentArray<T>(length, out _, preserveContents);
 	}
 
 	public static T Get<T>() where T : class, new()
