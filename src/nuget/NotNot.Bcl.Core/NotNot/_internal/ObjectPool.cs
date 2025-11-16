@@ -97,7 +97,7 @@ public class ObjectPool : IDisposeGuard
 	/// <summary>
 	///    stores recycled arrays of precise length
 	/// </summary>
-	private static ConcurrentDictionary<Type, ConcurrentDictionary<int, ConcurrentQueue<object>>> _arrayStore = new();
+	private ConcurrentDictionary<Type, ConcurrentDictionary<int, ConcurrentQueue<object>>> _arrayStore = new();
 
 
 	private ConcurrentQueue<object> _GetItemTypePool<T>()
