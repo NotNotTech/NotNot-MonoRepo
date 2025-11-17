@@ -16,6 +16,18 @@ public class ObjectPool : IDisposeGuard
 	/// </summary>
 	private ConcurrentDictionary<Type, Action<object>?> _clearDelegateCache = new();
 
+#if CHECKED
+	/// <summary>
+	/// Tracks live (rented) objects with their version numbers for use-after-return detection. CHECKED builds only.
+	/// </summary>
+	private readonly ConcurrentDictionary<object, int> _CHECKED_liveObjects = new(ReferenceEqualityComparer.Instance);
+	
+	/// <summary>
+	/// Current version counter for rent operations. Incremented atomically. CHECKED builds only.
+	/// </summary>
+	private int _currentVersion = 1; // Start at 1, 0 reserved for uninitialized
+#endif
+
 	/// <summary>
 	/// Disposable wrapper for rented objects. Use with `using` pattern to auto-return to pool.
 	/// </summary>
@@ -27,10 +39,11 @@ public class ObjectPool : IDisposeGuard
 		private Action<T>? _clearAction;
 		private readonly bool _skipAutoClear;
 #if CHECKED
+		private readonly int _version;
 		private DisposeGuard _disposeGuard;
 #endif
 
-		public Rented(ObjectPool pool, T item, Action<T>? clearAction = null, bool skipAutoClear = false)
+		public Rented(ObjectPool pool, T item, Action<T>? clearAction = null, bool skipAutoClear = false, int version = 0)
 		{
 
 			_pool = pool;
@@ -38,23 +51,32 @@ public class ObjectPool : IDisposeGuard
 			_clearAction = clearAction;
 			_skipAutoClear = skipAutoClear;
 #if CHECKED
+			_version = version;
 			_disposeGuard = new();
 #endif
 		}
 
 		public void Dispose()
 		{
-			if (_clearAction != null)
+			try
 			{
-				_clearAction(Value);
+				if (_clearAction != null)
+				{
+					_clearAction(Value);
+				}
 			}
-
-			_pool.Return(Value, _skipAutoClear);
+			finally
+			{
+#if CHECKED
+				_pool.ValidateAndRemoveVersion(Value, _version);
+#endif
+				_pool.Return(Value, _skipAutoClear);
 
 #if CHECKED
-			_disposeGuard.Dispose();
+				_disposeGuard.Dispose();
 #endif
-			Value = null;
+				Value = null;
+			}
 		}
 	}
 
@@ -68,21 +90,26 @@ public class ObjectPool : IDisposeGuard
 		public T[] Value { get; private set; }
 		private readonly bool _preserveContents;
 #if CHECKED
+		private readonly int _version;
 		private DisposeGuard _disposeGuard;
 #endif
 
-		public RentedArray(ObjectPool pool, T[] array, bool preserveContents = false)
+		public RentedArray(ObjectPool pool, T[] array, bool preserveContents = false, int version = 0)
 		{
 			_pool = pool;
 			Value = array;
 			_preserveContents = preserveContents;
 #if CHECKED
+			_version = version;
 			_disposeGuard = new();
 #endif
 		}
 
 		public void Dispose()
 		{
+#if CHECKED
+			_pool.ValidateAndRemoveVersion(Value, _version);
+#endif
 			_pool.ReturnArray(Value, _preserveContents);
 
 #if CHECKED
@@ -93,31 +120,25 @@ public class ObjectPool : IDisposeGuard
 	}
 
 
-	private ConcurrentDictionary<Type, ConcurrentQueue<object>> _itemStorage = new();
 	/// <summary>
-	///    stores recycled arrays of precise length
+	///    stores recycled objects.   uses HashSet for double-dispose protection.
 	/// </summary>
-	private ConcurrentDictionary<Type, ConcurrentDictionary<int, ConcurrentQueue<object>>> _arrayStore = new();
+	private ConcurrentDictionary<Type, HashSet<object>> _itemStorage = new();
+	/// <summary>
+	///    stores recycled arrays of precise length.   uses HashSet for double-dispose protection.
+	/// </summary>
+	private ConcurrentDictionary<Type, ConcurrentDictionary<int, HashSet<object>>> _arrayStore = new();
 
 
-	private ConcurrentQueue<object> _GetItemTypePool<T>()
+	/// <summary>
+	///    stores objects of the given type. Returns HashSet for double-dispose protection.
+	/// </summary>
+	private HashSet<object> _GetItemTypePool<T>()
 	{
 		var type = typeof(T);
-		var queue = _itemStorage.GetOrAdd(type, _type => new ConcurrentQueue<object>())!;
+		var pool = _itemStorage.GetOrAdd(type, _type => new HashSet<object>(ReferenceEqualityComparer.Instance));
 
-		//if (!_itemStorage.TryGetValue(type, out var queue))
-		//{
-		//	lock (_itemStorage) //be the only one to add at the time
-		//	{
-		//		if (!_itemStorage.TryGetValue(type, out queue))
-		//		{
-		//			queue = new ConcurrentQueue<object>();
-		//			var result = _itemStorage.TryAdd(type, queue);
-		//			__.GetLogger()._EzError(result);
-		//		}
-		//	}
-		//}
-		return queue;
+		return pool;
 	}
 
 	public void Dispose()
@@ -135,29 +156,81 @@ public class ObjectPool : IDisposeGuard
 	public bool IsDisposed { get; private set; } = false;
 
 
+#if CHECKED
 	/// <summary>
-	///    stores arrays of the given length
+	/// Generate next version number for rent tracking. Thread-safe with overflow handling.
 	/// </summary>
-	private ConcurrentQueue<object> _GetTypeArrayPool<T>(int length)
+	private int GetNextVersion()
+	{
+		var version = Interlocked.Increment(ref _currentVersion);
+		if (version == int.MinValue) // Wrapped from MaxValue
+		{
+			// Skip 0 and negative values, reset to 1
+			Interlocked.CompareExchange(ref _currentVersion, 1, int.MinValue);
+			return 1;
+		}
+		return version;
+	}
+
+	/// <summary>
+	/// Validates object version matches expected and removes from live tracking. Detects use-after-return bugs.
+	/// </summary>
+	internal void ValidateAndRemoveVersion<T>(T item, int expectedVersion)
+	{
+		if (item is null) return;
+
+		if (_CHECKED_liveObjects.TryRemove(item, out var actualVersion))
+		{
+			if (actualVersion != expectedVersion)
+			{
+				// Use-after-return detected: object was returned and re-rented
+				__.AssertIfNot(false,
+					$"Use-after-return detected for {typeof(T).Name}. " +
+					$"Expected version {expectedVersion}, but object has version {actualVersion}. " +
+					$"Object was returned to pool and rented again while still being used.");
+			}
+		}
+		else
+		{
+			// Object not in tracking - likely double-return scenario
+			// This is handled by existing HashSet.Add check in Return()
+			// Don't assert here as double-dispose is caught elsewhere
+		}
+	}
+#endif
+
+
+
+	/// <summary>
+	///    stores arrays of the given length. Returns HashSet for double-dispose protection.
+	/// </summary>
+	private HashSet<object> _GetTypeArrayPool<T>(int length)
 	{
 		var type = typeof(T);
 
 		var typeArrayStore =
-			_arrayStore.GetOrAdd(type, _type => new ConcurrentDictionary<int, ConcurrentQueue<object>>());
+			_arrayStore.GetOrAdd(type, _type => new ConcurrentDictionary<int, HashSet<object>>());
 
-		var queue = typeArrayStore.GetOrAdd(length, _len => new ConcurrentQueue<object>());
+		var pool = typeArrayStore.GetOrAdd(length, _len => new HashSet<object>(ReferenceEqualityComparer.Instance));
 
-		return queue;
+		return pool;
 	}
 
 	[Obsolete("Use Rent<T>() method instead for better usability with using pattern.")]
 	public T Get_Unsafe<T>() where T : class, new()
 	{
-		var queue = _GetItemTypePool<T>();
+		if (IsDisposed) { return new T(); }
 
-		if (queue.TryDequeue(out var item))
+		var pool = _GetItemTypePool<T>();
+
+		lock (pool)
 		{
-			return (T)item;
+			if (pool.Count > 0)
+			{
+				var item = pool.First();
+				pool.Remove(item);
+				return (T)item;
+			}
 		}
 
 		return new T();
@@ -173,7 +246,19 @@ public class ObjectPool : IDisposeGuard
 	public Rented<T> Rent<T>(out T item, Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
 	{
 		item = Get_Unsafe<T>();
+
+#if CHECKED
+		var version = GetNextVersion();
+		var added = _CHECKED_liveObjects.TryAdd(item, version);
+		if (!added)
+		{
+			// Object still marked as rented - this is a pool corruption bug
+			__.Throw($"Object {typeof(T).Name} rented while still in live objects tracking. Pool corruption detected.");
+		}
+		return new Rented<T>(this, item, clearAction, skipAutoClear, version);
+#else
 		return new Rented<T>(this, item, clearAction, skipAutoClear);
+#endif
 	}
 
 	/// <summary>
@@ -186,13 +271,25 @@ public class ObjectPool : IDisposeGuard
 	public RentedArray<T> RentArray<T>(int length, out T[] array, bool preserveContents = false)
 	{
 		array = GetArray_Unsafe<T>(length);
+
+#if CHECKED
+		var version = GetNextVersion();
+		var added = _CHECKED_liveObjects.TryAdd(array, version);
+		if (!added)
+		{
+			// Array still marked as rented - this is a pool corruption bug
+			__.Throw($"Array {typeof(T).Name}[{length}] rented while still in live objects tracking. Pool corruption detected.");
+		}
+		return new RentedArray<T>(this, array, preserveContents, version);
+#else
 		return new RentedArray<T>(this, array, preserveContents);
+#endif
 	}
 
 
 
 	/// <summary>
-	/// Return an object to the pool with optional auto-clear support.
+	/// Return an object to the pool with optional auto-clear support. Detects double-dispose.
 	/// If skipAutoClear is false (default), attempts to call Clear() method on the object before returning to pool.
 	/// </summary>
 	/// <typeparam name="T">Type of object to return</typeparam>
@@ -202,15 +299,21 @@ public class ObjectPool : IDisposeGuard
 	public void Return<T>(T item, bool skipAutoClear = false)
 	{
 		if (item is null) { return; }
+		if (IsDisposed) { return; }
 
-		// Auto-clear logic (before enqueueing)
+		// Auto-clear logic (before lock)
 		if (!skipAutoClear)
 		{
 			_TryAutoClear(item);
 		}
 
-		var queue = _GetItemTypePool<T>();
-		queue.Enqueue(item);
+		var pool = _GetItemTypePool<T>();
+
+		lock (pool)
+		{
+			var wasAdded = pool.Add(item);
+			__.AssertIfNot(wasAdded, $"Double-return detected for object of type {typeof(T).Name}. Object was already returned to pool.");
+		}
 	}
 
 	/// <summary>
@@ -273,18 +376,25 @@ public class ObjectPool : IDisposeGuard
 	[Obsolete("Use RentArray<T>() method instead for better usability with using pattern.")]
 	public T[] GetArray_Unsafe<T>(int length)
 	{
-		var queue = _GetTypeArrayPool<T>(length);
+		if (IsDisposed) { return new T[length]; }
 
-		if (queue.TryDequeue(out var item))
+		var pool = _GetTypeArrayPool<T>(length);
+
+		lock (pool)
 		{
-			return (T[])item;
+			if (pool.Count > 0)
+			{
+				var item = pool.First();
+				pool.Remove(item);
+				return (T[])item;
+			}
 		}
 
 		return new T[length];
 	}
 
 	/// <summary>
-	///    recycle the array.   will automatically clear the array unless told otherwise
+	///    recycle the array.   will automatically clear the array unless told otherwise. Detects double-dispose.
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
 	/// <param name="item"></param>
@@ -292,6 +402,7 @@ public class ObjectPool : IDisposeGuard
 	public void ReturnArray<T>(T[] item, bool preserveContents = false)
 	{
 		if (item is null) { return; }
+		if (IsDisposed) { return; }
 
 		var length = item.Length;
 		if (!preserveContents)
@@ -299,8 +410,13 @@ public class ObjectPool : IDisposeGuard
 			item._Clear();
 		}
 
-		var queue = _GetTypeArrayPool<T>(length);
-		queue.Enqueue(item);
+		var pool = _GetTypeArrayPool<T>(length);
+		
+		lock (pool)
+		{
+			var wasAdded = pool.Add(item);
+			__.AssertIfNot(wasAdded, $"Double-return detected for array of type {typeof(T).Name}[{length}]. Array was already returned to pool.");
+		}
 	}
 }
 

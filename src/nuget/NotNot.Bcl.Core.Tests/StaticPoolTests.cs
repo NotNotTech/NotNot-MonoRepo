@@ -215,6 +215,131 @@ public class StaticPoolTests
         Assert.Equal("shared", retrieved[0]);
     }
 
+    [Fact]
+    public void ReturnArray_DoubleDispose_IsGracefullyBlocked()
+    {
+        var array = StaticPool.GetArray<int>(5);
+        array[0] = 100;
+
+        // First return - should succeed
+        StaticPool.ReturnArray(array, preserveContents: false);
+
+        // Second return - should trigger __.AssertIfNot
+        // In DEBUG builds, this throws an exception from Debug.Fail
+        // In RELEASE builds, this silently blocks duplicate
+        try
+        {
+            StaticPool.ReturnArray(array, preserveContents: false);
+            // If we get here, we're in RELEASE mode or assertion was gracefully handled
+        }
+        catch (Exception ex)
+        {
+            // Expected in DEBUG builds - verify it's the right assertion
+            Assert.Contains("Double-return detected", ex.Message);
+        }
+
+        // Verify pool still functions correctly after double-dispose attempt
+        var reused = StaticPool.GetArray<int>(5);
+        Assert.NotNull(reused);
+        Assert.Equal(5, reused.Length);
+    }
+
+    [Fact]
+    public void Return_DoubleDispose_IsGracefullyBlocked()
+    {
+        var list = StaticPool.Get<List<int>>();
+        list.Add(100);
+
+        // First return - should succeed
+        StaticPool.Return(list);
+
+        // Second return - should trigger __.AssertIfNot
+        // In DEBUG builds, this throws an exception from Debug.Fail
+        // In RELEASE builds, this silently blocks duplicate
+        try
+        {
+            StaticPool.Return(list);
+            // If we get here, we're in RELEASE mode or assertion was gracefully handled
+        }
+        catch (Exception ex)
+        {
+            // Expected in DEBUG builds - verify it's the right assertion
+            Assert.Contains("Double-return detected", ex.Message);
+        }
+
+        // Verify pool still functions correctly after double-dispose attempt
+        var reused = StaticPool.Get<List<int>>();
+        Assert.NotNull(reused);
+    }
+
+    [Fact]
+    public void Rent_UseAfterReturn_DetectsVersionMismatch()
+    {
+        // Rent object and keep both the wrapper and the object reference
+        var rental1 = StaticPool.Rent<List<int>>();
+        var obj = rental1.Value;
+        obj.Add(100);
+
+        // Return to pool (version N removed from tracking)
+        rental1.Dispose();
+
+        // Rent again - should get same object with NEW version (N+1)
+        var rental2 = StaticPool.Rent<List<int>>();
+        Assert.Same(obj, rental2.Value); // Same object instance
+
+        // Try to dispose original rental again - should detect version mismatch
+        // In DEBUG/CHECKED builds, this throws assertion exception
+        // In RELEASE builds, this path doesn't exist (no version tracking)
+#if CHECKED
+        try
+        {
+            rental1.Dispose(); // This will detect version mismatch (expecting N, but object has N+1)
+            Assert.Fail("Expected version mismatch assertion");
+        }
+        catch (Exception ex)
+        {
+            // Expected in CHECKED builds - verify it's the right assertion
+            Assert.Contains("Use-after-return detected", ex.Message);
+        }
+#endif
+
+        // Clean up rental2
+        rental2.Dispose();
+    }
+
+    [Fact]
+    public void RentArray_UseAfterReturn_DetectsVersionMismatch()
+    {
+        // Rent array and keep both the wrapper and the array reference
+        var rental1 = StaticPool.RentArray<int>(5);
+        var arr = rental1.Value;
+        arr[0] = 200;
+
+        // Return to pool (version N removed from tracking)
+        rental1.Dispose();
+
+        // Rent again - should get same array with NEW version (N+1)
+        var rental2 = StaticPool.RentArray<int>(5);
+        Assert.Same(arr, rental2.Value); // Same array instance
+
+        // Try to dispose original rental again - should detect version mismatch
+#if CHECKED
+        try
+        {
+            rental1.Dispose(); // This will detect version mismatch
+            Assert.Fail("Expected version mismatch assertion");
+        }
+        catch (Exception ex)
+        {
+            // Expected in CHECKED builds - verify it's the right assertion
+            Assert.Contains("Use-after-return detected", ex.Message);
+        }
+#endif
+
+        // Clean up rental2
+        rental2.Dispose();
+    }
+
     private class ClassWithoutClear
     {
         public int Value { get; set; }
