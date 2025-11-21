@@ -483,7 +483,7 @@ public class StrongPointerTests
 		// In RELEASE builds, the assertion is compiled out, so we can't test it
 #if DEBUG
 		// Act & Assert
-		Assert.Throws<System.Exception>(() => StrongPointer<TestTarget>.Alloc(null!));
+		Assert.ThrowsAny<Exception>(() => StrongPointer<TestTarget>.Alloc(null!));
 #endif
 	}
 
@@ -497,7 +497,7 @@ public class StrongPointerTests
 		target.Dispose();
 
 		// Act & Assert
-		Assert.Throws<System.Exception>(() => StrongPointer<TestTarget>.Alloc(target));
+		Assert.ThrowsAny<Exception>(() => StrongPointer<TestTarget>.Alloc(target));
 #endif
 	}
 

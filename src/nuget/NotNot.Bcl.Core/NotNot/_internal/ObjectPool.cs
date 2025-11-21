@@ -415,6 +415,7 @@ public class ObjectPool : IDisposeGuard
 		lock (pool)
 		{
 			var wasAdded = pool.Add(item);
+
 			__.AssertIfNot(wasAdded, $"Double-return detected for array of type {typeof(T).Name}[{length}]. Array was already returned to pool.");
 		}
 	}

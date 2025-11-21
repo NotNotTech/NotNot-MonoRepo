@@ -772,7 +772,6 @@ public class SlimEventTests
 		var slimEvent = new SlimEvent<TestSender>();
 		var sender = new TestSender();
 		sender.Dispose();
-
 		// Act & Assert
 		var exception = Record.Exception(() => slimEvent.Raise(sender));
 		Assert.NotNull(exception); // Assertion fires

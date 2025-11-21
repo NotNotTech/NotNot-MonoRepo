@@ -511,7 +511,7 @@ public partial class LoLoRoot
    {
       get
       {
-         return RuntimeEnv._Contains("test");
+         return RuntimeEnv._Contains("test") || TestHelper.isTestingActive; 
       }
    }
 
