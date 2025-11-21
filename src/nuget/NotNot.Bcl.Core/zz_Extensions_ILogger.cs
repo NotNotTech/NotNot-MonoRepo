@@ -178,7 +178,6 @@ public static class zz_Extensions_ILogger
                __.Test.Write($"[{level.ToString().ToUpperInvariant()}] {originalMessage}", objToLog0, objToLog1, objToLog2, sourceMemberName, sourceFilePath, sourceLineNumber, objToLog0Name, objToLog1Name, objToLog2Name);
             }
 
-            __.pool.ReturnArray(argValues);
          }
          finally
          {

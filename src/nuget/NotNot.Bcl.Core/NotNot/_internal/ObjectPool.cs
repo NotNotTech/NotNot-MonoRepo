@@ -70,7 +70,7 @@ public class ObjectPool : IDisposeGuard
 #if CHECKED
 				_pool.ValidateAndRemoveVersion(Value, _version);
 #endif
-				_pool.Return(Value, _skipAutoClear);
+				_pool._ReturnValue(Value, _skipAutoClear);
 
 #if CHECKED
 				_disposeGuard.Dispose();
@@ -110,7 +110,7 @@ public class ObjectPool : IDisposeGuard
 #if CHECKED
 			_pool.ValidateAndRemoveVersion(Value, _version);
 #endif
-			_pool.ReturnArray(Value, _preserveContents);
+			_pool._ReturnArray(Value, _preserveContents);
 
 #if CHECKED
 			_disposeGuard.Dispose();
@@ -216,8 +216,7 @@ public class ObjectPool : IDisposeGuard
 		return pool;
 	}
 
-	[Obsolete("Use Rent<T>() method instead for better usability with using pattern.")]
-	public T Get_Unsafe<T>() where T : class, new()
+	protected T _GetValue<T>() where T : class, new()
 	{
 		if (IsDisposed) { return new T(); }
 
@@ -245,7 +244,7 @@ public class ObjectPool : IDisposeGuard
 	/// <returns></returns>
 	public Rented<T> Rent<T>(out T item, Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
 	{
-		item = Get_Unsafe<T>();
+		item = _GetValue<T>();
 
 #if CHECKED
 		var version = GetNextVersion();
@@ -270,7 +269,7 @@ public class ObjectPool : IDisposeGuard
 	/// <returns></returns>
 	public RentedArray<T> RentArray<T>(int length, out T[] array, bool preserveContents = false)
 	{
-		array = GetArray_Unsafe<T>(length);
+		array = _GetArray<T>(length);
 
 #if CHECKED
 		var version = GetNextVersion();
@@ -295,8 +294,7 @@ public class ObjectPool : IDisposeGuard
 	/// <typeparam name="T">Type of object to return</typeparam>
 	/// <param name="item">The object to return to the pool</param>
 	/// <param name="skipAutoClear">If false (default), will auto call `.Clear()` on the object when returned, if the method exists.</param>
-	[Obsolete("Use Rent<T>() method instead for better usability with using pattern.")]
-	public void Return<T>(T item, bool skipAutoClear = false)
+	private void _ReturnValue<T>(T item, bool skipAutoClear = false)
 	{
 		if (item is null) { return; }
 		if (IsDisposed) { return; }
@@ -373,8 +371,7 @@ public class ObjectPool : IDisposeGuard
 	/// <summary>
 	///    obtain an array of T of the exact length requested
 	/// </summary>
-	[Obsolete("Use RentArray<T>() method instead for better usability with using pattern.")]
-	public T[] GetArray_Unsafe<T>(int length)
+	private T[] _GetArray<T>(int length)
 	{
 		if (IsDisposed) { return new T[length]; }
 
@@ -398,8 +395,7 @@ public class ObjectPool : IDisposeGuard
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
 	/// <param name="item"></param>
-	[Obsolete("Use RentArray<T>() method instead for better usability with using pattern.")]
-	public void ReturnArray<T>(T[] item, bool preserveContents = false)
+	private void _ReturnArray<T>(T[] item, bool preserveContents = false)
 	{
 		if (item is null) { return; }
 		if (IsDisposed) { return; }
@@ -431,7 +427,7 @@ public static class StaticPool
 	/// <summary>
 	/// Shared ObjectPool instance that all StaticPool methods delegate to.
 	/// </summary>
-	private static readonly ObjectPool _shared = new();
+	internal static readonly ObjectPool _storage = new();
 
 	/// <summary>
 	///    Rent an object from the static pool. Use with `using` pattern to auto-return to pool.
@@ -442,7 +438,7 @@ public static class StaticPool
 	/// <returns></returns>
 	public static ObjectPool.Rented<T> Rent<T>(Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
 	{
-		return _shared.Rent(out _, clearAction, skipAutoClear);
+		return _storage.Rent(out _, clearAction, skipAutoClear);
 	}
 
 	/// <summary>
@@ -454,52 +450,8 @@ public static class StaticPool
 	/// <returns></returns>
 	public static ObjectPool.RentedArray<T> RentArray<T>(int length, bool preserveContents = false)
 	{
-		return _shared.RentArray<T>(length, out _, preserveContents);
+		return _storage.RentArray<T>(length, out _, preserveContents);
 	}
 
-	public static T Get<T>() where T : class, new()
-	{
-		return _shared.Get_Unsafe<T>();
-	}
-
-
-	public static void Return<T>(T item)
-	{
-		// Legacy Return method - does NOT auto-clear
-		_shared.Return(item, skipAutoClear: true);
-	}
-
-
-	/// <summary>
-	/// Return an object to the pool with optional auto-clear support.
-	/// If skipAutoClear is false (default), attempts to call Clear() method on the object before returning to pool.
-	/// </summary>
-	/// <typeparam name="T">Type of object to return</typeparam>
-	/// <param name="item">The object to return to the pool</param>
-	/// <param name="skipAutoClear">If false, will attempt to auto-clear the object. If true, object returned as-is.</param>
-	public static void Return_New<T>(T item, bool skipAutoClear = false)
-	{
-		// Return_New method - respects skipAutoClear parameter
-		_shared.Return(item, skipAutoClear);
-	}
-
-
-	/// <summary>
-	///    obtain an array of T of the exact length requested
-	/// </summary>
-	public static T[] GetArray<T>(int length)
-	{
-		return _shared.GetArray_Unsafe<T>(length);
-	}
-
-	/// <summary>
-	///    recycle the array.   will automatically clear the array unless told otherwise
-	/// </summary>
-	/// <typeparam name="T"></typeparam>
-	/// <param name="item"></param>
-	public static void ReturnArray<T>(T[] item, bool preserveContents = false)
-	{
-		_shared.ReturnArray(item, preserveContents);
-	}
 
 }

@@ -653,8 +653,9 @@ public partial class LoLoRoot
 
       pool.Dispose();
       pool = null;
+      NotNot._internal.StaticPool._storage.Dispose();
 
-      _isDisposed = true;
+		_isDisposed = true;
       //LoLoRoot._instance = null;
    }
 
