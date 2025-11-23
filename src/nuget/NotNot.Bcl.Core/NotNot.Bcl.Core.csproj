@@ -95,4 +95,8 @@
 		<ProjectReference Include="..\NotNot.Analyzers\NotNot.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="NotNot\Collections\OldBackup\" />
+	</ItemGroup>
+
 </Project>

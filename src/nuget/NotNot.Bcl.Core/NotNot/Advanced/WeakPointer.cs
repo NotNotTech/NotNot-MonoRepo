@@ -36,7 +36,7 @@ public record struct WeakPointer<T> : IDisposable where T : class
 			var weakRef = new WeakRef<T>(target);
 
 			// Allocate slot in RefSlotStore
-			var slotHandle = _store.Alloc(weakRef);
+			var slotHandle = _store.AllocValue(ref weakRef);
 
 			// Run incremental cleanup of 5 slots
 			_GCNextSlots(5);
@@ -55,26 +55,33 @@ public record struct WeakPointer<T> : IDisposable where T : class
 	private static void _GCNextSlots(int count)
 	{
 		// Must be called within _allocLock to ensure thread safety with _AsSpan_Unsafe
-		var span = _store._AsSpan_Unsafe();
-		if (span.Length == 0) return;
+		//var span = _store._AsSpan_Unsafe();
+
+		if(_store.Count == 0) return;
+
+
+		var dataSpan = _store.Data_Span;
+		var handleSpan = _store.Handle_Span;
+
 
 		for (int i = 0; i < count; i++)
 		{
 			// Wrap around at end of array
-			if (_cleanupCursor >= span.Length)
+			if (_cleanupCursor >= dataSpan.Length)
 			{
 				_cleanupCursor = 0;
 			}
 
-			var slot = span[_cleanupCursor];
+			ref var r_weakRef = ref dataSpan[_cleanupCursor];
+			ref var r_handle = ref handleSpan[_cleanupCursor];
 
 			// Check if slot is allocated and WeakReference is dead
-			if (slot.handle.IsAllocated)
+			if (r_handle.IsAllocated)
 			{
-				if (!slot.slotData.TryGetTarget(out _))
+				if (!r_weakRef.TryGetTarget(out _))
 				{
 					// Dead reference found - free the slot
-					_store.Free(slot.handle);
+					_store.FreeSingleSlot(r_handle);
 				}
 			}
 
@@ -88,7 +95,7 @@ public record struct WeakPointer<T> : IDisposable where T : class
 		if (managedPointer._slotHandle.IsAllocated)
 		{
 			var weakRef = _store[managedPointer._slotHandle];
-			_store.Free(managedPointer._slotHandle);
+			_store.FreeSingleSlot(managedPointer._slotHandle);
 			weakRef.Dispose();
 		}
 	}

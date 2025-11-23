@@ -19,7 +19,7 @@ namespace NotNot.Advanced;
 /// <typeparam name="T">The target type, must be a class implementing IDisposeGuard</typeparam>
 public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T>> where T : class, IDisposeGuard
 {
-	private static readonly RefSlotStore_NewSplit<T> _store = new(initialCapacity: 100);
+	private static readonly RefSlotStore<T> _store = new(initialCapacity: 100);
 	
 	// Cursor for incremental validation - tracks position in store for next check
 	private static int _validationCursor = 0;
