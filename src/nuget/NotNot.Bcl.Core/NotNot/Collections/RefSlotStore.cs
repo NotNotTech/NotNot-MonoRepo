@@ -311,7 +311,6 @@ public class RefSlotStore<T> : IDisposeGuard
    /// <para><b>Validation:</b> Checks slot is allocated, version matches, and index is valid.</para>
    /// <para><b>Performance:</b> Lock acquisition adds overhead; batch operations when possible.</para>
    /// </remarks>
-   [Obsolete("Use GetRef(SlotHandle) method instead for clarity.")]
    public ref T this[SlotHandle slot]
    {
       get

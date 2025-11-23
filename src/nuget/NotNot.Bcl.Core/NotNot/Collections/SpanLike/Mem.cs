@@ -453,12 +453,42 @@ public readonly struct Mem<T> : IDisposable
 	}
 
 	/// <summary>
+	/// Applies the specified mapping function to each element of this Mem, writing results to the provided output buffer (zero-allocation version)
+	/// </summary>
+	/// <typeparam name="TResult">Result element type</typeparam>
+	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
+	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
+	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func<T, TResult> mapFunc)
+	{
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
+		var thisSpan = Span;
+		var toReturnSpan = toReturn.Span;
+		for (var i = 0; i < Length; i++)
+		{
+			var mappedResult = mapFunc(thisSpan[i]);
+			toReturnSpan[i] = mappedResult;
+		}
+	}  
+	
+	/// <summary>
+		/// Allocates a new pooled Mem by applying the specified mapping function to each element of this Mem
+		/// </summary>
+		/// <typeparam name="TResult">Result element type</typeparam>
+		/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
+		/// <returns>New pooled memory containing mapped results</returns>
+	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
+	{
+		var toReturn = Mem<TResult>.Allocate(Length);
+		Map(toReturn, mapFunc);
+		return toReturn;
+	}
+	/// <summary>
 	/// Allocates a new pooled Mem by applying the specified mapping function to each element of this Mem
 	/// </summary>
 	/// <typeparam name="TResult">Result element type</typeparam>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
 	/// <returns>New pooled memory containing mapped results</returns>
-	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
+	public Mem<TResult> Map<TResult>(Func<T, TResult> mapFunc)
 	{
 		var toReturn = Mem<TResult>.Allocate(Length);
 		Map(toReturn, mapFunc);
