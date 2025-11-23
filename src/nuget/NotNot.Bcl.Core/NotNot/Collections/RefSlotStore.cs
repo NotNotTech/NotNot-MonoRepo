@@ -97,10 +97,10 @@ public class RefSlotStore<T> : IDisposeGuard
 {
    /// <summary>
    /// Tracks the next version number to assign to allocated slots.
-   /// Wraps around to 1 when reaching 255 (0 is reserved for invalid/unallocated).
+   /// Wraps around to 1 when reaching 1023 (0 is reserved for invalid/unallocated).
    /// Each allocation gets a unique version to detect use-after-free.
    /// </summary>
-   private byte _nextVersion;
+   private ushort _nextVersion;
 
    /// <summary>
    /// Storage for slot handles that track allocation state and versions.
@@ -287,8 +287,8 @@ public class RefSlotStore<T> : IDisposeGuard
    /// </remarks>
    public RefSlotStore(int initialCapacity = 10)
    {
-      // Get unique starting version for this instance
-      _nextVersion = (byte)Random.Shared.Next(1, 255);
+      // Get unique starting version for this instance (1-1023, never 0)
+      _nextVersion = (ushort)Random.Shared.Next(1, 1024);
 
       // Initialize storage with specified capacity
       _allocTracker = new(initialCapacity);
@@ -444,11 +444,12 @@ public class RefSlotStore<T> : IDisposeGuard
    {
       lock (_lock)
       {
-         // Get next version number, skip 0 (reserved for invalid)
+         // Get next version number, skip 0 (reserved for invalid), wrap at 1024
          var version = _nextVersion++;
-         if (version == 0)
+         if (version == 0 || version > 1023)
          {
-            version = _nextVersion++;
+            _nextVersion = 1;
+            version = 1;
          }
 
          int index;
@@ -488,7 +489,7 @@ public class RefSlotStore<T> : IDisposeGuard
          __.DebugAssertIfNot(_allocTracker.Count > index && _allocTracker[index].IsAllocated is false);
 
          // Create new handle with version tracking
-         var toReturn = new SlotHandle(index, version, true);
+         var toReturn = new SlotHandle(index, (short)version);
 
          // Update tracking structures
          _allocTracker[index] = toReturn;
@@ -820,7 +821,7 @@ public class RefSlotStore<T> : IDisposeGuard
 
             // Move allocated slot from lastAllocIndex to freeIndex
             var fromSlot = _allocTracker[lastAllocIndex];
-            var toSlot = new SlotHandle(freeIndex, fromSlot.Version, true);
+            var toSlot = new SlotHandle(freeIndex, fromSlot.Version);
 
             // Move data and handle (not a swap - toSlot is free)
             _data[freeIndex] = _data[lastAllocIndex];
