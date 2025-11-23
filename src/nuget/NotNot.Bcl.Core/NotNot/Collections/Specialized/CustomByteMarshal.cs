@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using NotNot;
+using NotNot.Advanced;
 using NotNot.Collections.Specialized;
 
 namespace NotNot.Collections.Specialized;
@@ -15,7 +17,11 @@ public unsafe struct Bytes16
 	public const int SIZE = 16;
 	public fixed byte data[SIZE];
 	public ref byte this[int index] => ref data[index];
-	public int Length => SIZE;
+	public int Length => SIZE; 
+	public Span<byte> AsSpan()
+	{
+		return MemoryMarshal.CreateSpan(ref data[0], SIZE);
+	}
 }
 
 
@@ -31,6 +37,12 @@ public unsafe struct Bytes32
 	public fixed byte data[SIZE];
 	public ref byte this[int index] => ref data[index];
 	public int Length => SIZE;
+
+	public Span<byte> AsSpan()
+	{
+		return  MemoryMarshal.CreateSpan(ref data[0], SIZE);
+	}
+
 }
 
 
@@ -49,12 +61,8 @@ public unsafe struct Bytes64
 	public fixed byte data[SIZE];
 	public ref byte this[int index] => ref data[index];
 	public int Length => SIZE;
-
-	public unsafe Span<byte> GetSpan()
+	public Span<byte> AsSpan()
 	{
-		return new Span<byte>((void*)data[0], SIZE);
-		//Span<byte>
-		//var toReturn = new Span<byte>((void*)data[0], SIZE);
-		//return ref toReturn;
+		return MemoryMarshal.CreateSpan(ref data[0], SIZE);
 	}
 }
