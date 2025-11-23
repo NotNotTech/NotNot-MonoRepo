@@ -3623,18 +3623,36 @@ public static class zz_Extensions_Span
             return pSpan1 == pSpan2;
          }
       }
-   }
+	}
 
-   /// <summary>
-   ///    cast this span as another.  Any extra bytes remaining are ignored (the number of bytes in the castTo may be smaller
-   ///    than the original)
-   /// </summary>
-   public static Span<TTo> _CastAs<TFrom, TTo>(ref this Span<TFrom> target)
-      where TFrom : unmanaged where TTo : unmanaged
-   {
-      return MemoryMarshal.Cast<TFrom, TTo>(target);
-   }
+	public static Span<int> _AsInts(ref this Span<byte> target)
+	{
+		return MemoryMarshal.Cast<byte, int>(target);
+	}
+	public static Span<float> _AsFloats(ref this Span<byte> target)
+	{
+		return MemoryMarshal.Cast<byte, float>(target);
+	}
+	public static Span<long> _AsLongs(ref this Span<byte> target)
+	{
+		return MemoryMarshal.Cast<byte, long>(target);
+	}
+	public static Span<double> _AsDoubles(ref this Span<byte> target)
+	{
+		return MemoryMarshal.Cast<byte, double>(target);
+	}
 
+	/// <summary>
+	///    cast this span as another.  Any extra bytes remaining are ignored (the number of bytes in the castTo may be smaller
+	///    than the original)
+	/// </summary>
+	public static Span<TTo> _CastAs<TFrom, TTo>(ref this Span<TFrom> target)
+		where TFrom : unmanaged where TTo : unmanaged
+	{
+		return MemoryMarshal.Cast<TFrom, TTo>(target);
+	}
+
+	
    [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
    public static ReadOnlySpan<T> _AsReadOnly<T>(this Span<T> span)
    {

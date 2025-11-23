@@ -9,39 +9,6 @@ using NotNot.Collections.Specialized;
 
 namespace NotNot.Collections.Specialized;
 
-public ref struct UnionSpan
-{
-	public UnionSpan(ref Span<byte> storage)
-	{
-		bytes = storage;
-		ints = storage._CastAs<byte, int>();
-		floats = storage._CastAs<byte, float>();
-
-	}
-	public Span<byte> bytes;
-	public Span<int> ints;
-	public Span<float> floats;
-
-
-
-}
-[StructLayout(LayoutKind.Explicit, Size = 16)]
-public unsafe struct CustomData16
-{
-	[FieldOffset(0)] public Floats4 floats;
-	[FieldOffset(0)] public Bytes16 bytes;
-
-
-}
-
-
-public unsafe struct Floats4
-{
-	public const int SIZE = 4;
-	public fixed float data[SIZE];
-	public ref float this[int index] => ref data[index];
-	public int Length => SIZE;
-}
 
 public unsafe struct Bytes16
 {
@@ -51,55 +18,43 @@ public unsafe struct Bytes16
 	public int Length => SIZE;
 }
 
+
 /// <summary>
-/// a custom struct with 64 bytes accessable storage.  be aware that these indicies overlap
+/// Represents a fixed-size, 32-byte buffer for storing binary data. (256bit)
 /// </summary>
-[StructLayout(LayoutKind.Explicit, Size = 64)]
-public unsafe struct CustomData64
+public unsafe struct Bytes32
 {
-	[FieldOffset(0)] public Bytes64 bytes;
-	[FieldOffset(0)] public Floats16 floats;
-	[FieldOffset(0)] public Ints16 ints;
-
-
+	/// <summary>
+	/// size in items
+	/// </summary>
+	public const int SIZE = 32;
+	public fixed byte data[SIZE];
+	public ref byte this[int index] => ref data[index];
+	public int Length => SIZE;
 }
 
+
+/// <summary>
+/// Represents a fixed-size buffer containing 64 bytes of data (512bit)
+/// </summary>
+/// <remarks>This struct is typically used for scenarios that require a block of memory with a fixed size, such as
+/// cryptographic operations, serialization, or interop with unmanaged code. The buffer is stack-allocated and provides
+/// direct access to its underlying bytes.</remarks>
 public unsafe struct Bytes64
 {
 	/// <summary>
-	/// size in bytes
+	/// size in items
 	/// </summary>
 	public const int SIZE = 64;
 	public fixed byte data[SIZE];
 	public ref byte this[int index] => ref data[index];
 	public int Length => SIZE;
 
-	//public unsafe ref  Span<byte> GetSpan()
-	//{
-	//	Span<byte> 
-	//	var toReturn  = new Span<byte>((void*) data[0], SIZE);
-	//	return ref toReturn;
-	//}
+	public unsafe Span<byte> GetSpan()
+	{
+		return new Span<byte>((void*)data[0], SIZE);
+		//Span<byte>
+		//var toReturn = new Span<byte>((void*)data[0], SIZE);
+		//return ref toReturn;
+	}
 }
-public unsafe struct Floats16
-{
-	/// <summary>
-	/// size in bytes
-	/// </summary>
-	public const int SIZE = 16;
-	public fixed float data[SIZE];
-	public ref float this[int index] => ref data[index];
-	public int Length => SIZE;
-}
-public unsafe struct Ints16
-{
-	/// <summary>
-	/// size in bytes
-	/// </summary>
-	public const int SIZE = 16;
-	public fixed int data[SIZE];
-	public ref int this[int index] => ref data[index];
-	public int Length => SIZE;
-}
-
-
