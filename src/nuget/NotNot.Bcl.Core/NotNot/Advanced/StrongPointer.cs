@@ -118,6 +118,15 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 	/// </summary>
 	public int Index => _slotHandle.Index;
 
+	public override string ToString()
+	{
+		if (IsAllocated)
+		{
+			return $"[{Index}]{this.GetTarget().GetType().Name}";
+		}
+		return "NOT_ALLOC";
+	}
+
 	/// <summary>
 	/// Checks if this handle is allocated and valid in the backing store.
 	/// Thread-safe.

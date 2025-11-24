@@ -95,6 +95,14 @@ public readonly record struct SlotHandle : IComparable<SlotHandle>
 	{
 		get => (short)(_packedValue & 0x3FF);
 	}
+	public override string ToString()
+	{
+		if (IsAllocated)
+		{
+			return $"{Index}@{Version}";
+		}
+		return "NOT_ALLOC";
+	}
 
 	/// <summary>
 	/// mostly for internal use: if the handle was properly allocated by a collection.
