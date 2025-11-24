@@ -3637,6 +3637,10 @@ public static class zz_Extensions_Span
 	{
 		return MemoryMarshal.Cast<byte, long>(target);
 	}
+	public static Span<ulong> _AsULongs(this Span<byte> target)
+	{
+		return MemoryMarshal.Cast<byte, ulong>(target);
+	}
 	public static Span<double> _AsDoubles(ref this Span<byte> target)
 	{
 		return MemoryMarshal.Cast<byte, double>(target);

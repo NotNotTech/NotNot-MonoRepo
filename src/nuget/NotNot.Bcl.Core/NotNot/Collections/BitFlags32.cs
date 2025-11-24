@@ -225,6 +225,12 @@ public struct BitFlags32
 	public void Flip(BitFlags32 flags) => RawBuffer ^= flags.RawBuffer;
 
 	/// <summary>
+	/// Determines if all flags in this instance are set.
+	/// </summary>
+	/// <returns>True if all 32 flags are set, false otherwise.</returns>
+	public bool IsAllOn() => RawBuffer == uint.MaxValue;
+
+	/// <summary>
 	/// Determines if all specified flags are set.
 	/// </summary>
 	/// <param name="flags">The flags to check.</param>
@@ -237,6 +243,12 @@ public struct BitFlags32
 	/// <param name="flags">The flags to check.</param>
 	/// <returns>True if all specified flags are set, false otherwise.</returns>
 	public bool IsAllOn(BitFlags32 flags) => (RawBuffer & flags.RawBuffer) == flags.RawBuffer;
+
+	/// <summary>
+	/// Determines if any flags in this instance are set.
+	/// </summary>
+	/// <returns>True if any flags are set, false if all flags are cleared.</returns>
+	public bool IsAnyOn() => RawBuffer != 0;
 
 	/// <summary>
 	/// Determines if any of the specified flags are set.
@@ -557,6 +569,12 @@ public struct BitFlags32<TFlagsEnum> where TFlagsEnum : struct, Enum
 	public void Flip(BitFlags32<TFlagsEnum> flags) => RawBuffer ^= flags.RawBuffer;
 
 	/// <summary>
+	/// Determines if all flags in this instance are set.
+	/// </summary>
+	/// <returns>True if all 32 flags are set, false otherwise.</returns>
+	public bool IsAllOn() => RawBuffer == uint.MaxValue;
+
+	/// <summary>
 	/// Determines if all specified flags are set.
 	/// </summary>
 	/// <param name="flags">The flags to check.</param>
@@ -569,6 +587,12 @@ public struct BitFlags32<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// <param name="flags">The flags to check.</param>
 	/// <returns>True if all specified flags are set, false otherwise.</returns>
 	public bool IsAllOn(BitFlags32<TFlagsEnum> flags) => (RawBuffer & flags.RawBuffer) == flags.RawBuffer;
+
+	/// <summary>
+	/// Determines if any flags in this instance are set.
+	/// </summary>
+	/// <returns>True if any flags are set, false if all flags are cleared.</returns>
+	public bool IsAnyOn() => RawBuffer != 0;
 
 	/// <summary>
 	/// Determines if any of the specified flags are set.
