@@ -155,7 +155,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <summary>
 	/// if true, it's disposal will return a `MemoryOwner_Custom` to the pool; if false, it's a slice and should not dispose the owner
 	/// </summary>
-	private readonly bool _isTrueOwner = false;
+	internal readonly bool _isTrueOwner = false;
 
 	///// <summary>
 	/////    details the backing storage
@@ -220,6 +220,21 @@ public readonly struct Mem<T> : IDisposable
 	}
 
 	/// <summary>
+	/// Creates a sliced memory view backed by ObjectPool rented array
+	/// </summary>
+	internal Mem(NotNot._internal.ObjectPool.RentedArray<T> rentedArray, int sliceOffset, int sliceCount, bool isTrueOwner)
+	{
+		_isTrueOwner = isTrueOwner;
+		_backingStorageType = MemBackingStorageType.RentedArray;
+		_backingStorage = rentedArray;
+		__.ThrowIfNot(rentedArray.Value != null);
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= rentedArray.Value.Length);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= rentedArray.Value.Length);
+		_segmentOffset = sliceOffset;
+		_segmentCount = sliceCount;
+	}
+
+	/// <summary>
 	/// Creates a memory view backed by ObjectPool rented list
 	/// </summary>
 	internal Mem(NotNot._internal.ObjectPool.Rented<List<T>> rentedList, bool isTrueOwner)
@@ -230,6 +245,21 @@ public readonly struct Mem<T> : IDisposable
 		__.ThrowIfNot(rentedList.Value != null);
 		_segmentOffset = 0;
 		_segmentCount = rentedList.Value.Count;
+	}
+
+	/// <summary>
+	/// Creates a sliced memory view backed by ObjectPool rented list
+	/// </summary>
+	internal Mem(NotNot._internal.ObjectPool.Rented<List<T>> rentedList, int sliceOffset, int sliceCount, bool isTrueOwner)
+	{
+		_isTrueOwner = isTrueOwner;
+		_backingStorageType = MemBackingStorageType.RentedList;
+		_backingStorage = rentedList;
+		__.ThrowIfNot(rentedList.Value != null);
+		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= rentedList.Value.Count);
+		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= rentedList.Value.Count);
+		_segmentOffset = sliceOffset;
+		_segmentCount = sliceCount;
 	}
 
 
@@ -345,7 +375,7 @@ public readonly struct Mem<T> : IDisposable
 		_segmentCount = sliceCount;
 	}
 
-	public static Mem<T> Clone(UnifiedMem<T> toClone)
+	public static Mem<T> Clone(Mem<T> toClone)
 	{
 		var copy = Mem<T>.Allocate(toClone.Length);
 		toClone.Span.CopyTo(copy.Span);
@@ -409,7 +439,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TResult">Result element type</typeparam>
 	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by reference</param>
-	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
+	public void Map<TResult>(Mem<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		var thisSpan = Span;
@@ -440,7 +470,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TResult">Result element type</typeparam>
 	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
-	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
+	public void Map<TResult>(Mem<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		var thisSpan = Span;
@@ -458,7 +488,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TResult">Result element type</typeparam>
 	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
-	public void Map<TResult>(UnifiedMem<TResult> toReturn, Func<T, TResult> mapFunc)
+	public void Map<TResult>(Mem<TResult> toReturn, Func<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		var thisSpan = Span;
@@ -503,7 +533,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Function that maps pairs of elements by reference, returning result by reference</param>
-	public void MapWith<TOther, TResult>(UnifiedMem<TResult> toReturn, Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	public void MapWith<TOther, TResult>(Mem<TResult> toReturn, Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
@@ -539,7 +569,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TOther">Element type of the other memory</typeparam>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Action that processes pairs of elements by reference</param>
-	public void MapWith<TOther>(UnifiedMem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	public void MapWith<TOther>(Mem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = Span;
@@ -625,7 +655,7 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
 	/// <param name="worker">Action executed for each contiguous batch, receiving a Mem slice that references this instance's backing store.</param>
-	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<UnifiedMem<T>> worker)
+	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<Mem<T>> worker)
 	{
 		if (Length == 0)
 		{
@@ -647,7 +677,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
 	/// <param name="worker">Action executed for each contiguous batch</param>
-	public void BatchMapWith<TOther>(UnifiedMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<UnifiedMem<T>, UnifiedMem<TOther>> worker)
+	public void BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<Mem<T>, Mem<TOther>> worker)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 

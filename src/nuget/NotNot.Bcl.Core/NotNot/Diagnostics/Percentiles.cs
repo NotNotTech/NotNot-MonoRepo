@@ -178,7 +178,7 @@ public struct Percentiles<T> where T : IComparable<T>
 
 		var len = samples.Length;
 		sampleCount = len;
-		using var mem = ZeroAllocMem<T>.Allocate(len);
+		using var mem = RentedMem<T>.Allocate(len);
 		var sortedSamples = mem.Span;
       samples.CopyTo(sortedSamples);
 		sortedSamples.Sort();
