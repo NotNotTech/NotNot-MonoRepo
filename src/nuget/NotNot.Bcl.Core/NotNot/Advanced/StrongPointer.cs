@@ -120,9 +120,9 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 
 	public override string ToString()
 	{
-		if (IsAllocated)
+		if (IsAllocated && TryGetTarget(out var target))
 		{
-			return $"[{Index}]{this.GetTarget().GetType().Name}";
+			return $"[{Index}]{target.GetType().Name}";
 		}
 		return "NOT_ALLOC";
 	}
@@ -146,6 +146,30 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 	public void AssertIsAlive()
 	{
 		__.AssertIfNot(CheckIsAlive(), "StrongPointer handle is not alive");
+	}
+
+	/// <summary>
+	/// Attempts to get the target object referenced by this handle.
+	/// </summary>
+	/// <param name="target">The target if handle is valid; default if not. Do NOT use target when returns false.</param>
+	/// <returns>True if handle is valid and target is alive; false otherwise.</returns>
+	public bool TryGetTarget(out T target)
+	{
+		if (!CheckIsAlive())
+		{
+			target = default!;
+			return false;
+		}
+
+		target = _store[_slotHandle];
+
+		if (target.IsDisposed)
+		{
+			target = default!;
+			return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>
