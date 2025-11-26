@@ -5,6 +5,7 @@
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
 using System.Diagnostics;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.Diagnostics.Advanced;
 
@@ -28,7 +29,7 @@ public sealed class CollectionDebugView<T>
 
 	public CollectionDebugView(Mem<T>? collection)
 	{
-		if (collection?.Count == 0)
+		if (collection?.Length == 0)
 		{
 			Items = new T[0];
 		}

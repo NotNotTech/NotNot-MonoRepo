@@ -11,7 +11,7 @@ namespace NotNot.DI;
 /// Provides a base implementation for managing a dependency injection container using the Generic Host, 
 /// supporting both inheritance-based and delegation-based service configuration.
 /// </summary>
-public class GenericDIContainer : DisposeGuard
+public class MsDIContainer : DisposeGuard
 {
 	/// <summary>
 	/// The underlying host instance.
@@ -61,8 +61,7 @@ public class GenericDIContainer : DisposeGuard
 		base.OnDispose(managedDisposing);
 		if (managedDisposing)
 		{
-			//_host.StopAsync()._SyncWait(); //prevents code-reload in godot editor
-
+			//_host.StopAsync()._SyncWait(); //prevents code-reload in godot editor			
 			_host?.Dispose();
 		}
 		_host = null;

@@ -43,12 +43,17 @@ public class AssertOnMsgSink : ILogEventSink
 			// .NET 10 breaking change: Get<IEnumerable<string>>() can throw ArgumentNullException
 			// when binding to arrays with null element types
 			// See: https://learn.microsoft.com/en-us/dotnet/core/compatibility/extensions/10.0/configuration-null-values-preserved
+			//the following should not throw.
 			try
 			{
-				var configPatterns = patternSection.Get<IEnumerable<string>>() ?? Enumerable.Empty<string>();
-				foreach (var pattern in configPatterns)
+				foreach(var item in patternSection.AsEnumerable())
 				{
-					patterns.Add(new Regex(pattern, RegexOptions.Compiled | RegexOptions.NonBacktracking));
+					//var key = item.Key;
+					var value = item.Value;
+					if (item.Value._IsNullOrWhiteSpace() is false)
+					{
+						patterns.Add(new Regex(item.Value, RegexOptions.Compiled | RegexOptions.NonBacktracking));
+					}
 				}
 			}
 			catch (ArgumentNullException)

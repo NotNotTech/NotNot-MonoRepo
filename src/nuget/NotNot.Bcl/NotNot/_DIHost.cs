@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Hosting;
@@ -56,24 +57,26 @@ public static class AssemblyReflectionHelper
 	}
 }
 
+public interface IMsDiService { }
+
 /// <summary>
 /// mark a DI services and it will be auto-registered for use.  It will have lifetime Singleton, 
 /// </summary>
-public interface IDiSingletonService
+public interface IDiSingletonService: IMsDiService
 {
 }
 
 /// <summary>
 /// mark a DI services and it will be auto-registered for use.  It will have lifetime Transient, 
 /// </summary>
-public interface IDiTransientService
+public interface IDiTransientService : IMsDiService
 {
 }
 
 /// <summary>
 /// mark a DI services and it will be auto-registered for use.  It will have lifetime Scoped, 
 /// </summary>
-public interface IDiScopedService
+public interface IDiScopedService : IMsDiService
 {
 }
 

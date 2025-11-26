@@ -17,28 +17,29 @@
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 		<Deterministic>true</Deterministic>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<!-- Ensure analyzer deps are copied to bin for VS MEF resolution when referenced as ProjectReference -->
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 	</PropertyGroup>
 
 	<ItemGroup>
-	<Compile Remove="bin\**" />
-	<Compile Remove="Documentation\**" />
-	<EmbeddedResource Remove="bin\**" />
-	<EmbeddedResource Remove="Documentation\**" />
-	<None Remove="bin\**" />
-	<None Remove="Documentation\**" />
-  </ItemGroup>
+		<Compile Remove="bin\**" />
+		<Compile Remove="Documentation\**" />
+		<EmbeddedResource Remove="bin\**" />
+		<EmbeddedResource Remove="Documentation\**" />
+		<None Remove="bin\**" />
+		<None Remove="Documentation\**" />
+	</ItemGroup>
 
-
-	<!-- Core analyzer dependencies -->
+	<!-- Core analyzer dependencies (aligned with VS 17.11.x) -->
 	<ItemGroup>
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.0.0-1.25277.114" PrivateAssets="all" />
 		<!-- Code Fix Provider dependencies -->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0-2.final" PrivateAssets="all" />
-		<PackageReference Include="System.Composition" Version="10.0.0-rc.2.25502.107" PrivateAssets="all" />
+		<PackageReference Include="System.Composition" Version="10.0.0" PrivateAssets="all" />
 	</ItemGroup>
 	
-	<!-- Development-time analyzers -->
+	<!-- Development-time analyzers (for this project only) -->
 	<ItemGroup>
 		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

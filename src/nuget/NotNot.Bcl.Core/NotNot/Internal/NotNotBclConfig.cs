@@ -13,4 +13,8 @@ public static class NotNotBclConfig
 {
 	public const int Allocator_maxAllocatorDefault = 1000;
 	public const int ResizableArray_minShrinkSize = 100;
+	/// <summary>
+	/// certain runtimes like godot do weird shutdown logic.  this is a hint that such a shutdown is in progress, and we should do things like avoid throwing exceptions in destructors
+	/// </summary>
+	public static bool IsAppShutdownInProgress = false;
 }

@@ -207,10 +207,18 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 	/// </summary>
 	~MemoryOwner_Custom()
 	{
-		Dispose();
+		try
+		{
+			Dispose();
+		}
+		catch(Exception ex)
+		{
+			ex._RethrowUnlessAppShutdownOrRelease();
+		}
+		
 	}
 
-	[Conditional("CHECKED")]
+		[Conditional("CHECKED")]
 	private void AssertNotDisposed()
 	{
 		__.ThrowIfNot(!IsDisposed, "The current buffer has already been disposed");

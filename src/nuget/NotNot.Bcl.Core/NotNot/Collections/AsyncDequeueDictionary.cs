@@ -181,7 +181,14 @@ where TKey : notnull
 
 	~AsyncDequeueDictionary()
 	{
-		Dispose(disposing: false);
+		try
+		{
+			Dispose(disposing: false);
+		}
+		catch(Exception ex) {
+			ex._RethrowUnlessAppShutdownOrRelease();
+		}
 	}
 	// IEnumerable implementation...
 }
+

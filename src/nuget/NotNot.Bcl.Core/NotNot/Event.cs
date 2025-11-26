@@ -48,7 +48,7 @@ public class Event<TEventArgs> where TEventArgs : EventArgs
 		//__.assert.IsFalse(ThreadDiag.IsLocked(_storageTempCopy),"multiple invokes occuring.  danger?  investigate.");
 
 		//lock (_storageTempCopy)
-		var _storageTempCopy = __.pool.Get<List<WeakReference<EventHandler<TEventArgs>>>>();
+		using var _ = __.pool.Rent<List<WeakReference<EventHandler<TEventArgs>>>>(out var _storageTempCopy);
 		__.GetLogger()._EzError(_storageTempCopy.Count == 0, "when recycling to pool, should always clear objects");
 		{
 			lock (_storage)
@@ -76,7 +76,6 @@ public class Event<TEventArgs> where TEventArgs : EventArgs
 			}
 
 			_storageTempCopy.Clear();
-			__.pool.Return(_storageTempCopy);
 		}
 		_isInvoking = false;
 	}
@@ -141,7 +140,7 @@ public class ActionEvent<TArgs>
 	/// <summary>
 	///    only the owner should call this
 	/// </summary>
-	public void Invoke(TArgs args)
+	public void Raise(TArgs args)
 	{
 		if (_storage.Count == 0)
 		{
@@ -154,7 +153,7 @@ public class ActionEvent<TArgs>
 		//__.assert.IsFalse(ThreadDiag.IsLocked(_storageTempCopy),"multiple invokes occuring.  danger?  investigate.");
 
 		//lock (_storageTempCopy)
-		var _storageTempCopy = __.pool.Get<List<WeakReference<Action<TArgs>>>>();
+		using var _ = __.pool.Rent<List<WeakReference<Action<TArgs>>>>(out var _storageTempCopy);
 		__.GetLogger()._EzError(_storageTempCopy.Count == 0, "when recycling to pool, should always clear objects");
 		{
 			lock (_storage)
@@ -182,7 +181,6 @@ public class ActionEvent<TArgs>
 			}
 
 			_storageTempCopy.Clear();
-			__.pool.Return(_storageTempCopy);
 		}
 		_isInvoking = false;
 	}
@@ -248,8 +246,8 @@ public class ActionEventSpan<TArgs> where TArgs : struct
 
 		//__.assert.IsFalse(ThreadDiag.IsLocked(_storageTempCopy),"multiple invokes occuring.  danger?  investigate.");
 
-		//lock (_storageTempCopy)
-		var _storageTempCopy = __.pool.Get<List<WeakReference<Action<Span<TArgs>>>>>();
+		//lock (_storageTempCopy)		
+		using var _ = __.pool.Rent<List<WeakReference<Action<Span<TArgs>>>>>(out var _storageTempCopy);
 		__.GetLogger()._EzError(_storageTempCopy.Count == 0, "when recycling to pool, should always clear objects");
 		{
 			lock (_storage)
@@ -277,7 +275,6 @@ public class ActionEventSpan<TArgs> where TArgs : struct
 			}
 
 			_storageTempCopy.Clear();
-			__.pool.Return(_storageTempCopy);
 		}
 		_isInvoking = false;
 	}

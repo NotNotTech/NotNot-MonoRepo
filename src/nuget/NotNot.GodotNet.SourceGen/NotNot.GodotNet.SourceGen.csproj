@@ -1,24 +1,25 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
-		<TargetFramework>netstandard2.0</TargetFramework>
-		<Configurations>Debug;Release</Configurations>
-	</PropertyGroup>
-
-
 	<!--shared common .csproj settings-->
 	<Import Project="..\..\CommonSettings.targets" />
-
-
+	
 	<PropertyGroup>
-		<!--standard dotnet stuff-->
-		<!--<TargetFramework>net8.0</TargetFramework>-->
+		<TargetFramework>netstandard2.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 		<LangVersion>preview</LangVersion>
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<Configurations>Debug;Release;DebugNuget</Configurations>
 		<InvariantGlobalization>true</InvariantGlobalization>
+		
+		<!-- Analyzer-specific settings -->
+		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<Deterministic>true</Deterministic>
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<!-- Ensure analyzer deps are copied to bin for VS MEF resolution when referenced as ProjectReference -->
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 	</PropertyGroup>
 
 
@@ -34,12 +35,12 @@
 	-->
 		<ItemGroup>
 			<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-			<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.0-rc.2.25502.107" GeneratePathProperty="true" PrivateAssets="all" />
+			<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.0" GeneratePathProperty="true" PrivateAssets="all" />
 			<PackageReference Include="System.Buffers" Version="4.6.1" GeneratePathProperty="true" PrivateAssets="all" />
 			<PackageReference Include="System.Memory" Version="4.6.3" GeneratePathProperty="true" PrivateAssets="all" />
 			<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" GeneratePathProperty="true" PrivateAssets="all" />
-			<PackageReference Include="System.Text.Encodings.Web" Version="10.0.0-rc.2.25502.107" GeneratePathProperty="true" PrivateAssets="all" />
-			<PackageReference Include="System.Text.Json" Version="10.0.0-rc.2.25502.107" PrivateAssets="all" GeneratePathProperty="true" />
+			<PackageReference Include="System.Text.Encodings.Web" Version="10.0.0" GeneratePathProperty="true" PrivateAssets="all" />
+			<PackageReference Include="System.Text.Json" Version="10.0.0" PrivateAssets="all" GeneratePathProperty="true" />
 			<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" GeneratePathProperty="true" PrivateAssets="all" />
 
 			<None Include="$(PKGSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
@@ -48,7 +49,7 @@
 			<None Include="$(PKGSystem_Memory)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 			<None Include="$(PKGSystem_Runtime_CompilerServices_Unsafe)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 			<None Include="$(PKGSystem_Text_Encodings_Web)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-			<None Include="$(PKGMSystem_Threading_Tasks_Extensions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+			<None Include="$(PKGSystem_Threading_Tasks_Extensions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		</ItemGroup>
 
 
@@ -60,7 +61,7 @@
 				<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Memory)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
 				<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Runtime_CompilerServices_Unsafe)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
 				<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Text_Encodings_Web)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
-				<TargetPathWithTargetPlatformMoniker Include="$(PKGMSystem_Threading_Tasks_Extensions)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
+				<TargetPathWithTargetPlatformMoniker Include="$(PKGSystem_Threading_Tasks_Extensions)\lib\netstandard2.0\*.dll" IncludeRuntimeDependency="false" />
 			</ItemGroup>
 		</Target>
 
@@ -116,11 +117,6 @@
 
 	</ItemGroup>
 
-	<PropertyGroup>
-		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-		<Deterministic>true</Deterministic>
-	</PropertyGroup>
-
 
 <!--project specific nuget settings-->
 
@@ -135,19 +131,19 @@
 
 		<ItemGroup>
 			<!--required for sourcegen-->
-			<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" PrivateAssets="all" />
+			<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
 			<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.0.0-1.25277.114">
 				<PrivateAssets>all</PrivateAssets>
 				<!--required so that the .props file is included in the target project build-->
 				<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			</PackageReference>
 			<!--required for code fix providers-->
-			<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0-2.final" PrivateAssets="all" />
-			<PackageReference Include="System.Composition" Version="10.0.0-rc.2.25502.107" PrivateAssets="all" />
+			<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" PrivateAssets="all" />
+			<PackageReference Include="System.Composition" Version="10.0.0" PrivateAssets="all" />
 			<!--required for json IConfiguration.Bind()  _BinderShims.cs-->
-			<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0-rc.2.25502.107" />
-			<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-rc.2.25502.107" />
-			<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0-rc.2.25502.107" />
+			<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
+			<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+			<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
 
 		</ItemGroup>
 

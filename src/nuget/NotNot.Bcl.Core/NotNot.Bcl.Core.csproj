@@ -73,9 +73,9 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0-rc.2.25502.107" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0-rc.2.25502.107" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-rc.2.25502.107" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
 		<PackageReference Include="MinVer" Version="6.1.0-beta.1">
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -87,9 +87,16 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="SimpleBase" Version="5.5.0" />
+		<PackageReference Include="SimpleBase" Version="5.6.0" />
 		<PackageReference Include="ZstdSharp.Port" Version="0.8.6" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<ProjectReference Include="..\NotNot.Analyzers\NotNot.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="NotNot\Collections\OldBackup\" />
+	</ItemGroup>
 
 </Project>

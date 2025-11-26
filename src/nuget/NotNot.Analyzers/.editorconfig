@@ -2,7 +2,7 @@
 # This file demonstrates how to configure NotNot.Analyzers rules
 # Copy this to your project root and modify as needed
 
-root = true
+root = false
 
 [*.cs]
 # NotNot.Analyzers Rule Configuration

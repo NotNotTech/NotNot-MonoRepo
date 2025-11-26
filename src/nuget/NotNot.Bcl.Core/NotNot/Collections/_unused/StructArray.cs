@@ -249,9 +249,9 @@ public unsafe struct StructArray100<T> where T : unmanaged
 						}
 						else
 						{
-							ref var vec = ref testArray[i];
+							ref var r_vec = ref testArray[i];
 							__GcHelper.ForceFullCollect();
-							vec = new Vector3 { X = i, Y = i + 1, Z = i + 2 };
+							r_vec = new Vector3 { X = i, Y = i + 1, Z = i + 2 };
 						}
 					}
 

@@ -67,6 +67,87 @@ var cornerPos = centerPos - (aabbSize * 0.5f); // Convert center to corner
 dotnet_diagnostic.GODOT002.severity = none
 ```
 
+#### GODOT003: Dispose Exception Safety Analyzer
+**Severity**: Error
+**Category**: Reliability
+
+Ensures `GodotObject.Dispose(bool disposing)` overrides use try/catch blocks to prevent unhandled exceptions from causing fatal editor crashes. Exceptions crossing the native/managed boundary during Dispose can cause unrecoverable crashes (0xC0000005) during hot-reload or editor shutdown.
+
+```csharp
+// ❌ Problematic (Option 1 scenario - has guard but no try/catch)
+protected override void Dispose(bool disposing)
+{
+    base.Dispose(disposing);
+    if (disposing)
+    {
+        _field?.SomeMethod(); // Exception here crashes Godot editor
+        _otherField = null;
+    }
+}
+
+// ✅ Fixed (Option 1: Auto-fix wraps disposing block content)
+protected override void Dispose(bool disposing)
+{
+    base.Dispose(disposing);
+    if (disposing)
+    {
+        try
+        {
+            _field?.SomeMethod(); // Protected from crashes
+            _otherField = null;
+        }
+        catch (Exception ex)
+        {
+            _GD.ThrowError(ex);
+        }
+    }
+}
+
+// ❌ Problematic (Option 2 scenario - no guard at all)
+protected override void Dispose(bool disposing)
+{
+    base.Dispose(disposing);
+    _field?.SomeMethod(); // Runs even when disposing=false, no exception protection
+    _otherField = null;
+}
+
+// ✅ Fixed (Option 2: Auto-fix adds guard AND wraps in try/catch)
+protected override void Dispose(bool disposing)
+{
+    base.Dispose(disposing);
+    if (disposing)
+    {
+        try
+        {
+            _field?.SomeMethod(); // Now guarded AND protected
+            _otherField = null;
+        }
+        catch (Exception ex)
+        {
+            _GD.ThrowError(ex);
+        }
+    }
+}
+```
+
+**Why Critical**:
+- Unhandled exceptions in Dispose during hot-reload cause non-deterministic fatal crashes
+- Native Godot code cannot handle managed exceptions during cleanup
+- Crash error code 0xC0000005 indicates unhandled exception at native boundary
+- Try/catch with logging enables diagnosis without crashing editor
+
+**Code Fix Behavior**:
+- If `if (disposing)` guard exists: Wraps guard block content in try/catch
+- If no guard: Adds guard and wraps cleanup code in try/catch
+- Uses `_GD.ThrowError(ex)` for exception logging and diagnostic reporting
+- Available via Ctrl+. or lightbulb in IDE
+
+**Configuration**: Can be disabled via .editorconfig if absolutely necessary:
+```ini
+[*.cs]
+dotnet_diagnostic.GODOT003.severity = none
+```
+
 ## Usage
 
 If referencing this project directly (not the nuget package) be sure to add ` OutputItemType="Analyzer" ReferenceOutputAssembly="false"` to the `.csproj` reference, like:

@@ -1,3 +1,4 @@
+using NotNot.Collections.SpanLike;
 using NotNot.Diagnostics;
 using NotNot.SimStorm._scratch.Ecs;
 

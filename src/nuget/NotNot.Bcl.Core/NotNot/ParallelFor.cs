@@ -1,11 +1,12 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot;
 
 public static class ParallelFor
 {
-	private static SpanGuard<(int startInclusive, int endExclusive)> _Range_ComputeBatches(int start, int length,
+	private static ZeroAllocMem<(int startInclusive, int endExclusive)> _Range_ComputeBatches(int start, int length,
 		float batchSizeMultipler)
 	{
 		__.GetLogger()._EzErrorThrow(batchSizeMultipler >= 0,
@@ -34,7 +35,7 @@ public static class ParallelFor
 		}
 
 
-		var owner = SpanGuard<(int startInclusive, int endExclusive)>.Allocate(batchCount);
+		var owner = ZeroAllocMem<(int startInclusive, int endExclusive)>.Allocate(batchCount);
 		var span = owner.Span;
 
 		//calculate batches and put into span
@@ -222,7 +223,7 @@ public static class ParallelFor
 		var remaining = source.ToList();
 
 		var queue = new ConcurrentQueue<TResult>();
-		var batch = __.pool.Get<List<TItem>>();
+		using var _ = __.pool.Rent<List<TItem>>(out var batch);
 
 		while (remaining.Count > 0)
 		{
@@ -234,8 +235,8 @@ public static class ParallelFor
 		}
 
 		batch.Clear();
-		__.pool.Return(batch);
 
 		return queue;
+
 	}
 }

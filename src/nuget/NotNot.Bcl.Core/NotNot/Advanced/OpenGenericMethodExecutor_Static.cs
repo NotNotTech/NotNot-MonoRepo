@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Reflection;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.Advanced
 {
@@ -293,7 +294,7 @@ namespace NotNot.Advanced
 				?? throw new InvalidOperationException($"{delegateType} is not a valid delegate type");
 
 			var invokeParameters = invokeMethod.GetParameters();
-			using var parameterGuard = SpanGuard<Type>.Allocate(invokeParameters.Length);
+			using var parameterGuard = ZeroAllocMem<Type>.Allocate(invokeParameters.Length);
 			var parameterSpan = parameterGuard.Span;
 			for (int i = 0; i < parameterSpan.Length; i++)
 			{

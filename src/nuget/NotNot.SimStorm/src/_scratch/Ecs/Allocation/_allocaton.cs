@@ -10,6 +10,7 @@
 
 using NotNot.Collections;
 using NotNot.Collections._unused;
+using NotNot.Collections.SpanLike;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -105,14 +106,14 @@ public class EntityRegistry
 
 	public Mem<EntityHandle> Alloc(int count)
 	{
-		var toReturn = Mem<EntityHandle>.Alloc(count);
+		var toReturn = Mem<EntityHandle>.Allocate(count);
 		Alloc(toReturn.Span);
 		return toReturn;
 	}
 
 	public void Alloc(Span<EntityHandle> output)
 	{
-		using var allocSpanOwner = SpanGuard<int>.Allocate(output.Length);
+		using var allocSpanOwner = ZeroAllocMem<int>.Allocate(output.Length);
 		var allocIndicies = allocSpanOwner.Span;
 		_storage.Alloc(allocIndicies);
 		var storageArray = _storage._storage;
@@ -135,7 +136,7 @@ public class EntityRegistry
 	public void Free(Span<EntityHandle> handles)
 	{
 		__.DebugAssertOnceIfNot(handles._IsSorted(), "sort first");
-		using var freeSpanOwner = SpanGuard<int>.Allocate(handles.Length);
+		using var freeSpanOwner = ZeroAllocMem<int>.Allocate(handles.Length);
 		var freeSpan = freeSpanOwner.Span;
 		for (var i = 0; i < handles.Length; i++)
 		{
@@ -149,7 +150,7 @@ public class EntityRegistry
 	public void Free(Span<AccessToken> tokens)
 	{
 		//__.CHECKED.AssertOnce(tokens._IsSorted(), "sort first"); //accessTokens are sorted differently
-		using var freeSpanOwner = SpanGuard<int>.Allocate(tokens.Length);
+		using var freeSpanOwner = ZeroAllocMem<int>.Allocate(tokens.Length);
 		var freeSpan = freeSpanOwner.Span;
 		for (var i = 0; i < tokens.Length; i++)
 		{
@@ -523,7 +524,7 @@ public partial class Page //unit test
 	{
 		__.GetLogger()._EzErrorThrow<SimStormException>(entityRegistry.Count == 0);
 		var count = pageCount;
-		using var allocOwner = SpanGuard<Page>.Allocate(count);
+		using var allocOwner = ZeroAllocMem<Page>.Allocate(count);
 		var allocs = allocOwner.Span;
 		for (var i = 0; i < count; i++)
 		{
@@ -593,9 +594,9 @@ public partial class Page //unit test
 		//	count++;
 		//}
 		//Span<long> entityHandles = stackalloc long[] { 2, 4, 8, 7, -2 };
-		using var tokensOwner = SpanGuard<AccessToken>.Allocate(entityCount);
+		using var tokensOwner = ZeroAllocMem<AccessToken>.Allocate(entityCount);
 		var tokens = tokensOwner.Span;
-		using var entitiesOwner = SpanGuard<EntityHandle>.Allocate(entityCount);
+		using var entitiesOwner = ZeroAllocMem<EntityHandle>.Allocate(entityCount);
 		var entities = entitiesOwner.Span;
 		page.AllocEntityNew(tokens, entities);
 		return page;
@@ -637,9 +638,9 @@ public partial class Page //unit test
 		//var entityHandles = entityHandlesOwner.Span;
 
 		//Span<long> entityHandles = stackalloc long[] { 2, 4, 8, 7, -2 };
-		using var tokensOwner = SpanGuard<AccessToken>.Allocate(entityCount);
+		using var tokensOwner = ZeroAllocMem<AccessToken>.Allocate(entityCount);
 		var tokens = tokensOwner.Span;
-		using var entitiesOwner = SpanGuard<EntityHandle>.Allocate(entityCount);
+		using var entitiesOwner = ZeroAllocMem<EntityHandle>.Allocate(entityCount);
 		var entities = entitiesOwner.Span;
 		page.AllocEntityNew(tokens, entities);
 
@@ -735,7 +736,7 @@ public partial class Page //unit test
 
 
 		//add second again
-		using var secondAgainSO = SpanGuard<AccessToken>.Allocate(second.Length);
+		using var secondAgainSO = ZeroAllocMem<AccessToken>.Allocate(second.Length);
 		//var oddSpan = oddTokens.Span;
 		//page.Alloc(oddSet.ToArray(), oddSpan);
 		page.AllocEntityNew(secondAgainSO.Span, second);
@@ -1413,7 +1414,7 @@ public partial class Page //alloc/free/pack logic
 	/// <param name="output"></param>
 	public void AllocEntityNew(Span<AccessToken> outputAccessTokens)
 	{
-		using var entitiesOwner = SpanGuard<EntityHandle>.Allocate(outputAccessTokens.Length);
+		using var entitiesOwner = ZeroAllocMem<EntityHandle>.Allocate(outputAccessTokens.Length);
 		var outputEntityHandles = entitiesOwner.Span;
 		AllocEntityNew(outputAccessTokens, outputEntityHandles);
 	}
@@ -1630,7 +1631,7 @@ public partial class Page //alloc/free/pack logic
 		//__.CHECKED.AssertOnce(entityHandles._IsSorted(), "should sort entityHandles before Free, for optimal performance");
 
 
-		using var so_PageAccessTokens = SpanGuard<AccessToken>.Allocate(entityHandles.Length);
+		using var so_PageAccessTokens = ZeroAllocMem<AccessToken>.Allocate(entityHandles.Length);
 		var pageTokens = so_PageAccessTokens.Span;
 
 		//get tokens for freeing
@@ -2323,7 +2324,7 @@ public class Chunk<TComponent> : Chunk
 		column._ExpandAndSet(chunkIndex, this);
 
 		//_storage = MemoryOwner<TComponent>.Allocate(_length, AllocationMode.Clear); //TODO: maybe no need to clear?
-		_storageRaw = Mem<TComponent>.Alloc(_length);
+		_storageRaw = Mem<TComponent>.Allocate(_length);
 
 		UnsafeArray = _storageRaw.DangerousGetArray().Array!;
 	}

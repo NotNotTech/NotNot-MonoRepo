@@ -141,6 +141,51 @@ void Method(in int r_input) { } // in parameter - OK
 - Catches copy-paste errors where ref keyword removed but name not updated
 - Bidirectional enforcement: ref vars need r_, r_ vars must be ref
 
+
+### NOTNOT001: Destructor must be protected with try/catch
+**Severity:** Error
+**Category:** Reliability
+**Automatic Fix:** ✅ Wraps destructor body in try/catch
+
+Ensures destructors (finalizers) wrap their logic in try/catch blocks to prevent unhandled exceptions from crashing the application.
+
+```csharp
+// ❌ Problematic
+~MyClass()
+{
+    // Finalizers should never throw
+    Dispose();
+}
+
+// ✅ Fixed automatically (Ctrl+. in IDE)
+~MyClass()
+{
+    try
+    {
+        // Finalizers should never throw
+        Dispose();
+    }
+    catch (Exception ex)
+    {
+        ex.__RethrowUnlessAppShutdownOrRelease();
+    }
+}
+```
+
+**Code Fix Behavior:**
+- Automatically wraps entire destructor body in try/catch block
+- Uses `__RethrowUnlessAppShutdownOrRelease()` to suppress exceptions during app shutdown or release builds
+- Allows exceptions to propagate during debug builds for easier debugging
+- Available via Ctrl+. or lightbulb in IDE
+- Supports "Fix All in Document/Project/Solution"
+
+**Why this matters:**
+- Unhandled exceptions in finalizers can cause fatal crashes
+- Exceptions in destructors can cause process termination
+- `__RethrowUnlessAppShutdownOrRelease()` balances safety and debuggability
+- Critical for resource management and application stability
+
+
 ## ⚙️ Configuration
 
 Configure rules using `.editorconfig`:
@@ -152,6 +197,7 @@ dotnet_diagnostic.NN_R001.severity = error
 dotnet_diagnostic.NN_R002.severity = error
 dotnet_diagnostic.NN_C001.severity = error
 dotnet_diagnostic.NN_C002.severity = error
+dotnet_diagnostic.NOTNOT001.severity = error
 
 # Disable specific rules
 dotnet_diagnostic.NN_R003.severity = none

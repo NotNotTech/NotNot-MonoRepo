@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace NotNot;
@@ -15,7 +16,12 @@ public interface IDisposeGuard : IDisposable
 /// </summary>
 public class DisposeGuard : IDisposeGuard
 {
-	private bool _IsDisposed;
+	/// <summary>
+	/// set to true to avoid throwing exceptions from DisposeGuard.   useful for low-level runtime debugging (ie: assembly cold-reload situations), but otherwise should be avoided.
+	/// </summary>
+	[EditorBrowsable(EditorBrowsableState.Never)]	
+	public static bool _suppressNonDisposalExceptions = false;
+	private bool _isDisposed;
 
 	public DisposeGuard()
 	{
@@ -27,7 +33,7 @@ public class DisposeGuard : IDisposeGuard
 #endif
 	}
 
-	public bool IsDisposed { get => _IsDisposed; init => _IsDisposed = value; }
+	public bool IsDisposed { get => _isDisposed; init => _isDisposed = value; }
 
 
 	private List<string> CtorStackTrace { get; set; } //= "Callstack is only set in #DEBUG";
@@ -59,21 +65,31 @@ public class DisposeGuard : IDisposeGuard
 	/// </param>
 	protected virtual void OnDispose(bool managedDisposing)
 	{
-		_IsDisposed = true;
+		_isDisposed = true;
 	}
 
 	~DisposeGuard()
 	{
-		if (!IsDisposed)
+		try
 		{
-			var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) type properly.  Stack=\n\t\t";
+			if (!IsDisposed)
+			{
+				if (_suppressNonDisposalExceptions is false)
+				{
+					var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) type properly.  Stack=\n\t\t";
 
-			//Debug.WriteLine(msg);
+					//Debug.WriteLine(msg);
 
-			__.GetLogger()._EzError(false, msg, CtorStackTraceMsg);
-			__.Assert(msg);
+					__.GetLogger()._EzError(false, msg, CtorStackTraceMsg);
+					__.Assert(msg);
 
-			OnDispose(false);
+
+				}
+				OnDispose(false);
+			}
+		}catch(Exception ex)
+		{
+			ex._RethrowUnlessAppShutdownOrRelease();
 		}
 	}
 
@@ -188,14 +204,21 @@ public class AsyncDisposeGuard : IAsyncDisposable
 
 	~AsyncDisposeGuard()
 	{
-		if (!IsDisposed)
+		try
 		{
-			var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) properly.  Stack=\n\t\t";
-			msg += (CtorStackTrace is null ? "Callstack is only set in #DEBUG" : string.Join("\n\t\t", CtorStackTrace.ToString()));
-			//Debug.WriteLine(msg);
-			//__.Assert(false, msg);
-			__.GetLogger()._EzError(false, msg);
-			OnDispose(false)._SyncWait();
+			if (!IsDisposed)
+			{
+				var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) properly.  Stack=\n\t\t";
+				msg += (CtorStackTrace is null ? "Callstack is only set in #DEBUG" : string.Join("\n\t\t", CtorStackTrace.ToString()));
+				//Debug.WriteLine(msg);
+				//__.Assert(false, msg);
+				__.GetLogger()._EzError(false, msg);
+				OnDispose(false)._SyncWait();
+			}
+		}
+		catch (Exception ex)
+		{
+			ex._RethrowUnlessAppShutdownOrRelease();
 		}
 	}
 

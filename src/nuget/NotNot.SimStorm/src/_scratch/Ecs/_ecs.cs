@@ -13,6 +13,7 @@ using NotNot.SimStorm._scratch.Ecs.Allocation;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using NotNot.Advanced;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.SimStorm._scratch.Ecs;
 
@@ -515,7 +516,7 @@ public partial class EntityManager //entity creation
 		}
 
 		///obtain the actual accessTokens for the entities to be deleted
-		using var accessTokensSO = SpanGuard<AccessToken>.Allocate(toDelete.Length);
+		using var accessTokensSO = ZeroAllocMem<AccessToken>.Allocate(toDelete.Length);
 		var accessTokens = accessTokensSO.Span;
 		_entityRegistry.Get(toDelete, accessTokens);
 
@@ -1269,9 +1270,9 @@ public partial class Archetype //passthrough of page stuff
 		//need to get a unique page per partitionComponent grouping
 
 		//create entityHandles
-		var entityHandlesMem = Mem<EntityHandle>.Alloc(count);
+		var entityHandlesMem = Mem<EntityHandle>.Allocate(count);
 		var entityHandles = entityHandlesMem.Span;
-		var accessTokensMem = Mem<AccessToken>.Alloc(count);
+		var accessTokensMem = Mem<AccessToken>.Allocate(count);
 		var accessTokens = accessTokensMem.Span;
 		_entityRegistry.Alloc(entityHandles);
 
@@ -1473,7 +1474,7 @@ public class SharedComponentGroup
 
 	private bool Matches(Mem<object> components)
 	{
-		if (storage.Count != components.Count)
+		if (storage.Count != components.Length)
 		{
 			return false;
 		}
