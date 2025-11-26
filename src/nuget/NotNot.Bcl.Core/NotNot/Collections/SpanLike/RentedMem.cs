@@ -16,12 +16,13 @@ using NotNot.Collections.Advanced;
 namespace NotNot.Collections.SpanLike;
 
 /// <summary>
-/// A pool-only memory wrapper that MUST be disposed to return memory to the pool.
-/// Use the `using` pattern to ensure proper cleanup and zero allocations for temporary memory usage.
-/// Unlike <see cref="Mem{T}"/>, this type ONLY supports rented/pooled backing storage.
+/// A "rented" memory wrapper that MUST be disposed by you, the caller.  This will return memory to the pool for reuse without GC pressure.
+/// <para>Use the `using` pattern to ensure proper cleanup and zero allocations for temporary memory usage.</para>/// 
+/// <para> failure to return will cause an assert in #DEBUG mode.  </para>
 /// </summary>
 /// <typeparam name="T">Element type</typeparam>
 /// <remarks>
+/// <para>Unlike <see cref="Mem{T}"/>, this type ONLY supports rented/pooled backing storage.</para>
 /// BACKING STORAGE: Only pooled types are supported:
 /// - MemoryOwner_Custom (ArrayPool-backed)
 /// - RentedArray (ObjectPool-backed)
@@ -439,7 +440,7 @@ public readonly ref struct RentedMem<T> : IDisposable
 	/// Worker receives a Span slice - no allocation.
 	/// IMPORTANT: Assumes the underlying data is sorted so that batching delegate is effective.
 	/// </summary>
-	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action_Span<T> worker)
+	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<Span<T>> worker)
 	{
 		if (Length == 0)
 		{
@@ -640,12 +641,12 @@ public readonly ref struct RentedMem<T> : IDisposable
 	}
 }
 
-/// <summary>
-/// Delegate for actions that take a Span by value
-/// </summary>
-public delegate void Action_Span<T>(Span<T> span);
+///// <summary>
+///// Delegate for actions that take a Span by value
+///// </summary>
+//public delegate void Action_Span<T>(Span<T> span);
 
-/// <summary>
-/// Delegate for actions that take a ReadOnlySpan by value
-/// </summary>
-public delegate void Action_RoSpan<T>(ReadOnlySpan<T> span);
+///// <summary>
+///// Delegate for actions that take a ReadOnlySpan by value
+///// </summary>
+//public delegate void Action_RoSpan<T>(ReadOnlySpan<T> span);

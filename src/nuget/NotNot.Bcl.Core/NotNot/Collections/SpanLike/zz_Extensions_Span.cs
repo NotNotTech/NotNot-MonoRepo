@@ -138,7 +138,7 @@ public static class zz_Extensions_Span
    /// <param name="source">Source span to batch</param>
    /// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
    /// <param name="worker">Action executed for each contiguous batch, receiving a span slice</param>
-   public static void _BatchMap<T>(this Span<T> source, Func_RefArg<T, T, bool> isSameBatch, Action_Span<T> worker)
+   public static void _BatchMap<T>(this Span<T> source, Func_RefArg<T, T, bool> isSameBatch, Action<Span<T>> worker)
    {
       if (source.Length == 0)
       {
