@@ -516,7 +516,7 @@ public partial class EntityManager //entity creation
 		}
 
 		///obtain the actual accessTokens for the entities to be deleted
-		using var accessTokensSO = ZeroAllocMem<AccessToken>.Allocate(toDelete.Length);
+		using var accessTokensSO = RentedMem<AccessToken>.Allocate(toDelete.Length);
 		var accessTokens = accessTokensSO.Span;
 		_entityRegistry.Get(toDelete, accessTokens);
 

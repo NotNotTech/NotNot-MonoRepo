@@ -6,7 +6,7 @@ namespace NotNot;
 
 public static class ParallelFor
 {
-	private static ZeroAllocMem<(int startInclusive, int endExclusive)> _Range_ComputeBatches(int start, int length,
+	private static RentedMem<(int startInclusive, int endExclusive)> _Range_ComputeBatches(int start, int length,
 		float batchSizeMultipler)
 	{
 		__.GetLogger()._EzErrorThrow(batchSizeMultipler >= 0,
@@ -35,7 +35,7 @@ public static class ParallelFor
 		}
 
 
-		var owner = ZeroAllocMem<(int startInclusive, int endExclusive)>.Allocate(batchCount);
+		var owner = RentedMem<(int startInclusive, int endExclusive)>.Allocate(batchCount);
 		var span = owner.Span;
 
 		//calculate batches and put into span

@@ -31,7 +31,7 @@ internal enum RefMemBackingStorageType
 	Mem,
 
 	/// <summary>
-	/// Pooled ZeroAllocMem{T} with dispose protection (zero GC pressure, auto-return to pool)
+	/// Pooled RentedMem{T} with dispose protection (zero GC pressure, auto-return to pool)
 	/// </summary>
-	ZeroAllocMem,
+	RentedMem,
 }

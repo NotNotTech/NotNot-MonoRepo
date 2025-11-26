@@ -10,7 +10,7 @@ namespace NotNot.Collections.SpanLike;
 
 /// <summary>
 /// Extension methods for Span and ReadOnlySpan providing zero-allocation mapping and batching operations.
-/// These methods mirror UnifiedMem functionality but operate directly on spans without allocating new memory.
+/// These methods mirror Mem functionality but operate directly on spans without allocating new memory.
 /// </summary>
 public static class zz_Extensions_Span
 {
