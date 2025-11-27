@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
-using Namotion.Reflection;
 using Serilog.Core;
 using Serilog.Events;
 

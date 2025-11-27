@@ -70,18 +70,18 @@
 		<!--NotNot.Utils nugets-->
 		<!--DI and App Host stuff-->
 
-		<PackageReference Include="Scrutor" Version="6.1.0" />
+		<PackageReference Include="Scrutor" Version="7.0.0" />
 		<PackageReference Include="Serilog" Version="4.3.1-dev-02387" />
 		<PackageReference Include="Serilog.Expressions" Version="5.1.0-dev-02301" />
 		<PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.1-dev-02307" />
 		<PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
-		<PackageReference Include="Serilog.Settings.Configuration" Version="9.0.1-dev-02317" />
+		<PackageReference Include="Serilog.Settings.Configuration" Version="10.0.0" />
 		<PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
 		<PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
 		<PackageReference Include="Serilog.Sinks.ApplicationInsights" Version="4.1.0" />
 		<PackageReference Include="CsvHelper" Version="33.1.0" />
 		<PackageReference Include="FluentValidation" Version="12.1.0" />
-		<PackageReference Include="Spectre.Console.Cli" Version="0.53.0" />
+		<PackageReference Include="Spectre.Console.Cli" Version="0.53.1" />
 
 	</ItemGroup>
 
