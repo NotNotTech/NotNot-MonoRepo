@@ -15,6 +15,29 @@ using NotNot.Collections.Advanced;
 
 namespace NotNot.Collections.SpanLike;
 
+public static class RentedMem
+{
+
+	/// <summary>
+	///   Wrap a rented array from ObjectPool as the backing storage
+	/// </summary>
+	public static RentedMem<T> Wrap<T>(NotNot._internal.ObjectPool.RentedArray<T> rentedArray)
+	{
+		return new RentedMem<T>(rentedArray, isTrueOwner: true);
+	}
+
+	/// <summary>
+	///   Wrap a rented list from ObjectPool as the backing storage
+	/// </summary>
+	public static RentedMem<T> Wrap<T>(NotNot._internal.ObjectPool.Rented<List<T>> rentedList)
+	{
+		return new RentedMem<T>(rentedList, isTrueOwner: true);
+	}
+
+
+
+}
+
 /// <summary>
 /// A "rented" memory wrapper that MUST be disposed by you, the caller.  This will return memory to the pool for reuse without GC pressure.
 /// <para>Use the `using` pattern to ensure proper cleanup and zero allocations for temporary memory usage.</para>/// 
