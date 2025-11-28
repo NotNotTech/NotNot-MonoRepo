@@ -50,4 +50,9 @@ internal enum MemBackingStorageType
 	/// Mem backed by ObjectPool.Rented&lt;List&lt;T&gt;&gt;. Disposed via wrapper's Dispose() method when owner is disposed.
 	/// </summary>
 	RentedList,
+	/// <summary>
+	/// Mem backed by a single item wrapped in SingleItemStorage&lt;T&gt;. Zero-allocation span access to one element.
+	/// Not disposed on scope exit - GC handles the wrapper naturally.
+	/// </summary>
+	SingleItem,
 }

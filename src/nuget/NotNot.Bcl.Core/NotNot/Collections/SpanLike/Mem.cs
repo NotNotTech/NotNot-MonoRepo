@@ -16,6 +16,15 @@ using NotNot.Collections.SpanLike;
 namespace NotNot.Collections.SpanLike;
 
 /// <summary>
+/// Wrapper class for single-item storage in Mem&lt;T&gt;. Provides a stable managed reference for Span creation.
+/// </summary>
+internal struct SingleItemStorage<T>
+{
+	public T Value;
+	public SingleItemStorage(T value) => Value = value;
+}
+
+/// <summary>
 ///    helpers to allocate a WriteMem instance
 /// </summary>
 public static class Mem
@@ -107,6 +116,14 @@ public static class Mem
 	public static Mem<T> Wrap<T>(NotNot._internal.ObjectPool.Rented<List<T>> rentedList)
 	{
 		return new Mem<T>(rentedList, isTrueOwner: true);
+	}
+
+	/// <summary>
+	///   Wrap a single item as the backing storage. Creates a span-accessible single-element Mem.
+	/// </summary>
+	public static Mem<T> WrapSingle<T>(T singleItem)
+	{
+		return new Mem<T>(singleItem);
 	}
 }
 
@@ -262,6 +279,17 @@ public readonly struct Mem<T> : IDisposable
 		_segmentCount = sliceCount;
 	}
 
+	/// <summary>
+	/// Creates a memory view backed by a single item wrapped in SingleItemStorage
+	/// </summary>
+	internal Mem(T singleItem)
+	{
+		_isTrueOwner = false; // GC handles SingleItemStorage naturally
+		_backingStorageType = MemBackingStorageType.SingleItem;
+		_backingStorage = new SingleItemStorage<T>(singleItem);
+		_segmentOffset = 0;
+		_segmentCount = 1;
+	}
 
 
 
@@ -721,6 +749,7 @@ public readonly struct Mem<T> : IDisposable
 	{
 		get
 		{
+
 			switch (_backingStorageType)
 			{
 				case MemBackingStorageType.MemoryOwner_Custom:
@@ -754,6 +783,12 @@ public readonly struct Mem<T> : IDisposable
 					{
 						var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
 						return CollectionsMarshal.AsSpan(rentedList.Value).Slice(_segmentOffset, _segmentCount);
+					}
+				case MemBackingStorageType.SingleItem:
+					{
+						if (_segmentCount == 0) return Span<T>.Empty;
+						var storage = (SingleItemStorage<T>)_backingStorage;
+						return MemoryMarshal.CreateSpan(ref storage.Value, 1);
 					}
 				default:
 					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
@@ -822,6 +857,7 @@ public readonly struct Mem<T> : IDisposable
 			case MemBackingStorageType.Array:
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.Memory:
+			case MemBackingStorageType.SingleItem:
 				//do nothing, let the GC handle backing.
 				break;
 			case MemBackingStorageType.None:
@@ -851,6 +887,7 @@ public readonly struct Mem<T> : IDisposable
 			case MemBackingStorageType.Array:
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.Memory:
+			case MemBackingStorageType.SingleItem:
 				//do nothing, let the GC handle backing.
 				break;
 			case MemBackingStorageType.RentedArray:
@@ -952,6 +989,8 @@ public readonly struct Mem<T> : IDisposable
 				__.ThrowIfNot(_segmentOffset + _segmentCount <= items.Length);
 				return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
 			}
+			case MemBackingStorageType.SingleItem:
+				throw __.Throw("SingleItem backing storage does not support DangerousGetArray - use Span property instead");
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}

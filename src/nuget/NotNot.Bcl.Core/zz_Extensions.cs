@@ -3141,9 +3141,9 @@ public static class zz_Extensions_Dictionary
       return toReturn;
    }
 
-   public static Mem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source)
+   public static RentedMem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source)
    {
-      var toReturn = Mem<(TKey key, TValue value)>.Allocate(source.Count);
+      var toReturn = RentedMem<(TKey key, TValue value)>.Allocate(source.Count);
       var i = 0;
       foreach (var kvp in source)
       {
@@ -4443,11 +4443,24 @@ public static class zz_Extensions_Boolean
 public static class zz_Extensions_Object
 {
    /// <summary>
-   /// Ensures value is not null, also returning it.  If null, throws an exception.
-   /// <para>shortcut to `__.NotNull(value);`</para>
+   /// create a one-element Span over a struct value
    /// </summary>
+   /// <typeparam name="T"></typeparam>
+   /// <param name="value"></param>
+   /// <returns></returns>
+   public static Span<T> _AsSpan<T>(this ref T value) where T:struct
+   {
+      return new Span<T>(ref value);
+   }
 
-   [return: NotNull]
+
+
+	/// <summary>
+	/// Ensures value is not null, also returning it.  If null, throws an exception.
+	/// <para>shortcut to `__.NotNull(value);`</para>
+	/// </summary>
+
+	[return: NotNull]
    public static T _NotNull<T>([NotNull] this T? value, string? message = null, [CallerMemberName] string memberName = "",
       [CallerFilePath] string sourceFilePath = "",
       [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("value")] string valueName = "") where T : class

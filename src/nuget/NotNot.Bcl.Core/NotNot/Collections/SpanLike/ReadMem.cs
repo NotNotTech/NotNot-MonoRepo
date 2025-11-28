@@ -83,4 +83,12 @@ public static class ReadMem
 	{
 		return ReadMem<T>.Wrap(writeMem);
 	}
+
+	/// <summary>
+	///   Wrap a single item as the backing storage. Creates a span-accessible single-element ReadMem.
+	/// </summary>
+	public static ReadMem<T> WrapSingle<T>(T singleItem)
+	{
+		return new ReadMem<T>(singleItem);
+	}
 }

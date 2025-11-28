@@ -195,6 +195,17 @@ public readonly struct ReadMem<T> : IDisposable
 		_segmentCount = sliceCount;
 	}
 
+	/// <summary>
+	/// Creates a read-only memory view backed by a single item wrapped in SingleItemStorage
+	/// </summary>
+	internal ReadMem(T singleItem)
+	{
+		_backingStorageType = MemBackingStorageType.SingleItem;
+		_backingStorage = new SingleItemStorage<T>(singleItem);
+		_segmentOffset = 0;
+		_segmentCount = 1;
+	}
+
 
 	/// <summary>
 	///    allocate memory from the shared pool.
@@ -318,6 +329,25 @@ public readonly struct ReadMem<T> : IDisposable
 
 					throw __.Throw("Cannot expose array for memory that is not array-backed");
 				}
+			case MemBackingStorageType.RentedArray:
+				{
+					var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
+					var array = rentedArray.Value;
+					__.ThrowIfNot(array is not null, "RentedArray must have non-null array");
+					return new ArraySegment<T>(array, _segmentOffset, _segmentCount);
+				}
+			case MemBackingStorageType.RentedList:
+				{
+					var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
+					var list = rentedList.Value;
+					__.ThrowIfNot(list is not null, "RentedList must have non-null list");
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= list.Count);
+					var items = _GetListItemsArray(list);
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= items.Length);
+					return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
+				}
+			case MemBackingStorageType.SingleItem:
+				throw __.Throw("SingleItem backing storage does not support DangerousGetArray - use Span property instead");
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
@@ -353,6 +383,22 @@ public readonly struct ReadMem<T> : IDisposable
 						var memory = (Memory<T>)_backingStorage;
 						return memory.Span.Slice(_segmentOffset, _segmentCount);
 					}
+				case MemBackingStorageType.RentedArray:
+					{
+						var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
+						return new Span<T>(rentedArray.Value, _segmentOffset, _segmentCount);
+					}
+				case MemBackingStorageType.RentedList:
+					{
+						var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
+						return CollectionsMarshal.AsSpan(rentedList.Value).Slice(_segmentOffset, _segmentCount);
+					}
+				case MemBackingStorageType.SingleItem:
+					{
+						if (_segmentCount == 0) return ReadOnlySpan<T>.Empty;
+						var storage = (SingleItemStorage<T>)_backingStorage;
+						return MemoryMarshal.CreateReadOnlySpan(ref storage.Value, 1);
+					}
 				default:
 					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 			}
@@ -386,6 +432,22 @@ public readonly struct ReadMem<T> : IDisposable
 				{
 					var memory = (Memory<T>)_backingStorage;
 					return memory.Span.Slice(_segmentOffset, _segmentCount);
+				}
+			case MemBackingStorageType.RentedArray:
+				{
+					var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
+					return new Span<T>(rentedArray.Value, _segmentOffset, _segmentCount);
+				}
+			case MemBackingStorageType.RentedList:
+				{
+					var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
+					return CollectionsMarshal.AsSpan(rentedList.Value).Slice(_segmentOffset, _segmentCount);
+				}
+			case MemBackingStorageType.SingleItem:
+				{
+					if (_segmentCount == 0) return Span<T>.Empty;
+					var storage = (SingleItemStorage<T>)_backingStorage;
+					return MemoryMarshal.CreateSpan(ref storage.Value, 1);
 				}
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
@@ -422,6 +484,19 @@ public readonly struct ReadMem<T> : IDisposable
 						var memory = (Memory<T>)_backingStorage;
 						return memory.Slice(_segmentOffset, _segmentCount);
 					}
+				case MemBackingStorageType.RentedArray:
+					{
+						var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
+						return new Memory<T>(rentedArray.Value, _segmentOffset, _segmentCount);
+					}
+				case MemBackingStorageType.RentedList:
+					{
+						var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
+						var items = _GetListItemsArray(rentedList.Value);
+						return new Memory<T>(items, _segmentOffset, _segmentCount);
+					}
+				case MemBackingStorageType.SingleItem:
+					throw __.Throw("SingleItem backing storage does not support Memory property - use Span property instead");
 				default:
 					throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 			}
@@ -454,9 +529,24 @@ public readonly struct ReadMem<T> : IDisposable
 					}
 				}
 				break;
+			case MemBackingStorageType.RentedArray:
+				{
+					__.AssertNotNull(_backingStorage, "storage is null, was it already disposed?");
+					var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
+					rentedArray.Dispose();
+				}
+				break;
+			case MemBackingStorageType.RentedList:
+				{
+					__.AssertNotNull(_backingStorage, "storage is null, was it already disposed?");
+					var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
+					rentedList.Dispose();
+				}
+				break;
 			case MemBackingStorageType.Array:
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.Memory:
+			case MemBackingStorageType.SingleItem:
 				//do nothing, let the GC handle backing.
 				break;
 			case MemBackingStorageType.None:
@@ -485,7 +575,13 @@ public readonly struct ReadMem<T> : IDisposable
 			case MemBackingStorageType.Array:
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.Memory:
+			case MemBackingStorageType.SingleItem:
 				//do nothing, let the GC handle backing.
+				break;
+			case MemBackingStorageType.RentedArray:
+			case MemBackingStorageType.RentedList:
+				// Rented wrappers become null when disposed
+				__.AssertIfNot(_backingStorage is not null, "storage is disposed, cannot use");
 				break;
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
