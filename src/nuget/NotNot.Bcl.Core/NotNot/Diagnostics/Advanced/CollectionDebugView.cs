@@ -24,37 +24,41 @@ public sealed class CollectionDebugView<T>
 {
 	public CollectionDebugView(IEnumerable<T>? collection)
 	{
-		Items = collection?.ToArray();
+		_collection = Mem.Wrap(collection.ToArray());
+		//Items = collection?.ToArray();
 	}
 
-	public CollectionDebugView(Mem<T>? collection)
-	{
-		if (collection?.Length == 0)
-		{
-			Items = new T[0];
-		}
-		else
-		{
-			Items = collection?.DangerousGetArray().ToArray();
-		}
-	}
+	//public CollectionDebugView(Mem<T>? collection)
+	//{
+	//	if (collection?.Length == 0)
+	//	{
+	//		Items = new T[0];
+	//	}
+	//	else
+	//	{
+	//		Items = collection?.DangerousGetArray().ToArray();
+	//	}
+	//}
 
-	public CollectionDebugView(ReadMem<T> collection)
+	public CollectionDebugView(Mem<T> collection)
 	{
 		//this.Items = new T[0];
-
-		if (collection.Length == 0)
-		{
-			Items = new T[0];
-		}
-		else
-		{
-			Items = collection.DangerousGetArray().ToArray();
-		}
+		_collection = collection;
+		//if (collection.Length == 0)
+		//{
+		//	Items = new T[0];
+		//}
+		//else
+		//{
+		//	Items = collection.DangerousGetArray().ToArray();
+		//}
 	}
+	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
+	private Mem<T> _collection;
 
 	[DebuggerBrowsable(DebuggerBrowsableState.Collapsed)]
-	public T[]? Items { get; }
+	//public T[]? Items { get; }
+	public Span<T> Items => _collection.Span;
 
 	public int Length { get; }
 }

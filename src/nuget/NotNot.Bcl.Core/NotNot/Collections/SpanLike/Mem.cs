@@ -95,14 +95,6 @@ public static class Mem
 	}
 
 	/// <summary>
-	///   use an existing collection as the backing storage
-	/// </summary>
-	public static Mem<T> Wrap<T>(ReadMem<T> readMem)
-	{
-		return readMem.AsWriteMem();
-	}
-
-	/// <summary>
 	///   Wrap a rented array from ObjectPool as the backing storage
 	/// </summary>
 	public static Mem<T> Wrap<T>(NotNot._internal.ObjectPool.RentedArray<T> rentedArray)
@@ -376,23 +368,6 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="sliceOffset">Offset within the parent to start</param>
 	/// <param name="sliceCount">Number of elements in the slice</param>
 	internal Mem(Mem<T> parentMem, int sliceOffset, int sliceCount)
-	{
-		_isTrueOwner = false;
-		_backingStorageType = parentMem._backingStorageType;
-		_backingStorage = parentMem._backingStorage;
-		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parentMem.Length);
-		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parentMem.Length);
-		_segmentOffset = parentMem._segmentOffset + sliceOffset;
-		_segmentCount = sliceCount;
-	}
-
-	/// <summary>
-	/// Creates a sliced writable memory view from a ReadMem{T} instance
-	/// </summary>
-	/// <param name="parentMem">Parent ReadMem to slice from</param>
-	/// <param name="sliceOffset">Offset within the parent to start</param>
-	/// <param name="sliceCount">Number of elements in the slice</param>
-	internal Mem(ReadMem<T> parentMem, int sliceOffset, int sliceCount)
 	{
 		_isTrueOwner = false;
 		_backingStorageType = parentMem._backingStorageType;
@@ -996,15 +971,6 @@ public readonly struct Mem<T> : IDisposable
 		}
 	}
 
-	/// <summary>
-	/// Converts this writable memory view to a read-only memory view
-	/// </summary>
-	/// <returns>Read-only memory view over the same backing storage</returns>
-	public ReadMem<T> AsReadMem()
-	{
-		AssertNotDisposed();
-		return new ReadMem<T>(this, 0, _segmentCount);
-	}
 
 	/// <summary>
 	/// Uses reflection to access the internal array backing a List{T}
