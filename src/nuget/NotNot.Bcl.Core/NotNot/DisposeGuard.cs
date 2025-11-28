@@ -81,7 +81,8 @@ public class DisposeGuard : IDisposeGuard
 					//Debug.WriteLine(msg);
 
 					__.GetLogger()._EzError(false, msg, CtorStackTraceMsg);
-					__.Assert(msg);
+					var msgWithStack = msg+ CtorStackTraceMsg;
+					__.Assert(msgWithStack);
 
 
 				}
