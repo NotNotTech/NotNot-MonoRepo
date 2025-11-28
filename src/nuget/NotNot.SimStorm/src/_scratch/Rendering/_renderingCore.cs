@@ -18,9 +18,9 @@ namespace NotNot.SimStorm._scratch.Rendering;
 
 public class RenderPacket3d : IRenderPacketNew
 {
-	public ReadMem<EntityMetadata> entityMetadata;
+	public Mem<EntityMetadata> entityMetadata;
 
-	public ReadMem<Matrix4x4> instances;
+	public Mem<Matrix4x4> instances;
 
 	public IRenderTechnique3d technique;
 

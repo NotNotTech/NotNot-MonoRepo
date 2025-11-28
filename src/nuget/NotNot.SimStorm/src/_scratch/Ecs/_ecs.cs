@@ -20,8 +20,8 @@ namespace NotNot.SimStorm._scratch.Ecs;
 //public delegate void CreateEntitiesCallback(ReadOnlySpan<AccessToken> accessTokens, ReadOnlySpan<EntityHandle> entities, Archetype archetype);
 //public delegate void DeleteEntitiesCallback(ReadOnlySpan<AccessToken> accessTokens, Archetype archetype);
 using CreateEntitiesCallback =
-	Action<(ReadMem<AccessToken> accessTokens, ReadMem<EntityHandle> entityHandles, Archetype archetype)>;
-using DeleteEntitiesCallback = Action<(ReadMem<AccessToken> accessTokens, Archetype archetype)>;
+	Action<(Mem<AccessToken> accessTokens, Mem<EntityHandle> entityHandles, Archetype archetype)>;
+using DeleteEntitiesCallback = Action<(Mem<AccessToken> accessTokens, Archetype archetype)>;
 
 /// <summary>
 ///    A "Simulation World".  all archetypes, their entities, their components, and systems are under a single world.
@@ -611,42 +611,42 @@ public partial class EntityManager //entity query
 	}
 }
 
-public delegate void SelectRangeCallback_R<TC1>(ReadMem<EntityMetadata> meta, ReadMem<TC1> c1);
+public delegate void SelectRangeCallback_R<TC1>(Mem<EntityMetadata> meta, Mem<TC1> c1);
 
-public delegate void SelectRangeCallback_W<TC1>(ReadMem<EntityMetadata> meta, Mem<TC1> c1);
+public delegate void SelectRangeCallback_W<TC1>(Mem<EntityMetadata> meta, Mem<TC1> c1);
 
-public delegate void SelectRangeCallback_RR<TC1, TC2>(ReadMem<EntityMetadata> meta, ReadMem<TC1> c1, ReadMem<TC2> c2);
+public delegate void SelectRangeCallback_RR<TC1, TC2>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2);
 
-public delegate void SelectRangeCallback_WR<TC1, TC2>(ReadMem<EntityMetadata> meta, Mem<TC1> c1, ReadMem<TC2> c2);
+public delegate void SelectRangeCallback_WR<TC1, TC2>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2);
 
-public delegate void SelectRangeCallback_WW<TC1, TC2>(ReadMem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2);
+public delegate void SelectRangeCallback_WW<TC1, TC2>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2);
 
-public delegate void SelectRangeCallback_RRR<TC1, TC2, TC3>(ReadMem<EntityMetadata> meta, ReadMem<TC1> c1,
-	ReadMem<TC2> c2, ReadMem<TC3> c3);
+public delegate void SelectRangeCallback_RRR<TC1, TC2, TC3>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3);
 
-public delegate void SelectRangeCallback_WRR<TC1, TC2, TC3>(ReadMem<EntityMetadata> meta, Mem<TC1> c1, ReadMem<TC2> c2,
-	ReadMem<TC3> c3);
-
-public delegate void SelectRangeCallback_WWR<TC1, TC2, TC3>(ReadMem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2,
-	ReadMem<TC3> c3);
-
-public delegate void SelectRangeCallback_WWW<TC1, TC2, TC3>(ReadMem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2,
+public delegate void SelectRangeCallback_WRR<TC1, TC2, TC3>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2,
 	Mem<TC3> c3);
 
-public delegate void SelectRangeCallback_RRRR<TC1, TC2, TC3, TC4>(ReadMem<EntityMetadata> meta, ReadMem<TC1> c1,
-	ReadMem<TC2> c2, ReadMem<TC3> c3, ReadMem<TC4> c4);
+public delegate void SelectRangeCallback_WWR<TC1, TC2, TC3>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2,
+	Mem<TC3> c3);
 
-public delegate void SelectRangeCallback_WRRR<TC1, TC2, TC3, TC4>(ReadMem<EntityMetadata> meta, ReadMem<TC1> c1,
-	ReadMem<TC2> c2, ReadMem<TC3> c3, ReadMem<TC4> c4);
+public delegate void SelectRangeCallback_WWW<TC1, TC2, TC3>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2,
+	Mem<TC3> c3);
 
-public delegate void SelectRangeCallback_WWRR<TC1, TC2, TC3, TC4>(ReadMem<EntityMetadata> meta, Mem<TC1> c1,
-	ReadMem<TC2> c2, ReadMem<TC3> c3, ReadMem<TC4> c4);
+public delegate void SelectRangeCallback_RRRR<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
 
-public delegate void SelectRangeCallback_WWWR<TC1, TC2, TC3, TC4>(ReadMem<EntityMetadata> meta, Mem<TC1> c1,
-	ReadMem<TC2> c2, Mem<TC3> c3, ReadMem<TC4> c4);
+public delegate void SelectRangeCallback_WRRR<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
 
-public delegate void SelectRangeCallback_WWWW<TC1, TC2, TC3, TC4>(ReadMem<EntityMetadata> meta, Mem<TC1> c1,
-	ReadMem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
+public delegate void SelectRangeCallback_WWRR<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
+
+public delegate void SelectRangeCallback_WWWR<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
+
+public delegate void SelectRangeCallback_WWWW<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
 
 /// <summary>
 ///    filtering criteria to narrow down an EntityQuery
@@ -1049,8 +1049,8 @@ public class EntityQuery
 		_ReadNotify<TC1>();
 
 		_SelectRangeHelper<TC1>((meta, c1) => callback(
-			ReadMem.Wrap(meta.StorageSlice)
-			, ReadMem.Wrap(c1.StorageSlice)
+			Mem.Wrap(meta.StorageSlice)
+			, Mem.Wrap(c1.StorageSlice)
 		));
 	}
 
@@ -1061,7 +1061,7 @@ public class EntityQuery
 		_SelectRangeHelper<TC1>((meta, c1) =>
 		{
 			callback(
-				ReadMem.Wrap(meta.StorageSlice)
+				Mem.Wrap(meta.StorageSlice)
 				, Mem.Wrap(c1.StorageSlice)
 			);
 		});
@@ -1074,9 +1074,9 @@ public class EntityQuery
 		_ReadNotify<TC2>();
 
 		_SelectRangeHelper<TC1, TC2>((meta, c1, c2) => callback(
-			ReadMem.Wrap(meta.StorageSlice)
-			, ReadMem.Wrap(c1.StorageSlice)
-			, ReadMem.Wrap(c2.StorageSlice)
+			Mem.Wrap(meta.StorageSlice)
+			, Mem.Wrap(c1.StorageSlice)
+			, Mem.Wrap(c2.StorageSlice)
 		));
 	}
 
@@ -1086,9 +1086,9 @@ public class EntityQuery
 		_ReadNotify<TC2>();
 
 		_SelectRangeHelper<TC1, TC2>((meta, c1, c2) => callback(
-			ReadMem.Wrap(meta.StorageSlice)
+			Mem.Wrap(meta.StorageSlice)
 			, Mem.Wrap(c1.StorageSlice)
-			, ReadMem.Wrap(c2.StorageSlice)
+			, Mem.Wrap(c2.StorageSlice)
 		));
 	}
 
@@ -1098,7 +1098,7 @@ public class EntityQuery
 		_WriteNotify<TC2>();
 
 		_SelectRangeHelper<TC1, TC2>((meta, c1, c2) => callback(
-			ReadMem.Wrap(meta.StorageSlice)
+			Mem.Wrap(meta.StorageSlice)
 			, Mem.Wrap(c1.StorageSlice)
 			, Mem.Wrap(c2.StorageSlice)
 		));
@@ -1111,10 +1111,10 @@ public class EntityQuery
 		_ReadNotify<TC3>();
 
 		_SelectRangeHelper<TC1, TC2, TC3>((meta, c1, c2, c3) => callback(
-			ReadMem.Wrap(meta.StorageSlice)
-			, ReadMem.Wrap(c1.StorageSlice)
-			, ReadMem.Wrap(c2.StorageSlice)
-			, ReadMem.Wrap(c3.StorageSlice)
+			Mem.Wrap(meta.StorageSlice)
+			, Mem.Wrap(c1.StorageSlice)
+			, Mem.Wrap(c2.StorageSlice)
+			, Mem.Wrap(c3.StorageSlice)
 		));
 	}
 
@@ -1125,10 +1125,10 @@ public class EntityQuery
 		_ReadNotify<TC3>();
 
 		_SelectRangeHelper<TC1, TC2, TC3>((meta, c1, c2, c3) => callback(
-			ReadMem.Wrap(meta.StorageSlice)
+			Mem.Wrap(meta.StorageSlice)
 			, Mem.Wrap(c1.StorageSlice)
-			, ReadMem.Wrap(c2.StorageSlice)
-			, ReadMem.Wrap(c3.StorageSlice)
+			, Mem.Wrap(c2.StorageSlice)
+			, Mem.Wrap(c3.StorageSlice)
 		));
 	}
 
@@ -1139,10 +1139,10 @@ public class EntityQuery
 		_ReadNotify<TC3>();
 
 		_SelectRangeHelper<TC1, TC2, TC3>((meta, c1, c2, c3) => callback(
-			ReadMem.Wrap(meta.StorageSlice)
+			Mem.Wrap(meta.StorageSlice)
 			, Mem.Wrap(c1.StorageSlice)
 			, Mem.Wrap(c2.StorageSlice)
-			, ReadMem.Wrap(c3.StorageSlice)
+			, Mem.Wrap(c3.StorageSlice)
 		));
 	}
 
@@ -1153,7 +1153,7 @@ public class EntityQuery
 		_WriteNotify<TC3>();
 
 		_SelectRangeHelper<TC1, TC2, TC3>((meta, c1, c2, c3) => callback(
-			ReadMem.Wrap(meta.StorageSlice)
+			Mem.Wrap(meta.StorageSlice)
 			, Mem.Wrap(c1.StorageSlice)
 			, Mem.Wrap(c2.StorageSlice)
 			, Mem.Wrap(c3.StorageSlice)
@@ -1286,7 +1286,7 @@ public partial class Archetype //passthrough of page stuff
 		page.AllocEntityNew(accessTokens, entityHandles);
 
 		_count += entityHandles.Length;
-		doneCallback((accessTokensMem.AsReadMem(), entityHandlesMem.AsReadMem(), this));
+		doneCallback((accessTokensMem, entityHandlesMem, this));
 	}
 
 	/// <summary>
@@ -1302,7 +1302,7 @@ public partial class Archetype //passthrough of page stuff
 			"the specified page should be part of this archetype, otherwise the following logic is invalid");
 		containingPage.Free(toDelete);
 		//call the callback to notify
-		var pageMem = ReadMem<AccessToken>.Allocate(toDelete);
+		var pageMem = Mem<AccessToken>.Allocate(toDelete);
 		_count -= toDelete.Length;
 		doneCallback((pageMem, this));
 	}

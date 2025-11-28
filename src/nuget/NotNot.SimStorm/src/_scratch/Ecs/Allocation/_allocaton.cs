@@ -362,11 +362,11 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 	/// <summary>
 	///    Get Read only (shared) access to the chunk this entity component is in
 	/// </summary>
-	public ReadMem<TComponent> GetReadMem<TComponent>()
+	public Mem<TComponent> GetReadMem<TComponent>()
 	{
 		GetOwner().ReadNotify<TComponent>();
 		var chunk = GetContainingChunk<TComponent>();
-		return ReadMem.Wrap(chunk.StorageSlice);
+		return Mem.Wrap(chunk.StorageSlice);
 	}
 
 
@@ -2019,7 +2019,7 @@ public record struct EntityMetadata
 	/// <summary>
 	///    Obtain read-only access to the specified TComponent chunk that this entity is part of.
 	/// </summary>
-	public ReadMem<TComponent> GetReadMem<TComponent>()
+	public Mem<TComponent> GetReadMem<TComponent>()
 	{
 		return accessToken.GetReadMem<TComponent>();
 	}

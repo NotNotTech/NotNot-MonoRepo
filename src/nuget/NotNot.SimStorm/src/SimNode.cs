@@ -235,11 +235,11 @@ public abstract partial class SimNode //tree logic
 	public bool IsAdded { get; private set; }
 
 
-	public ReadMem<SimNode> GetHierarchy()
+	public Mem<SimNode> GetHierarchy()
 	{
-		var toReturn = ReadMem<SimNode>.Allocate(HierarchyDepth + 1);
+		var toReturn = Mem<SimNode>.Allocate(HierarchyDepth + 1);
 
-		var writeable = toReturn.AsWriteMem();
+		var writeable = toReturn;
 
 
 		if (toReturn.Length == 0)
