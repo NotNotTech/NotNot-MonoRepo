@@ -112,6 +112,18 @@ public static class Mem
 		return toReturn;
 	}
 
+	public static RentedMem<T> Clone<T>(Span<T> span)
+	{
+		var toReturn = Mem.Rent<T>(span.Length);
+		span.CopyTo(toReturn);
+		return toReturn;
+	}
+	public static RentedMem<T> Clone<T>(HashSet<T> hashset)
+	{
+		var toReturn = Mem.Rent<T>(hashset.Count);
+		hashset.CopyTo(toReturn.DangerousGetArray().Array);
+		return toReturn;
+	}
 
 
 	/// <summary>

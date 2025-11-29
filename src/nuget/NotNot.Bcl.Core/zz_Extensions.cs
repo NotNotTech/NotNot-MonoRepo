@@ -4444,16 +4444,25 @@ public static class zz_Extensions_Boolean
 public static class zz_Extensions_Object
 {
    /// <summary>
-   /// create a one-element Span over a struct value
+   /// create a one-element Span over the value
    /// </summary>
    /// <typeparam name="T"></typeparam>
    /// <param name="value"></param>
    /// <returns></returns>
-   public static Span<T> _AsSpan<T>(this ref T value) where T:struct
+   public static Span<T> _AsSpanSingle<T>(this ref T value) where T:struct
    {
       return new Span<T>(ref value);
    }
-
+	/// <summary>
+	/// create a one-element Span over the value
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="value"></param>
+	/// <returns></returns>
+	public static Span<T> _AsSpanSingle<T>(this T value) where T : class
+	{
+      return MemoryMarshal.CreateSpan(ref value, 1);
+	}
 
 
 	/// <summary>
