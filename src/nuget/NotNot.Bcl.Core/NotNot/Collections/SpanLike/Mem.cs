@@ -57,18 +57,20 @@ public static class Mem
 
 	/// <summary>
 	///   Wrap a rented array from ObjectPool as the backing storage
+	///   <para>IMPORTANT: disposal should now be done by the returned <see cref="RentedMem{T}"/></para>
 	/// </summary>
 	public static RentedMem<T> Wrap<T>(NotNot._internal.ObjectPool.RentedArray<T> rentedArray)
 	{
-		return new RentedMem<T>(rentedArray, isTrueOwner: true);
+		return new RentedMem<T>(MemBackingStorageType.RentedArray, rentedArray);
 	}
 
 	/// <summary>
 	///   Wrap a rented list from ObjectPool as the backing storage
+	///   <para>IMPORTANT: disposal should now be done by the returned <see cref="RentedMem{T}"/></para>
 	/// </summary>
 	public static RentedMem<T> Wrap<T>(NotNot._internal.ObjectPool.Rented<List<T>> rentedList)
 	{
-		return new RentedMem<T>(rentedList, isTrueOwner: true);
+		return new RentedMem<T>(MemBackingStorageType.RentedList, rentedList);
 	}
 
 
@@ -145,7 +147,7 @@ public readonly struct Mem<T>
 	//allow casting from rented structures (no ownership)
 	public static implicit operator Mem<T>(_internal.ObjectPool.Rented<List<T>> rented) => new(MemBackingStorageType.RentedList, rented);
 	public static implicit operator Mem<T>(_internal.ObjectPool.RentedArray<T> rented) => new(MemBackingStorageType.RentedArray, rented);
-	public static implicit operator Mem<T>(RentedMem<T> mem) => new(mem._backingStorageType, mem._backingStorage, mem._segmentOffset, mem._segmentCount);
+	public static implicit operator Mem<T>(RentedMem<T> mem) => new(mem._backingStorageType, mem._backingStorage, 0, mem.Length);
 
 	// ========== Implicit conversions TO span types ==========
 
@@ -290,7 +292,7 @@ public readonly struct Mem<T>
 				case MemBackingStorageType.List:
 					{
 						var list = (List<T>)_backingStorage;
-						var span = list._AsSpan_Unsafe();
+						var span = list._AsSpan();
 						return span;
 					}
 				case MemBackingStorageType.Memory:
@@ -308,7 +310,7 @@ public readonly struct Mem<T>
 				case MemBackingStorageType.RentedList:
 					{
 						var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
-						var span = rentedList.Value._AsSpan_Unsafe();
+						var span = rentedList.Value._AsSpan();
 						return span;
 					}
 				case MemBackingStorageType.SingleItem:

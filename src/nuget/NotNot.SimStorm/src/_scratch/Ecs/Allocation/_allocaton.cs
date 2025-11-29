@@ -344,7 +344,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 			$"column does not exist.  are you sure the TComponent type `{typeof(T).Name}` is registered with the entities archetype?");
 		var column = Chunk<T>._GLOBAL_LOOKUP[pageId];
 		__.GetLogger()._EzErrorThrow<SimStormException>(column.Count > slotRef.chunkIndex, "chunk doesn't exist");
-		var chunk = column._AsSpan_Unsafe()[slotRef.chunkIndex];
+		var chunk = column._AsSpan()[slotRef.chunkIndex];
 		__.GetLogger()._EzErrorThrow<SimStormException>(chunk != null);
 		return chunk;
 	}
@@ -1024,7 +1024,7 @@ public partial class Page : IDisposable //init logic
 	///    internal helper.   Get a Span containing all columns.
 	/// </summary>
 	/// <returns></returns>
-	public Span<List<Chunk>> _GetColumnsSpan() { return _columnStorage._AsSpan_Unsafe(); }
+	public Span<List<Chunk>> _GetColumnsSpan() { return _columnStorage._AsSpan(); }
 
 	/// <summary>
 	///    all the atomId's used in columns.  can use the atomId to get the offset to the proper column
@@ -1248,7 +1248,7 @@ public partial class Page //column / component type management
 	{
 		var atomId = Atom.GetId<T>();
 		var chunk =
-			_GLOBAL_LOOKUP.Span[pageToken.pageId]._GetColumnsSpan()[atomId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex]
+			_GLOBAL_LOOKUP.Span[pageToken.pageId]._GetColumnsSpan()[atomId]._AsSpan()[pageToken.slotRef.chunkIndex]
 				as Chunk<T>;
 		return ref chunk.UnsafeArray[pageToken.slotRef.slotIndex];
 	}
@@ -1268,7 +1268,7 @@ public partial class Page //column / component type management
 			return ref Unsafe.NullRef<T>();
 		}
 
-		var columnSpan = column._AsSpan_Unsafe();
+		var columnSpan = column._AsSpan();
 		if (columnSpan.Length <= slot.chunkIndex || columnSpan[slot.chunkIndex] == null)
 		{
 			exists = false;
@@ -1292,7 +1292,7 @@ public partial class Page //column / component type management
 	protected internal ref T _UNCHECKED_GetComponent<T>(ref SlotRef slot)
 	{
 		//var atomId = Atom.GetId<T>();
-		return ref (GetColumn<T>()._AsSpan_Unsafe()[slot.chunkIndex] as Chunk<T>).UnsafeArray[slot.slotIndex];
+		return ref (GetColumn<T>()._AsSpan()[slot.chunkIndex] as Chunk<T>).UnsafeArray[slot.slotIndex];
 	}
 
 	/// <summary>
@@ -1606,7 +1606,7 @@ public partial class Page //alloc/free/pack logic
 		//var manualGetChunk = _componentColumns[typeof(EntityMetadata)][pageToken.slotRef.columnChunkIndex] as Chunk<EntityMetadata>;
 		//var manualGetChunk = GetChunk<EntityMetadata>(ref pageToken);
 		var manualGetChunk =
-			GetColumn<EntityMetadata>()._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex] as Chunk<EntityMetadata>;
+			GetColumn<EntityMetadata>()._AsSpan()[pageToken.slotRef.chunkIndex] as Chunk<EntityMetadata>;
 
 		var autoGetChunk = pageToken.GetContainingChunk<EntityMetadata>();
 		__.GetLogger()._EzCheckedThrow<SimStormException>(manualGetChunk == autoGetChunk, "should match");
@@ -1618,7 +1618,7 @@ public partial class Page //alloc/free/pack logic
 
 		//verify access thru Chunk<T> works also
 		var chunkLookupChunk =
-			Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex];
+			Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan()[pageToken.slotRef.chunkIndex];
 		__.GetLogger()._EzErrorThrow<SimStormException>(chunkLookupChunk == manualGetChunk);
 	}
 
@@ -2354,7 +2354,7 @@ public class Chunk<TComponent> : Chunk
 			//__.GetLogger()._EzErrorThrow<SimStormException>(result);
 
 			var chunk =
-				_GLOBAL_LOOKUP[moveComponentDataFrom.pageId]._AsSpan_Unsafe()[moveComponentDataFrom.slotRef.chunkIndex];
+				_GLOBAL_LOOKUP[moveComponentDataFrom.pageId]._AsSpan()[moveComponentDataFrom.slotRef.chunkIndex];
 
 			chunk.UnsafeArray[moveComponentDataFrom.slotRef.slotIndex] = default;
 		}
@@ -2391,7 +2391,7 @@ public class Chunk<TComponent> : Chunk
 			//var result = Chunk<EntityMetadata>._GLOBAL_LOOKUP.TryGetValue(_chunkLookupId, out var chunk);
 			//__.GetLogger()._EzErrorThrow<SimStormException>(result);
 			var entityMetadataChunk =
-				Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex];
+				Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan()[pageToken.slotRef.chunkIndex];
 			ref var entityMetadata = ref entityMetadataChunk.UnsafeArray[chunkIndex];
 			entityMetadata.fieldWrites++;
 
@@ -2425,7 +2425,7 @@ public class Chunk<TComponent> : Chunk
 
 			//var result = Chunk<TComponent>._GLOBAL_LOOKUP.TryGetValue(_chunkLookupId, out var chunk);
 			//__.GetLogger()._EzErrorThrow<SimStormException>(result);
-			var chunk = _GLOBAL_LOOKUP[pageToken.pageId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex];
+			var chunk = _GLOBAL_LOOKUP[pageToken.pageId]._AsSpan()[pageToken.slotRef.chunkIndex];
 			__.GetLogger()._EzCheckedThrow<SimStormException>(chunk == this, "alloc system internal integrity failure");
 			__.GetLogger()._EzCheckedThrow<SimStormException>(!IsDisposed, "use after dispose");
 
@@ -2433,7 +2433,7 @@ public class Chunk<TComponent> : Chunk
 			//result = Chunk<EntityMetadata>._GLOBAL_LOOKUP.TryGetValue(_chunkLookupId, out var entityMetadataChunk);
 			//__.GetLogger()._EzErrorThrow<SimStormException>(result);
 			var entityMetadataChunk =
-				Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex];
+				Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan()[pageToken.slotRef.chunkIndex];
 			ref var entityMetadata = ref entityMetadataChunk.UnsafeArray[chunkIndex];
 			__.GetLogger()._EzErrorThrow<SimStormException>(entityMetadata.accessToken == pageToken, "invalid alloc token.   why?");
 		}
