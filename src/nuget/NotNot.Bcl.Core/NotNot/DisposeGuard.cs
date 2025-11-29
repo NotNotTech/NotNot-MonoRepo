@@ -35,6 +35,12 @@ public class DisposeGuard : IDisposeGuard
 
 	public bool IsDisposed { get => _isDisposed; init => _isDisposed = value; }
 
+	/// <summary>
+	/// set to TRUE to not get asserts raised if you don't .Dispose() of this properly.
+	/// <para>default FALSE.</para>
+	/// <para>useful for when you have explicitly "fire and forget" versions of objects, but should be avoided as an antipattern.</para>
+	/// </summary>
+	public bool _suppress;
 
 	private List<string> CtorStackTrace { get; set; } //= "Callstack is only set in #DEBUG";
 	private string CtorStackTraceMsg => (CtorStackTrace is null ? "CtorStackTrace is only set in #DEBUG" : string.Join("\n\t\t", CtorStackTrace));
@@ -74,7 +80,7 @@ public class DisposeGuard : IDisposeGuard
 		{
 			if (!IsDisposed)
 			{
-				if (_suppressNonDisposalExceptions is false)
+				if (_suppressNonDisposalExceptions is false && _suppress is false)
 				{
 					var msg = $"Did not call {GetType().Name}.Dispose() (or Dispose of it's parent) type properly.  Stack=\n\t\t";
 

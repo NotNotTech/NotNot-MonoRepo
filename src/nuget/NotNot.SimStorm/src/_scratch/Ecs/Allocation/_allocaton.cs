@@ -2230,7 +2230,7 @@ public class Chunk<TComponent> : Chunk
 	public static ResizableArray<List<Chunk<TComponent>>> _GLOBAL_LOOKUP = new();
 
 
-	public Mem<TComponent> _storageRaw;
+	public RentedMem<TComponent> _storageRaw;
 
 	/// <summary>
 	///    If the Page is set to AutoPack (default true for NotNot Engine) this will provide a contiguous slice of allocated
@@ -2324,7 +2324,7 @@ public class Chunk<TComponent> : Chunk
 		column._ExpandAndSet(chunkIndex, this);
 
 		//_storage = MemoryOwner<TComponent>.Allocate(_length, AllocationMode.Clear); //TODO: maybe no need to clear?
-		_storageRaw = Mem.Rent<TComponent>(_length).Persist();
+		_storageRaw = Mem.Rent<TComponent>(_length);
 
 		UnsafeArray = _storageRaw.DangerousGetArray().Array!;
 	}

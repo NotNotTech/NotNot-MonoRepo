@@ -20,8 +20,8 @@ namespace NotNot.SimStorm._scratch.Ecs;
 //public delegate void CreateEntitiesCallback(ReadOnlySpan<AccessToken> accessTokens, ReadOnlySpan<EntityHandle> entities, Archetype archetype);
 //public delegate void DeleteEntitiesCallback(ReadOnlySpan<AccessToken> accessTokens, Archetype archetype);
 using CreateEntitiesCallback =
-	Action<(EphemeralReadMem<AccessToken> accessTokens, EphemeralReadMem<EntityHandle> entityHandles, Archetype archetype)>;
-using DeleteEntitiesCallback = Action<(EphemeralReadMem<AccessToken> accessTokens, Archetype archetype)>;
+	Action<(Mem<AccessToken> accessTokens, Mem<EntityHandle> entityHandles, Archetype archetype)>;
+using DeleteEntitiesCallback = Action<(Mem<AccessToken> accessTokens, Archetype archetype)>;
 
 /// <summary>
 ///    A "Simulation World".  all archetypes, their entities, their components, and systems are under a single world.
@@ -1286,7 +1286,7 @@ public partial class Archetype //passthrough of page stuff
 		page.AllocEntityNew(accessTokens, entityHandles);
 
 		_count += entityHandles.Length;
-		doneCallback((accessTokensMem.CastEphermialRO(), entityHandlesMem.CastEphermialRO(), this));
+		doneCallback((accessTokensMem, entityHandlesMem, this));
 	}
 
 	/// <summary>
@@ -1302,7 +1302,7 @@ public partial class Archetype //passthrough of page stuff
 			"the specified page should be part of this archetype, otherwise the following logic is invalid");
 		containingPage.Free(toDelete);
 		//call the callback to notify
-		using var pageMem = Mem.Rent<AccessToken>(toDelete);
+		using var pageMem = Mem.Clone<AccessToken>(toDelete);
 		_count -= toDelete.Length;
 		doneCallback((pageMem.CastEphermial(), this));
 	}
