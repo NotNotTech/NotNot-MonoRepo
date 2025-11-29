@@ -16,6 +16,14 @@ using NotNot.Collections.SpanLike;
 namespace NotNot.Collections.SpanLike;
 
 
+/// <summary>
+/// Wrapper class for single-item storage in Mem{T}. Provides a stable managed reference for Span creation.
+/// </summary>
+internal class SingleItemStorage<T>
+{
+	public T Value;
+	public SingleItemStorage(T value) => Value = value;
+}
 
 /// <summary>
 ///    helpers to allocate a WriteMem instance
@@ -100,7 +108,7 @@ public static class Mem
 	public static RentedMem<T> Clone<T>(ReadOnlySpan<T> span)
 	{
 		var toReturn = Mem.Rent<T>(span.Length);
-		span.CopyTo(toReturn.Span);
+		span.CopyTo(toReturn.GetSpan());
 		return toReturn;
 	}
 
@@ -118,7 +126,7 @@ public static class Mem
 	/// </summary>
 	public static Mem<T> WrapSingle<T>(T singleItem)
 	{
-		return new Mem<T>(MemBackingStorageType.SingleItem, singleItem);
+		return new Mem<T>(MemBackingStorageType.SingleItem, new SingleItemStorage<T>(singleItem));
 	}
 }
 
@@ -130,8 +138,8 @@ public static class Mem
 /// <remarks>
 /// <para>Unlike ref struct, this can be used in async methods and stored in fields.</para>
 /// <para>Conversions:</para>
-/// <para>- Implicit FROM: RentedMem{T} - safe narrowing to non-owning view</para>
-/// <para>- Implicit TO: Span{T}, ReadOnlySpan{T} - performant, consistent access the backing storage</para>
+/// <para>- Implicit FROM: RentedMem{T}, T[], List{T}, Memory{T} - safe narrowing to non-owning view</para>
+/// <para>- NO implicit TO Span{T} - use GetSpan() explicitly. GetSpan() is not cheap due to switch dispatch and validation.</para>
 /// <para>- NO conversion TO RentedMem{T} - cannot restore ownership metadata</para>
 /// </remarks>
 /// <typeparam name="T">Element type</typeparam>
@@ -149,17 +157,9 @@ public readonly struct Mem<T>
 	public static implicit operator Mem<T>(_internal.ObjectPool.RentedArray<T> rented) => new(MemBackingStorageType.RentedArray, rented);
 	public static implicit operator Mem<T>(RentedMem<T> mem) => new(mem._backingStorageType, mem._backingStorage, 0, mem.Length);
 
-	// ========== Implicit conversions TO span types ==========
-
-	/// <summary>
-	/// Implicit conversion to Span{T}
-	/// </summary>
-	public static implicit operator Span<T>(Mem<T> mem) => mem.Span;
-
-	/// <summary>
-	/// Implicit conversion to ReadOnlySpan{T}
-	/// </summary>
-	public static implicit operator ReadOnlySpan<T>(Mem<T> mem) => mem.Span;
+	// NOTE: Implicit conversion to Span<T> removed intentionally.
+	// GetSpan() is not cheap (switch dispatch, validation, slicing).
+	// Callers must explicitly call GetSpan() once and consume the result.
 
 
 
@@ -270,31 +270,28 @@ public readonly struct Mem<T>
 	}
 
 	/// <summary>
-	/// Gets a Span{T} view over this memory
+	/// Gets a Span{T} view over this memory.
+	/// <para>IMPORTANT: This method involves switch dispatch, validation, and potential slicing.
+	/// Call once and store the result for iteration rather than calling repeatedly.</para>
 	/// </summary>
-	public Span<T> Span
+	public Span<T> GetSpan()
 	{
-		get
-		{
-
-			if (_segmentCount == 0) return Span<T>.Empty;
-			var rawSpan = _GetRawSpan();
-
+		if (_segmentCount == 0) return Span<T>.Empty;
+		var rawSpan = _GetRawSpan();
 
 #if CHECKED
-			switch (_backingStorageType)
-			{
-				case MemBackingStorageType.List:
-				case MemBackingStorageType.RentedList:
-					__.AssertIfNot(_listLength == rawSpan.Length, "backing list size was modified since this Mem was created.  Mem/RentedMem sizes should be immutable");
-					break;
-			}
+		switch (_backingStorageType)
+		{
+			case MemBackingStorageType.List:
+			case MemBackingStorageType.RentedList:
+				__.AssertIfNot(_listLength == rawSpan.Length, "backing list size was modified since this Mem was created.  Mem/RentedMem sizes should be immutable");
+				break;
+		}
 #endif
 
-			var toReturn = _GetCurrentSegment(rawSpan);
-			__.DebugAssertIfNot(toReturn.Length == Length);
-			return toReturn;
-		}
+		var toReturn = _GetCurrentSegment(rawSpan);
+		__.DebugAssertIfNot(toReturn.Length == Length);
+		return toReturn;
 	}
 
 	private Span<T> _GetRawSpan()
@@ -361,10 +358,9 @@ public readonly struct Mem<T>
 	///// </summary>
 	//public bool IsEmpty => _segmentCount == 0;
 
-	/// <summary>
-	/// Gets a reference to the element at the specified index
-	/// </summary>
-	public ref T this[int index] => ref Span[index];
+	// NOTE: Indexer this[int index] removed intentionally.
+	// Indexer usage in loops causes repeated GetSpan() calls.
+	// Callers should use: var span = mem.GetSpan(); then span[index]
 
 	// ========== Slicing ==========
 
@@ -392,7 +388,7 @@ public readonly struct Mem<T>
 	/// <summary>
 	/// Returns an enumerator for iterating over the elements in this memory
 	/// </summary>
-	public Span<T>.Enumerator GetEnumerator() => Span.GetEnumerator();
+	public Span<T>.Enumerator GetEnumerator() => GetSpan().GetEnumerator();
 
 	// ========== Utility methods ==========
 
@@ -403,34 +399,34 @@ public readonly struct Mem<T>
 	public RentedMem<T> Clone()
 	{
 		var copy = Mem.Rent<T>(Length);
-		Span.CopyTo(copy.Span);
+		GetSpan().CopyTo(copy.GetSpan());
 		return copy;
 	}
 
 	/// <summary>
 	/// Copies the contents of this memory into a destination span
 	/// </summary>
-	public void CopyTo(Span<T> destination) => Span.CopyTo(destination);
+	public void CopyTo(Span<T> destination) => GetSpan().CopyTo(destination);
 
 	/// <summary>
 	/// Attempts to copy the contents of this memory into a destination span
 	/// </summary>
-	public bool TryCopyTo(Span<T> destination) => Span.TryCopyTo(destination);
+	public bool TryCopyTo(Span<T> destination) => GetSpan().TryCopyTo(destination);
 
 	/// <summary>
 	/// Fills the memory with the specified value
 	/// </summary>
-	public void Fill(T value) => Span.Fill(value);
+	public void Fill(T value) => GetSpan().Fill(value);
 
 	/// <summary>
 	/// Clears the memory (sets all elements to default)
 	/// </summary>
-	public void Clear() => Span.Clear();
+	public void Clear() => GetSpan().Clear();
 
 	/// <summary>
 	/// Converts to array by copying contents
 	/// </summary>
-	public T[] ToArray() => Span.ToArray();
+	public T[] ToArray() => GetSpan().ToArray();
 
 	/// <summary>
 	/// Returns a string representation of this memory view
@@ -445,10 +441,10 @@ public readonly struct Mem<T>
 	/// </summary>
 	public void Map<TResult>(Span<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
 	{
-		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this RentedMem");
-		var thisSpan = Span;
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
+		var thisSpan = GetSpan();
 		var toReturnSpan = toReturn;
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			ref var r_mappedResult = ref mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = r_mappedResult;
@@ -461,8 +457,8 @@ public readonly struct Mem<T>
 	public RentedMem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		Map(toReturn, mapFunc);
-		return toReturn;// RentedMem<TResult>.FromMem(toReturn);
+		Map(toReturn.GetSpan(), mapFunc);
+		return toReturn;
 	}
 
 	/// <summary>
@@ -470,10 +466,10 @@ public readonly struct Mem<T>
 	/// </summary>
 	public void Map<TResult>(Span<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
 	{
-		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this RentedMem");
-		var thisSpan = Span;
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
+		var thisSpan = GetSpan();
 		var toReturnSpan = toReturn;
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			var mappedResult = mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
@@ -486,8 +482,8 @@ public readonly struct Mem<T>
 	public RentedMem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		Map(toReturn, mapFunc);
-		return toReturn;// RentedMem<TResult>.FromMem(toReturn);
+		Map(toReturn.GetSpan(), mapFunc);
+		return toReturn;
 	}
 
 	/// <summary>
@@ -495,13 +491,13 @@ public readonly struct Mem<T>
 	/// </summary>
 	public void MapWith<TOther, TResult>(Span<TResult> toReturn, Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
-		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this RentedMem");
-		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this RentedMem");
-		var thisSpan = Span;
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
+		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
+		var thisSpan = GetSpan();
 		var otherSpan = otherToMapWith;
 		var toReturnSpan = toReturn;
 
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			ref var r_mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
 			toReturnSpan[i] = r_mappedResult;
@@ -514,8 +510,8 @@ public readonly struct Mem<T>
 	public RentedMem<TResult> MapWith<TOther, TResult>(Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		MapWith(toReturn, otherToMapWith, mapFunc);
-		return toReturn;// RentedMem<TResult>.FromMem(toReturn);
+		MapWith(toReturn.GetSpan(), otherToMapWith, mapFunc);
+		return toReturn;
 	}
 
 	/// <summary>
@@ -523,11 +519,11 @@ public readonly struct Mem<T>
 	/// </summary>
 	public void MapWith<TOther>(Span<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
-		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this RentedMem");
-		var thisSpan = Span;
+		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
+		var thisSpan = GetSpan();
 		var otherSpan = otherToMapWith;
 
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			mapFunc(ref thisSpan[i], ref otherSpan[i]);
 		}
@@ -544,9 +540,9 @@ public readonly struct Mem<T>
 		{
 			return;
 		}
-		var span = Span;
+		var span = GetSpan();
 		var batchStart = 0;
-		while (batchStart < Length)
+		while (batchStart < span.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(span, batchStart, isSameBatch);
 			worker(span.Slice(batchStart, batchEnd - batchStart));
@@ -570,7 +566,8 @@ public readonly struct Mem<T>
 		var batchStart = 0;
 		while (batchStart < Length)
 		{
-			var batchEnd = _GetBatchEndExclusive(this, batchStart, isSameBatch);
+			// Re-acquire span each iteration since Span cannot cross await boundary
+			var batchEnd = _GetBatchEndExclusive(GetSpan(), batchStart, isSameBatch);
 			await worker(Slice(batchStart, batchEnd - batchStart));
 			batchStart = batchEnd;
 		}
@@ -583,16 +580,16 @@ public readonly struct Mem<T>
 	/// </summary>
 	public void BatchMapWith<TOther>(Span<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<Span<T>, Span<TOther>> worker)
 	{
-		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this RentedMem");
+		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 
 		if (Length == 0)
 		{
 			return;
 		}
-		var thisSpan = Span;
-		var otherSpan = otherToMapWith;//.Span;
+		var thisSpan = GetSpan();
+		var otherSpan = otherToMapWith;
 		var batchStart = 0;
-		while (batchStart < Length)
+		while (batchStart < thisSpan.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(thisSpan, batchStart, isSameBatch);
 			worker(thisSpan.Slice(batchStart, batchEnd - batchStart), otherSpan.Slice(batchStart, batchEnd - batchStart));
@@ -610,7 +607,8 @@ public readonly struct Mem<T>
 		var batchStart = 0;
 		while (batchStart < Length)
 		{
-			var batchEnd = _GetBatchEndExclusive(this, batchStart, isSameBatch);
+			// Re-acquire span each iteration since Span cannot cross await boundary
+			var batchEnd = _GetBatchEndExclusive(GetSpan(), batchStart, isSameBatch);
 			await worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
 			batchStart = batchEnd;
 		}
@@ -651,7 +649,8 @@ public readonly struct Mem<T>
 	}
 
 	/// <summary>
-	/// Gets the underlying array segment.
+	/// Gets the underlying storage as an <see cref="ArraySegment{T}"/>
+	/// <para>Generally you should use <see cref="GetSpan"/> instead.</para>
 	/// <para>IMPORTANT:  Use with caution. The array may be larger than this view and may be pooled, and if you keep a ref to the array it may become out-of-date with the backing storage</para>
 	/// </summary>
 	/// <returns>Array segment representing this memory's backing storage</returns>
@@ -713,7 +712,7 @@ public readonly struct Mem<T>
 					return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
 				}
 			case MemBackingStorageType.SingleItem:
-				throw __.Throw("SingleItem backing storage does not support DangerousGetArray - use Span property instead");
+				throw __.Throw("SingleItem backing storage does not support DangerousGetArray - use GetSpan() method instead");
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}

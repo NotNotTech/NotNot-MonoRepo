@@ -248,7 +248,7 @@ public abstract partial class SimNode //tree logic
 		}
 
 		//var array = toReturn.Segment().Array;
-		var span = writeable.Span; // toReturn. array.AsSpan(0, toReturn.length);
+		var span = writeable.GetSpan(); // toReturn. array.AsSpan(0, toReturn.length);
 
 		span[0] = this;
 		var curNode = this;

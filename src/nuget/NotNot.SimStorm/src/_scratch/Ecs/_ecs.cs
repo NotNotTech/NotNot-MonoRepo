@@ -517,7 +517,7 @@ public partial class EntityManager //entity creation
 
 		///obtain the actual accessTokens for the entities to be deleted
 		using var accessTokensSO = RentedMem<AccessToken>.Allocate(toDelete.Length);
-		var accessTokens = accessTokensSO.Span;
+		var accessTokens = accessTokensSO.GetSpan();
 		_entityRegistry.Get(toDelete, accessTokens);
 
 		//sort so that in order by page
@@ -1271,9 +1271,9 @@ public partial class Archetype //passthrough of page stuff
 
 		//create entityHandles
 		using var entityHandlesMem = Mem.Rent<EntityHandle>(count);
-		var entityHandles = entityHandlesMem.Span;
+		var entityHandles = entityHandlesMem.GetSpan();
 		using var accessTokensMem = Mem.Rent<AccessToken>(count);
-		var accessTokens = accessTokensMem.Span;
+		var accessTokens = accessTokensMem.GetSpan();
 		_entityRegistry.Alloc(entityHandles);
 
 		var page = _pages._GetOrAdd(partitionGroup, () =>

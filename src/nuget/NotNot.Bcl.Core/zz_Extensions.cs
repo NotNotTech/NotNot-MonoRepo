@@ -3144,10 +3144,11 @@ public static class zz_Extensions_Dictionary
    public static RentedMem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source)
    {
       var toReturn = RentedMem<(TKey key, TValue value)>.Allocate(source.Count);
+      var span = toReturn.GetSpan();
       var i = 0;
       foreach (var kvp in source)
       {
-         toReturn[i] = (kvp.Key, kvp.Value);
+         span[i] = (kvp.Key, kvp.Value);
          i++;
       }
       return toReturn;

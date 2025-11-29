@@ -37,11 +37,9 @@ public readonly struct RentedMem<T> : IDisposable
 {
 	public static readonly RentedMem<T> Empty = new(MemBackingStorageType.Empty, null);
 
-	/// <summary>
-	/// Implicit conversion to Span for easy use in APIs expecting spans
-	/// </summary>
-	public static implicit operator Span<T>(RentedMem<T> rentedMem) => rentedMem.Span;
-	public static implicit operator ReadOnlySpan<T>(RentedMem<T> refMem) => refMem.Span;
+	// NOTE: Implicit conversion to Span<T> removed intentionally.
+	// GetSpan() is not cheap (switch dispatch, validation, slicing).
+	// Callers must explicitly call GetSpan() once and consume the result.
 
 
 	/// <summary>
@@ -128,7 +126,7 @@ public readonly struct RentedMem<T> : IDisposable
 	public static RentedMem<T> Clone(Mem<T> toClone)
 	{
 		var copy = RentedMem<T>.Allocate(toClone.Length);
-		toClone.Span.CopyTo(copy.Span);
+		toClone.GetSpan().CopyTo(copy.GetSpan());
 		return copy;
 	}
 
@@ -157,7 +155,7 @@ public readonly struct RentedMem<T> : IDisposable
 	public static RentedMem<T> Allocate(ReadOnlySpan<T> span)
 	{
 		var toReturn = Allocate(span.Length);
-		span.CopyTo(toReturn.Span);
+		span.CopyTo(toReturn.GetSpan());
 		return toReturn;
 	}
 
@@ -167,7 +165,7 @@ public readonly struct RentedMem<T> : IDisposable
 	public static RentedMem<T> AllocateAndAssign(T singleItem)
 	{
 		var mem = Allocate(1);
-		mem.Span[0] = singleItem;
+		mem.GetSpan()[0] = singleItem;
 		return mem;
 	}
 
@@ -182,75 +180,77 @@ public readonly struct RentedMem<T> : IDisposable
 	}
 
 	/// <summary>
-	/// Gets the number of elements in this memory view
+	/// Gets the number of elements in this memory view.
+	/// Computed directly from backing storage without calling GetSpan().
 	/// </summary>
-	public int Length => Span.Length;
+	public int Length => _GetLength();
+
+	private int _GetLength()
+	{
+		return _backingStorageType switch
+		{
+			MemBackingStorageType.Empty => 0,
+			MemBackingStorageType.MemoryOwner_Custom => ((MemoryOwner_Custom<T>)_backingStorage).Length,
+			MemBackingStorageType.RentedArray => ((NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage).Value.Length,
+			MemBackingStorageType.RentedList => ((NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage).Value.Count,
+			_ => throw __.Throw($"RentedMem does not support backing type {_backingStorageType}")
+		};
+	}
 
 	/// <summary>
-	/// Gets a Span{T} view over this memory
+	/// Gets a Span{T} view over this memory.
+	/// <para>IMPORTANT: This method involves switch dispatch, validation, and potential slicing.
+	/// Call once and store the result for iteration rather than calling repeatedly.</para>
 	/// </summary>
-	public Span<T> Span
+	public Span<T> GetSpan()
 	{
-		get
+		Span<T> toReturn;
+		switch (_backingStorageType)
 		{
-
-			Span<T> toReturn;
-			switch (_backingStorageType)
-			{
-				case MemBackingStorageType.Empty:
-					toReturn =Span<T>.Empty;
+			case MemBackingStorageType.Empty:
+				toReturn = Span<T>.Empty;
+				break;
+			case MemBackingStorageType.MemoryOwner_Custom:
+				{
+					var owner = (MemoryOwner_Custom<T>)_backingStorage;
+					var span = owner.Span;
+					toReturn = span;
 					break;
-				case MemBackingStorageType.MemoryOwner_Custom:
-					{
-						var owner = (MemoryOwner_Custom<T>)_backingStorage;
-						var span = owner.Span;
-						toReturn = span;
-						break;
-					}
-				case MemBackingStorageType.RentedArray:
-					{
-						var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
-						var span = rentedArray.Value;
-						toReturn = span;
-						break;
-					}
-				case MemBackingStorageType.RentedList:
-					{
-						var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
-						var span = rentedList.Value._AsSpan();
-						toReturn = span;
-						break;
-					}
-				default:
-					throw __.Throw($"RentedMem does not support backing type {_backingStorageType}");
-			}
-
+				}
+			case MemBackingStorageType.RentedArray:
+				{
+					var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
+					var span = rentedArray.Value;
+					toReturn = span;
+					break;
+				}
+			case MemBackingStorageType.RentedList:
+				{
+					var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
+					var span = rentedList.Value._AsSpan();
+					toReturn = span;
+					break;
+				}
+			default:
+				throw __.Throw($"RentedMem does not support backing type {_backingStorageType}");
+		}
 
 #if CHECKED
-			switch (_backingStorageType)
-			{
-				case MemBackingStorageType.List:
-				case MemBackingStorageType.RentedList:
-					__.AssertIfNot(_listLength == toReturn.Length,"backing list size was modified since this Mem was created.  Mem/RentedMem sizes should be immutable");
-					break;
-			}
+		switch (_backingStorageType)
+		{
+			case MemBackingStorageType.List:
+			case MemBackingStorageType.RentedList:
+				__.AssertIfNot(_listLength == toReturn.Length, "backing list size was modified since this Mem was created.  Mem/RentedMem sizes should be immutable");
+				break;
+		}
 #endif
 
-			return toReturn;
-		}
+		return toReturn;
 	}
 
-	/// <summary>
-	/// Gets a reference to the element at the specified index
-	/// </summary>
-	public ref T this[int index]
-	{
-		get
-		{
-			AssertNotDisposed();
-			return ref Span[index];
-		}
-	}
+	// NOTE: Indexer this[int index] removed intentionally.
+	// Indexer usage in loops causes repeated GetSpan() calls.
+	// Callers should use: var span = mem.GetSpan(); then span[index]
 
 	//	/// <summary>
 	//	/// RentedMem is meant to be disposed in the method scope it is created in.
@@ -309,9 +309,9 @@ public readonly struct RentedMem<T> : IDisposable
 	public void Map<TResult>(Span<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this RentedMem");
-		var thisSpan = Span;
+		var thisSpan = GetSpan();
 		var toReturnSpan = toReturn;
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			ref var r_mappedResult = ref mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = r_mappedResult;
@@ -324,8 +324,8 @@ public readonly struct RentedMem<T> : IDisposable
 	public RentedMem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		Map(toReturn, mapFunc);
-		return toReturn;// RentedMem<TResult>.FromMem(toReturn);
+		Map(toReturn.GetSpan(), mapFunc);
+		return toReturn;
 	}
 
 	/// <summary>
@@ -334,9 +334,9 @@ public readonly struct RentedMem<T> : IDisposable
 	public void Map<TResult>(Span<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this RentedMem");
-		var thisSpan = Span;
+		var thisSpan = GetSpan();
 		var toReturnSpan = toReturn;
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			var mappedResult = mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
@@ -349,8 +349,8 @@ public readonly struct RentedMem<T> : IDisposable
 	public RentedMem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		Map(toReturn, mapFunc);
-		return toReturn;// RentedMem<TResult>.FromMem(toReturn);
+		Map(toReturn.GetSpan(), mapFunc);
+		return toReturn;
 	}
 
 	/// <summary>
@@ -360,11 +360,11 @@ public readonly struct RentedMem<T> : IDisposable
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this RentedMem");
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this RentedMem");
-		var thisSpan = Span;
+		var thisSpan = GetSpan();
 		var otherSpan = otherToMapWith;
 		var toReturnSpan = toReturn;
 
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			ref var r_mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
 			toReturnSpan[i] = r_mappedResult;
@@ -377,8 +377,8 @@ public readonly struct RentedMem<T> : IDisposable
 	public RentedMem<TResult> MapWith<TOther, TResult>(Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		MapWith(toReturn, otherToMapWith, mapFunc);
-		return toReturn;// RentedMem<TResult>.FromMem(toReturn);
+		MapWith(toReturn.GetSpan(), otherToMapWith, mapFunc);
+		return toReturn;
 	}
 
 	/// <summary>
@@ -387,10 +387,10 @@ public readonly struct RentedMem<T> : IDisposable
 	public void MapWith<TOther>(Span<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this RentedMem");
-		var thisSpan = Span;
+		var thisSpan = GetSpan();
 		var otherSpan = otherToMapWith;
 
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			mapFunc(ref thisSpan[i], ref otherSpan[i]);
 		}
@@ -407,9 +407,9 @@ public readonly struct RentedMem<T> : IDisposable
 		{
 			return;
 		}
-		var span = Span;
+		var span = GetSpan();
 		var batchStart = 0;
-		while (batchStart < Length)
+		while (batchStart < span.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(span, batchStart, isSameBatch);
 			worker(span.Slice(batchStart, batchEnd - batchStart));
@@ -430,10 +430,10 @@ public readonly struct RentedMem<T> : IDisposable
 		{
 			return;
 		}
-		var thisSpan = Span;
-		var otherSpan = otherToMapWith;//.Span;
+		var thisSpan = GetSpan();
+		var otherSpan = otherToMapWith;
 		var batchStart = 0;
-		while (batchStart < Length)
+		while (batchStart < thisSpan.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(thisSpan, batchStart, isSameBatch);
 			worker(thisSpan.Slice(batchStart, batchEnd - batchStart), otherSpan.Slice(batchStart, batchEnd - batchStart));
@@ -451,7 +451,8 @@ public readonly struct RentedMem<T> : IDisposable
 		var batchStart = 0;
 		while (batchStart < Length)
 		{
-			var batchEnd = _GetBatchEndExclusive(this, batchStart, isSameBatch);
+			// Re-acquire span each iteration since Span cannot cross await boundary
+			var batchEnd = _GetBatchEndExclusive(GetSpan(), batchStart, isSameBatch);
 			await worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
 			batchStart = batchEnd;
 		}
@@ -482,13 +483,16 @@ public readonly struct RentedMem<T> : IDisposable
 	public RentedMem<T> Clone()
 	{
 		var copy = RentedMem<T>.Allocate(Length);
-		Span.CopyTo(copy.Span);
+		GetSpan().CopyTo(copy.GetSpan());
 		return copy;
 	}
 
 	/// <summary>
-	/// DANGEROUS: Gets the underlying array segment. The array may be larger than this view and is pooled.
+	/// Gets the underlying storage as an <see cref="ArraySegment{T}"/>
+	/// <para>Generally you should use the <see cref="Span"/> instead.</para>
+	/// <para>IMPORTANT:  Use with caution. The array may be larger than this view and may be pooled, and if you keep a ref to the array it may become out-of-date with the backing storage</para>
 	/// </summary>
+	/// <returns>Array segment representing this memory's backing storage</returns>
 	public ArraySegment<T> DangerousGetArray()
 	{
 		AssertNotDisposed();
@@ -502,7 +506,7 @@ public readonly struct RentedMem<T> : IDisposable
 	/// </summary>
 	public Span<T>.Enumerator GetEnumerator()
 	{
-		return Span.GetEnumerator();
+		return GetSpan().GetEnumerator();
 	}
 
 	/// <summary>

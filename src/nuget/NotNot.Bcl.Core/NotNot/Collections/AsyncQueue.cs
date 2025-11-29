@@ -135,15 +135,15 @@ public class AsyncQueue<T> : IProducerConsumerCollection<T>, IReadOnlyCollection
 			return false;
 		}
 
-		var mem = Mem.Rent<T>(count);
+		items = Mem.Rent<T>(count);
+		var span = items.GetSpan();
 		for (var i = 0; i < count; i++)
 		{
 			var result = _storage.TryDequeue(out var item);
 			__.GetLogger()._EzError(result, "race condition?");
-			mem[i] = item;
+			span[i] = item;
 		}
 
-		items = mem;
 		return true;
 	}
 

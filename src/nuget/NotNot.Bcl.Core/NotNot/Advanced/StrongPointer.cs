@@ -72,7 +72,7 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 					_validationCursor = 0;
 				}
 
-				var handle = allocTracker.Span[_validationCursor];
+				var handle = allocTracker.GetSpan()[_validationCursor];
 				
 				// Only check allocated slots
 				if (handle.IsAllocated)

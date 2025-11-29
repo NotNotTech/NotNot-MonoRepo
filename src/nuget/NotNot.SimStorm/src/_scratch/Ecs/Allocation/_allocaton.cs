@@ -107,14 +107,14 @@ public class EntityRegistry
 	public RentedMem<EntityHandle> Alloc(int count)
 	{
 		var toReturn = Mem.Rent<EntityHandle>(count);
-		Alloc(toReturn.Span);
+		Alloc(toReturn.GetSpan());
 		return toReturn;
 	}
 
 	public void Alloc(Span<EntityHandle> output)
 	{
 		using var allocSpanOwner = RentedMem<int>.Allocate(output.Length);
-		var allocIndicies = allocSpanOwner.Span;
+		var allocIndicies = allocSpanOwner.GetSpan();
 		_storage.Alloc(allocIndicies);
 		var storageArray = _storage._storage;
 
@@ -137,7 +137,7 @@ public class EntityRegistry
 	{
 		__.DebugAssertOnceIfNot(handles._IsSorted(), "sort first");
 		using var freeSpanOwner = RentedMem<int>.Allocate(handles.Length);
-		var freeSpan = freeSpanOwner.Span;
+		var freeSpan = freeSpanOwner.GetSpan();
 		for (var i = 0; i < handles.Length; i++)
 		{
 			var handle = handles[i];
@@ -151,7 +151,7 @@ public class EntityRegistry
 	{
 		//__.CHECKED.AssertOnce(tokens._IsSorted(), "sort first"); //accessTokens are sorted differently
 		using var freeSpanOwner = RentedMem<int>.Allocate(tokens.Length);
-		var freeSpan = freeSpanOwner.Span;
+		var freeSpan = freeSpanOwner.GetSpan();
 		for (var i = 0; i < tokens.Length; i++)
 		{
 			var handle = tokens[i].entityHandle;
@@ -525,7 +525,7 @@ public partial class Page //unit test
 		__.GetLogger()._EzErrorThrow<SimStormException>(entityRegistry.Count == 0);
 		var count = pageCount;
 		using var allocOwner = RentedMem<Page>.Allocate(count);
-		var allocs = allocOwner.Span;
+		var allocs = allocOwner.GetSpan();
 		for (var i = 0; i < count; i++)
 		{
 			allocs[i] = _TEST_HELPER_CreateAndEditPage(entityRegistry, autoPack, chunkSize, entityCount);
@@ -595,9 +595,9 @@ public partial class Page //unit test
 		//}
 		//Span<long> entityHandles = stackalloc long[] { 2, 4, 8, 7, -2 };
 		using var tokensOwner = RentedMem<AccessToken>.Allocate(entityCount);
-		var tokens = tokensOwner.Span;
+		var tokens = tokensOwner.GetSpan();
 		using var entitiesOwner = RentedMem<EntityHandle>.Allocate(entityCount);
-		var entities = entitiesOwner.Span;
+		var entities = entitiesOwner.GetSpan();
 		page.AllocEntityNew(tokens, entities);
 		return page;
 	}
@@ -639,9 +639,9 @@ public partial class Page //unit test
 
 		//Span<long> entityHandles = stackalloc long[] { 2, 4, 8, 7, -2 };
 		using var tokensOwner = RentedMem<AccessToken>.Allocate(entityCount);
-		var tokens = tokensOwner.Span;
+		var tokens = tokensOwner.GetSpan();
 		using var entitiesOwner = RentedMem<EntityHandle>.Allocate(entityCount);
-		var entities = entitiesOwner.Span;
+		var entities = entitiesOwner.GetSpan();
 		page.AllocEntityNew(tokens, entities);
 
 
@@ -739,7 +739,7 @@ public partial class Page //unit test
 		using var secondAgainSO = RentedMem<AccessToken>.Allocate(second.Length);
 		//var oddSpan = oddTokens.Span;
 		//page.Alloc(oddSet.ToArray(), oddSpan);
-		page.AllocEntityNew(secondAgainSO.Span, second);
+		page.AllocEntityNew(secondAgainSO.GetSpan(), second);
 		__.GetLogger()._EzErrorThrow<SimStormException>(page.Count == second.Length + first.Length);
 
 
@@ -1415,7 +1415,7 @@ public partial class Page //alloc/free/pack logic
 	public void AllocEntityNew(Span<AccessToken> outputAccessTokens)
 	{
 		using var entitiesOwner = RentedMem<EntityHandle>.Allocate(outputAccessTokens.Length);
-		var outputEntityHandles = entitiesOwner.Span;
+		var outputEntityHandles = entitiesOwner.GetSpan();
 		AllocEntityNew(outputAccessTokens, outputEntityHandles);
 	}
 
@@ -1632,7 +1632,7 @@ public partial class Page //alloc/free/pack logic
 
 
 		using var so_PageAccessTokens = RentedMem<AccessToken>.Allocate(entityHandles.Length);
-		var pageTokens = so_PageAccessTokens.Span;
+		var pageTokens = so_PageAccessTokens.GetSpan();
 
 		//get tokens for freeing
 		for (var i = 0; i < entityHandles.Length; i++)

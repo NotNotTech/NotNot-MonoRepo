@@ -381,7 +381,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	public RentedMem<SlotHandle> AllocSlots(int count)
 	{
 		var toReturn = Mem.Rent<SlotHandle>(count);
-		var slotSpan = toReturn.Span;
+		var slotSpan = toReturn.GetSpan();
 		lock (_lock)
 		{
 			for (var i = 0; i < count; i++)
@@ -415,7 +415,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	{
 		var toReturn = AllocSlots(values.Length);
 
-		values.MapWith(toReturn, (ref T value, ref SlotHandle slot) =>
+		values.MapWith(toReturn.GetSpan(), (ref T value, ref SlotHandle slot) =>
 		{
 			_data[slot.Index] = value;
 		});

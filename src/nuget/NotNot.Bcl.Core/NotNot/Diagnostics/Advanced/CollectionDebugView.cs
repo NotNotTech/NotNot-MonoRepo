@@ -58,7 +58,7 @@ public sealed class CollectionDebugView<T>
 
 	[DebuggerBrowsable(DebuggerBrowsableState.Collapsed)]
 	//public T[]? Items { get; }
-	public Span<T> Items => _collection.Span;
+	public Span<T> Items => _collection.GetSpan();
 
 	public int Length { get; }
 }
