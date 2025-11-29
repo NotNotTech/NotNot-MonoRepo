@@ -126,7 +126,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// <para>Free slots may contain garbage data.</para>
 	/// </remarks>
 	/// <returns>A memory wrapper around the internal data array.</returns>
-	public Mem<T> Data_Mem => _data;
+	public Mem<T> Data_Mem => Mem.Wrap(_data);
 
 	/// <summary>
 	/// Gets a span view of the backing data array.
@@ -154,7 +154,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// <para>Use only for advanced scenarios like custom serialization or debugging.</para>
 	/// </remarks>
 	/// <returns>A memory wrapper around the allocation tracker list.</returns>
-	public Mem<SlotHandle> AllocTracker_Unsafe => _allocTracker;
+	public Mem<SlotHandle> AllocTracker_Unsafe => Mem.Wrap(_allocTracker);
 
 	/// <summary>
 	/// Gets the count of currently allocated (used) slots.
@@ -378,9 +378,9 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// }
 	/// </code>
 	/// </example>
-	public Mem<SlotHandle> AllocSlots(int count)
+	public RentedMem<SlotHandle> AllocSlots(int count)
 	{
-		var toReturn = Mem<SlotHandle>.Allocate(count);
+		var toReturn = Mem.Rent<SlotHandle>(count);
 		var slotSpan = toReturn.Span;
 		lock (_lock)
 		{
@@ -389,7 +389,6 @@ public class RefSlotStore<T> : IDisposeGuard
 				var hSlot = AllocSlot();
 				slotSpan[i] = hSlot;
 			}
-
 			return toReturn;
 		}
 	}
@@ -412,7 +411,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// // Slots now contain the position values
 	/// </code>
 	/// </example>
-	public Mem<SlotHandle> AllocValues(Mem<T> values)
+	public RentedMem<SlotHandle> AllocValues(Mem<T> values)
 	{
 		var toReturn = AllocSlots(values.Length);
 
@@ -796,7 +795,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// }
 	/// </code>
 	/// </remarks>
-	public Mem<(SlotHandle fromSlot, SlotHandle toSlot)> Compact()
+	public RentedMem<(SlotHandle fromSlot, SlotHandle toSlot)> Compact()
 	{
 		lock (_lock)
 		{

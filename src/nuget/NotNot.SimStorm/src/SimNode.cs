@@ -235,9 +235,9 @@ public abstract partial class SimNode //tree logic
 	public bool IsAdded { get; private set; }
 
 
-	public Mem<SimNode> GetHierarchy()
+	public RentedMem<SimNode> GetHierarchy()
 	{
-		var toReturn = Mem<SimNode>.Allocate(HierarchyDepth + 1);
+		var toReturn = Mem.Rent<SimNode>(HierarchyDepth + 1);
 
 		var writeable = toReturn;
 

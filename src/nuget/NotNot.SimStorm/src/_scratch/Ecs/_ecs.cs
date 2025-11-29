@@ -20,8 +20,8 @@ namespace NotNot.SimStorm._scratch.Ecs;
 //public delegate void CreateEntitiesCallback(ReadOnlySpan<AccessToken> accessTokens, ReadOnlySpan<EntityHandle> entities, Archetype archetype);
 //public delegate void DeleteEntitiesCallback(ReadOnlySpan<AccessToken> accessTokens, Archetype archetype);
 using CreateEntitiesCallback =
-	Action<(Mem<AccessToken> accessTokens, Mem<EntityHandle> entityHandles, Archetype archetype)>;
-using DeleteEntitiesCallback = Action<(Mem<AccessToken> accessTokens, Archetype archetype)>;
+	Action<(EphemeralReadMem<AccessToken> accessTokens, EphemeralReadMem<EntityHandle> entityHandles, Archetype archetype)>;
+using DeleteEntitiesCallback = Action<(EphemeralReadMem<AccessToken> accessTokens, Archetype archetype)>;
 
 /// <summary>
 ///    A "Simulation World".  all archetypes, their entities, their components, and systems are under a single world.
@@ -1270,9 +1270,9 @@ public partial class Archetype //passthrough of page stuff
 		//need to get a unique page per partitionComponent grouping
 
 		//create entityHandles
-		var entityHandlesMem = Mem<EntityHandle>.Allocate(count);
+		using var entityHandlesMem = Mem.Rent<EntityHandle>(count);
 		var entityHandles = entityHandlesMem.Span;
-		var accessTokensMem = Mem<AccessToken>.Allocate(count);
+		using var accessTokensMem = Mem.Rent<AccessToken>(count);
 		var accessTokens = accessTokensMem.Span;
 		_entityRegistry.Alloc(entityHandles);
 
@@ -1286,7 +1286,7 @@ public partial class Archetype //passthrough of page stuff
 		page.AllocEntityNew(accessTokens, entityHandles);
 
 		_count += entityHandles.Length;
-		doneCallback((accessTokensMem, entityHandlesMem, this));
+		doneCallback((accessTokensMem.CastEphermialRO(), entityHandlesMem.CastEphermialRO(), this));
 	}
 
 	/// <summary>
@@ -1302,9 +1302,9 @@ public partial class Archetype //passthrough of page stuff
 			"the specified page should be part of this archetype, otherwise the following logic is invalid");
 		containingPage.Free(toDelete);
 		//call the callback to notify
-		var pageMem = Mem<AccessToken>.Allocate(toDelete);
+		using var pageMem = Mem.Rent<AccessToken>(toDelete);
 		_count -= toDelete.Length;
-		doneCallback((pageMem, this));
+		doneCallback((pageMem.CastEphermial(), this));
 	}
 }
 

@@ -63,52 +63,58 @@ public static class Mem
 	}
 
 	/// <summary>
+	///   Wrap a rented array from ObjectPool as the backing storage
+	/// </summary>
+	public static RentedMem<T> Wrap<T>(NotNot._internal.ObjectPool.RentedArray<T> rentedArray)
+	{
+		return new RentedMem<T>(rentedArray, isTrueOwner: true);
+	}
+
+	/// <summary>
+	///   Wrap a rented list from ObjectPool as the backing storage
+	/// </summary>
+	public static RentedMem<T> Wrap<T>(NotNot._internal.ObjectPool.Rented<List<T>> rentedList)
+	{
+		return new RentedMem<T>(rentedList, isTrueOwner: true);
+	}
+
+
+
+
+	/// <summary>
 	///    allocate from the pool (recycles the backing array for reuse when done)
 	/// </summary>
-	public static Mem<T> AllocateAndAssign<T>(T singleItem)
+	public static RentedMem<T> RentSingle<T>(T singleItem)
 	{
-		return Mem<T>.AllocateAndAssign(singleItem);
+		return RentedMem<T>.AllocateAndAssign(singleItem);
 	}
 
 	/// <summary>
 	///    allocate from the pool (recycles the backing array for reuse when done)
 	/// </summary>
-	public static Mem<T> Allocate<T>(int count)
+	public static RentedMem<T> Rent<T>(int count)
 	{
-		return Mem<T>.Allocate(count);
+		return RentedMem<T>.Allocate(count);
 	}
 
 	/// <summary>
 	///    allocate from the pool (recycles the backing array for reuse when done)
 	/// </summary>
-	public static Mem<T> Allocate<T>(ReadOnlySpan<T> span)
+	public static RentedMem<T> Rent<T>(ReadOnlySpan<T> span)
 	{
-		return Mem<T>.Allocate(span);
+		var toReturn = Mem.Rent<T>(span.Length);
+		span.CopyTo(toReturn.Span);
+		return toReturn;
 	}
 
 	/// <summary>
-	///   use an existing collection as the backing storage
+	///  legacy conversion method.
 	/// </summary>
 	public static Mem<T> Wrap<T>(Mem<T> writeMem)
 	{
 		return writeMem;
 	}
 
-	/// <summary>
-	///   Wrap a rented array from ObjectPool as the backing storage
-	/// </summary>
-	public static Mem<T> Wrap<T>(NotNot._internal.ObjectPool.RentedArray<T> rentedArray)
-	{
-		return new Mem<T>(rentedArray, isTrueOwner: true);
-	}
-
-	/// <summary>
-	///   Wrap a rented list from ObjectPool as the backing storage
-	/// </summary>
-	public static Mem<T> Wrap<T>(NotNot._internal.ObjectPool.Rented<List<T>> rentedList)
-	{
-		return new Mem<T>(rentedList, isTrueOwner: true);
-	}
 
 	/// <summary>
 	///   Wrap a single item as the backing storage. Creates a span-accessible single-element Mem.
@@ -128,7 +134,7 @@ public static class Mem
 /// <typeparam name="T">Element type</typeparam>
 public readonly struct Mem<T> : IDisposable
 {
-	//implicit operators
+	////implicit operators
 	public static implicit operator Mem<T>(T[] array) => new Mem<T>(array);
 	public static implicit operator Mem<T>(ArraySegment<T> arraySegment) => new Mem<T>(arraySegment);
 	public static implicit operator Mem<T>(List<T> list) => new Mem<T>(list);
@@ -178,7 +184,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <summary>
 	/// Represents an empty memory view with zero elements
 	/// </summary>
-	public static readonly Mem<T> Empty = new(ArraySegment<T>.Empty, 0, 0);
+	public static readonly Mem<T> Empty = new(MemBackingStorageType.Empty, null, 0, 0, false);
 
 	/// <summary>
 	/// Cached reflection info for accessing List{T}'s internal array field
@@ -214,6 +220,17 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	internal Mem(Memory<T> owner) : this(owner, 0, owner.Length) { }
 
+	/// <summary>
+	/// Internal constructor for creating from validated backing storage
+	/// </summary>
+	internal Mem(MemBackingStorageType backingStorageType, object backingStorage, int segmentOffset, int segmentCount, bool isTrueOwner)
+	{
+		_backingStorageType = backingStorageType;
+		_backingStorage = backingStorage;
+		_segmentOffset = segmentOffset;
+		_segmentCount = segmentCount;
+		_isTrueOwner = isTrueOwner;
+	}
 
 	/// <summary>
 	/// Creates a memory view backed by ObjectPool rented array
@@ -378,48 +395,48 @@ public readonly struct Mem<T> : IDisposable
 		_segmentCount = sliceCount;
 	}
 
-	public static Mem<T> Clone(Mem<T> toClone)
+	public static RentedMem<T> Clone(Mem<T> toClone)
 	{
-		var copy = Mem<T>.Allocate(toClone.Length);
+		var copy = Mem.Rent<T>(toClone.Length);
 		toClone.Span.CopyTo(copy.Span);
 		return copy;
 	}
 
-	/// <summary>
-	///    allocate memory from the shared pool.
-	///    If your Type is a reference type or contains references, be sure to use clearOnDispose otherwise you will have
-	///    memory leaks.
-	///    also note that the memory is not cleared by default.
-	/// </summary>
-	public static Mem<T> Allocate(int size)
-	{
-		//__.AssertOnce(RuntimeHelpers.IsReferenceOrContainsReferences<T>() == false || clearOnDispose, "alloc of classes via memPool can/will cause leaks");
-		var mo = MemoryOwner_Custom<T>.Allocate(size, AllocationMode.Clear);
-		//mo.ClearOnDispose = clearOnDispose;
-		return new Mem<T>(mo, isTrueOwner: true);
-	}
+	///// <summary>
+	/////    allocate memory from the shared pool.
+	/////    If your Type is a reference type or contains references, be sure to use clearOnDispose otherwise you will have
+	/////    memory leaks.
+	/////    also note that the memory is not cleared by default.
+	///// </summary>
+	//public static Mem<T> Allocate(int size)
+	//{
+	//	//__.AssertOnce(RuntimeHelpers.IsReferenceOrContainsReferences<T>() == false || clearOnDispose, "alloc of classes via memPool can/will cause leaks");
+	//	var mo = MemoryOwner_Custom<T>.Allocate(size, AllocationMode.Clear);
+	//	//mo.ClearOnDispose = clearOnDispose;
+	//	return new Mem<T>(mo, isTrueOwner: true);
+	//}
 
-	/// <summary>
-	///    allocate memory from the shared pool and copy the contents of the specified span into it
-	/// </summary>
-	public static Mem<T> Allocate(ReadOnlySpan<T> span)
-	{
-		var toReturn = Allocate(span.Length);
-		span.CopyTo(toReturn.Span);
-		return toReturn;
-	}
+	///// <summary>
+	/////    allocate memory from the shared pool and copy the contents of the specified span into it
+	///// </summary>
+	//public static Mem<T> Allocate(ReadOnlySpan<T> span)
+	//{
+	//	var toReturn = Allocate(span.Length);
+	//	span.CopyTo(toReturn.Span);
+	//	return toReturn;
+	//}
 
-	/// <summary>
-	/// Allocates a single-element memory from the pool and assigns the specified value
-	/// </summary>
-	/// <param name="singleItem">Item to store in the allocated memory</param>
-	/// <returns>Pooled memory containing the single item</returns>
-	public static Mem<T> AllocateAndAssign(T singleItem)
-	{
-		var mem = Allocate(1);
-		mem[0] = singleItem;
-		return mem;
-	}
+	///// <summary>
+	///// Allocates a single-element memory from the pool and assigns the specified value
+	///// </summary>
+	///// <param name="singleItem">Item to store in the allocated memory</param>
+	///// <returns>Pooled memory containing the single item</returns>
+	//public static Mem<T> AllocateAndAssign(T singleItem)
+	//{
+	//	var mem = Allocate(1);
+	//	mem[0] = singleItem;
+	//	return mem;
+	//}
 
 
 
@@ -442,11 +459,11 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TResult">Result element type</typeparam>
 	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by reference</param>
-	public void Map<TResult>(Mem<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
+	public void Map<TResult>(Span<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		var thisSpan = Span;
-		var toReturnSpan = toReturn.Span;
+		var toReturnSpan = toReturn;
 		for (var i = 0; i < Length; i++)
 		{
 			ref var r_mappedResult = ref mapFunc(ref thisSpan[i]);
@@ -460,9 +477,9 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TResult">Result element type</typeparam>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by reference</param>
 	/// <returns>New pooled memory containing mapped results</returns>
-	public Mem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
+	public RentedMem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem.Rent<TResult>(Length);
 		Map(toReturn, mapFunc);
 		return toReturn;
 	}
@@ -473,11 +490,11 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TResult">Result element type</typeparam>
 	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
-	public void Map<TResult>(Mem<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
+	public void Map<TResult>(Span<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		var thisSpan = Span;
-		var toReturnSpan = toReturn.Span;
+		var toReturnSpan = toReturn;
 		for (var i = 0; i < Length; i++)
 		{
 			var mappedResult = mapFunc(ref thisSpan[i]);
@@ -491,11 +508,11 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TResult">Result element type</typeparam>
 	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
-	public void Map<TResult>(Mem<TResult> toReturn, Func<T, TResult> mapFunc)
+	public void Map<TResult>(Span<TResult> toReturn, Func<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		var thisSpan = Span;
-		var toReturnSpan = toReturn.Span;
+		var toReturnSpan = toReturn;
 		for (var i = 0; i < Length; i++)
 		{
 			var mappedResult = mapFunc(thisSpan[i]);
@@ -509,9 +526,9 @@ public readonly struct Mem<T> : IDisposable
 		/// <typeparam name="TResult">Result element type</typeparam>
 		/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
 		/// <returns>New pooled memory containing mapped results</returns>
-	public Mem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
+	public RentedMem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem.Rent<TResult>(Length);
 		Map(toReturn, mapFunc);
 		return toReturn;
 	}
@@ -521,9 +538,9 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TResult">Result element type</typeparam>
 	/// <param name="mapFunc">Function that maps each element by reference, returning result by value</param>
 	/// <returns>New pooled memory containing mapped results</returns>
-	public Mem<TResult> Map<TResult>(Func<T, TResult> mapFunc)
+	public RentedMem<TResult> Map<TResult>(Func<T, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem.Rent<TResult>(Length);
 		Map(toReturn, mapFunc);
 		return toReturn;
 	}
@@ -536,13 +553,13 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="toReturn">Output buffer to write mapped results to. Must have same length as this Mem.</param>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Function that maps pairs of elements by reference, returning result by reference</param>
-	public void MapWith<TOther, TResult>(Mem<TResult> toReturn, Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	public void MapWith<TOther, TResult>(Span<TResult> toReturn, Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = Span;
-		var otherSpan = otherToMapWith.Span;
-		var toReturnSpan = toReturn.Span;
+		var otherSpan = otherToMapWith;
+		var toReturnSpan = toReturn;
 
 		for (var i = 0; i < Length; i++)
 		{
@@ -559,9 +576,9 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Function that maps pairs of elements by reference, returning result by reference</param>
 	/// <returns>New pooled memory containing mapped results</returns>
-	public Mem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	public RentedMem<TResult> MapWith<TOther, TResult>(Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem.Rent<TResult>(Length);
 		MapWith(toReturn, otherToMapWith, mapFunc);
 		return toReturn;
 	}
@@ -572,11 +589,11 @@ public readonly struct Mem<T> : IDisposable
 	/// <typeparam name="TOther">Element type of the other memory</typeparam>
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="mapFunc">Action that processes pairs of elements by reference</param>
-	public void MapWith<TOther>(Mem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	public void MapWith<TOther>(Span<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = Span;
-		var otherSpan = otherToMapWith.Span;
+		var otherSpan = otherToMapWith;//.Span;
 
 		for (var i = 0; i < Length; i++)
 		{
@@ -592,7 +609,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
 	/// <param name="worker">Action executed for each contiguous batch, receiving a `Mem` slice that references this instance's backing store.</param>
 	/// <returns>A completed task once all batches have been processed.</returns>
-	public async ValueTask BatchMap(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, ValueTask> worker)
+	public async ValueTask BatchMap(Func_RefArg<T, T, bool> isSameBatch, Func<Span<T>, ValueTask> worker)
 	{
 		if (Length == 0)
 		{
@@ -635,7 +652,7 @@ public readonly struct Mem<T> : IDisposable
 		return end;
 	}
 
-	public async ValueTask BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, Mem<TOther>, ValueTask> worker)
+	public async ValueTask BatchMapWith<TOther>(EphemeralMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<EphemeralMem<T>, EphemeralMem<TOther>, ValueTask> worker)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 
@@ -647,7 +664,7 @@ public readonly struct Mem<T> : IDisposable
 		while (batchStart < Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(batchStart, this, isSameBatch);
-			await worker(Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
+			await worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
 			batchStart = batchEnd;
 		}
 	}
@@ -658,7 +675,7 @@ public readonly struct Mem<T> : IDisposable
 	/// </summary>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
 	/// <param name="worker">Action executed for each contiguous batch, receiving a Mem slice that references this instance's backing store.</param>
-	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<Mem<T>> worker)
+	public void BatchMap(Func_RefArg<T, T, bool> isSameBatch, Action<Span<T>> worker)
 	{
 		if (Length == 0)
 		{
@@ -680,7 +697,7 @@ public readonly struct Mem<T> : IDisposable
 	/// <param name="otherToMapWith">Other memory to map in parallel with this one</param>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch</param>
 	/// <param name="worker">Action executed for each contiguous batch</param>
-	public void BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<Mem<T>, Mem<TOther>> worker)
+	public void BatchMapWith<TOther>(Span<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<Span<T>, Span<TOther>> worker)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 
@@ -701,9 +718,9 @@ public readonly struct Mem<T> : IDisposable
 	/// Creates a deep copy of this Mem with contents copied to new pool-backed storage
 	/// </summary>
 	/// <returns>New pooled memory containing a copy of this memory's contents</returns>
-	public Mem<T> Clone()
+	public RentedMem<T> Clone()
 	{
-		var copy = Mem<T>.Allocate(Length);
+		var copy = Mem.Rent<T>(Length);
 		Span.CopyTo(copy.Span);
 		return copy;
 	}
@@ -727,6 +744,8 @@ public readonly struct Mem<T> : IDisposable
 
 			switch (_backingStorageType)
 			{
+				case MemBackingStorageType.Empty:
+					return Span<T>.Empty;
 				case MemBackingStorageType.MemoryOwner_Custom:
 					{
 						var owner = (MemoryOwner_Custom<T>)_backingStorage;
@@ -835,7 +854,7 @@ public readonly struct Mem<T> : IDisposable
 			case MemBackingStorageType.SingleItem:
 				//do nothing, let the GC handle backing.
 				break;
-			case MemBackingStorageType.None:
+			case MemBackingStorageType.Empty:
 				//disposal of non-initialized/used storage.  ignore
 				break;
 			default:
@@ -913,6 +932,8 @@ public readonly struct Mem<T> : IDisposable
 
 		switch (_backingStorageType)
 		{
+			case MemBackingStorageType.Empty:
+				return Array.Empty<T>();
 			case MemBackingStorageType.MemoryOwner_Custom:
 				{
 					var owner = (MemoryOwner_Custom<T>)_backingStorage;
