@@ -161,6 +161,14 @@ public readonly struct Mem<T>
 	/// </summary>
 	public static implicit operator ReadOnlySpan<T>(Mem<T> mem) => mem.Span;
 
+
+
+	/// <summary>
+	/// Cached reflection info for accessing List{T}'s internal array field
+	/// </summary>
+	internal static readonly FieldInfo? _listItemsField = typeof(List<T>).GetField("_items", BindingFlags.NonPublic | BindingFlags.Instance);
+
+
 	// ========== Internal fields - mirrors Mem<T> structure ==========
 
 	/// <summary>
@@ -206,11 +214,20 @@ public readonly struct Mem<T>
 		_segmentCount = rawSpan.Length;
 
 #if CHECKED
+		//list handling
 		switch (_backingStorageType)
 		{
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.RentedList:
-				_listLength = rawSpan.Length;
+				switch (backingStorage)
+				{
+					case List<T> list:
+						_listLength = list.Count;
+						break;
+					case NotNot._internal.ObjectPool.Rented<List<T>> rentedList:
+						_listLength = rentedList.Value.Count;
+						break;
+				}
 				break;
 		}
 #endif
@@ -226,11 +243,20 @@ public readonly struct Mem<T>
 		_segmentCount = segmentCount;
 
 #if CHECKED
+		//list handling
 		switch (_backingStorageType)
 		{
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.RentedList:
-				_listLength = _GetRawSpan().Length;
+				switch (backingStorage)
+				{
+					case List<T> list:
+						_listLength = list.Count;
+						break;
+					case NotNot._internal.ObjectPool.Rented<List<T>> rentedList:
+						_listLength = rentedList.Value.Count;
+						break;
+				}
 				break;
 		}
 #endif
@@ -260,7 +286,7 @@ public readonly struct Mem<T>
 			{
 				case MemBackingStorageType.List:
 				case MemBackingStorageType.RentedList:
-					__.AssertIfNot(_listLength == rawSpan.Length);
+					__.AssertIfNot(_listLength == rawSpan.Length, "backing list size was modified since this Mem was created.  Mem/RentedMem sizes should be immutable");
 					break;
 			}
 #endif
@@ -607,5 +633,89 @@ public readonly struct Mem<T>
 			end++;
 		}
 		return end;
+	}
+
+	/// <summary>
+	/// Uses reflection to access the internal array backing a List{T}
+	/// </summary>
+	/// <param name="list">List to extract internal array from</param>
+	/// <returns>Internal array backing the list</returns>
+	private static T[] _GetListItemsArray(List<T> list)
+	{
+		if (_listItemsField is null)
+		{
+			throw __.Throw("List<T> layout not supported; backing _items field missing");
+		}
+
+		return (T[]?)_listItemsField.GetValue(list) ?? Array.Empty<T>();
+	}
+
+	/// <summary>
+	/// Gets the underlying array segment.
+	/// <para>IMPORTANT:  Use with caution. The array may be larger than this view and may be pooled, and if you keep a ref to the array it may become out-of-date with the backing storage</para>
+	/// </summary>
+	/// <returns>Array segment representing this memory's backing storage</returns>
+	public ArraySegment<T> DangerousGetArray()
+	{
+		switch (_backingStorageType)
+		{
+			case MemBackingStorageType.Empty:
+				return Array.Empty<T>();
+			case MemBackingStorageType.MemoryOwner_Custom:
+				{
+					var owner = (MemoryOwner_Custom<T>)_backingStorage;
+					var ownerSegment = owner.DangerousGetArray();
+					__.ThrowIfNot(ownerSegment.Array is not null, "owner must expose an array");
+					__.ThrowIfNot(_segmentOffset >= 0 && _segmentOffset + _segmentCount <= ownerSegment.Count);
+					var absoluteOffset = ownerSegment.Offset + _segmentOffset;
+					return new ArraySegment<T>(ownerSegment.Array, absoluteOffset, _segmentCount);
+				}
+			case MemBackingStorageType.Array:
+				{
+					var array = (T[])_backingStorage;
+					return new ArraySegment<T>(array, _segmentOffset, _segmentCount);
+				}
+			case MemBackingStorageType.List:
+				{
+					var list = (List<T>)_backingStorage;
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= list.Count);
+					var items = _GetListItemsArray(list);
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= items.Length);
+					return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
+				}
+			case MemBackingStorageType.Memory:
+				{
+					var memory = (Memory<T>)_backingStorage;
+					if (MemoryMarshal.TryGetArray((ReadOnlyMemory<T>)memory, out var arraySegment) && arraySegment.Array is not null)
+					{
+						var offset = arraySegment.Offset + _segmentOffset;
+						__.ThrowIfNot(offset >= arraySegment.Offset && offset + _segmentCount <= arraySegment.Offset + arraySegment.Count);
+						return new ArraySegment<T>(arraySegment.Array, offset, _segmentCount);
+					}
+
+					throw __.Throw("Cannot expose array for memory that is not array-backed");
+				}
+			case MemBackingStorageType.RentedArray:
+				{
+					var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
+					var array = rentedArray.Value;
+					__.ThrowIfNot(array is not null, "RentedArray must have non-null array");
+					return new ArraySegment<T>(array, _segmentOffset, _segmentCount);
+				}
+			case MemBackingStorageType.RentedList:
+				{
+					var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
+					var list = rentedList.Value;
+					__.ThrowIfNot(list is not null, "RentedList must have non-null list");
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= list.Count);
+					var items = _GetListItemsArray(list);
+					__.ThrowIfNot(_segmentOffset + _segmentCount <= items.Length);
+					return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
+				}
+			case MemBackingStorageType.SingleItem:
+				throw __.Throw("SingleItem backing storage does not support DangerousGetArray - use Span property instead");
+			default:
+				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
+		}
 	}
 }
