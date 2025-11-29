@@ -415,7 +415,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	{
 		var toReturn = AllocSlots(values.Length);
 
-		values.MapWith(toReturn.GetSpan(), (ref T value, ref SlotHandle slot) =>
+		values.MapWith(toReturn, (ref T value, ref SlotHandle slot) =>
 		{
 			_data[slot.Index] = value;
 		});

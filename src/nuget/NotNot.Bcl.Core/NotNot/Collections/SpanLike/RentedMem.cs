@@ -37,9 +37,9 @@ public readonly struct RentedMem<T> : IDisposable
 {
 	public static readonly RentedMem<T> Empty = new(MemBackingStorageType.Empty, null);
 
-	// NOTE: Implicit conversion to Span<T> removed intentionally.
-	// GetSpan() is not cheap (switch dispatch, validation, slicing).
-	// Callers must explicitly call GetSpan() once and consume the result.
+	// Implicit conversion to Span - useful when assigning to Span variables or passing to Span parameters
+	public static implicit operator Span<T>(RentedMem<T> mem) => mem.GetSpan();
+	public static implicit operator ReadOnlySpan<T>(RentedMem<T> mem) => mem.GetSpan();
 
 
 	/// <summary>
@@ -126,7 +126,7 @@ public readonly struct RentedMem<T> : IDisposable
 	public static RentedMem<T> Clone(Mem<T> toClone)
 	{
 		var copy = RentedMem<T>.Allocate(toClone.Length);
-		toClone.GetSpan().CopyTo(copy.GetSpan());
+		toClone.CopyTo(copy);
 		return copy;
 	}
 
@@ -155,7 +155,7 @@ public readonly struct RentedMem<T> : IDisposable
 	public static RentedMem<T> Allocate(ReadOnlySpan<T> span)
 	{
 		var toReturn = Allocate(span.Length);
-		span.CopyTo(toReturn.GetSpan());
+		span.CopyTo(toReturn);
 		return toReturn;
 	}
 
@@ -324,7 +324,7 @@ public readonly struct RentedMem<T> : IDisposable
 	public RentedMem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		Map(toReturn.GetSpan(), mapFunc);
+		Map(toReturn, mapFunc);
 		return toReturn;
 	}
 
@@ -349,7 +349,7 @@ public readonly struct RentedMem<T> : IDisposable
 	public RentedMem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		Map(toReturn.GetSpan(), mapFunc);
+		Map(toReturn, mapFunc);
 		return toReturn;
 	}
 
@@ -377,7 +377,7 @@ public readonly struct RentedMem<T> : IDisposable
 	public RentedMem<TResult> MapWith<TOther, TResult>(Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		MapWith(toReturn.GetSpan(), otherToMapWith, mapFunc);
+		MapWith(toReturn, otherToMapWith, mapFunc);
 		return toReturn;
 	}
 
@@ -483,7 +483,7 @@ public readonly struct RentedMem<T> : IDisposable
 	public RentedMem<T> Clone()
 	{
 		var copy = RentedMem<T>.Allocate(Length);
-		GetSpan().CopyTo(copy.GetSpan());
+		GetSpan().CopyTo(copy);
 		return copy;
 	}
 

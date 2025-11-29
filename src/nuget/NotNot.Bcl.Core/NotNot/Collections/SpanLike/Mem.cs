@@ -35,7 +35,7 @@ public static class Mem
 	/// </summary>
 	public static Mem<T> Wrap<T>(ArraySegment<T> backingStore)
 	{
-		return new Mem<T>(MemBackingStorageType.Array,backingStore.Array,backingStore.Offset,backingStore.Count);
+		return new Mem<T>(MemBackingStorageType.Array, backingStore.Array, backingStore.Offset, backingStore.Count);
 	}
 
 	/// <summary>
@@ -99,7 +99,7 @@ public static class Mem
 	/// <para>useful for when you have explicitly "fire and forget" versions of objects, but should be avoided as an antipattern.</para></param>
 	public static RentedMem<T> Rent<T>(int count, bool allowGCReclaim = false, AllocationMode allocationMode = AllocationMode.Clear)
 	{
-		return RentedMem<T>.Allocate(count, allowGCReclaim,allocationMode);
+		return RentedMem<T>.Allocate(count, allowGCReclaim, allocationMode);
 	}
 
 	/// <summary>
@@ -108,9 +108,11 @@ public static class Mem
 	public static RentedMem<T> Clone<T>(ReadOnlySpan<T> span)
 	{
 		var toReturn = Mem.Rent<T>(span.Length);
-		span.CopyTo(toReturn.GetSpan());
+		span.CopyTo(toReturn);
 		return toReturn;
 	}
+
+
 
 	/// <summary>
 	///  legacy conversion method.
@@ -139,7 +141,7 @@ public static class Mem
 /// <para>Unlike ref struct, this can be used in async methods and stored in fields.</para>
 /// <para>Conversions:</para>
 /// <para>- Implicit FROM: RentedMem{T}, T[], List{T}, Memory{T} - safe narrowing to non-owning view</para>
-/// <para>- NO implicit TO Span{T} - use GetSpan() explicitly. GetSpan() is not cheap due to switch dispatch and validation.</para>
+/// <para>- Implicit TO Span{T}/ReadOnlySpan{T} - useful for assigning to Span variables or passing to Span parameters</para>
 /// <para>- NO conversion TO RentedMem{T} - cannot restore ownership metadata</para>
 /// </remarks>
 /// <typeparam name="T">Element type</typeparam>
@@ -148,7 +150,7 @@ public readonly struct Mem<T>
 
 	// ========== Implicit conversions FROM owning types (safe narrowing) ==========
 
-	public static implicit operator Mem<T>(T[] array) =>Mem.Wrap(array);
+	public static implicit operator Mem<T>(T[] array) => Mem.Wrap(array);
 	public static implicit operator Mem<T>(ArraySegment<T> arraySegment) => Mem.Wrap(arraySegment);
 	public static implicit operator Mem<T>(List<T> list) => Mem.Wrap(list);
 	public static implicit operator Mem<T>(Memory<T> memory) => Mem.Wrap(memory);
@@ -157,9 +159,9 @@ public readonly struct Mem<T>
 	public static implicit operator Mem<T>(_internal.ObjectPool.RentedArray<T> rented) => new(MemBackingStorageType.RentedArray, rented);
 	public static implicit operator Mem<T>(RentedMem<T> mem) => new(mem._backingStorageType, mem._backingStorage, 0, mem.Length);
 
-	// NOTE: Implicit conversion to Span<T> removed intentionally.
-	// GetSpan() is not cheap (switch dispatch, validation, slicing).
-	// Callers must explicitly call GetSpan() once and consume the result.
+	// Implicit conversion to Span - useful when assigning to Span variables or passing to Span parameters
+	public static implicit operator Span<T>(Mem<T> mem) => mem.GetSpan();
+	public static implicit operator ReadOnlySpan<T>(Mem<T> mem) => mem.GetSpan();
 
 
 
@@ -399,7 +401,7 @@ public readonly struct Mem<T>
 	public RentedMem<T> Clone()
 	{
 		var copy = Mem.Rent<T>(Length);
-		GetSpan().CopyTo(copy.GetSpan());
+		GetSpan().CopyTo(copy);
 		return copy;
 	}
 
@@ -457,7 +459,7 @@ public readonly struct Mem<T>
 	public RentedMem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		Map(toReturn.GetSpan(), mapFunc);
+		Map(toReturn, mapFunc);
 		return toReturn;
 	}
 
@@ -482,7 +484,7 @@ public readonly struct Mem<T>
 	public RentedMem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		Map(toReturn.GetSpan(), mapFunc);
+		Map(toReturn, mapFunc);
 		return toReturn;
 	}
 
@@ -510,7 +512,7 @@ public readonly struct Mem<T>
 	public RentedMem<TResult> MapWith<TOther, TResult>(Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
 		var toReturn = Mem.Rent<TResult>(Length);
-		MapWith(toReturn.GetSpan(), otherToMapWith, mapFunc);
+		MapWith(toReturn, otherToMapWith, mapFunc);
 		return toReturn;
 	}
 

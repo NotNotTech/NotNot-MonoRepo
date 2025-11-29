@@ -107,7 +107,7 @@ public class EntityRegistry
 	public RentedMem<EntityHandle> Alloc(int count)
 	{
 		var toReturn = Mem.Rent<EntityHandle>(count);
-		Alloc(toReturn.GetSpan());
+		Alloc(toReturn);
 		return toReturn;
 	}
 
@@ -739,7 +739,7 @@ public partial class Page //unit test
 		using var secondAgainSO = RentedMem<AccessToken>.Allocate(second.Length);
 		//var oddSpan = oddTokens.Span;
 		//page.Alloc(oddSet.ToArray(), oddSpan);
-		page.AllocEntityNew(secondAgainSO.GetSpan(), second);
+		page.AllocEntityNew(secondAgainSO, second);
 		__.GetLogger()._EzErrorThrow<SimStormException>(page.Count == second.Length + first.Length);
 
 
