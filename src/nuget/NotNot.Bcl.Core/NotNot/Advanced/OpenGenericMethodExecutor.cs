@@ -324,7 +324,7 @@ namespace NotNot.Advanced
 
 			var invokeParameters = invokeMethod.GetParameters();
 			using var parameterGuard = RentedMem<Type>.Allocate(invokeParameters.Length);
-			var parameterSpan = parameterGuard.Span;
+			var parameterSpan = parameterGuard.GetSpan();
 			for (int i = 0; i < parameterSpan.Length; i++)
 			{
 				parameterSpan[i] = invokeParameters[i].ParameterType;

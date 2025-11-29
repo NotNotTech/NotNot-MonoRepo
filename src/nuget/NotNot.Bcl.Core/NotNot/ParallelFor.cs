@@ -36,7 +36,7 @@ public static class ParallelFor
 
 
 		var owner = RentedMem<(int startInclusive, int endExclusive)>.Allocate(batchCount);
-		var span = owner.Span;
+		var span = owner.GetSpan();
 
 		//calculate batches and put into span
 		{
@@ -172,7 +172,7 @@ public static class ParallelFor
 		}
 
 		using var owner = _Range_ComputeBatches(start, length, batchSizeMultipler);
-		var span = owner.Span;
+		var span = owner.GetSpan();
 		var array = owner.DangerousGetArray().Array!;
 
 		Parallel.For(0, span.Length,

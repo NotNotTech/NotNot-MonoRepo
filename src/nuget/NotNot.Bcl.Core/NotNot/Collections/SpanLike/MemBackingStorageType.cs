@@ -26,6 +26,11 @@ internal enum MemBackingStorageType
 	None = 0,
 
 	/// <summary>
+	/// zero elements, a readonly placeholder span/array will be used internally.
+	/// </summary>
+	Empty,
+
+	/// <summary>
 	/// if pooled (Mem.Alloc()), this will be set. a reference to the pooled location so it can be recycled
 	/// while this will naturally be GC'd when all referencing Mem{T}'s go out-of-scope, you can manually do so by calling Dispose or the using pattern
 	/// </summary>

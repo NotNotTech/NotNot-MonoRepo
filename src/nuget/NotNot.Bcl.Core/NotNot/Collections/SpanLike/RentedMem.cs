@@ -15,28 +15,6 @@ using NotNot.Collections.Advanced;
 
 namespace NotNot.Collections.SpanLike;
 
-public static class RentedMem
-{
-
-	/// <summary>
-	///   Wrap a rented array from ObjectPool as the backing storage
-	/// </summary>
-	public static RentedMem<T> Wrap<T>(NotNot._internal.ObjectPool.RentedArray<T> rentedArray)
-	{
-		return new RentedMem<T>(rentedArray, isTrueOwner: true);
-	}
-
-	/// <summary>
-	///   Wrap a rented list from ObjectPool as the backing storage
-	/// </summary>
-	public static RentedMem<T> Wrap<T>(NotNot._internal.ObjectPool.Rented<List<T>> rentedList)
-	{
-		return new RentedMem<T>(rentedList, isTrueOwner: true);
-	}
-
-
-
-}
 
 /// <summary>
 /// A "rented" memory wrapper that MUST be disposed by you, the caller.  This will return memory to the pool for reuse without GC pressure.
@@ -55,30 +33,14 @@ public static class RentedMem
 /// - Implicit to Mem{T}: Always allowed
 /// - Explicit from Mem{T}: Only for pooled backing types; throws for non-pooled
 /// </remarks>
-public readonly ref struct RentedMem<T> : IDisposable
+public readonly struct RentedMem<T> : IDisposable
 {
-	/// <summary>
-	/// Implicit conversion to Span for easy use in APIs expecting spans
-	/// </summary>
-	public static implicit operator Span<T>(RentedMem<T> rentedMem) => rentedMem.Span;
+	public static readonly RentedMem<T> Empty = new(MemBackingStorageType.Empty, null);
 
-	///// <summary>
-	///// Implicit conversion to ReadOnlySpan
-	///// </summary>
-	//public static implicit operator ReadOnlySpan<T>(RentedMem<T> rentedMem) => rentedMem.Span;
+	// Implicit conversion to Span - useful when assigning to Span variables or passing to Span parameters
+	public static implicit operator Span<T>(RentedMem<T> mem) => mem.GetSpan();
+	public static implicit operator ReadOnlySpan<T>(RentedMem<T> mem) => mem.GetSpan();
 
-
-
-	///// <summary>
-	///// Implicit conversion to Mem{T} - always safe since RentedMem is a subset of Mem
-	///// </summary>
-	//public static implicit operator Mem<T>(RentedMem<T> rentedMem) => rentedMem.AsMem();
-
-	/// <summary>
-	/// Explicit conversion from Mem{T} - only valid for pooled backing types
-	/// </summary>
-	/// <exception cref="InvalidOperationException">Thrown when Mem has non-pooled backing storage</exception>
-	public static explicit operator RentedMem<T>(Mem<T> mem) => FromMem(mem);
 
 	/// <summary>
 	/// Identifies which type of pooled backing store is being used
@@ -90,20 +52,6 @@ public readonly ref struct RentedMem<T> : IDisposable
 	/// </summary>
 	internal readonly object _backingStorage;
 
-	/// <summary>
-	/// Number of elements in this memory view
-	/// </summary>
-	internal readonly int _segmentCount;
-
-	/// <summary>
-	/// Offset into the backing storage where this view begins
-	/// </summary>
-	internal readonly int _segmentOffset;
-
-	/// <summary>
-	/// If true, disposal will return the backing storage to the pool; if false, it's a slice and should not dispose
-	/// </summary>
-	private readonly bool _isTrueOwner;
 #if CHECKED
 	/// <summary>
 	/// Provides a guard object to ensure that resources are disposed of correctly when the containing object is disposed.
@@ -112,15 +60,7 @@ public readonly ref struct RentedMem<T> : IDisposable
 	/// included when the CHECKED compilation symbol is defined.</remarks>
 	private readonly DisposeGuard _disposeGuard;
 #endif
-	///// <summary>
-	///// Represents an empty rented memory view with zero elements
-	///// </summary>
-	//public static readonly RentedMem<T> Empty = default;
 
-	/// <summary>
-	/// Cached reflection info for accessing List{T}'s internal array field
-	/// </summary>
-	private static readonly FieldInfo? _listItemsField = typeof(List<T>).GetField("_items", BindingFlags.NonPublic | BindingFlags.Instance);
 
 	/// <summary>
 	/// Checks if a backing storage type is pooled/rented
@@ -129,118 +69,55 @@ public readonly ref struct RentedMem<T> : IDisposable
 	private static bool _IsPooledType(MemBackingStorageType type) => type is
 		MemBackingStorageType.MemoryOwner_Custom or
 		MemBackingStorageType.RentedArray or
-		MemBackingStorageType.RentedList;
+		MemBackingStorageType.RentedList or
+		MemBackingStorageType.Empty;
+
 
 	/// <summary>
-	/// Creates a RentedMem from a Mem, validating that the backing is pooled.
-	/// Preserves the source Mem's ownership flag.
+	/// used if the backing storage is a list, to ensure it's not modified
 	/// </summary>
-	/// <exception cref="InvalidOperationException">Thrown when Mem has non-pooled backing storage</exception>
-	public static RentedMem<T> FromMem(Mem<T> mem)
-	{
-		if (!_IsPooledType(mem._backingStorageType))
-		{
-			__.Throw($"Cannot create RentedMem from non-pooled Mem. Backing type '{mem._backingStorageType}' is not pool-backed. " +
-				"RentedMem only supports MemoryOwner_Custom, RentedArray, or RentedList backing.");
-		}
-		return new RentedMem<T>(mem._backingStorageType, mem._backingStorage, mem._segmentOffset, mem._segmentCount, isTrueOwner: mem._isTrueOwner);
-	}
+	private readonly int _listLength;
+
 
 	/// <summary>
 	/// Creates a RentedMem backed by a pooled memory owner
 	/// </summary>
-	internal RentedMem(MemoryOwner_Custom<T> owner, bool isTrueOwner) : this(owner, 0, owner.Length, isTrueOwner) { }
-
-	/// <summary>
-	/// Creates a RentedMem backed by ObjectPool rented array
-	/// </summary>
-	internal RentedMem(NotNot._internal.ObjectPool.RentedArray<T> rentedArray, bool isTrueOwner)
-	{
-		_isTrueOwner = isTrueOwner;
-		_backingStorageType = MemBackingStorageType.RentedArray;
-		_backingStorage = rentedArray;
-		__.ThrowIfNot(rentedArray.Value != null);
-		_segmentOffset = 0;
-		_segmentCount = rentedArray.Value.Length;
-#if CHECKED
-		if (_isTrueOwner)
-		{
-			_disposeGuard = new DisposeGuard();
-		}
-#endif
-	}
-
-	/// <summary>
-	/// Creates a RentedMem backed by ObjectPool rented list
-	/// </summary>
-	internal RentedMem(NotNot._internal.ObjectPool.Rented<List<T>> rentedList, bool isTrueOwner)
-	{
-		_isTrueOwner = isTrueOwner;
-		_backingStorageType = MemBackingStorageType.RentedList;
-		_backingStorage = rentedList;
-		__.ThrowIfNot(rentedList.Value != null);
-		_segmentOffset = 0;
-		_segmentCount = rentedList.Value.Count;
-#if CHECKED
-		if (_isTrueOwner)
-		{
-			_disposeGuard = new DisposeGuard();
-		}
-#endif
-	}
-
-	/// <summary>
-	/// Creates a sliced RentedMem from a pooled memory owner
-	/// </summary>
-	internal RentedMem(MemoryOwner_Custom<T> owner, int sliceOffset, int sliceCount, bool isTrueOwner)
-	{
-		_isTrueOwner = isTrueOwner;
-		_backingStorageType = MemBackingStorageType.MemoryOwner_Custom;
-		_backingStorage = owner;
-		var ownerArraySegment = owner.DangerousGetArray();
-		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= ownerArraySegment.Count);
-		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= ownerArraySegment.Count);
-		_segmentOffset = sliceOffset;
-		_segmentCount = sliceCount;
-#if CHECKED
-		if (_isTrueOwner)
-		{
-			_disposeGuard = new DisposeGuard();
-		}
-#endif
-	}
-
-	/// <summary>
-	/// Internal constructor for creating from validated backing storage
-	/// </summary>
-	private RentedMem(MemBackingStorageType backingStorageType, object backingStorage, int segmentOffset, int segmentCount, bool isTrueOwner)
+	internal RentedMem(MemBackingStorageType backingStorageType, object backingStorage)
 	{
 		__.AssertIfNot(_IsPooledType(backingStorageType), "RentedMem only supports pooled backing types");
+
 		_backingStorageType = backingStorageType;
 		_backingStorage = backingStorage;
-		_segmentOffset = segmentOffset;
-		_segmentCount = segmentCount;
-		_isTrueOwner = isTrueOwner;
+
 #if CHECKED
-		if (_isTrueOwner)
+		//list handling
+		switch (_backingStorageType)
 		{
-			_disposeGuard = new DisposeGuard();
+			case MemBackingStorageType.List:
+			case MemBackingStorageType.RentedList:
+				switch (backingStorage)
+				{
+					case List<T> list:
+						_listLength = list.Count;
+						break;
+					case NotNot._internal.ObjectPool.Rented<List<T>> rentedList:
+						_listLength = rentedList.Value.Count;
+						break;
+				}
+				break;
+		}
+		//disposal tracker
+		switch (_backingStorageType)
+		{
+			case MemBackingStorageType.Empty:
+				//nothing to dispose
+				break;
+			default:
+				_disposeGuard = new DisposeGuard();
+				break;
 		}
 #endif
-	}
 
-	/// <summary>
-	/// Creates a sliced RentedMem from another RentedMem (non-owning)
-	/// </summary>
-	internal RentedMem(RentedMem<T> parent, int sliceOffset, int sliceCount)
-	{
-		_isTrueOwner = false; // Slices never own the backing storage
-		_backingStorageType = parent._backingStorageType;
-		_backingStorage = parent._backingStorage;
-		__.ThrowIfNot(sliceOffset >= 0 && sliceOffset <= parent.Length);
-		__.ThrowIfNot(sliceCount >= 0 && sliceCount + sliceOffset <= parent.Length);
-		_segmentOffset = parent._segmentOffset + sliceOffset;
-		_segmentCount = sliceCount;
 	}
 
 	/// <summary>
@@ -249,18 +126,27 @@ public readonly ref struct RentedMem<T> : IDisposable
 	public static RentedMem<T> Clone(Mem<T> toClone)
 	{
 		var copy = RentedMem<T>.Allocate(toClone.Length);
-		toClone.Span.CopyTo(copy.Span);
+		toClone.CopyTo(copy);
 		return copy;
 	}
 
 	/// <summary>
-	/// Allocates memory from the shared pool.
+	/// Allocates memory from the shared pool. <see cref="MemoryOwner_Custom{T}"/>
 	/// Memory is cleared by default.
 	/// </summary>
-	public static RentedMem<T> Allocate(int size, AllocationMode allocationMode = AllocationMode.Clear)
+	/// <param name="allowGCReclaim">set to TRUE to not get asserts raised if you don't .Dispose() of this properly
+	/// <para>useful for when you have explicitly "fire and forget" versions of objects, but should be avoided as an antipattern.</para></param>
+	public static RentedMem<T> Allocate(int size, bool allowGCReclaim = false, AllocationMode allocationMode = AllocationMode.Clear)
 	{
 		var mo = MemoryOwner_Custom<T>.Allocate(size, allocationMode);
-		return new RentedMem<T>(mo, isTrueOwner: true);
+		var toReturn = new RentedMem<T>(MemBackingStorageType.MemoryOwner_Custom, mo);
+#if CHECKED
+		if (allowGCReclaim)
+		{
+			toReturn._disposeGuard._suppress = true;
+		}
+#endif
+		return toReturn;
 	}
 
 	/// <summary>
@@ -269,7 +155,7 @@ public readonly ref struct RentedMem<T> : IDisposable
 	public static RentedMem<T> Allocate(ReadOnlySpan<T> span)
 	{
 		var toReturn = Allocate(span.Length);
-		span.CopyTo(toReturn.Span);
+		span.CopyTo(toReturn);
 		return toReturn;
 	}
 
@@ -279,101 +165,153 @@ public readonly ref struct RentedMem<T> : IDisposable
 	public static RentedMem<T> AllocateAndAssign(T singleItem)
 	{
 		var mem = Allocate(1);
-		mem.Span[0] = singleItem;
+		mem.GetSpan()[0] = singleItem;
 		return mem;
 	}
 
 	/// <summary>
-	/// Gets a Span{T} slice of this memory. Does NOT create a new RentedMem.
+	/// Gets a Span{T} slice of this memory. Does NOT create a new RentedMem.  need to dispose this one when done.
 	/// Use this for zero-allocation access to subranges.
 	/// </summary>
-	public Span<T> Slice(int offset, int count)
+	public Mem<T> Slice(int offset, int count)
 	{
-		return Span.Slice(offset, count);
+		//return Span.Slice(offset, count);
+		return this.CastEphermial().Slice(offset, count);
 	}
 
 	/// <summary>
-	/// Gets the number of elements in this memory view
+	/// Gets the number of elements in this memory view.
+	/// Computed directly from backing storage without calling GetSpan().
 	/// </summary>
-	public int Length => _segmentCount;
+	public int Length => _GetLength();
 
-	/// <summary>
-	/// Gets a Span{T} view over this memory
-	/// </summary>
-	public Span<T> Span
+	private int _GetLength()
 	{
-		get
+		return _backingStorageType switch
 		{
-			switch (_backingStorageType)
-			{
-				case MemBackingStorageType.MemoryOwner_Custom:
-					{
-						var owner = (MemoryOwner_Custom<T>)_backingStorage;
-						var span = owner.Span;
-						return span.Slice(_segmentOffset, _segmentCount);
-					}
-				case MemBackingStorageType.RentedArray:
-					{
-						var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
-						return new Span<T>(rentedArray.Value, _segmentOffset, _segmentCount);
-					}
-				case MemBackingStorageType.RentedList:
-					{
-						var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
-						return CollectionsMarshal.AsSpan(rentedList.Value).Slice(_segmentOffset, _segmentCount);
-					}
-				case MemBackingStorageType.None:
-					return Span<T>.Empty;
-				default:
-					throw __.Throw($"RentedMem does not support backing type {_backingStorageType}");
-			}
-		}
-	}
-
-	/// <summary>
-	/// Gets a reference to the element at the specified index
-	/// </summary>
-	public ref T this[int index]
-	{
-		get
-		{
-			AssertNotDisposed();
-			return ref Span[index];
-		}
-	}
-
-	/// <summary>
-	/// RentedMem is meant to be disposed in the method scope it is created in.
-	/// <para>you can avoid this by converting to a Mem instead, which lets you hold onto it longer term.  
-	/// You should still dispose when done, but if you don't, it'll automatically get recycled when it exits GC scope.</para>
-	/// </summary>
-	/// <returns></returns>
-	public Mem<T> ConvertToMemAndPersist()
-	{
-		var toReturn = _backingStorageType switch
-		{
-			MemBackingStorageType.MemoryOwner_Custom => new Mem<T>((MemoryOwner_Custom<T>)_backingStorage, _segmentOffset, _segmentCount, _isTrueOwner),
-			MemBackingStorageType.RentedArray => new Mem<T>((NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage, _segmentOffset, _segmentCount, _isTrueOwner),
-			MemBackingStorageType.RentedList => new Mem<T>((NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage, _segmentOffset, _segmentCount, _isTrueOwner),
-			MemBackingStorageType.None => Mem<T>.Empty,
+			MemBackingStorageType.Empty => 0,
+			MemBackingStorageType.MemoryOwner_Custom => ((MemoryOwner_Custom<T>)_backingStorage).Length,
+			MemBackingStorageType.RentedArray => ((NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage).Value.Length,
+			MemBackingStorageType.RentedList => ((NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage).Value.Count,
 			_ => throw __.Throw($"RentedMem does not support backing type {_backingStorageType}")
 		};
+	}
+
+	/// <summary>
+	/// Gets a Span{T} view over this memory.
+	/// <para>IMPORTANT: This method involves switch dispatch, validation, and potential slicing.
+	/// Call once and store the result for iteration rather than calling repeatedly.</para>
+	/// </summary>
+	public Span<T> GetSpan()
+	{
+		Span<T> toReturn;
+		switch (_backingStorageType)
+		{
+			case MemBackingStorageType.Empty:
+				toReturn = Span<T>.Empty;
+				break;
+			case MemBackingStorageType.MemoryOwner_Custom:
+				{
+					var owner = (MemoryOwner_Custom<T>)_backingStorage;
+					var span = owner.Span;
+					toReturn = span;
+					break;
+				}
+			case MemBackingStorageType.RentedArray:
+				{
+					var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
+					var span = rentedArray.Value;
+					toReturn = span;
+					break;
+				}
+			case MemBackingStorageType.RentedList:
+				{
+					var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
+					var span = rentedList.Value._AsSpan();
+					toReturn = span;
+					break;
+				}
+			default:
+				throw __.Throw($"RentedMem does not support backing type {_backingStorageType}");
+		}
+
 #if CHECKED
-		//disable the dispose guard alert.
-		this._disposeGuard?.Dispose();
+		switch (_backingStorageType)
+		{
+			case MemBackingStorageType.List:
+			case MemBackingStorageType.RentedList:
+				__.AssertIfNot(_listLength == toReturn.Length, "backing list size was modified since this Mem was created.  Mem/RentedMem sizes should be immutable");
+				break;
+		}
 #endif
+
 		return toReturn;
 	}
+
+	// NOTE: Indexer this[int index] removed intentionally.
+	// Indexer usage in loops causes repeated GetSpan() calls.
+	// Callers should use: var span = mem.GetSpan(); then span[index]
+
+	//	/// <summary>
+	//	/// RentedMem is meant to be disposed in the method scope it is created in.
+	//	/// <para>you can avoid this by converting to a Mem instead, which lets you hold onto it longer term.  
+	//	/// after converting to a Mem, you should still dispose when done, but if you don't, it'll automatically get recycled when it exits GC scope.</para>
+	//	/// </summary>
+	//	/// <returns></returns>
+	//	public Mem<T> Persist()
+	//	{
+	//		var toReturn = _backingStorageType switch
+	//		{
+	//			MemBackingStorageType.MemoryOwner_Custom => new Mem<T>((MemoryOwner_Custom<T>)_backingStorage, _segmentOffset, _segmentCount, _isTrueOwner),
+	//			MemBackingStorageType.RentedArray => new Mem<T>((NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage, _segmentOffset, _segmentCount, _isTrueOwner),
+	//			MemBackingStorageType.RentedList => new Mem<T>((NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage, _segmentOffset, _segmentCount, _isTrueOwner),
+	//			MemBackingStorageType.Empty => Mem<T>.Empty,
+	//			_ => throw __.Throw($"RentedMem does not support backing type {_backingStorageType}")
+	//		};
+	//#if CHECKED
+	//		//disable the dispose guard alert.
+	//		this._disposeGuard?.Dispose();
+	//#endif
+	//		return toReturn;
+	//	}
+
+	///// <summary>
+	///// Explicit conversion to Mem{T}
+	///// <para>IMPORTANT: this RentedMem will still be the storage owner, so it will still trigger the dispose guard unless you <see cref="Dispose"/> or unless <see cref="Persist"/>() is called</para>
+	///// </summary>
+	///// <returns></returns>
+	//public Mem<T> Cast()
+	//{
+	//	return new Mem<T>(this._backingStorageType, this._backingStorage, this._segmentCount, this._segmentCount, false);
+	//}
+
+	//public EphemeralReadMem<T> CastEphermialRO()
+	//{
+	//	//need to create an EphermialMem<T> variant of RentedMem
+	//	return new EphemeralReadMem<T>(this._backingStorageType, this._backingStorage, this._segmentCount, this._segmentCount);
+	//}
+
+	/// <summary>
+	/// explicitly cast to an ephermial <see cref="Mem"/>.  Note that you still must call <see cref="Dispose"/> on this when done to recycle properly.
+	/// <para>This "explicit cast" method is useful because sometimes the implicit casting isn't enough for .NET</para>
+	/// </summary>
+	/// <returns></returns>
+	public Mem<T> CastEphermial()
+	{
+		//need to create an EphermialMem<T> variant of RentedMem
+		return new Mem<T>(this._backingStorageType, this._backingStorage, 0, Length);
+	}
+
 
 	/// <summary>
 	/// Applies the specified mapping function to each element, writing results to the provided output buffer
 	/// </summary>
-	public void Map<TResult>(Mem<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
+	public void Map<TResult>(Span<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this RentedMem");
-		var thisSpan = Span;
-		var toReturnSpan = toReturn.Span;
-		for (var i = 0; i < Length; i++)
+		var thisSpan = GetSpan();
+		var toReturnSpan = toReturn;
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			ref var r_mappedResult = ref mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = r_mappedResult;
@@ -385,20 +323,20 @@ public readonly ref struct RentedMem<T> : IDisposable
 	/// </summary>
 	public RentedMem<TResult> Map<TResult>(Func_Ref<T, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem.Rent<TResult>(Length);
 		Map(toReturn, mapFunc);
-		return RentedMem<TResult>.FromMem(toReturn);
+		return toReturn;
 	}
 
 	/// <summary>
 	/// Applies the specified mapping function to each element, writing results to the provided output buffer
 	/// </summary>
-	public void Map<TResult>(Mem<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
+	public void Map<TResult>(Span<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this RentedMem");
-		var thisSpan = Span;
-		var toReturnSpan = toReturn.Span;
-		for (var i = 0; i < Length; i++)
+		var thisSpan = GetSpan();
+		var toReturnSpan = toReturn;
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			var mappedResult = mapFunc(ref thisSpan[i]);
 			toReturnSpan[i] = mappedResult;
@@ -410,23 +348,23 @@ public readonly ref struct RentedMem<T> : IDisposable
 	/// </summary>
 	public RentedMem<TResult> Map<TResult>(Func_RefArg<T, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem.Rent<TResult>(Length);
 		Map(toReturn, mapFunc);
-		return RentedMem<TResult>.FromMem(toReturn);
+		return toReturn;
 	}
 
 	/// <summary>
 	/// Maps two memory instances in parallel using the specified function, writing results to the output buffer
 	/// </summary>
-	public void MapWith<TOther, TResult>(Mem<TResult> toReturn, Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	public void MapWith<TOther, TResult>(Span<TResult> toReturn, Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
 		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this RentedMem");
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this RentedMem");
-		var thisSpan = Span;
-		var otherSpan = otherToMapWith.Span;
-		var toReturnSpan = toReturn.Span;
+		var thisSpan = GetSpan();
+		var otherSpan = otherToMapWith;
+		var toReturnSpan = toReturn;
 
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			ref var r_mappedResult = ref mapFunc(ref thisSpan[i], ref otherSpan[i]);
 			toReturnSpan[i] = r_mappedResult;
@@ -436,23 +374,23 @@ public readonly ref struct RentedMem<T> : IDisposable
 	/// <summary>
 	/// Allocates a new pooled RentedMem by mapping two memory instances in parallel
 	/// </summary>
-	public RentedMem<TResult> MapWith<TOther, TResult>(Mem<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
+	public RentedMem<TResult> MapWith<TOther, TResult>(Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
-		var toReturn = Mem<TResult>.Allocate(Length);
+		var toReturn = Mem.Rent<TResult>(Length);
 		MapWith(toReturn, otherToMapWith, mapFunc);
-		return RentedMem<TResult>.FromMem(toReturn);
+		return toReturn;
 	}
 
 	/// <summary>
 	/// Maps two memory instances in parallel using the specified action, modifying elements in place
 	/// </summary>
-	public void MapWith<TOther>(Mem<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
+	public void MapWith<TOther>(Span<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this RentedMem");
-		var thisSpan = Span;
-		var otherSpan = otherToMapWith.Span;
+		var thisSpan = GetSpan();
+		var otherSpan = otherToMapWith;
 
-		for (var i = 0; i < Length; i++)
+		for (var i = 0; i < thisSpan.Length; i++)
 		{
 			mapFunc(ref thisSpan[i], ref otherSpan[i]);
 		}
@@ -469,9 +407,9 @@ public readonly ref struct RentedMem<T> : IDisposable
 		{
 			return;
 		}
-		var span = Span;
+		var span = GetSpan();
 		var batchStart = 0;
-		while (batchStart < Length)
+		while (batchStart < span.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(span, batchStart, isSameBatch);
 			worker(span.Slice(batchStart, batchEnd - batchStart));
@@ -484,7 +422,7 @@ public readonly ref struct RentedMem<T> : IDisposable
 	/// Workers receive Span slices - no allocation.
 	/// IMPORTANT: Assumes the underlying data is sorted so that batching delegate is effective.
 	/// </summary>
-	public void BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<Span<T>, Span<TOther>> worker)
+	public void BatchMapWith<TOther>(Span<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<Span<T>, Span<TOther>> worker)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this RentedMem");
 
@@ -492,13 +430,30 @@ public readonly ref struct RentedMem<T> : IDisposable
 		{
 			return;
 		}
-		var thisSpan = Span;
-		var otherSpan = otherToMapWith.Span;
+		var thisSpan = GetSpan();
+		var otherSpan = otherToMapWith;
 		var batchStart = 0;
-		while (batchStart < Length)
+		while (batchStart < thisSpan.Length)
 		{
 			var batchEnd = _GetBatchEndExclusive(thisSpan, batchStart, isSameBatch);
 			worker(thisSpan.Slice(batchStart, batchEnd - batchStart), otherSpan.Slice(batchStart, batchEnd - batchStart));
+			batchStart = batchEnd;
+		}
+	}
+	public async ValueTask BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, Mem<TOther>, ValueTask> worker)
+	{
+		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
+
+		if (Length == 0)
+		{
+			return;
+		}
+		var batchStart = 0;
+		while (batchStart < Length)
+		{
+			// Re-acquire span each iteration since Span cannot cross await boundary
+			var batchEnd = _GetBatchEndExclusive(GetSpan(), batchStart, isSameBatch);
+			await worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
 			batchStart = batchEnd;
 		}
 	}
@@ -528,48 +483,22 @@ public readonly ref struct RentedMem<T> : IDisposable
 	public RentedMem<T> Clone()
 	{
 		var copy = RentedMem<T>.Allocate(Length);
-		Span.CopyTo(copy.Span);
+		GetSpan().CopyTo(copy);
 		return copy;
 	}
 
 	/// <summary>
-	/// DANGEROUS: Gets the underlying array segment. The array may be larger than this view and is pooled.
+	/// Gets the underlying storage as an <see cref="ArraySegment{T}"/>
+	/// <para>Generally you should use the <see cref="Span"/> instead.</para>
+	/// <para>IMPORTANT:  Use with caution. The array may be larger than this view and may be pooled, and if you keep a ref to the array it may become out-of-date with the backing storage</para>
 	/// </summary>
+	/// <returns>Array segment representing this memory's backing storage</returns>
 	public ArraySegment<T> DangerousGetArray()
 	{
 		AssertNotDisposed();
 
-		switch (_backingStorageType)
-		{
-			case MemBackingStorageType.MemoryOwner_Custom:
-				{
-					var owner = (MemoryOwner_Custom<T>)_backingStorage;
-					var ownerSegment = owner.DangerousGetArray();
-					__.ThrowIfNot(ownerSegment.Array is not null, "owner must expose an array");
-					__.ThrowIfNot(_segmentOffset >= 0 && _segmentOffset + _segmentCount <= ownerSegment.Count);
-					var absoluteOffset = ownerSegment.Offset + _segmentOffset;
-					return new ArraySegment<T>(ownerSegment.Array, absoluteOffset, _segmentCount);
-				}
-			case MemBackingStorageType.RentedArray:
-				{
-					var rentedArray = (NotNot._internal.ObjectPool.RentedArray<T>)_backingStorage;
-					var array = rentedArray.Value;
-					__.ThrowIfNot(array is not null, "RentedArray must have non-null array");
-					return new ArraySegment<T>(array, _segmentOffset, _segmentCount);
-				}
-			case MemBackingStorageType.RentedList:
-				{
-					var rentedList = (NotNot._internal.ObjectPool.Rented<List<T>>)_backingStorage;
-					var list = rentedList.Value;
-					__.ThrowIfNot(list is not null, "RentedList must have non-null list");
-					__.ThrowIfNot(_segmentOffset + _segmentCount <= list.Count);
-					var items = _GetListItemsArray(list);
-					__.ThrowIfNot(_segmentOffset + _segmentCount <= items.Length);
-					return new ArraySegment<T>(items, _segmentOffset, _segmentCount);
-				}
-			default:
-				throw __.Throw($"RentedMem does not support backing type {_backingStorageType}");
-		}
+		return this.CastEphermial().DangerousGetArray();
+
 	}
 
 	/// <summary>
@@ -577,7 +506,7 @@ public readonly ref struct RentedMem<T> : IDisposable
 	/// </summary>
 	public Span<T>.Enumerator GetEnumerator()
 	{
-		return Span.GetEnumerator();
+		return GetSpan().GetEnumerator();
 	}
 
 	/// <summary>
@@ -586,10 +515,6 @@ public readonly ref struct RentedMem<T> : IDisposable
 	/// </summary>
 	public void Dispose()
 	{
-		if (!_isTrueOwner)
-		{
-			return;
-		}
 #if CHECKED
 		_disposeGuard?.Dispose();
 #endif
@@ -617,7 +542,7 @@ public readonly ref struct RentedMem<T> : IDisposable
 					rentedList.Dispose();
 				}
 				break;
-			case MemBackingStorageType.None:
+			case MemBackingStorageType.Empty:
 				// Empty/default - nothing to dispose
 				break;
 			default:
@@ -631,7 +556,7 @@ public readonly ref struct RentedMem<T> : IDisposable
 	[Conditional("CHECKED")]
 	private void AssertNotDisposed()
 	{
-		if (_backingStorageType == MemBackingStorageType.None)
+		if (_backingStorageType == MemBackingStorageType.Empty)
 		{
 			return; // Empty is always valid
 		}
@@ -643,17 +568,6 @@ public readonly ref struct RentedMem<T> : IDisposable
 		}
 	}
 
-	/// <summary>
-	/// Uses reflection to access the internal array backing a List{T}
-	/// </summary>
-	private static T[] _GetListItemsArray(List<T> list)
-	{
-		if (_listItemsField is null)
-		{
-			throw __.Throw("List<T> layout not supported; backing _items field missing");
-		}
-		return (T[]?)_listItemsField.GetValue(list) ?? Array.Empty<T>();
-	}
 
 	/// <summary>
 	/// Returns a string representation of this memory view showing type and count
@@ -663,13 +577,3 @@ public readonly ref struct RentedMem<T> : IDisposable
 		return $"RentedMem<{typeof(T).Name}>[{Length}]";
 	}
 }
-
-///// <summary>
-///// Delegate for actions that take a Span by value
-///// </summary>
-//public delegate void Action_Span<T>(Span<T> span);
-
-///// <summary>
-///// Delegate for actions that take a ReadOnlySpan by value
-///// </summary>
-//public delegate void Action_RoSpan<T>(ReadOnlySpan<T> span);

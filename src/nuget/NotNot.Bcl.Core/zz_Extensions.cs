@@ -1916,7 +1916,7 @@ public static class zz_Extensions_List
    {
       var originalCount = list.Count;
       System.Runtime.InteropServices.CollectionsMarshal.SetCount(list, count);
-      var span = list._AsSpan_Unsafe();
+      var span = list._AsSpan();
       if (doNotInitialize is false)
       {
          if (count > originalCount)
@@ -1939,7 +1939,7 @@ public static class zz_Extensions_List
          return MemoryOwner_Custom<T>.Empty;
       }
       var toReturn = MemoryOwner_Custom<T>.Allocate(list.Count);
-      list._AsSpan_Unsafe().CopyTo(toReturn.Span);
+      list._AsSpan().CopyTo(toReturn.Span);
       return toReturn;
    }
 
@@ -2101,8 +2101,8 @@ public static class zz_Extensions_List
          return false;
       }
 
-      var span1 = target._AsSpan_Unsafe();
-      var span2 = other._AsSpan_Unsafe();
+      var span1 = target._AsSpan();
+      var span2 = other._AsSpan();
 
 
       //look through all span1 for all matches
@@ -2147,7 +2147,7 @@ public static class zz_Extensions_List
    /// <summary>
    ///    warning: do not modify list while enumerating span
    /// </summary>
-   public static Span<T> _AsSpan_Unsafe<T>(this List<T> list)
+   public static Span<T> _AsSpan<T>(this List<T> list)
    {
       return CollectionsMarshal.AsSpan(list);
    }
@@ -2157,7 +2157,7 @@ public static class zz_Extensions_List
    /// </summary>
    public static ref T _RefGet<T>(this List<T> list, int index)
    {
-      var span = list._AsSpan_Unsafe();
+      var span = list._AsSpan();
       return ref span[index];
    }
 }
@@ -3144,10 +3144,11 @@ public static class zz_Extensions_Dictionary
    public static RentedMem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source)
    {
       var toReturn = RentedMem<(TKey key, TValue value)>.Allocate(source.Count);
+      var span = toReturn.GetSpan();
       var i = 0;
       foreach (var kvp in source)
       {
-         toReturn[i] = (kvp.Key, kvp.Value);
+         span[i] = (kvp.Key, kvp.Value);
          i++;
       }
       return toReturn;

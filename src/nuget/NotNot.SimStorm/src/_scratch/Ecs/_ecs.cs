@@ -517,7 +517,7 @@ public partial class EntityManager //entity creation
 
 		///obtain the actual accessTokens for the entities to be deleted
 		using var accessTokensSO = RentedMem<AccessToken>.Allocate(toDelete.Length);
-		var accessTokens = accessTokensSO.Span;
+		var accessTokens = accessTokensSO.GetSpan();
 		_entityRegistry.Get(toDelete, accessTokens);
 
 		//sort so that in order by page
@@ -1270,10 +1270,10 @@ public partial class Archetype //passthrough of page stuff
 		//need to get a unique page per partitionComponent grouping
 
 		//create entityHandles
-		var entityHandlesMem = Mem<EntityHandle>.Allocate(count);
-		var entityHandles = entityHandlesMem.Span;
-		var accessTokensMem = Mem<AccessToken>.Allocate(count);
-		var accessTokens = accessTokensMem.Span;
+		using var entityHandlesMem = Mem.Rent<EntityHandle>(count);
+		var entityHandles = entityHandlesMem.GetSpan();
+		using var accessTokensMem = Mem.Rent<AccessToken>(count);
+		var accessTokens = accessTokensMem.GetSpan();
 		_entityRegistry.Alloc(entityHandles);
 
 		var page = _pages._GetOrAdd(partitionGroup, () =>
@@ -1302,9 +1302,9 @@ public partial class Archetype //passthrough of page stuff
 			"the specified page should be part of this archetype, otherwise the following logic is invalid");
 		containingPage.Free(toDelete);
 		//call the callback to notify
-		var pageMem = Mem<AccessToken>.Allocate(toDelete);
+		using var pageMem = Mem.Clone<AccessToken>(toDelete);
 		_count -= toDelete.Length;
-		doneCallback((pageMem, this));
+		doneCallback((pageMem.CastEphermial(), this));
 	}
 }
 

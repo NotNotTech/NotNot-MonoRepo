@@ -87,7 +87,7 @@ public partial class Frame ////node graph setup and execution
 					continue;
 				}
 
-				__.GetLogger()._EzErrorThrow<SimStormException>(node.GetHierarchy().Span._Contains(afterNodeState._node) == false,
+				__.GetLogger()._EzErrorThrow<SimStormException>(node.GetHierarchy().GetSpan()._Contains(afterNodeState._node) == false,
 					$"updateBefore('{afterName}') is invalid.  Node '{node.Name}' is a (grand)child of '{afterName}'.  You can not mark a parent as updateBefore/After." +
 					$"{node.Name} will always update during it's it's parent's update (parent updates first, but is not marked as complete until all it's children finish).");
 				nodeState._updateAfter.Add(afterNodeState);
@@ -109,7 +109,7 @@ public partial class Frame ////node graph setup and execution
 					continue;
 				}
 
-				__.GetLogger()._EzErrorThrow<SimStormException>(node.GetHierarchy().Span._Contains(beforeNodeState._node) == false,
+				__.GetLogger()._EzErrorThrow<SimStormException>(node.GetHierarchy().GetSpan()._Contains(beforeNodeState._node) == false,
 					$"updateBefore('{beforeName}') is invalid.  Node '{node.Name}' is a (grand)child of '{beforeName}'.  You can not mark a parent as updateBefore/After." +
 					$"{node.Name} will always update during it's it's parent's update (parent updates first, but is not marked as complete until all it's children finish).");
 				beforeNodeState._updateAfter.Add(nodeState);

@@ -104,17 +104,17 @@ public class EntityRegistry
 	}
 
 
-	public Mem<EntityHandle> Alloc(int count)
+	public RentedMem<EntityHandle> Alloc(int count)
 	{
-		var toReturn = Mem<EntityHandle>.Allocate(count);
-		Alloc(toReturn.Span);
+		var toReturn = Mem.Rent<EntityHandle>(count);
+		Alloc(toReturn);
 		return toReturn;
 	}
 
 	public void Alloc(Span<EntityHandle> output)
 	{
 		using var allocSpanOwner = RentedMem<int>.Allocate(output.Length);
-		var allocIndicies = allocSpanOwner.Span;
+		var allocIndicies = allocSpanOwner.GetSpan();
 		_storage.Alloc(allocIndicies);
 		var storageArray = _storage._storage;
 
@@ -137,7 +137,7 @@ public class EntityRegistry
 	{
 		__.DebugAssertOnceIfNot(handles._IsSorted(), "sort first");
 		using var freeSpanOwner = RentedMem<int>.Allocate(handles.Length);
-		var freeSpan = freeSpanOwner.Span;
+		var freeSpan = freeSpanOwner.GetSpan();
 		for (var i = 0; i < handles.Length; i++)
 		{
 			var handle = handles[i];
@@ -151,7 +151,7 @@ public class EntityRegistry
 	{
 		//__.CHECKED.AssertOnce(tokens._IsSorted(), "sort first"); //accessTokens are sorted differently
 		using var freeSpanOwner = RentedMem<int>.Allocate(tokens.Length);
-		var freeSpan = freeSpanOwner.Span;
+		var freeSpan = freeSpanOwner.GetSpan();
 		for (var i = 0; i < tokens.Length; i++)
 		{
 			var handle = tokens[i].entityHandle;
@@ -344,7 +344,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 			$"column does not exist.  are you sure the TComponent type `{typeof(T).Name}` is registered with the entities archetype?");
 		var column = Chunk<T>._GLOBAL_LOOKUP[pageId];
 		__.GetLogger()._EzErrorThrow<SimStormException>(column.Count > slotRef.chunkIndex, "chunk doesn't exist");
-		var chunk = column._AsSpan_Unsafe()[slotRef.chunkIndex];
+		var chunk = column._AsSpan()[slotRef.chunkIndex];
 		__.GetLogger()._EzErrorThrow<SimStormException>(chunk != null);
 		return chunk;
 	}
@@ -356,7 +356,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 	{
 		GetOwner().WriteNotify<TComponent>();
 		var chunk = GetContainingChunk<TComponent>();
-		return Mem.Wrap(chunk.StorageSlice);
+		return chunk.StorageSlice;// Mem.Wrap(chunk.StorageSlice);
 	}
 
 	/// <summary>
@@ -366,7 +366,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 	{
 		GetOwner().ReadNotify<TComponent>();
 		var chunk = GetContainingChunk<TComponent>();
-		return Mem.Wrap(chunk.StorageSlice);
+		return chunk.StorageSlice;// Mem.Wrap(chunk.StorageSlice);
 	}
 
 
@@ -525,7 +525,7 @@ public partial class Page //unit test
 		__.GetLogger()._EzErrorThrow<SimStormException>(entityRegistry.Count == 0);
 		var count = pageCount;
 		using var allocOwner = RentedMem<Page>.Allocate(count);
-		var allocs = allocOwner.Span;
+		var allocs = allocOwner.GetSpan();
 		for (var i = 0; i < count; i++)
 		{
 			allocs[i] = _TEST_HELPER_CreateAndEditPage(entityRegistry, autoPack, chunkSize, entityCount);
@@ -595,9 +595,9 @@ public partial class Page //unit test
 		//}
 		//Span<long> entityHandles = stackalloc long[] { 2, 4, 8, 7, -2 };
 		using var tokensOwner = RentedMem<AccessToken>.Allocate(entityCount);
-		var tokens = tokensOwner.Span;
+		var tokens = tokensOwner.GetSpan();
 		using var entitiesOwner = RentedMem<EntityHandle>.Allocate(entityCount);
-		var entities = entitiesOwner.Span;
+		var entities = entitiesOwner.GetSpan();
 		page.AllocEntityNew(tokens, entities);
 		return page;
 	}
@@ -639,9 +639,9 @@ public partial class Page //unit test
 
 		//Span<long> entityHandles = stackalloc long[] { 2, 4, 8, 7, -2 };
 		using var tokensOwner = RentedMem<AccessToken>.Allocate(entityCount);
-		var tokens = tokensOwner.Span;
+		var tokens = tokensOwner.GetSpan();
 		using var entitiesOwner = RentedMem<EntityHandle>.Allocate(entityCount);
-		var entities = entitiesOwner.Span;
+		var entities = entitiesOwner.GetSpan();
 		page.AllocEntityNew(tokens, entities);
 
 
@@ -739,7 +739,7 @@ public partial class Page //unit test
 		using var secondAgainSO = RentedMem<AccessToken>.Allocate(second.Length);
 		//var oddSpan = oddTokens.Span;
 		//page.Alloc(oddSet.ToArray(), oddSpan);
-		page.AllocEntityNew(secondAgainSO.Span, second);
+		page.AllocEntityNew(secondAgainSO, second);
 		__.GetLogger()._EzErrorThrow<SimStormException>(page.Count == second.Length + first.Length);
 
 
@@ -1024,7 +1024,7 @@ public partial class Page : IDisposable //init logic
 	///    internal helper.   Get a Span containing all columns.
 	/// </summary>
 	/// <returns></returns>
-	public Span<List<Chunk>> _GetColumnsSpan() { return _columnStorage._AsSpan_Unsafe(); }
+	public Span<List<Chunk>> _GetColumnsSpan() { return _columnStorage._AsSpan(); }
 
 	/// <summary>
 	///    all the atomId's used in columns.  can use the atomId to get the offset to the proper column
@@ -1248,7 +1248,7 @@ public partial class Page //column / component type management
 	{
 		var atomId = Atom.GetId<T>();
 		var chunk =
-			_GLOBAL_LOOKUP.Span[pageToken.pageId]._GetColumnsSpan()[atomId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex]
+			_GLOBAL_LOOKUP.Span[pageToken.pageId]._GetColumnsSpan()[atomId]._AsSpan()[pageToken.slotRef.chunkIndex]
 				as Chunk<T>;
 		return ref chunk.UnsafeArray[pageToken.slotRef.slotIndex];
 	}
@@ -1268,7 +1268,7 @@ public partial class Page //column / component type management
 			return ref Unsafe.NullRef<T>();
 		}
 
-		var columnSpan = column._AsSpan_Unsafe();
+		var columnSpan = column._AsSpan();
 		if (columnSpan.Length <= slot.chunkIndex || columnSpan[slot.chunkIndex] == null)
 		{
 			exists = false;
@@ -1292,7 +1292,7 @@ public partial class Page //column / component type management
 	protected internal ref T _UNCHECKED_GetComponent<T>(ref SlotRef slot)
 	{
 		//var atomId = Atom.GetId<T>();
-		return ref (GetColumn<T>()._AsSpan_Unsafe()[slot.chunkIndex] as Chunk<T>).UnsafeArray[slot.slotIndex];
+		return ref (GetColumn<T>()._AsSpan()[slot.chunkIndex] as Chunk<T>).UnsafeArray[slot.slotIndex];
 	}
 
 	/// <summary>
@@ -1415,7 +1415,7 @@ public partial class Page //alloc/free/pack logic
 	public void AllocEntityNew(Span<AccessToken> outputAccessTokens)
 	{
 		using var entitiesOwner = RentedMem<EntityHandle>.Allocate(outputAccessTokens.Length);
-		var outputEntityHandles = entitiesOwner.Span;
+		var outputEntityHandles = entitiesOwner.GetSpan();
 		AllocEntityNew(outputAccessTokens, outputEntityHandles);
 	}
 
@@ -1606,7 +1606,7 @@ public partial class Page //alloc/free/pack logic
 		//var manualGetChunk = _componentColumns[typeof(EntityMetadata)][pageToken.slotRef.columnChunkIndex] as Chunk<EntityMetadata>;
 		//var manualGetChunk = GetChunk<EntityMetadata>(ref pageToken);
 		var manualGetChunk =
-			GetColumn<EntityMetadata>()._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex] as Chunk<EntityMetadata>;
+			GetColumn<EntityMetadata>()._AsSpan()[pageToken.slotRef.chunkIndex] as Chunk<EntityMetadata>;
 
 		var autoGetChunk = pageToken.GetContainingChunk<EntityMetadata>();
 		__.GetLogger()._EzCheckedThrow<SimStormException>(manualGetChunk == autoGetChunk, "should match");
@@ -1618,7 +1618,7 @@ public partial class Page //alloc/free/pack logic
 
 		//verify access thru Chunk<T> works also
 		var chunkLookupChunk =
-			Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex];
+			Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan()[pageToken.slotRef.chunkIndex];
 		__.GetLogger()._EzErrorThrow<SimStormException>(chunkLookupChunk == manualGetChunk);
 	}
 
@@ -1632,7 +1632,7 @@ public partial class Page //alloc/free/pack logic
 
 
 		using var so_PageAccessTokens = RentedMem<AccessToken>.Allocate(entityHandles.Length);
-		var pageTokens = so_PageAccessTokens.Span;
+		var pageTokens = so_PageAccessTokens.GetSpan();
 
 		//get tokens for freeing
 		for (var i = 0; i < entityHandles.Length; i++)
@@ -2230,7 +2230,7 @@ public class Chunk<TComponent> : Chunk
 	public static ResizableArray<List<Chunk<TComponent>>> _GLOBAL_LOOKUP = new();
 
 
-	public Mem<TComponent> _storageRaw;
+	public RentedMem<TComponent> _storageRaw;
 
 	/// <summary>
 	///    If the Page is set to AutoPack (default true for NotNot Engine) this will provide a contiguous slice of allocated
@@ -2324,7 +2324,7 @@ public class Chunk<TComponent> : Chunk
 		column._ExpandAndSet(chunkIndex, this);
 
 		//_storage = MemoryOwner<TComponent>.Allocate(_length, AllocationMode.Clear); //TODO: maybe no need to clear?
-		_storageRaw = Mem<TComponent>.Allocate(_length);
+		_storageRaw = Mem.Rent<TComponent>(_length);
 
 		UnsafeArray = _storageRaw.DangerousGetArray().Array!;
 	}
@@ -2354,7 +2354,7 @@ public class Chunk<TComponent> : Chunk
 			//__.GetLogger()._EzErrorThrow<SimStormException>(result);
 
 			var chunk =
-				_GLOBAL_LOOKUP[moveComponentDataFrom.pageId]._AsSpan_Unsafe()[moveComponentDataFrom.slotRef.chunkIndex];
+				_GLOBAL_LOOKUP[moveComponentDataFrom.pageId]._AsSpan()[moveComponentDataFrom.slotRef.chunkIndex];
 
 			chunk.UnsafeArray[moveComponentDataFrom.slotRef.slotIndex] = default;
 		}
@@ -2391,7 +2391,7 @@ public class Chunk<TComponent> : Chunk
 			//var result = Chunk<EntityMetadata>._GLOBAL_LOOKUP.TryGetValue(_chunkLookupId, out var chunk);
 			//__.GetLogger()._EzErrorThrow<SimStormException>(result);
 			var entityMetadataChunk =
-				Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex];
+				Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan()[pageToken.slotRef.chunkIndex];
 			ref var entityMetadata = ref entityMetadataChunk.UnsafeArray[chunkIndex];
 			entityMetadata.fieldWrites++;
 
@@ -2425,7 +2425,7 @@ public class Chunk<TComponent> : Chunk
 
 			//var result = Chunk<TComponent>._GLOBAL_LOOKUP.TryGetValue(_chunkLookupId, out var chunk);
 			//__.GetLogger()._EzErrorThrow<SimStormException>(result);
-			var chunk = _GLOBAL_LOOKUP[pageToken.pageId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex];
+			var chunk = _GLOBAL_LOOKUP[pageToken.pageId]._AsSpan()[pageToken.slotRef.chunkIndex];
 			__.GetLogger()._EzCheckedThrow<SimStormException>(chunk == this, "alloc system internal integrity failure");
 			__.GetLogger()._EzCheckedThrow<SimStormException>(!IsDisposed, "use after dispose");
 
@@ -2433,7 +2433,7 @@ public class Chunk<TComponent> : Chunk
 			//result = Chunk<EntityMetadata>._GLOBAL_LOOKUP.TryGetValue(_chunkLookupId, out var entityMetadataChunk);
 			//__.GetLogger()._EzErrorThrow<SimStormException>(result);
 			var entityMetadataChunk =
-				Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan_Unsafe()[pageToken.slotRef.chunkIndex];
+				Chunk<EntityMetadata>._GLOBAL_LOOKUP[pageToken.pageId]._AsSpan()[pageToken.slotRef.chunkIndex];
 			ref var entityMetadata = ref entityMetadataChunk.UnsafeArray[chunkIndex];
 			__.GetLogger()._EzErrorThrow<SimStormException>(entityMetadata.accessToken == pageToken, "invalid alloc token.   why?");
 		}

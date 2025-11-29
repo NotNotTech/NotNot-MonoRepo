@@ -235,9 +235,9 @@ public abstract partial class SimNode //tree logic
 	public bool IsAdded { get; private set; }
 
 
-	public Mem<SimNode> GetHierarchy()
+	public RentedMem<SimNode> GetHierarchy()
 	{
-		var toReturn = Mem<SimNode>.Allocate(HierarchyDepth + 1);
+		var toReturn = Mem.Rent<SimNode>(HierarchyDepth + 1);
 
 		var writeable = toReturn;
 
@@ -248,7 +248,7 @@ public abstract partial class SimNode //tree logic
 		}
 
 		//var array = toReturn.Segment().Array;
-		var span = writeable.Span; // toReturn. array.AsSpan(0, toReturn.length);
+		var span = writeable.GetSpan(); // toReturn. array.AsSpan(0, toReturn.length);
 
 		span[0] = this;
 		var curNode = this;
