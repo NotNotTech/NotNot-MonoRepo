@@ -20,8 +20,8 @@ namespace NotNot.SimStorm._scratch.Ecs;
 //public delegate void CreateEntitiesCallback(ReadOnlySpan<AccessToken> accessTokens, ReadOnlySpan<EntityHandle> entities, Archetype archetype);
 //public delegate void DeleteEntitiesCallback(ReadOnlySpan<AccessToken> accessTokens, Archetype archetype);
 using CreateEntitiesCallback =
-	Action<(PinnedMem<AccessToken> accessTokens, PinnedMem<EntityHandle> entityHandles, Archetype archetype)>;
-using DeleteEntitiesCallback = Action<(PinnedMem<AccessToken> accessTokens, Archetype archetype)>;
+	Action<(Mem<AccessToken> accessTokens, Mem<EntityHandle> entityHandles, Archetype archetype)>;
+using DeleteEntitiesCallback = Action<(Mem<AccessToken> accessTokens, Archetype archetype)>;
 
 /// <summary>
 ///    A "Simulation World".  all archetypes, their entities, their components, and systems are under a single world.
@@ -457,11 +457,11 @@ public partial class EntityManager //entity creation
 
 	public void EnqueueCreateEntity(int count, Archetype archetype, CreateEntitiesCallback doneCallback)
 	{
-		EnqueueCreateEntity(count, archetype, PinnedMem<object>.Empty, doneCallback);
+		EnqueueCreateEntity(count, archetype, Mem<object>.Empty, doneCallback);
 	}
 
 
-	public void EnqueueCreateEntity(int count, Archetype archetype, PinnedMem<object> partitionComponents,
+	public void EnqueueCreateEntity(int count, Archetype archetype, Mem<object> partitionComponents,
 		CreateEntitiesCallback doneCallback)
 	{
 		_createQueue.Enqueue(new _EnqueueCreateArgs_Internal(count, archetype,
@@ -589,7 +589,7 @@ public partial class EntityManager //entity creation
 		await base.OnUpdate(frame);
 	}
 
-	public record struct EnqueueCreateArgs(int count, Archetype archetype, PinnedMem<object> partitionComponents,
+	public record struct EnqueueCreateArgs(int count, Archetype archetype, Mem<object> partitionComponents,
 		CreateEntitiesCallback doneCallback);
 
 	internal record struct _EnqueueCreateArgs_Internal(int count, Archetype archetype,
@@ -611,42 +611,42 @@ public partial class EntityManager //entity query
 	}
 }
 
-public delegate void SelectRangeCallback_R<TC1>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1);
+public delegate void SelectRangeCallback_R<TC1>(Mem<EntityMetadata> meta, Mem<TC1> c1);
 
-public delegate void SelectRangeCallback_W<TC1>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1);
+public delegate void SelectRangeCallback_W<TC1>(Mem<EntityMetadata> meta, Mem<TC1> c1);
 
-public delegate void SelectRangeCallback_RR<TC1, TC2>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1, PinnedMem<TC2> c2);
+public delegate void SelectRangeCallback_RR<TC1, TC2>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2);
 
-public delegate void SelectRangeCallback_WR<TC1, TC2>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1, PinnedMem<TC2> c2);
+public delegate void SelectRangeCallback_WR<TC1, TC2>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2);
 
-public delegate void SelectRangeCallback_WW<TC1, TC2>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1, PinnedMem<TC2> c2);
+public delegate void SelectRangeCallback_WW<TC1, TC2>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2);
 
-public delegate void SelectRangeCallback_RRR<TC1, TC2, TC3>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1,
-	PinnedMem<TC2> c2, PinnedMem<TC3> c3);
+public delegate void SelectRangeCallback_RRR<TC1, TC2, TC3>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3);
 
-public delegate void SelectRangeCallback_WRR<TC1, TC2, TC3>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1, PinnedMem<TC2> c2,
-	PinnedMem<TC3> c3);
+public delegate void SelectRangeCallback_WRR<TC1, TC2, TC3>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2,
+	Mem<TC3> c3);
 
-public delegate void SelectRangeCallback_WWR<TC1, TC2, TC3>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1, PinnedMem<TC2> c2,
-	PinnedMem<TC3> c3);
+public delegate void SelectRangeCallback_WWR<TC1, TC2, TC3>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2,
+	Mem<TC3> c3);
 
-public delegate void SelectRangeCallback_WWW<TC1, TC2, TC3>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1, PinnedMem<TC2> c2,
-	PinnedMem<TC3> c3);
+public delegate void SelectRangeCallback_WWW<TC1, TC2, TC3>(Mem<EntityMetadata> meta, Mem<TC1> c1, Mem<TC2> c2,
+	Mem<TC3> c3);
 
-public delegate void SelectRangeCallback_RRRR<TC1, TC2, TC3, TC4>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1,
-	PinnedMem<TC2> c2, PinnedMem<TC3> c3, PinnedMem<TC4> c4);
+public delegate void SelectRangeCallback_RRRR<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
 
-public delegate void SelectRangeCallback_WRRR<TC1, TC2, TC3, TC4>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1,
-	PinnedMem<TC2> c2, PinnedMem<TC3> c3, PinnedMem<TC4> c4);
+public delegate void SelectRangeCallback_WRRR<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
 
-public delegate void SelectRangeCallback_WWRR<TC1, TC2, TC3, TC4>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1,
-	PinnedMem<TC2> c2, PinnedMem<TC3> c3, PinnedMem<TC4> c4);
+public delegate void SelectRangeCallback_WWRR<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
 
-public delegate void SelectRangeCallback_WWWR<TC1, TC2, TC3, TC4>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1,
-	PinnedMem<TC2> c2, PinnedMem<TC3> c3, PinnedMem<TC4> c4);
+public delegate void SelectRangeCallback_WWWR<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
 
-public delegate void SelectRangeCallback_WWWW<TC1, TC2, TC3, TC4>(PinnedMem<EntityMetadata> meta, PinnedMem<TC1> c1,
-	PinnedMem<TC2> c2, PinnedMem<TC3> c3, PinnedMem<TC4> c4);
+public delegate void SelectRangeCallback_WWWW<TC1, TC2, TC3, TC4>(Mem<EntityMetadata> meta, Mem<TC1> c1,
+	Mem<TC2> c2, Mem<TC3> c3, Mem<TC4> c4);
 
 /// <summary>
 ///    filtering criteria to narrow down an EntityQuery
@@ -1346,7 +1346,7 @@ public class SharedComponentGroup
 	public Dictionary<Type, object> storage = new();
 
 
-	private SharedComponentGroup(long hashSum, ref PinnedMem<object> components)
+	private SharedComponentGroup(long hashSum, ref Mem<object> components)
 	{
 		this.hashSum = hashSum;
 		foreach (var component in components)
@@ -1355,7 +1355,7 @@ public class SharedComponentGroup
 		}
 	}
 
-	protected static long _ComputeHashSum(ref PinnedMem<object> components)
+	protected static long _ComputeHashSum(ref Mem<object> components)
 	{
 		var objHashSum = 0;
 		var typeHashSum = 0;
@@ -1383,7 +1383,7 @@ public class SharedComponentGroup
 	/// <summary>
 	///    factory method, either returns an existing, or creates a new object from the given parameters
 	/// </summary>
-	public static SharedComponentGroup GetOrCreate(PinnedMem<object> components)
+	public static SharedComponentGroup GetOrCreate(Mem<object> components)
 	{
 		//cleanup disposed ParitionComponents, if any
 		if (_gcCollected.Count > 0)
@@ -1472,7 +1472,7 @@ public class SharedComponentGroup
 		}
 	}
 
-	private bool Matches(PinnedMem<object> components)
+	private bool Matches(Mem<object> components)
 	{
 		if (storage.Count != components.Length)
 		{

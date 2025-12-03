@@ -54,7 +54,7 @@ public sealed class CollectionDebugView<T>
 	//	//}
 	//}
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
-	private PinnedMem<T> _collection;
+	private Mem<T> _collection;
 
 	[DebuggerBrowsable(DebuggerBrowsableState.Collapsed)]
 	//public T[]? Items { get; }

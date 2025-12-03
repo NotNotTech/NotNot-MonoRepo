@@ -23,7 +23,7 @@ namespace NotNot.Collections.SpanLike;
 /// </summary>
 /// <typeparam name="T">Element type</typeparam>
 /// <remarks>
-/// <para>Unlike <see cref="Mem{T}"/>, this type ONLY supports rented/pooled backing storage.</para>
+/// <para>Unlike <see cref="EphermialMem{T}"/>, this type ONLY supports rented/pooled backing storage.</para>
 /// BACKING STORAGE: Only pooled types are supported:
 /// - MemoryOwner_Custom (ArrayPool-backed)
 /// - RentedArray (ObjectPool-backed)
@@ -123,7 +123,7 @@ public readonly struct RentedMem<T> : IDisposable
 	/// <summary>
 	/// Clones the contents of a Mem into a new pooled RentedMem
 	/// </summary>
-	public static RentedMem<T> Clone(Mem<T> toClone)
+	public static RentedMem<T> Clone(EphermialMem<T> toClone)
 	{
 		var copy = RentedMem<T>.Allocate(toClone.Length);
 		toClone.CopyTo(copy);
@@ -173,7 +173,7 @@ public readonly struct RentedMem<T> : IDisposable
 	/// Gets a Span{T} slice of this memory. Does NOT create a new RentedMem.  need to dispose this one when done.
 	/// Use this for zero-allocation access to subranges.
 	/// </summary>
-	public Mem<T> Slice(int offset, int count)
+	public EphermialMem<T> Slice(int offset, int count)
 	{
 		//return Span.Slice(offset, count);
 		return this.CastEphermial().Slice(offset, count);
@@ -296,10 +296,10 @@ public readonly struct RentedMem<T> : IDisposable
 	/// <para>This "explicit cast" method is useful because sometimes the implicit casting isn't enough for .NET</para>
 	/// </summary>
 	/// <returns></returns>
-	public Mem<T> CastEphermial()
+	public EphermialMem<T> CastEphermial()
 	{
 		//need to create an EphermialMem<T> variant of RentedMem
-		return new Mem<T>(this._backingStorageType, this._backingStorage, 0, Length);
+		return new EphermialMem<T>(this._backingStorageType, this._backingStorage, 0, Length);
 	}
 
 
@@ -440,7 +440,7 @@ public readonly struct RentedMem<T> : IDisposable
 			batchStart = batchEnd;
 		}
 	}
-	public async ValueTask BatchMapWith<TOther>(PinnedMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<PinnedMem<T>, PinnedMem<TOther>, ValueTask> worker)
+	public async ValueTask BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, Mem<TOther>, ValueTask> worker)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 

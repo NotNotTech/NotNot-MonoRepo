@@ -126,7 +126,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// <para>Free slots may contain garbage data.</para>
 	/// </remarks>
 	/// <returns>A memory wrapper around the internal data array.</returns>
-	public Mem<T> Data_Mem => Mem.Wrap(_data);
+	public EphermialMem<T> Data_Mem => Mem.Wrap(_data);
 
 	/// <summary>
 	/// Gets a span view of the backing data array.
@@ -154,7 +154,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// <para>Use only for advanced scenarios like custom serialization or debugging.</para>
 	/// </remarks>
 	/// <returns>A memory wrapper around the allocation tracker list.</returns>
-	public Mem<SlotHandle> AllocTracker_Unsafe => Mem.Wrap(_allocTracker);
+	public EphermialMem<SlotHandle> AllocTracker_Unsafe => Mem.Wrap(_allocTracker);
 
 	/// <summary>
 	/// Gets the count of currently allocated (used) slots.
@@ -411,7 +411,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// // Slots now contain the position values
 	/// </code>
 	/// </example>
-	public RentedMem<SlotHandle> AllocValues(Mem<T> values)
+	public RentedMem<SlotHandle> AllocValues(EphermialMem<T> values)
 	{
 		var toReturn = AllocSlots(values.Length);
 
@@ -583,7 +583,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// <para><b>Performance:</b> More efficient than freeing slots individually.</para>
 	/// </remarks>
 	/// <exception cref="InvalidOperationException">Thrown if any slot is invalid.</exception>
-	public void Free(Mem<SlotHandle> slotsToFree)
+	public void Free(EphermialMem<SlotHandle> slotsToFree)
 	{
 		lock (_lock)
 		{

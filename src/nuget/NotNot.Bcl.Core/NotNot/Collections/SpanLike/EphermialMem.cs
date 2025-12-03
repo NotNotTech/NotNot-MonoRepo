@@ -1,47 +1,56 @@
-﻿// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
+// [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] 
 // [!!] Copyright ©️ NotNot Project and Contributors. 
 // [!!] This file is licensed to you under the MPL-2.0.
 // [!!] See the LICENSE.md file in the project root for more info. 
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
+#define CHECKED
 
-using System;
-using System.Collections.Generic;
+using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text;
+using CommunityToolkit.HighPerformance.Buffers;
+using NotNot;
 using NotNot.Collections.Advanced;
+using NotNot.Collections.SpanLike;
 
 namespace NotNot.Collections.SpanLike;
 
+
+
 /// <summary>
-/// <para>A "pinned" version of `<see cref="Mem{T}"/>.  can implicitly cast between the two, or can call <see cref="Mem{T}.Pin"/></para>
-/// <para><see cref="Mem{T}"/> is a "stack only" ref struct to discourage taking long-term references.  However the CLR disallows utilizing ref structs in many scenarios (e.g. async methods, fields in classes, boxing, etc).
-/// so this type provides a way to circumvent.   cast to <see cref="PinnedMem{T}"/> when you need to hold onto a memory view for longer periods or across async calls."/></para>
-/// <para>under unusual circumstances you may need to take a long-term reference to a <see cref="Mem{T}"/>.  This allows you to do so.</para>
+/// Non-owning view into memory.  NO disposal/lifetime management.
+/// Use for temporary access where caller holds ownership elsewhere and will dispose when callstack pops.
 /// </summary>
-public readonly struct PinnedMem<T>
+/// <remarks>
+/// <para>This is a ref struct (stack only usage) to encourage proper use (don't take references to it).  If you need a longer term reference, call <see cref="Pin"/></para>
+/// <typeparam name="T">Element type</typeparam>
+public readonly ref struct EphermialMem<T>
 {
-	//========== Implicit conversions FROM owning types (safe narrowing) ==========
-	public static implicit operator PinnedMem<T>(T[] array) => Mem.Wrap(array);
-	public static implicit operator PinnedMem<T>(ArraySegment<T> arraySegment) => Mem.Wrap(arraySegment);
-	public static implicit operator PinnedMem<T>(List<T> list) => Mem.Wrap(list);
-	public static implicit operator PinnedMem<T>(Memory<T> memory) => Mem.Wrap(memory);
 
+	// ========== Implicit conversions FROM owning types (safe narrowing) ==========
+	public static implicit operator EphermialMem<T>(T[] array) => Mem.Wrap(array);
+	public static implicit operator EphermialMem<T>(ArraySegment<T> arraySegment) => Mem.Wrap(arraySegment);
+	public static implicit operator EphermialMem<T>(List<T> list) => Mem.Wrap(list);
+	public static implicit operator EphermialMem<T>(Memory<T> memory) => Mem.Wrap(memory);
 
-	//allow casting to/from Mem types
-	public static implicit operator PinnedMem<T>(Mem<T> mem) => new(mem._backingStorageType, mem._backingStorage, mem._segmentOffset, mem._segmentCount);
-	public static implicit operator Mem<T>(PinnedMem<T> mem) => new(mem._backingStorageType, mem._backingStorage, mem._segmentOffset, mem._segmentCount);
-
-	//cast from Rented
-	public static implicit operator PinnedMem<T>(RentedMem<T> mem) => new(mem._backingStorageType, mem._backingStorage);
+	//allow casting from rented structures (no ownership)
+	public static implicit operator EphermialMem<T>(_internal.ObjectPool.Rented<List<T>> rented) => new(MemBackingStorageType.RentedList, rented);
+	public static implicit operator EphermialMem<T>(_internal.ObjectPool.RentedArray<T> rented) => new(MemBackingStorageType.RentedArray, rented);
+	public static implicit operator EphermialMem<T>(RentedMem<T> mem) => new(mem._backingStorageType, mem._backingStorage, 0, mem.Length);
 
 	// Implicit conversion to Span - useful when assigning to Span variables or passing to Span parameters
-	public static implicit operator Span<T>(PinnedMem<T> mem) => mem.GetSpan();
-	public static implicit operator ReadOnlySpan<T>(PinnedMem<T> mem) => mem.GetSpan();
+	public static implicit operator Span<T>(EphermialMem<T> mem) => mem.GetSpan();
+	public static implicit operator ReadOnlySpan<T>(EphermialMem<T> mem) => mem.GetSpan();
 
 
 
+	/// <summary>
+	/// Cached reflection info for accessing List{T}'s internal array field
+	/// </summary>
+	internal static readonly FieldInfo? _listItemsField = typeof(List<T>).GetField("_items", BindingFlags.NonPublic | BindingFlags.Instance);
 
-	// ========== Internal fields - mirrors PinnedMem<T> structure ==========
+
+	// ========== Internal fields - mirrors Mem<T> structure ==========
 
 	/// <summary>
 	/// Identifies which type of backing store is being used
@@ -73,11 +82,11 @@ public readonly struct PinnedMem<T>
 	/// <summary>
 	/// Represents an empty ephemeral view with zero elements
 	/// </summary>
-	public static readonly PinnedMem<T> Empty = new(MemBackingStorageType.Empty, null!, 0, 0);
+	public static EphermialMem<T> Empty => new(MemBackingStorageType.Empty, null!, 0, 0);
 
 	// ========== Constructors ==========
 
-	internal PinnedMem(MemBackingStorageType backingStorageType, object backingStorage)
+	internal EphermialMem(MemBackingStorageType backingStorageType, object backingStorage)
 	{
 		_backingStorageType = backingStorageType;
 		_backingStorage = backingStorage;
@@ -107,7 +116,7 @@ public readonly struct PinnedMem<T>
 	/// <summary>
 	/// Internal constructor from backing storage components
 	/// </summary>
-	internal PinnedMem(MemBackingStorageType backingStorageType, object backingStorage, int segmentOffset, int segmentCount)
+	internal EphermialMem(MemBackingStorageType backingStorageType, object backingStorage, int segmentOffset, int segmentCount)
 	{
 		_backingStorageType = backingStorageType;
 		_backingStorage = backingStorage;
@@ -156,7 +165,7 @@ public readonly struct PinnedMem<T>
 		{
 			case MemBackingStorageType.List:
 			case MemBackingStorageType.RentedList:
-				__.AssertIfNot(_listLength == rawSpan.Length, "backing list size was modified since this PinnedMem was created.  PinnedMem/RentedMem sizes should be immutable");
+				__.AssertIfNot(_listLength == rawSpan.Length, "backing list size was modified since this Mem was created.  Mem/RentedMem sizes should be immutable");
 				break;
 		}
 #endif
@@ -239,20 +248,20 @@ public readonly struct PinnedMem<T>
 	/// <summary>
 	/// Creates a new ephemeral view that is a slice of this memory
 	/// </summary>
-	public PinnedMem<T> Slice(int offset)
+	public EphermialMem<T> Slice(int offset)
 	{
 		__.ThrowIfNot(offset >= 0 && offset <= _segmentCount);
-		return new PinnedMem<T>(_backingStorageType, _backingStorage, _segmentOffset + offset, _segmentCount - offset);
+		return new EphermialMem<T>(_backingStorageType, _backingStorage, _segmentOffset + offset, _segmentCount - offset);
 	}
 
 	/// <summary>
 	/// Creates a new ephemeral view that is a slice of this memory
 	/// </summary>
-	public PinnedMem<T> Slice(int offset, int count)
+	public EphermialMem<T> Slice(int offset, int count)
 	{
 		__.ThrowIfNot(offset >= 0 && offset <= _segmentCount);
 		__.ThrowIfNot(count >= 0 && offset + count <= _segmentCount);
-		return new PinnedMem<T>(_backingStorageType, _backingStorage, _segmentOffset + offset, count);
+		return new EphermialMem<T>(_backingStorageType, _backingStorage, _segmentOffset + offset, count);
 	}
 
 	// ========== Enumeration ==========
@@ -265,7 +274,7 @@ public readonly struct PinnedMem<T>
 	// ========== Utility methods ==========
 
 	/// <summary>
-	/// Creates a deep copy of this PinnedMem with contents copied to new pool-backed storage
+	/// Creates a deep copy of this Mem with contents copied to new pool-backed storage
 	/// </summary>
 	/// <returns>New pooled memory containing a copy of this memory's contents</returns>
 	public RentedMem<T> Clone()
@@ -303,7 +312,7 @@ public readonly struct PinnedMem<T>
 	/// <summary>
 	/// Returns a string representation of this memory view
 	/// </summary>
-	public override string ToString() => $"PinnedMem<{typeof(T).Name}>[{Length}]";
+	public override string ToString() => $"Mem<{typeof(T).Name}>[{Length}]";
 
 
 
@@ -313,7 +322,7 @@ public readonly struct PinnedMem<T>
 	/// </summary>
 	public void Map<TResult>(Span<TResult> toReturn, Func_Ref<T, TResult> mapFunc)
 	{
-		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this PinnedMem");
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		var thisSpan = GetSpan();
 		var toReturnSpan = toReturn;
 		for (var i = 0; i < thisSpan.Length; i++)
@@ -338,7 +347,7 @@ public readonly struct PinnedMem<T>
 	/// </summary>
 	public void Map<TResult>(Span<TResult> toReturn, Func_RefArg<T, TResult> mapFunc)
 	{
-		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this PinnedMem");
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
 		var thisSpan = GetSpan();
 		var toReturnSpan = toReturn;
 		for (var i = 0; i < thisSpan.Length; i++)
@@ -363,8 +372,8 @@ public readonly struct PinnedMem<T>
 	/// </summary>
 	public void MapWith<TOther, TResult>(Span<TResult> toReturn, Span<TOther> otherToMapWith, Func_Ref<T, TOther, TResult> mapFunc)
 	{
-		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this PinnedMem");
-		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this PinnedMem");
+		__.ThrowIfNot(toReturn.Length == Length, "toReturn must be the same length as this Mem");
+		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = GetSpan();
 		var otherSpan = otherToMapWith;
 		var toReturnSpan = toReturn;
@@ -391,7 +400,7 @@ public readonly struct PinnedMem<T>
 	/// </summary>
 	public void MapWith<TOther>(Span<TOther> otherToMapWith, Action_Ref<T, TOther> mapFunc)
 	{
-		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this PinnedMem");
+		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 		var thisSpan = GetSpan();
 		var otherSpan = otherToMapWith;
 
@@ -427,22 +436,12 @@ public readonly struct PinnedMem<T>
 	/// <para>IMPORTANT: we assume the underlying data is sorted so that your batching delegate is effective.</para>
 	/// </summary>
 	/// <param name="isSameBatch">Returns true when the second item should stay in the current batch; return false to start a new batch.</param>
-	/// <param name="worker">Action executed for each contiguous batch, receiving a `PinnedMem` slice that references this instance's backing store.</param>
+	/// <param name="worker">Action executed for each contiguous batch, receiving a `Mem` slice that references this instance's backing store.</param>
 	/// <returns>A completed task once all batches have been processed.</returns>
-	public async ValueTask BatchMap(Func_RefArg<T, T, bool> isSameBatch, Func<PinnedMem<T>, ValueTask> worker)
+	public ValueTask BatchMap(Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, ValueTask> worker)
 	{
-		if (Length == 0)
-		{
-			return;
-		}
-		var batchStart = 0;
-		while (batchStart < Length)
-		{
-			// Re-acquire span each iteration since Span cannot cross await boundary
-			var batchEnd = _GetBatchEndExclusive(GetSpan(), batchStart, isSameBatch);
-			await worker(Slice(batchStart, batchEnd - batchStart));
-			batchStart = batchEnd;
-		}
+		var pinned = this.Pin();
+		return pinned.BatchMap(isSameBatch, worker);
 	}
 
 	/// <summary>
@@ -452,7 +451,7 @@ public readonly struct PinnedMem<T>
 	/// </summary>
 	public void BatchMapWith<TOther>(Span<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Action<Span<T>, Span<TOther>> worker)
 	{
-		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this PinnedMem");
+		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 
 		if (Length == 0)
 		{
@@ -468,22 +467,9 @@ public readonly struct PinnedMem<T>
 			batchStart = batchEnd;
 		}
 	}
-	public async ValueTask BatchMapWith<TOther>(PinnedMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<PinnedMem<T>, PinnedMem<TOther>, ValueTask> worker)
+	public ValueTask BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, Mem<TOther>, ValueTask> worker)
 	{
-		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this PinnedMem");
-
-		if (Length == 0)
-		{
-			return;
-		}
-		var batchStart = 0;
-		while (batchStart < Length)
-		{
-			// Re-acquire span each iteration since Span cannot cross await boundary
-			var batchEnd = _GetBatchEndExclusive(GetSpan(), batchStart, isSameBatch);
-			await worker(this.Slice(batchStart, batchEnd - batchStart), otherToMapWith.Slice(batchStart, batchEnd - batchStart));
-			batchStart = batchEnd;
-		}
+		return this.Pin().BatchMapWith(otherToMapWith, isSameBatch, worker);		
 	}
 
 	/// <summary>
@@ -512,12 +498,12 @@ public readonly struct PinnedMem<T>
 	/// <returns>Internal array backing the list</returns>
 	private static T[] _GetListItemsArray(List<T> list)
 	{
-		if (Mem<T>._listItemsField is null)
+		if (_listItemsField is null)
 		{
 			throw __.Throw("List<T> layout not supported; backing _items field missing");
 		}
 
-		return (T[]?)Mem<T>._listItemsField.GetValue(list) ?? Array.Empty<T>();
+		return (T[]?)_listItemsField.GetValue(list) ?? Array.Empty<T>();
 	}
 
 	/// <summary>
@@ -588,5 +574,13 @@ public readonly struct PinnedMem<T>
 			default:
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
+	}
+	/// <summary>
+	/// ref structs can't be used with async methods, so this provides a way to get a pinned version of this Mem for such scenarios.
+	/// </summary>
+	/// <returns></returns>
+	public Mem<T> Pin()
+	{
+		return this;
 	}
 }
