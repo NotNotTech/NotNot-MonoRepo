@@ -352,7 +352,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 	/// <summary>
 	///    Get Write (exclusive) access to the chunk this entity component is in
 	/// </summary>
-	public Mem<TComponent> GetWriteMem<TComponent>()
+	public PinnedMem<TComponent> GetWriteMem<TComponent>()
 	{
 		GetOwner().WriteNotify<TComponent>();
 		var chunk = GetContainingChunk<TComponent>();
@@ -362,7 +362,7 @@ public readonly record struct AccessToken : IComparable<AccessToken>
 	/// <summary>
 	///    Get Read only (shared) access to the chunk this entity component is in
 	/// </summary>
-	public Mem<TComponent> GetReadMem<TComponent>()
+	public PinnedMem<TComponent> GetReadMem<TComponent>()
 	{
 		GetOwner().ReadNotify<TComponent>();
 		var chunk = GetContainingChunk<TComponent>();
@@ -2011,7 +2011,7 @@ public record struct EntityMetadata
 	/// <summary>
 	///    Obtain write access to the specified TComponent chunk that this entity is part of.
 	/// </summary>
-	public Mem<TComponent> GetWriteMem<TComponent>()
+	public PinnedMem<TComponent> GetWriteMem<TComponent>()
 	{
 		return accessToken.GetWriteMem<TComponent>();
 	}
@@ -2019,7 +2019,7 @@ public record struct EntityMetadata
 	/// <summary>
 	///    Obtain read-only access to the specified TComponent chunk that this entity is part of.
 	/// </summary>
-	public Mem<TComponent> GetReadMem<TComponent>()
+	public PinnedMem<TComponent> GetReadMem<TComponent>()
 	{
 		return accessToken.GetReadMem<TComponent>();
 	}
@@ -2238,7 +2238,7 @@ public class Chunk<TComponent> : Chunk
 	///    This is useful so you don't have to check if the slot is alive, and don't have gaps in live data.
 	///    If AutoPack is false, this will return the underlying storage array.
 	/// </summary>
-	public Mem<TComponent> StorageSlice
+	public PinnedMem<TComponent> StorageSlice
 	{
 		get
 		{

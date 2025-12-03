@@ -440,7 +440,7 @@ public readonly struct RentedMem<T> : IDisposable
 			batchStart = batchEnd;
 		}
 	}
-	public async ValueTask BatchMapWith<TOther>(Mem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<Mem<T>, Mem<TOther>, ValueTask> worker)
+	public async ValueTask BatchMapWith<TOther>(PinnedMem<TOther> otherToMapWith, Func_RefArg<T, T, bool> isSameBatch, Func<PinnedMem<T>, PinnedMem<TOther>, ValueTask> worker)
 	{
 		__.ThrowIfNot(otherToMapWith.Length == Length, "otherToMapWith must be the same length as this Mem");
 

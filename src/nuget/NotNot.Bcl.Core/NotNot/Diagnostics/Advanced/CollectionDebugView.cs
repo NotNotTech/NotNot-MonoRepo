@@ -40,21 +40,21 @@ public sealed class CollectionDebugView<T>
 	//	}
 	//}
 
-	public CollectionDebugView(Mem<T> collection)
-	{
-		//this.Items = new T[0];
-		_collection = collection;
-		//if (collection.Length == 0)
-		//{
-		//	Items = new T[0];
-		//}
-		//else
-		//{
-		//	Items = collection.DangerousGetArray().ToArray();
-		//}
-	}
+	//public CollectionDebugView(Mem<T> collection)
+	//{
+	//	//this.Items = new T[0];
+	//	_collection = collection;
+	//	//if (collection.Length == 0)
+	//	//{
+	//	//	Items = new T[0];
+	//	//}
+	//	//else
+	//	//{
+	//	//	Items = collection.DangerousGetArray().ToArray();
+	//	//}
+	//}
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
-	private Mem<T> _collection;
+	private PinnedMem<T> _collection;
 
 	[DebuggerBrowsable(DebuggerBrowsableState.Collapsed)]
 	//public T[]? Items { get; }

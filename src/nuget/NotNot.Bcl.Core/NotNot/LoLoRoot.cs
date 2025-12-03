@@ -656,8 +656,10 @@ public partial class LoLoRoot
       NotNot._internal.StaticPool._storage.Dispose();
 
 		_isDisposed = true;
-      //LoLoRoot._instance = null;
-   }
+		//LoLoRoot._instance = null;
+
+		//IMPORTANT_NOTE: if dispose of the assembly fails, might need to walk through all `Mem<T>._listItemFields` and dispose them too.
+	}
 
 }
 
