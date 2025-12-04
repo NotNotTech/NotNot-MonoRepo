@@ -55,21 +55,27 @@ public static class zz_Extensions_Span
          output[i] = mappedResult;
       }
    }
+	public static RentedMem<TResult> _Map<T,TResult>(this Span<T> source, Func_RefArg<T, TResult> mapFunc)
+	{
+		var toReturn = Mem.Rent<TResult>(source.Length);
+		source._Map(toReturn, mapFunc);
+		return toReturn;
+	}
 
-   #endregion
+	#endregion
 
-   #region Span<T> MapWith Methods
+	#region Span<T> MapWith Methods
 
-   /// <summary>
-   /// Maps two spans in parallel using the specified action, modifying elements in place.
-   /// Zero-allocation operation that modifies source span elements directly.
-   /// </summary>
-   /// <typeparam name="T">Source element type</typeparam>
-   /// <typeparam name="TOther">Other span element type</typeparam>
-   /// <param name="source">Source span to map (can be modified in place)</param>
-   /// <param name="other">Other span to map in parallel with source</param>
-   /// <param name="mapFunc">Action that processes pairs of elements by reference</param>
-   public static void _MapWith<T, TOther>(this Span<T> source, Span<TOther> other, Action_Ref<T, TOther> mapFunc)
+	/// <summary>
+	/// Maps two spans in parallel using the specified action, modifying elements in place.
+	/// Zero-allocation operation that modifies source span elements directly.
+	/// </summary>
+	/// <typeparam name="T">Source element type</typeparam>
+	/// <typeparam name="TOther">Other span element type</typeparam>
+	/// <param name="source">Source span to map (can be modified in place)</param>
+	/// <param name="other">Other span to map in parallel with source</param>
+	/// <param name="mapFunc">Action that processes pairs of elements by reference</param>
+	public static void _MapWith<T, TOther>(this Span<T> source, Span<TOther> other, Action_Ref<T, TOther> mapFunc)
    {
       __.ThrowIfNot(other.Length == source.Length, "other must be the same length as source");
 
