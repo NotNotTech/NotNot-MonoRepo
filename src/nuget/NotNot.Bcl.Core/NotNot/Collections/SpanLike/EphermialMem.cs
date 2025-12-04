@@ -19,7 +19,7 @@ namespace NotNot.Collections.SpanLike;
 
 /// <summary>
 /// Non-owning view into memory.  NO disposal/lifetime management.
-/// Use for temporary access where caller holds ownership elsewhere and will dispose when callstack pops.
+/// Use for temporary access where caller holds ownership elsewhere
 /// </summary>
 /// <remarks>
 /// <para>This is a ref struct (stack only usage) to encourage proper use (don't take references to it).  If you need a longer term reference, call <see cref="Pin"/></para>

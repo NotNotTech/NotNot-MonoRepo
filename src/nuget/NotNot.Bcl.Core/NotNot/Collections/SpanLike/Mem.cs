@@ -717,4 +717,9 @@ public readonly struct Mem<T>
 				throw __.Throw($"unknown _backingStorageType {_backingStorageType}");
 		}
 	}
+
+	public EphermialMem<T> UnPin()
+	{
+		return new EphermialMem<T>(_backingStorageType, _backingStorage, _segmentOffset, _segmentCount);
+	}
 }
