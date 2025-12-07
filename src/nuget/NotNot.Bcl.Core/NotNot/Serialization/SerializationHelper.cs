@@ -62,7 +62,10 @@ public class SerializationHelper
 					}
 				}
 			}
-			_logJsonOptions.Converters.Clear();
+			if (_logJsonOptions.IsReadOnly is false)
+			{
+				_logJsonOptions.Converters.Clear();
+			}
 			_logJsonOptions = null;
 		}
 
@@ -82,7 +85,10 @@ public class SerializationHelper
 					}
 				}
 			}
-			_roundtripJsonOptions.Converters.Clear();
+			if (_roundtripJsonOptions.IsReadOnly is false)
+			{
+				_roundtripJsonOptions.Converters.Clear();
+			}
 			_roundtripJsonOptions = null;
 		}
 	}
