@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+		<TestProjectType>Unit</TestProjectType>
+		<VSTestRunnerDotnetCLI>true</VSTestRunnerDotnetCLI>
+		<!-- Copy all NuGet dependencies to output directory to fix missing assembly issues -->
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Source generator testing framework -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing" Version="1.1.2" />
+		<!-- Force correct CodeAnalysis versions to match the generator project -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.0.0-1.25277.114">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+
+		<!-- Test framework - match existing BCL test versions -->
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="coverlet.collector" Version="6.0.4">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+
+		<!-- Fluent assertions for better test readability -->
+		<PackageReference Include="FluentAssertions" Version="8.8.0" />
+
+		<!-- DiffPlex for test comparison -->
+		<PackageReference Include="DiffPlex" Version="1.9.0" />
+
+		<!-- Explicit System.Composition reference to resolve MSB3277 warnings -->
+		<PackageReference Include="System.Composition.AttributedModel" Version="10.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Reference the source generator project -->
+		<ProjectReference Include="..\NotNot.Mixins\NotNot.Mixins.csproj" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<!-- Suppress warnings about test project structure -->
+		<NoWarn>$(NoWarn);NU1608</NoWarn>
+	</PropertyGroup>
+
+</Project>

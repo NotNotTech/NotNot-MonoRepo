@@ -1,0 +1,106 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<LangVersion>14</LangVersion>
+		<Configurations>Debug;Release;DebugNuget</Configurations>
+
+		<!-- Analyzer-specific settings -->
+		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+		<IsRoslynComponent>true</IsRoslynComponent>
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<DevelopmentDependency>true</DevelopmentDependency>
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<Deterministic>true</Deterministic>
+		<!-- Ensure analyzer deps are copied to bin for VS MEF resolution when referenced as ProjectReference -->
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="bin\**" />
+		<Compile Remove="Documentation\**" />
+		<EmbeddedResource Remove="bin\**" />
+		<EmbeddedResource Remove="Documentation\**" />
+		<None Remove="bin\**" />
+		<None Remove="Documentation\**" />
+	</ItemGroup>
+
+	<!-- Core analyzer dependencies (using BCL versions) -->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.0.0-1.25277.114" PrivateAssets="all" />
+		<!-- ObjectPool for performance (from original InlineComposition) -->
+		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="10.0.0" GeneratePathProperty="true" PrivateAssets="all" />
+		<PackageReference Include="PolySharp" Version="1.15.0" PrivateAssets="all" />
+	</ItemGroup>
+
+	<!-- Development-time analyzers (for this project only) -->
+	<ItemGroup>
+		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<!-- Build tools -->
+	<ItemGroup>
+		<PackageReference Include="editorconfig" Version="0.15.0" PrivateAssets="all" />
+		<PackageReference Include="MinVer" Version="6.1.0-beta.1" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<!-- Analyzer packaging configuration (includes ObjectPool dependency) -->
+	<PropertyGroup>
+		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPaths">
+		<ItemGroup>
+			<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+			<!-- Include ObjectPool in analyzer package -->
+			<TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_Extensions_ObjectPool)\lib\netstandard2.0\Microsoft.Extensions.ObjectPool.dll" IncludeRuntimeDependency="false" />
+			<None Include="$(PKGMicrosoft_Extensions_ObjectPool)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		</ItemGroup>
+	</Target>
+
+	<!-- NuGet package metadata -->
+	<PropertyGroup>
+		<PackageId>$(AssemblyName)</PackageId>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<MinVerTagPrefix>$(AssemblyName)-</MinVerTagPrefix>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<OutputType>Library</OutputType>
+		<Authors>NotNot (ported from InlineComposition by BlackWhiteYoshi)</Authors>
+		<Copyright>$(Authors)</Copyright>
+		<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/$(AssemblyName)/</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
+		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageTags>NotNot; InlineComposition; Mixins; Source Generator; Multiple Inheritance; Composition</PackageTags>
+		<Description>Source generator for inline composition/mixins (ported from InlineComposition by BlackWhiteYoshi, MIT licensed)</Description>
+		<Version>0.0.0-0.invalidMinverProcess</Version>
+	</PropertyGroup>
+
+	<!-- Package assets -->
+	<ItemGroup>
+		<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png" Pack="True" PackagePath="\" />
+		<None Include=".\README.md" Pack="True" PackagePath="\" />
+		<None Include=".\LICENSE" Pack="True" PackagePath="\" />
+	</ItemGroup>
+
+	<!-- Debug configuration -->
+	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
+		<WarningLevel>0</WarningLevel>
+		<NoWarn>$(NoWarn);NU5128</NoWarn>
+		<DebugType>embedded</DebugType>
+	</PropertyGroup>
+
+</Project>
