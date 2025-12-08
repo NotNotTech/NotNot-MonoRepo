@@ -2759,28 +2759,38 @@ public static class zz_Extensions_Numeric
       return T.Truncate(value);
    }
 
-   public static float _AsFloat<T>(this T value) where T : IFloatingPoint<T>
+   public static float _AsFloat<T>(this T value) where T : INumberBase<T>
    {
-      // Check if T is a floating-point type and convert accordingly
-      if (value is float f)
-      {
-         return f;
-      }
-      else if (value is double d)
-      {
-         return (float)d;
-      }
-      else if (value is decimal m)
-      {
-         return (float)m;
-      }
-      else
-      {
-         throw new InvalidOperationException("Unsupported floating-point type.");
-      }
+      return float.CreateChecked(value);
+      //// Check if T is a floating-point type and convert accordingly
+      //if (value is float f)
+      //{
+      //   return f;
+      //}
+      //else if (value is double d)
+      //{
+      //   return (float)d;
+      //}
+      //else if (value is decimal m)
+      //{
+      //   return (float)m;
+      //}
+      //else
+      //{
+      //   throw new InvalidOperationException("Unsupported floating-point type.");
+      //}
    }
 
-   public static T _SubtractTowardsZero<T>(this T value, T amount) where T : INumber<T>
+   public static int _AsInt(float value)
+	{
+      return float.ConvertToIntegerNative<int>(value);
+	}
+	public static int _AsInt<T>(this T value) where T : INumber<T>
+	{
+		return int.CreateChecked(value);
+	}
+
+	public static T _SubtractTowardsZero<T>(this T value, T amount) where T : INumber<T>
    {
       amount = T.Abs(amount);
       //if (Y < 0)
