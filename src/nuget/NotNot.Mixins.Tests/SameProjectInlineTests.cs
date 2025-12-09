@@ -426,4 +426,53 @@ public class SameProjectInlineTests
 		sources[0].Should().Contain(".Value\"/>");
 		sources[0].Should().Contain(".SetValue\"/>");
 	}
+
+	[Fact]
+	public void Inline_MultiVariableField_ShouldEmitDiagnostic()
+	{
+		const string input = """
+			using NotNot.MixinsAttributes;
+
+			namespace MyCode;
+
+			public class Base {
+				public int x, y, z;
+			}
+
+			[Inline<Base>]
+			public partial class Derived;
+			""";
+
+		var sources = SourceGeneratorTestHelper.GenerateUserSourceText(input, out _, out var diagnostics);
+
+		// Should emit NNM007 error for multi-variable declaration
+		diagnostics.Should().Contain(d => d.Id == "NNM007", "multi-variable declaration should trigger NNM007");
+
+		// The field should NOT be inlined (skipped due to error)
+		sources.Should().HaveCount(1);
+		sources[0].Should().NotContain("public int x, y, z;", "multi-variable field should not be inlined");
+	}
+
+	[Fact]
+	public void Inline_MultiVariableEvent_ShouldEmitDiagnostic()
+	{
+		const string input = """
+			using NotNot.MixinsAttributes;
+			using System;
+
+			namespace MyCode;
+
+			public class Base {
+				public event Action OnStart, OnStop;
+			}
+
+			[Inline<Base>]
+			public partial class Derived;
+			""";
+
+		var sources = SourceGeneratorTestHelper.GenerateUserSourceText(input, out _, out var diagnostics);
+
+		// Should emit NNM007 error for multi-variable event declaration
+		diagnostics.Should().Contain(d => d.Id == "NNM007", "multi-variable event should trigger NNM007");
+	}
 }

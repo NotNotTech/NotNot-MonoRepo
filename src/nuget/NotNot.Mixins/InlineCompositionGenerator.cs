@@ -15,7 +15,8 @@ namespace NotNot.Mixins;
 
 [Generator(LanguageNames.CSharp)]
 public sealed class InlineCompositionGenerator : IIncrementalGenerator {
-    private readonly ObjectPool<StringBuilder> stringBuilderPool = new DefaultObjectPoolProvider().CreateStringBuilderPool(initialCapacity: 8192, maximumRetainedCapacity: 1024 * 1024);
+    // Made static to ensure pool is shared across all generator instances for better reuse
+    private static readonly ObjectPool<StringBuilder> stringBuilderPool = new DefaultObjectPoolProvider().CreateStringBuilderPool(initialCapacity: 8192, maximumRetainedCapacity: 1024 * 1024);
 
     #region Diagnostic Descriptors
 
@@ -65,6 +66,14 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         messageFormat: "NotNot.Mixins: No members were inlined into '{0}' - all base classes are in external assemblies",
         category: "NotNot.Mixins",
         DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor ErrorMultiVariableDeclaration = new(
+        id: "NNM007",
+        title: "Multiple Variable Declaration Not Supported",
+        messageFormat: "NotNot.Mixins: Multiple variable declaration '{0}' is not supported. Declare each variable separately.",
+        category: "NotNot.Mixins",
+        DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
     #endregion
@@ -287,8 +296,11 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                     baseClassNodes[i].genericArguments = new string[typeArguments.Length];
                 }
 
-                for (int j = 0; j < typeArguments.Length; j++)
-                    baseClassNodes[i].genericArguments[j + offset] = (typeArguments[j] as INamedTypeSymbol)?.Name ?? string.Empty;
+                for (int j = 0; j < typeArguments.Length; j++) {
+                    // Use ToDisplayString for robust type name extraction (handles all ITypeSymbol kinds)
+                    // Fall back to empty string only if truly null (filtered by ReplaceGeneric guard)
+                    baseClassNodes[i].genericArguments[j + offset] = typeArguments[j]?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? string.Empty;
+                }
             }
             else if (baseClassNodes[i].mapBaseType)
                 baseClassNodes[i].genericArguments = [$"{inlineClass.Identifier.ValueText}{inlineClass.TypeParameterList?.ToString()}"];
@@ -350,11 +362,21 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                             usingStatementList.Add(usingSyntax.Name.ToFullString());
             }
 
-            // attributes
+            // attributes - filter out InlineBase/InlineBaseAttribute from all positions in each attribute list
+            // Handles both simple names (InlineBase) and qualified names (NotNot.MixinsAttributes.InlineBase)
             if (baseClassNode.inlineAttributes)
-                foreach (AttributeListSyntax attributeListSyntax in classType.AttributeLists)
-                    if (attributeListSyntax.Attributes is [AttributeSyntax { Name: not IdentifierNameSyntax { Identifier.ValueText: "InlineBase" or "InlineBaseAttribute" } }, ..])
+                foreach (AttributeListSyntax attributeListSyntax in classType.AttributeLists) {
+                    bool containsInlineBase = attributeListSyntax.Attributes.Any(attr => IsInlineBaseAttribute(attr.Name));
+                    if (!containsInlineBase)
                         attributeList.Add(attributeListSyntax.ToString());
+                }
+
+            static bool IsInlineBaseAttribute(NameSyntax? name) => name switch {
+                IdentifierNameSyntax id => id.Identifier.ValueText is "InlineBase" or "InlineBaseAttribute",
+                QualifiedNameSyntax qn => IsInlineBaseAttribute(qn.Right), // Check rightmost part of qualified name
+                AliasQualifiedNameSyntax aqn => IsInlineBaseAttribute(aqn.Name),
+                _ => false
+            };
 
             // primary constructor parameters
             if (classType.ParameterList != null)
@@ -368,6 +390,10 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
 
             // members
             foreach (MemberDeclarationSyntax node in classType.Members) {
+                // Periodic cancellation check for large classes
+                if (context.CancellationToken.IsCancellationRequested)
+                    return;
+
                 if (node.GetAttribute("NoInline", "NoInlineAttribute") != null)
                     continue;
 
@@ -383,8 +409,12 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                         break;
                     }
                     case FieldDeclarationSyntax fieldDeclarationSyntax: {
-                        if (fieldDeclarationSyntax.Declaration.Variables.Count > 1)
-                            throw new ArgumentException("multiple variable declaration is not supported.");
+                        if (fieldDeclarationSyntax.Declaration.Variables.Count > 1) {
+                            context.ReportDiagnostic(Diagnostic.Create(ErrorMultiVariableDeclaration,
+                                fieldDeclarationSyntax.GetLocation(),
+                                fieldDeclarationSyntax.Declaration.ToString()));
+                            break;
+                        }
                         string name = fieldDeclarationSyntax.Declaration.Variables.First().Identifier.ValueText;
 
                         if (!fieldList.ContainsKey(name)) {
@@ -407,8 +437,12 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                     }
 
                     case EventFieldDeclarationSyntax eventFieldDeclarationSyntax: {
-                        if (eventFieldDeclarationSyntax.Declaration.Variables.Count > 1)
-                            throw new ArgumentException("multiple variable declaration is not supported.");
+                        if (eventFieldDeclarationSyntax.Declaration.Variables.Count > 1) {
+                            context.ReportDiagnostic(Diagnostic.Create(ErrorMultiVariableDeclaration,
+                                eventFieldDeclarationSyntax.GetLocation(),
+                                eventFieldDeclarationSyntax.Declaration.ToString()));
+                            break;
+                        }
                         string name = eventFieldDeclarationSyntax.Declaration.Variables.First().Identifier.ValueText;
 
                         if (!eventList.ContainsKey(name)) {
@@ -506,7 +540,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
             BaseNamespaceDeclarationSyntax? namespaceSyntax = inlineClass.GetParent<BaseNamespaceDeclarationSyntax>();
             if (namespaceSyntax != null) {
                 int startIndex = builder.Length + 10; // 10 = "namespace ".Length
-                builder.AppendInterpolation($"namespace {namespaceSyntax.AsNamespace};\n\n");
+                builder.AppendInterpolation($"namespace {namespaceSyntax.AsNamespace()};\n\n");
                 classNamespace = builder.ToString(startIndex, builder.Length - 3 - startIndex); // 3 = ";\n\n".Length
             }
             else
@@ -802,7 +836,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         // Check if content has an existing </summary> tag
         if (leadingContent.Contains("</summary>")) {
             // Insert para right before </summary>
-            string[] lines = leadingContent.Split('\n');
+            string[] lines = leadingContent.Split(["\r\n", "\n"], StringSplitOptions.None);
             StringBuilder result = new StringBuilder();
 
             for (int i = 0; i < lines.Length; i++) {
@@ -843,7 +877,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         if (summaryEndIndex != -1) {
             // Insert para right before </summary>
             // Find the line with </summary> and insert our para before it
-            string[] lines = source.Split('\n');
+            string[] lines = source.Split(["\r\n", "\n"], StringSplitOptions.None);
             StringBuilder result = new StringBuilder();
 
             for (int i = 0; i < lines.Length; i++) {
@@ -870,7 +904,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         string[] declarationKeywords = ["public", "private", "protected", "internal", "static", "readonly", "const", "event", "class", "struct", "interface", "enum", "record"];
         string fullSummary = $"\t/// <summary>\n\t{inlinedFromPara}\n\t/// </summary>\n\t";
 
-        string[] sourceLines = source.Split('\n');
+        string[] sourceLines = source.Split(["\r\n", "\n"], StringSplitOptions.None);
         StringBuilder resultBuilder = new StringBuilder();
         bool inserted = false;
 
@@ -906,105 +940,80 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         return finalResult;
     }
 
-    private static unsafe string ReplaceGeneric(string source, string[] parameters, string[] arguments) {
+    /// <summary>
+    /// Replaces generic type parameter names with their concrete type arguments in source text.
+    /// Uses safe string operations instead of unsafe pointer manipulation.
+    /// </summary>
+    private static string ReplaceGeneric(string source, string[] parameters, string[] arguments) {
         if (parameters.Length == 0)
             return source;
 
+        // Find all replacement positions using state machine
         List<(int index, int paraIndex)> replaceIndexList = [];
 
         for (int i = 0; i < parameters.Length; i++) {
-            int state = 1;
-            int index = 0;
-            for (int j = 0; j < source.Length; j++)
-                switch (state) {
-                    case 0:
-                        if (!char.IsLetterOrDigit(source[j]))
-                            state = 1;
-                        break;
-                    case 1:
-                        if (source[j] == parameters[i][index]) {
-                            index++;
-                            if (index == parameters[i].Length) {
-                                index = 0;
-                                state = 2;
-                            }
-                            break;
-                        }
-                        else {
-                            index = 0;
-                            state = 0;
-                            goto case 0;
-                        }
-                    case 2:
-                        if (!char.IsLetterOrDigit(source[j])) {
-                            replaceIndexList.Add((j - parameters[i].Length, i));
-                            state = 1;
-                        }
-                        else
-                            state = 0;
-                        break;
-                }
+            // Skip empty parameters to avoid issues
+            if (parameters[i].Length == 0)
+                continue;
 
-            if (state == 2)
-                replaceIndexList.Add((source.Length - parameters[i].Length, i));
+            string param = parameters[i];
+            int paramLen = param.Length;
+
+            // Find all occurrences of this parameter as a whole word
+            int searchStart = 0;
+            while (searchStart <= source.Length - paramLen) {
+                int foundIndex = source.IndexOf(param, searchStart, StringComparison.Ordinal);
+                if (foundIndex < 0)
+                    break;
+
+                // Check if this is a whole word match (not part of a larger identifier)
+                bool validStart = foundIndex == 0 || !char.IsLetterOrDigit(source[foundIndex - 1]);
+                bool validEnd = foundIndex + paramLen >= source.Length || !char.IsLetterOrDigit(source[foundIndex + paramLen]);
+
+                if (validStart && validEnd) {
+                    replaceIndexList.Add((foundIndex, i));
+                    searchStart = foundIndex + paramLen;
+                }
+                else {
+                    searchStart = foundIndex + 1;
+                }
+            }
         }
 
         if (replaceIndexList.Count == 0)
             return source;
-        replaceIndexList.Sort(((int index, int paraIndex) a, (int index, int paraIndex) b) => a.index.CompareTo(b.index));
 
+        // Sort by position and remove overlapping matches
+        replaceIndexList.Sort((a, b) => a.index.CompareTo(b.index));
 
-        int extraSpace = 0;
-        {
-            int lastIndex = 0;
-            for (int i = 0; i < replaceIndexList.Count; i++) {
-                int index = replaceIndexList[i].index;
-                int paraIndex = replaceIndexList[i].paraIndex;
-
-                // remove overlapping replacements
-                if (index < lastIndex) {
-                    replaceIndexList.RemoveAt(i--);
-                    continue;
-                }
-
-                lastIndex = index + parameters[paraIndex].Length;
-                extraSpace += arguments[paraIndex].Length - parameters[paraIndex].Length;
+        int lastEnd = 0;
+        for (int i = 0; i < replaceIndexList.Count; i++) {
+            if (replaceIndexList[i].index < lastEnd) {
+                replaceIndexList.RemoveAt(i--);
+                continue;
             }
+            lastEnd = replaceIndexList[i].index + parameters[replaceIndexList[i].paraIndex].Length;
         }
 
-        string result = new('\0', source.Length + extraSpace);
-        int currentIndex = 0;
-        fixed (char* destinationPtr = result) {
-            fixed (char* sourcePtr = source) {
-                char* d = destinationPtr;
-                char* s = sourcePtr;
+        // Build result using StringBuilder
+        StringBuilder result = new(source.Length + replaceIndexList.Count * 16);
+        int currentPos = 0;
 
-                foreach ((int index, int paraIndex) in replaceIndexList) {
-                    string parameter = parameters[paraIndex];
-                    string argument = arguments[paraIndex];
+        foreach ((int index, int paraIndex) in replaceIndexList) {
+            // Append text before this replacement
+            if (index > currentPos)
+                result.Append(source, currentPos, index - currentPos);
 
-                    int length = index - currentIndex;
-                    int byteLength = length * sizeof(char);
-                    Buffer.MemoryCopy(s, d, byteLength, byteLength);
-                    d += length;
-                    s += length;
+            // Append the replacement argument
+            result.Append(arguments[paraIndex]);
 
-                    fixed (char* a = argument) {
-                        int byteCount = argument.Length * sizeof(char);
-                        Buffer.MemoryCopy(a, d, byteCount, byteCount);
-                    }
-                    d += argument.Length;
-                    s += parameter.Length;
-
-                    currentIndex = index + parameter.Length;
-                }
-                {
-                    int byteCount = (source.Length - currentIndex) * sizeof(char);
-                    Buffer.MemoryCopy(s, d, byteCount, byteCount);
-                }
-            }
+            currentPos = index + parameters[paraIndex].Length;
         }
 
-        return result;
+        // Append remaining text
+        if (currentPos < source.Length)
+            result.Append(source, currentPos, source.Length - currentPos);
+
+        return result.ToString();
     }
 }

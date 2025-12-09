@@ -7,9 +7,10 @@ namespace NotNot.Mixins;
 
 /// <summary>
 /// Represents the content of an inlined method (with head declarations and without closing bracket).
+/// Changed from struct to class to avoid mutable struct anti-pattern with reference type fields.
 /// </summary>
-public struct MethodEntry() {
-    public readonly List<string> headList = [];
-    public readonly List<string> blockList = [];
-    public string? lastBlock = null;
+public sealed class MethodEntry {
+    public List<string> headList { get; } = [];
+    public List<string> blockList { get; } = [];
+    public string? lastBlock { get; set; }
 }

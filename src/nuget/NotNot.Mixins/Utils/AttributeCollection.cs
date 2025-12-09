@@ -6,7 +6,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Immutable;
-using System.Runtime.CompilerServices;
 
 namespace NotNot.Mixins;
 
@@ -19,12 +18,12 @@ public readonly struct AttributeCollection(
     bool[] baseClassHasSource) : IEquatable<AttributeCollection> {
     public readonly TypeDeclarationSyntax inlineClass = inlineClass;
     public readonly AttributeData inlineAttribute = inlineAttribute;
-    public readonly ImmutableArray<TypeDeclarationSyntax?> baseClasses = Unsafe.As<TypeDeclarationSyntax?[], ImmutableArray<TypeDeclarationSyntax?>>(ref baseClassArray);
-    public readonly ImmutableArray<AttributeData?> baseAttributes = Unsafe.As<AttributeData?[], ImmutableArray<AttributeData?>>(ref baseAttributeArray);
+    public readonly ImmutableArray<TypeDeclarationSyntax?> baseClasses = ImmutableArray.Create(baseClassArray);
+    public readonly ImmutableArray<AttributeData?> baseAttributes = ImmutableArray.Create(baseAttributeArray);
     /// <summary>Fully qualified names of base classes for diagnostic reporting</summary>
-    public readonly ImmutableArray<string> baseClassNames = Unsafe.As<string[], ImmutableArray<string>>(ref baseClassNames);
+    public readonly ImmutableArray<string> baseClassNames = ImmutableArray.Create(baseClassNames);
     /// <summary>Whether each base class has source available (false = external assembly)</summary>
-    public readonly ImmutableArray<bool> baseClassHasSource = Unsafe.As<bool[], ImmutableArray<bool>>(ref baseClassHasSource);
+    public readonly ImmutableArray<bool> baseClassHasSource = ImmutableArray.Create(baseClassHasSource);
 
     public readonly override bool Equals(object? obj) {
         if (obj is not AttributeCollection collection)

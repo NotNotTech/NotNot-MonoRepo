@@ -9,7 +9,7 @@ using System.Text;
 
 namespace NotNot.Mixins;
 
-public static class StringBuilderExtesions {
+public static class StringBuilderExtensions {
     /// <summary>
     /// Appends in a recursive way the full namespace.
     /// </summary>
@@ -26,14 +26,12 @@ public static class StringBuilderExtesions {
 
         return builder;
     }
-    extension(BaseNamespaceDeclarationSyntax namespaceSyntax) {
-        /// <summary>
-        /// Creates a type to map method <see cref="StringBuilderInterpolationHandler.AppendFormatted(StringBuilderInterpolationHandler.INamespace)"/> to <see cref="AppendNamespace"/>.
-        /// </summary>
-        /// <param name="service"></param>
-        /// <returns></returns>
-        public StringBuilderInterpolationHandler.INamespace AsNamespace => Unsafe.As<StringBuilderInterpolationHandler.INamespace>(namespaceSyntax);
-    }
+
+    /// <summary>
+    /// Creates a type to map method <see cref="StringBuilderInterpolationHandler.AppendFormatted(StringBuilderInterpolationHandler.INamespace)"/> to <see cref="AppendNamespace"/>.
+    /// </summary>
+    public static StringBuilderInterpolationHandler.INamespace AsNamespace(this BaseNamespaceDeclarationSyntax namespaceSyntax)
+        => Unsafe.As<StringBuilderInterpolationHandler.INamespace>(namespaceSyntax);
 
 
     /// <summary>
