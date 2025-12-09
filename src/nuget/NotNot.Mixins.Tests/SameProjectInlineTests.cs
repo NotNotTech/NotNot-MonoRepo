@@ -382,18 +382,21 @@ public class SameProjectInlineTests
 		diagnostics.ErrorsAndWarnings().Should().BeEmpty();
 		sources.Should().HaveCount(1);
 
-		// All members should have "Inlined from" XML doc
-		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.DocumentedField\"/>");
-		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.UndocumentedField\"/>");
-		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.DocumentedProp\"/>");
-		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.UndocumentedProp\"/>");
-		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.DocumentedMethod\"/>");
-		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.UndocumentedMethod\"/>");
+		// All members should have "Inlined from" in a <para> tag inside <summary>
+		sources[0].Should().Contain("<para>Inlined from: <see cref=\"MyCode.MixinClass.DocumentedField\"/></para>");
+		sources[0].Should().Contain("<para>Inlined from: <see cref=\"MyCode.MixinClass.UndocumentedField\"/></para>");
+		sources[0].Should().Contain("<para>Inlined from: <see cref=\"MyCode.MixinClass.DocumentedProp\"/></para>");
+		sources[0].Should().Contain("<para>Inlined from: <see cref=\"MyCode.MixinClass.UndocumentedProp\"/></para>");
+		sources[0].Should().Contain("<para>Inlined from: <see cref=\"MyCode.MixinClass.DocumentedMethod\"/></para>");
+		sources[0].Should().Contain("<para>Inlined from: <see cref=\"MyCode.MixinClass.UndocumentedMethod\"/></para>");
 
 		// Documented members should still have their original docs
 		sources[0].Should().Contain("A documented field.");
 		sources[0].Should().Contain("A documented property.");
 		sources[0].Should().Contain("A documented method.");
+
+		// Undocumented members should have a <summary> wrapper added
+		sources[0].Should().Contain("/// <summary>");
 	}
 
 	[Fact]

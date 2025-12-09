@@ -672,15 +672,17 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
     private static void AddMethodHead(BaseMethodDeclarationSyntax method, List<string> list, string name, string? modifiers, string[] genericParameters, string[] genericArguments, string baseClassName = "", string crefMemberName = "") {
         // XML doc comments are in leading trivia. When attributes exist, ToFullString() includes them.
         // When no attributes, we must extract leading trivia explicitly to preserve XML docs.
+        string leadingContent;
         if (method.AttributeLists.Count > 0)
-            list.Add(method.AttributeLists.ToFullString());
+            leadingContent = method.AttributeLists.ToFullString();
         else
-            list.Add(method.GetLeadingTrivia().ToFullString());
+            leadingContent = method.GetLeadingTrivia().ToFullString();
 
-        // Add "Inlined from" XML doc comment
+        // Add "Inlined from" XML doc comment (inside summary if exists, otherwise wrap in new summary)
         if (!string.IsNullOrEmpty(baseClassName))
-            list.Add(CreateInlinedFromXmlDoc(baseClassName, crefMemberName));
+            leadingContent = AddInlinedFromToLeadingContent(leadingContent, baseClassName, crefMemberName);
 
+        list.Add(leadingContent);
         list.Add("    ");
         if (modifiers != null) {
             if (modifiers != string.Empty) {
@@ -712,8 +714,10 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         list.Add(ReplaceGeneric(method.ParameterList.ToString(), genericParameters, genericArguments));
 
         // Preserve generic constraint clauses (where T : new(), etc.)
-        if (method is MethodDeclarationSyntax methodDecl && methodDecl.ConstraintClauses.Count > 0)
+        if (method is MethodDeclarationSyntax methodDecl && methodDecl.ConstraintClauses.Count > 0) {
+            list.Add(" ");
             list.Add(ReplaceGeneric(methodDecl.ConstraintClauses.ToFullString(), genericParameters, genericArguments));
+        }
 
         list.Add(" ");
     }
@@ -721,15 +725,17 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
     private static void AddConDestructorHead(BaseMethodDeclarationSyntax method, List<string> list, string name, string? modifiers, string[] genericParameters, string[] genericArguments, string baseClassName = "", string crefMemberName = "") {
         // XML doc comments are in leading trivia. When attributes exist, ToFullString() includes them.
         // When no attributes, we must extract leading trivia explicitly to preserve XML docs.
+        string leadingContent;
         if (method.AttributeLists.Count > 0)
-            list.Add(method.AttributeLists.ToFullString());
+            leadingContent = method.AttributeLists.ToFullString();
         else
-            list.Add(method.GetLeadingTrivia().ToFullString());
+            leadingContent = method.GetLeadingTrivia().ToFullString();
 
-        // Add "Inlined from" XML doc comment
+        // Add "Inlined from" XML doc comment (inside summary if exists, otherwise wrap in new summary)
         if (!string.IsNullOrEmpty(baseClassName))
-            list.Add(CreateInlinedFromXmlDoc(baseClassName, crefMemberName));
+            leadingContent = AddInlinedFromToLeadingContent(leadingContent, baseClassName, crefMemberName);
 
+        list.Add(leadingContent);
         list.Add("    ");
         if (modifiers != null) {
             if (modifiers != string.Empty) {
@@ -775,61 +781,129 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
     }
 
     /// <summary>
-    /// Creates the "Inlined from" XML doc comment to append to member documentation.
+    /// Creates the "Inlined from" XML doc line (without summary wrapper).
     /// </summary>
-    private static string CreateInlinedFromXmlDoc(string baseClassName, string memberName) {
+    private static string CreateInlinedFromPara(string baseClassName, string memberName) {
         // Strip "global::" prefix if present for cleaner display
         string displayClassName = baseClassName.StartsWith("global::")
             ? baseClassName.Substring(8)
             : baseClassName;
-        return $"/// <para>Inlined from: <see cref=\"{displayClassName}.{memberName}\"/></para>\n\t";
+        return $"/// <para>Inlined from: <see cref=\"{displayClassName}.{memberName}\"/></para>";
     }
 
     /// <summary>
-    /// Prepends "Inlined from" XML doc to a member's source string.
-    /// Inserts the doc comment right before the declaration (after any existing XML docs and attributes).
+    /// Adds "Inlined from" XML doc to leading content (trivia/attributes before a method declaration).
+    /// - If content has existing summary: inserts para before closing summary tag
+    /// - If content has no summary: appends a complete summary block at end
+    /// </summary>
+    private static string AddInlinedFromToLeadingContent(string leadingContent, string baseClassName, string memberName) {
+        string inlinedFromPara = CreateInlinedFromPara(baseClassName, memberName);
+
+        // Check if content has an existing </summary> tag
+        if (leadingContent.Contains("</summary>")) {
+            // Insert para right before </summary>
+            string[] lines = leadingContent.Split('\n');
+            StringBuilder result = new StringBuilder();
+
+            for (int i = 0; i < lines.Length; i++) {
+                string trimmed = lines[i].TrimStart();
+                if (trimmed.StartsWith("/// </summary>") || trimmed.StartsWith("///</summary>")) {
+                    // Extract indentation from current line and apply to inserted para
+                    int indentLen = lines[i].Length - trimmed.Length;
+                    string indent = lines[i].Substring(0, indentLen);
+                    result.AppendLine(indent + inlinedFromPara);
+                }
+                result.AppendLine(lines[i]);
+            }
+
+            // Remove trailing newline
+            string final = result.ToString();
+            if (final.EndsWith("\r\n"))
+                return final.Substring(0, final.Length - 2);
+            if (final.EndsWith("\n"))
+                return final.Substring(0, final.Length - 1);
+            return final;
+        }
+
+        // No existing summary - append a complete summary block at end of leading content
+        string fullSummary = $"\t/// <summary>\n\t{inlinedFromPara}\n\t/// </summary>\n";
+        return leadingContent + fullSummary;
+    }
+
+    /// <summary>
+    /// Adds "Inlined from" XML doc to a member's source string.
+    /// - If member has existing summary: inserts para before closing summary tag
+    /// - If member has no summary: adds a complete summary wrapper
     /// </summary>
     private static string PrependInlinedFromDoc(string source, string baseClassName, string memberName) {
-        string inlinedFromDoc = CreateInlinedFromXmlDoc(baseClassName, memberName);
+        string inlinedFromPara = CreateInlinedFromPara(baseClassName, memberName);
 
-        // Find where to insert: right before the declaration keyword
-        // Declaration keywords: public, private, protected, internal, static, readonly, const, event, class, struct, interface, enum, record
+        // Check if source has an existing </summary> tag
+        int summaryEndIndex = source.IndexOf("</summary>");
+        if (summaryEndIndex != -1) {
+            // Insert para right before </summary>
+            // Find the line with </summary> and insert our para before it
+            string[] lines = source.Split('\n');
+            StringBuilder result = new StringBuilder();
+
+            for (int i = 0; i < lines.Length; i++) {
+                string trimmed = lines[i].TrimStart();
+                if (trimmed.StartsWith("/// </summary>") || trimmed.StartsWith("///</summary>")) {
+                    // Extract indentation from current line and apply to inserted para
+                    int indentLen = lines[i].Length - trimmed.Length;
+                    string indent = lines[i].Substring(0, indentLen);
+                    result.AppendLine(indent + inlinedFromPara);
+                }
+                result.AppendLine(lines[i]);
+            }
+
+            // Remove trailing newline
+            string final = result.ToString();
+            if (final.EndsWith("\r\n"))
+                return final.Substring(0, final.Length - 2);
+            if (final.EndsWith("\n"))
+                return final.Substring(0, final.Length - 1);
+            return final;
+        }
+
+        // No existing summary - add a complete summary wrapper before declaration
         string[] declarationKeywords = ["public", "private", "protected", "internal", "static", "readonly", "const", "event", "class", "struct", "interface", "enum", "record"];
+        string fullSummary = $"\t/// <summary>\n\t{inlinedFromPara}\n\t/// </summary>\n\t";
 
-        string[] lines = source.Split('\n');
-        StringBuilder result = new StringBuilder();
+        string[] sourceLines = source.Split('\n');
+        StringBuilder resultBuilder = new StringBuilder();
         bool inserted = false;
 
-        for (int i = 0; i < lines.Length; i++) {
-            string trimmed = lines[i].TrimStart();
+        for (int i = 0; i < sourceLines.Length; i++) {
+            string trimmed = sourceLines[i].TrimStart();
 
             // Check if this line starts with a declaration keyword
             if (!inserted) {
                 foreach (string keyword in declarationKeywords) {
                     if (trimmed.StartsWith(keyword) && (trimmed.Length == keyword.Length || !char.IsLetterOrDigit(trimmed[keyword.Length]))) {
-                        // Insert our doc before this line
-                        result.Append(inlinedFromDoc);
+                        // Insert our summary before this line
+                        resultBuilder.Append(fullSummary);
                         inserted = true;
                         break;
                     }
                 }
             }
 
-            result.AppendLine(lines[i]);
+            resultBuilder.AppendLine(sourceLines[i]);
         }
 
-        // If no insertion point found (e.g., source is empty or unusual), just prepend
+        // If no insertion point found, just prepend
         if (!inserted && !string.IsNullOrEmpty(source)) {
-            return inlinedFromDoc + source;
+            return fullSummary + source;
         }
 
-        // Remove trailing newline that Split/AppendLine adds
-        string final = result.ToString();
-        if (final.EndsWith("\r\n"))
-            return final.Substring(0, final.Length - 2);
-        if (final.EndsWith("\n"))
-            return final.Substring(0, final.Length - 1);
-        return final;
+        // Remove trailing newline
+        string finalResult = resultBuilder.ToString();
+        if (finalResult.EndsWith("\r\n"))
+            return finalResult.Substring(0, finalResult.Length - 2);
+        if (finalResult.EndsWith("\n"))
+            return finalResult.Substring(0, finalResult.Length - 1);
+        return finalResult;
     }
 
     private static unsafe string ReplaceGeneric(string source, string[] parameters, string[] arguments) {
