@@ -318,14 +318,19 @@ public class RefSlotStore<T> : IDisposeGuard
 			// Thread-safe validation and access
 			lock (_lock)
 			{
-				var validResult = _IsHandleAlive_Unsafe(slot);
-				if (!validResult.isAlive)
+				//var validResult = _IsHandleAlive_Unsafe(slot);
+				//if (!validResult.isAlive)
+				//{
+				//	__.DebugAssertIfNot(validResult.isAlive, $"Invalid slot access: {validResult.invalidReason}");
+
+				//	throw new InvalidOperationException($"Invalid slot access: {validResult.invalidReason}");
+				//}
+
+				var storedSlot = _allocTracker[slot.Index];
+				if(slot != storedSlot)
 				{
-					__.DebugAssertIfNot(validResult.isAlive, $"Invalid slot access: {validResult.invalidReason}");
-
-					throw new InvalidOperationException($"Invalid slot access: {validResult.invalidReason}");
+					throw __.Throw();
 				}
-
 				return ref _data[slot.Index];
 			}
 		}

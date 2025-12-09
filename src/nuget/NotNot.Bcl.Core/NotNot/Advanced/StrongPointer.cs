@@ -134,7 +134,7 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 	/// <returns>True if the handle is valid and alive, false otherwise</returns>
 	public bool CheckIsAlive()
 	{
-		if (!IsAllocated) return false;
+		//if (!IsAllocated) return false;
 		return _store.IsHandleAlive(_slotHandle).isAlive;
 	}
 
