@@ -126,8 +126,10 @@ public class CrossAssemblyLimitationTests
 			           !s.Contains("internal sealed class InlineFinalizerAttribute"))
 			.ToArray();
 
-		// Generator should not produce errors (silent handling of cross-assembly)
-		diagnostics.Should().BeEmpty("generator should handle external assembly gracefully without errors");
+		// Generator should produce warnings about cross-assembly limitation (NNM003, NNM006)
+		diagnostics.ErrorsAndWarnings().Should().NotBeEmpty("generator should warn about cross-assembly limitation");
+		diagnostics.Should().Contain(d => d.Id == "NNM003", "should warn that source is not available");
+		diagnostics.Should().Contain(d => d.Id == "NNM006", "should warn that no members were inlined");
 
 		// CRITICAL ASSERTION: Generator creates empty partial class but NO members inlined
 		// When Tags is in external assembly, the partial class is generated but empty
@@ -236,8 +238,8 @@ public class CrossAssemblyLimitationTests
 
 		var sources = SourceGeneratorTestHelper.GenerateUserSourceText(input, out _, out var diagnostics);
 
-		// Generator should not produce errors
-		diagnostics.Should().BeEmpty("generator should not produce errors for same-compilation inlining");
+		// Generator should not produce errors or warnings for same-compilation inlining
+		diagnostics.ErrorsAndWarnings().Should().BeEmpty("generator should not produce errors for same-compilation inlining");
 
 		// PASSES: Same-compilation inlining works correctly
 		sources.Should().HaveCount(1, "should generate partial class when source available");
@@ -357,8 +359,8 @@ public class CrossAssemblyLimitationTests
 
 		var sources = SourceGeneratorTestHelper.GenerateUserSourceText(input, out var outputCompilation, out var diagnostics);
 
-		// Generator should not produce errors
-		diagnostics.Should().BeEmpty("generator should not produce errors for workaround scenario");
+		// Generator should not produce errors or warnings for workaround scenario
+		diagnostics.ErrorsAndWarnings().Should().BeEmpty("generator should not produce errors for workaround scenario");
 
 		// PASSES: With Tags in same compilation, inlining works
 		sources.Should().HaveCount(1);

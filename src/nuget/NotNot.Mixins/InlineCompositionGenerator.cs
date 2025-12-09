@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.ObjectPool;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 
 namespace NotNot.Mixins;
@@ -16,6 +17,57 @@ namespace NotNot.Mixins;
 public sealed class InlineCompositionGenerator : IIncrementalGenerator {
     private readonly ObjectPool<StringBuilder> stringBuilderPool = new DefaultObjectPoolProvider().CreateStringBuilderPool(initialCapacity: 8192, maximumRetainedCapacity: 1024 * 1024);
 
+    #region Diagnostic Descriptors
+
+    private static readonly DiagnosticDescriptor InfoProcessingClass = new(
+        id: "NNM001",
+        title: "Processing Inline Class",
+        messageFormat: "NotNot.Mixins: Processing '{0}' with [Inline<{1}>]",
+        category: "NotNot.Mixins",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor InfoBaseClassFound = new(
+        id: "NNM002",
+        title: "Base Class Source Found",
+        messageFormat: "NotNot.Mixins: Base class '{0}' has source available (source file: {1})",
+        category: "NotNot.Mixins",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor WarnBaseClassNoSource = new(
+        id: "NNM003",
+        title: "Base Class Source Not Available",
+        messageFormat: "NotNot.Mixins: Cannot inline '{0}' - type is in external assembly (DeclaringSyntaxReferences is empty). Members will NOT be inlined. Copy source to this project or use shared project.",
+        category: "NotNot.Mixins",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor InfoMembersInlined = new(
+        id: "NNM004",
+        title: "Members Inlined",
+        messageFormat: "NotNot.Mixins: Inlined {0} fields, {1} properties, {2} methods from '{3}' into '{4}'",
+        category: "NotNot.Mixins",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor InfoOutputGenerated = new(
+        id: "NNM005",
+        title: "Output Generated",
+        messageFormat: "NotNot.Mixins: Generated '{0}' ({1} bytes)",
+        category: "NotNot.Mixins",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor WarnNoMembersInlined = new(
+        id: "NNM006",
+        title: "No Members Inlined",
+        messageFormat: "NotNot.Mixins: No members were inlined into '{0}' - all base classes are in external assemblies",
+        category: "NotNot.Mixins",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    #endregion
 
     public void Initialize(IncrementalGeneratorInitializationContext context) {
         // register attribute marker
@@ -53,17 +105,27 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                     INamedTypeSymbol inlineClassSymbol = (INamedTypeSymbol)syntaxContext.TargetSymbol;
                     AttributeData inlineAttribute = syntaxContext.Attributes[0];
 
-                    TypeDeclarationSyntax?[] baseClassArray = new TypeDeclarationSyntax[inlineAttribute.AttributeClass!.TypeArguments.Length];
-                    AttributeData?[] baseAttributeArray = new AttributeData[inlineAttribute.AttributeClass!.TypeArguments.Length];
-                    for (int i = 0; i < inlineAttribute.AttributeClass!.TypeArguments.Length; i++) {
+                    int typeArgCount = inlineAttribute.AttributeClass!.TypeArguments.Length;
+                    TypeDeclarationSyntax?[] baseClassArray = new TypeDeclarationSyntax[typeArgCount];
+                    AttributeData?[] baseAttributeArray = new AttributeData[typeArgCount];
+                    string[] baseClassNames = new string[typeArgCount];
+                    bool[] baseClassHasSource = new bool[typeArgCount];
+
+                    for (int i = 0; i < typeArgCount; i++) {
                         ITypeSymbol baseClass = inlineAttribute.AttributeClass!.TypeArguments[i];
+                        baseClassNames[i] = baseClass.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
                         if (baseClass.DeclaringSyntaxReferences is [SyntaxReference syntaxReference, ..] && syntaxReference.GetSyntax() is TypeDeclarationSyntax baseClassSyntax) {
                             baseClassArray[i] = baseClassSyntax;
                             baseAttributeArray[i] = baseClass.GetAttribute("InlineBaseAttribute", ["NotNot.MixinsAttributes"]);
+                            baseClassHasSource[i] = true;
+                        }
+                        else {
+                            baseClassHasSource[i] = false;
                         }
                     }
 
-                    return new AttributeCollection(inlineClassSyntax, inlineAttribute, baseClassArray, baseAttributeArray);
+                    return new AttributeCollection(inlineClassSyntax, inlineAttribute, baseClassArray, baseAttributeArray, baseClassNames, baseClassHasSource);
                 }
             );
 
@@ -76,8 +138,27 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         AttributeData inlineAttribute = attributeProvider.inlineAttribute;
         ImmutableArray<TypeDeclarationSyntax?> baseClasses = attributeProvider.baseClasses;
         ImmutableArray<AttributeData?> baseAttributes = attributeProvider.baseAttributes;
+        ImmutableArray<string> baseClassNames = attributeProvider.baseClassNames;
+        ImmutableArray<bool> baseClassHasSource = attributeProvider.baseClassHasSource;
 
         string inlineClassName = inlineClass.Identifier.ValueText;
+        Location inlineClassLocation = inlineClass.Identifier.GetLocation();
+
+        // Report which class we're processing
+        string allBaseClassNames = string.Join(", ", baseClassNames);
+        context.ReportDiagnostic(Diagnostic.Create(InfoProcessingClass, inlineClassLocation, inlineClassName, allBaseClassNames));
+
+        // Report source availability for each base class
+        for (int i = 0; i < baseClassNames.Length; i++) {
+            if (baseClassHasSource[i]) {
+                context.ReportDiagnostic(Diagnostic.Create(InfoBaseClassFound, inlineClassLocation,
+                    baseClassNames[i], baseClasses[i]?.SyntaxTree?.FilePath ?? "unknown"));
+            }
+            else {
+                // WARNING: Cross-assembly limitation detected
+                context.ReportDiagnostic(Diagnostic.Create(WarnBaseClassNoSource, inlineClassLocation, baseClassNames[i]));
+            }
+        }
 
         List<string> usingStatementList = [];
         List<string> attributeList = [];
@@ -500,6 +581,30 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
 
         context.AddSource(hintName, sourceCode);
 
+        // Report output generation
+        context.ReportDiagnostic(Diagnostic.Create(InfoOutputGenerated, inlineClassLocation, hintName, sourceCode.Length));
+
+        // Report member counts and warn if nothing was inlined
+        int totalFields = fieldList.Count;
+        int totalProperties = propertyList.Count;
+        int totalMethods = methodList.Count;
+        int totalMembers = totalFields + totalProperties + totalMethods + typeList.Count + eventList.Count;
+
+        if (totalMembers > 0) {
+            // Report per-baseclass if we have info
+            string inlinedFrom = string.Join(", ", baseClassNames.Where((_, i) => baseClassHasSource[i]));
+            if (!string.IsNullOrEmpty(inlinedFrom)) {
+                context.ReportDiagnostic(Diagnostic.Create(InfoMembersInlined, inlineClassLocation,
+                    totalFields, totalProperties, totalMethods, inlinedFrom, inlineClassName));
+            }
+        }
+        else {
+            // No members were inlined - warn user
+            bool anyHasSource = baseClassHasSource.Any(x => x);
+            if (!anyHasSource) {
+                context.ReportDiagnostic(Diagnostic.Create(WarnNoMembersInlined, inlineClassLocation, inlineClassName));
+            }
+        }
 
         stringBuilderPool.Return(builder);
 
@@ -554,7 +659,12 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
     }
 
     private static void AddMethodHead(BaseMethodDeclarationSyntax method, List<string> list, string name, string? modifiers, string[] genericParameters, string[] genericArguments) {
-        list.Add(method.AttributeLists.ToFullString());
+        // XML doc comments are in leading trivia. When attributes exist, ToFullString() includes them.
+        // When no attributes, we must extract leading trivia explicitly to preserve XML docs.
+        if (method.AttributeLists.Count > 0)
+            list.Add(method.AttributeLists.ToFullString());
+        else
+            list.Add(method.GetLeadingTrivia().ToFullString());
 
         list.Add("    ");
         if (modifiers != null) {
@@ -585,11 +695,21 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         if (typeParameterList != null)
             list.Add(ReplaceGeneric(typeParameterList.ToString(), genericParameters, genericArguments));
         list.Add(ReplaceGeneric(method.ParameterList.ToString(), genericParameters, genericArguments));
+
+        // Preserve generic constraint clauses (where T : new(), etc.)
+        if (method is MethodDeclarationSyntax methodDecl && methodDecl.ConstraintClauses.Count > 0)
+            list.Add(ReplaceGeneric(methodDecl.ConstraintClauses.ToFullString(), genericParameters, genericArguments));
+
         list.Add(" ");
     }
 
     private static void AddConDestructorHead(BaseMethodDeclarationSyntax method, List<string> list, string name, string? modifiers, string[] genericParameters, string[] genericArguments) {
-        list.Add(method.AttributeLists.ToFullString());
+        // XML doc comments are in leading trivia. When attributes exist, ToFullString() includes them.
+        // When no attributes, we must extract leading trivia explicitly to preserve XML docs.
+        if (method.AttributeLists.Count > 0)
+            list.Add(method.AttributeLists.ToFullString());
+        else
+            list.Add(method.GetLeadingTrivia().ToFullString());
         list.Add("    ");
         if (modifiers != null) {
             if (modifiers != string.Empty) {
@@ -728,7 +848,6 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                 }
                 {
                     int byteCount = (source.Length - currentIndex) * sizeof(char);
-                    Buffer.MemoryCopy(s, d, byteCount, byteCount);
                     Buffer.MemoryCopy(s, d, byteCount, byteCount);
                 }
             }

@@ -10,11 +10,21 @@ using System.Runtime.CompilerServices;
 
 namespace NotNot.Mixins;
 
-public readonly struct AttributeCollection(TypeDeclarationSyntax inlineClass, AttributeData inlineAttribute, TypeDeclarationSyntax?[] baseClassArray, AttributeData?[] baseAttributeArray) : IEquatable<AttributeCollection> {
+public readonly struct AttributeCollection(
+    TypeDeclarationSyntax inlineClass,
+    AttributeData inlineAttribute,
+    TypeDeclarationSyntax?[] baseClassArray,
+    AttributeData?[] baseAttributeArray,
+    string[] baseClassNames,
+    bool[] baseClassHasSource) : IEquatable<AttributeCollection> {
     public readonly TypeDeclarationSyntax inlineClass = inlineClass;
     public readonly AttributeData inlineAttribute = inlineAttribute;
     public readonly ImmutableArray<TypeDeclarationSyntax?> baseClasses = Unsafe.As<TypeDeclarationSyntax?[], ImmutableArray<TypeDeclarationSyntax?>>(ref baseClassArray);
     public readonly ImmutableArray<AttributeData?> baseAttributes = Unsafe.As<AttributeData?[], ImmutableArray<AttributeData?>>(ref baseAttributeArray);
+    /// <summary>Fully qualified names of base classes for diagnostic reporting</summary>
+    public readonly ImmutableArray<string> baseClassNames = Unsafe.As<string[], ImmutableArray<string>>(ref baseClassNames);
+    /// <summary>Whether each base class has source available (false = external assembly)</summary>
+    public readonly ImmutableArray<bool> baseClassHasSource = Unsafe.As<bool[], ImmutableArray<bool>>(ref baseClassHasSource);
 
     public readonly override bool Equals(object? obj) {
         if (obj is not AttributeCollection collection)
@@ -27,13 +37,19 @@ public readonly struct AttributeCollection(TypeDeclarationSyntax inlineClass, At
         if (inlineClass != other.inlineClass)
             return false;
 
-        if (baseAttributes != other.baseAttributes)
+        if (!inlineAttribute.Equals(other.inlineAttribute))
             return false;
 
         if (!baseClasses.SequenceEqual(other.baseClasses))
             return false;
 
         if (!baseAttributes.SequenceEqual(other.baseAttributes))
+            return false;
+
+        if (!baseClassNames.SequenceEqual(other.baseClassNames))
+            return false;
+
+        if (!baseClassHasSource.SequenceEqual(other.baseClassHasSource))
             return false;
 
         return true;
