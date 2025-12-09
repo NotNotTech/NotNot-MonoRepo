@@ -224,7 +224,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                 }
             }
 
-            static void CaseCore(string name, string methodName, Action<BaseMethodDeclarationSyntax, List<string>, string, string?, string[], string[]> AddHeadMethod, AttributeSyntax attribute, Dictionary<string, MethodEntry> methodList, string? modifiers = null) {
+            static void CaseCore(string name, string methodName, Action<BaseMethodDeclarationSyntax, List<string>, string, string?, string[], string[], string, string> AddHeadMethod, AttributeSyntax attribute, Dictionary<string, MethodEntry> methodList, string? modifiers = null) {
                 bool first = false;
                 if (attribute.ArgumentList is AttributeArgumentListSyntax attributeArgumentList)
                     foreach (AttributeArgumentSyntax attributeArgument in attributeArgumentList.Arguments) {
@@ -240,7 +240,8 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                 BaseMethodDeclarationSyntax method = (BaseMethodDeclarationSyntax)attribute.Parent!.Parent!;
                 MethodEntry entry = new();
 
-                AddHeadMethod(method, entry.headList, name, modifiers, [], []);
+                // Empty baseClassName means no "Inlined from" doc for derived class attributes
+                AddHeadMethod(method, entry.headList, name, modifiers, [], [], string.Empty, string.Empty);
 
                 if (first) {
                     string? bodySource = GetMethodBody(method);
@@ -263,6 +264,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                 continue;
 
             baseClassNodes[i].baseClass = baseClass;
+            baseClassNodes[i].baseClassName = baseClassNames[i];
             if (baseAttributes[i] is AttributeData attribute && attribute.NamedArguments.Length > 0) {
                 if (attribute.NamedArguments.GetArgument<bool?>("MapBaseType") is bool mapBaseType)
                     baseClassNodes[i].mapBaseType = mapBaseType;
@@ -375,6 +377,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
 
                         if (!typeList.ContainsKey(name)) {
                             string source = ReplaceGeneric(typeDeclarationSyntax.ToFullString(), genericParameters, baseClassNode.genericArguments);
+                            source = PrependInlinedFromDoc(source, baseClassNode.baseClassName, name);
                             typeList.Add(name, source);
                         }
                         break;
@@ -386,6 +389,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
 
                         if (!fieldList.ContainsKey(name)) {
                             string source = ReplaceGeneric(fieldDeclarationSyntax.ToFullString(), genericParameters, baseClassNode.genericArguments);
+                            source = PrependInlinedFromDoc(source, baseClassNode.baseClassName, name);
                             fieldList.Add(name, source);
                         }
                         break;
@@ -396,6 +400,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
 
                         if (!propertyList.ContainsKey(name)) {
                             string source = ReplaceGeneric(propertyDeclarationSyntax.ToFullString(), genericParameters, baseClassNode.genericArguments);
+                            source = PrependInlinedFromDoc(source, baseClassNode.baseClassName, name);
                             propertyList.Add(name, source);
                         }
                         break;
@@ -408,6 +413,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
 
                         if (!eventList.ContainsKey(name)) {
                             string source = ReplaceGeneric(eventFieldDeclarationSyntax.ToFullString(), genericParameters, baseClassNode.genericArguments);
+                            source = PrependInlinedFromDoc(source, baseClassNode.baseClassName, name);
                             eventList.Add(name, source);
                         }
                         break;
@@ -416,7 +422,7 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                     case MethodDeclarationSyntax methodDeclarationSyntax: {
                         string name = methodDeclarationSyntax.Identifier.ValueText;
                         string methodName = CreateMethodName(name, methodDeclarationSyntax.ParameterList);
-                        CaseMethod(name, methodName, methodDeclarationSyntax, methodList, genericParameters, baseClassNode.genericArguments);
+                        CaseMethod(name, methodName, methodDeclarationSyntax, methodList, genericParameters, baseClassNode.genericArguments, baseClassNode.baseClassName);
                         break;
                     }
 
@@ -426,30 +432,35 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
 
                         string name = inlineClassName;
                         string methodName = CreateMethodName(name, constructorDeclarationSyntax.ParameterList);
-                        CaseMethod(name, methodName, constructorDeclarationSyntax, methodList, genericParameters, baseClassNode.genericArguments);
+                        // For constructors, use the original class constructor name for the cref
+                        string originalCtorName = classType.Identifier.ValueText;
+                        CaseMethod(name, methodName, constructorDeclarationSyntax, methodList, genericParameters, baseClassNode.genericArguments, baseClassNode.baseClassName, originalCtorName);
                         break;
                     }
 
                     case DestructorDeclarationSyntax destructorDeclarationSyntax: {
                         string name = $"~{inlineClassName}";
-                        CaseMethod(name, name, destructorDeclarationSyntax, methodList, genericParameters, baseClassNode.genericArguments);
+                        // For destructors, use Finalize as the method name for cref
+                        CaseMethod(name, name, destructorDeclarationSyntax, methodList, genericParameters, baseClassNode.genericArguments, baseClassNode.baseClassName, "Finalize");
                         break;
                     }
 
                     case OperatorDeclarationSyntax operatorDeclarationSyntax: {
                         string name = $"operator {operatorDeclarationSyntax.OperatorToken.ValueText}";
                         string methodName = CreateMethodName(name, operatorDeclarationSyntax.ParameterList);
-                        CaseMethod(name, methodName, operatorDeclarationSyntax, methodList, genericParameters, baseClassNode.genericArguments);
+                        // For operators, use op_OperatorName format
+                        string opName = $"op_{operatorDeclarationSyntax.OperatorToken.ValueText}";
+                        CaseMethod(name, methodName, operatorDeclarationSyntax, methodList, genericParameters, baseClassNode.genericArguments, baseClassNode.baseClassName, opName);
                         break;
                     }
 
-                    static void CaseMethod(string name, string methodName, BaseMethodDeclarationSyntax method, Dictionary<string, MethodEntry> methodList, string[] genericParameters, string[] genericArguments) {
+                    static void CaseMethod(string name, string methodName, BaseMethodDeclarationSyntax method, Dictionary<string, MethodEntry> methodList, string[] genericParameters, string[] genericArguments, string baseClassName = "", string? crefMemberName = null) {
                         if (!methodList.TryGetValue(methodName, out MethodEntry entry)) {
                             entry = new MethodEntry();
                             if (method is MethodDeclarationSyntax or OperatorDeclarationSyntax)
-                                AddMethodHead(method, entry.headList, name, null, genericParameters, genericArguments);
+                                AddMethodHead(method, entry.headList, name, null, genericParameters, genericArguments, baseClassName, crefMemberName ?? name);
                             else
-                                AddConDestructorHead(method, entry.headList, name, null, genericParameters, genericArguments);
+                                AddConDestructorHead(method, entry.headList, name, null, genericParameters, genericArguments, baseClassName, crefMemberName ?? name);
 
                             methodList.Add(methodName, entry);
                         }
@@ -658,13 +669,17 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         return result.ToString();
     }
 
-    private static void AddMethodHead(BaseMethodDeclarationSyntax method, List<string> list, string name, string? modifiers, string[] genericParameters, string[] genericArguments) {
+    private static void AddMethodHead(BaseMethodDeclarationSyntax method, List<string> list, string name, string? modifiers, string[] genericParameters, string[] genericArguments, string baseClassName = "", string crefMemberName = "") {
         // XML doc comments are in leading trivia. When attributes exist, ToFullString() includes them.
         // When no attributes, we must extract leading trivia explicitly to preserve XML docs.
         if (method.AttributeLists.Count > 0)
             list.Add(method.AttributeLists.ToFullString());
         else
             list.Add(method.GetLeadingTrivia().ToFullString());
+
+        // Add "Inlined from" XML doc comment
+        if (!string.IsNullOrEmpty(baseClassName))
+            list.Add(CreateInlinedFromXmlDoc(baseClassName, crefMemberName));
 
         list.Add("    ");
         if (modifiers != null) {
@@ -703,13 +718,18 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
         list.Add(" ");
     }
 
-    private static void AddConDestructorHead(BaseMethodDeclarationSyntax method, List<string> list, string name, string? modifiers, string[] genericParameters, string[] genericArguments) {
+    private static void AddConDestructorHead(BaseMethodDeclarationSyntax method, List<string> list, string name, string? modifiers, string[] genericParameters, string[] genericArguments, string baseClassName = "", string crefMemberName = "") {
         // XML doc comments are in leading trivia. When attributes exist, ToFullString() includes them.
         // When no attributes, we must extract leading trivia explicitly to preserve XML docs.
         if (method.AttributeLists.Count > 0)
             list.Add(method.AttributeLists.ToFullString());
         else
             list.Add(method.GetLeadingTrivia().ToFullString());
+
+        // Add "Inlined from" XML doc comment
+        if (!string.IsNullOrEmpty(baseClassName))
+            list.Add(CreateInlinedFromXmlDoc(baseClassName, crefMemberName));
+
         list.Add("    ");
         if (modifiers != null) {
             if (modifiers != string.Empty) {
@@ -752,6 +772,64 @@ public sealed class InlineCompositionGenerator : IIncrementalGenerator {
                         """;
 
         return null;
+    }
+
+    /// <summary>
+    /// Creates the "Inlined from" XML doc comment to append to member documentation.
+    /// </summary>
+    private static string CreateInlinedFromXmlDoc(string baseClassName, string memberName) {
+        // Strip "global::" prefix if present for cleaner display
+        string displayClassName = baseClassName.StartsWith("global::")
+            ? baseClassName.Substring(8)
+            : baseClassName;
+        return $"/// <para>Inlined from: <see cref=\"{displayClassName}.{memberName}\"/></para>\n\t";
+    }
+
+    /// <summary>
+    /// Prepends "Inlined from" XML doc to a member's source string.
+    /// Inserts the doc comment right before the declaration (after any existing XML docs and attributes).
+    /// </summary>
+    private static string PrependInlinedFromDoc(string source, string baseClassName, string memberName) {
+        string inlinedFromDoc = CreateInlinedFromXmlDoc(baseClassName, memberName);
+
+        // Find where to insert: right before the declaration keyword
+        // Declaration keywords: public, private, protected, internal, static, readonly, const, event, class, struct, interface, enum, record
+        string[] declarationKeywords = ["public", "private", "protected", "internal", "static", "readonly", "const", "event", "class", "struct", "interface", "enum", "record"];
+
+        string[] lines = source.Split('\n');
+        StringBuilder result = new StringBuilder();
+        bool inserted = false;
+
+        for (int i = 0; i < lines.Length; i++) {
+            string trimmed = lines[i].TrimStart();
+
+            // Check if this line starts with a declaration keyword
+            if (!inserted) {
+                foreach (string keyword in declarationKeywords) {
+                    if (trimmed.StartsWith(keyword) && (trimmed.Length == keyword.Length || !char.IsLetterOrDigit(trimmed[keyword.Length]))) {
+                        // Insert our doc before this line
+                        result.Append(inlinedFromDoc);
+                        inserted = true;
+                        break;
+                    }
+                }
+            }
+
+            result.AppendLine(lines[i]);
+        }
+
+        // If no insertion point found (e.g., source is empty or unusual), just prepend
+        if (!inserted && !string.IsNullOrEmpty(source)) {
+            return inlinedFromDoc + source;
+        }
+
+        // Remove trailing newline that Split/AppendLine adds
+        string final = result.ToString();
+        if (final.EndsWith("\r\n"))
+            return final.Substring(0, final.Length - 2);
+        if (final.EndsWith("\n"))
+            return final.Substring(0, final.Length - 1);
+        return final;
     }
 
     private static unsafe string ReplaceGeneric(string source, string[] parameters, string[] arguments) {

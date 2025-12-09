@@ -16,4 +16,8 @@ public struct BaseClassNode() {
     public bool ignoreInheritenceAndImplements = false;
     public bool inlineAttributes = false;
     public string[] genericArguments = [];
+    /// <summary>
+    /// Fully qualified name of the base class for "Inlined from" XML doc comments
+    /// </summary>
+    public string baseClassName = string.Empty;
 }

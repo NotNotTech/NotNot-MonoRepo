@@ -341,4 +341,86 @@ public class SameProjectInlineTests
 		sources[0].Should().Contain("public int X;");
 		sources[0].Should().Contain("public int Y;");
 	}
+
+	[Fact]
+	public void Inline_ShouldAddInlinedFromDocToAllMembers()
+	{
+		const string input = """
+			using NotNot.MixinsAttributes;
+
+			namespace MyCode;
+
+			public class MixinClass {
+				/// <summary>
+				/// A documented field.
+				/// </summary>
+				public int DocumentedField;
+
+				public int UndocumentedField;
+
+				/// <summary>
+				/// A documented property.
+				/// </summary>
+				public string DocumentedProp { get; set; }
+
+				public string UndocumentedProp { get; set; }
+
+				/// <summary>
+				/// A documented method.
+				/// </summary>
+				public void DocumentedMethod() { }
+
+				public void UndocumentedMethod() { }
+			}
+
+			[Inline<MixinClass>]
+			public partial class Target;
+			""";
+
+		var sources = SourceGeneratorTestHelper.GenerateUserSourceText(input, out _, out var diagnostics);
+
+		diagnostics.ErrorsAndWarnings().Should().BeEmpty();
+		sources.Should().HaveCount(1);
+
+		// All members should have "Inlined from" XML doc
+		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.DocumentedField\"/>");
+		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.UndocumentedField\"/>");
+		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.DocumentedProp\"/>");
+		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.UndocumentedProp\"/>");
+		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.DocumentedMethod\"/>");
+		sources[0].Should().Contain("<see cref=\"MyCode.MixinClass.UndocumentedMethod\"/>");
+
+		// Documented members should still have their original docs
+		sources[0].Should().Contain("A documented field.");
+		sources[0].Should().Contain("A documented property.");
+		sources[0].Should().Contain("A documented method.");
+	}
+
+	[Fact]
+	public void Inline_InlinedFromDoc_ShouldWorkWithGenericMixin()
+	{
+		const string input = """
+			using NotNot.MixinsAttributes;
+
+			namespace MyCode;
+
+			public class GenericMixin<T> {
+				public T Value { get; set; }
+				public void SetValue(T val) { Value = val; }
+			}
+
+			[Inline<GenericMixin<int>>]
+			public partial class Target;
+			""";
+
+		var sources = SourceGeneratorTestHelper.GenerateUserSourceText(input, out _, out var diagnostics);
+
+		diagnostics.ErrorsAndWarnings().Should().BeEmpty();
+		sources.Should().HaveCount(1);
+
+		// Should have "Inlined from" for all members
+		sources[0].Should().Contain("<see cref=\"MyCode.GenericMixin");
+		sources[0].Should().Contain(".Value\"/>");
+		sources[0].Should().Contain(".SetValue\"/>");
+	}
 }
