@@ -7,106 +7,128 @@ namespace NotNot.Bcl.Core.Tests;
 
 /// <summary>
 /// Tests for ObjectPool and StaticPool auto-clear functionality.
-/// Note: These tests intentionally use obsolete Get_Unsafe/Return methods to test the auto-clear behavior.
+/// Uses the Rent() pattern which is the current API.
 /// </summary>
-#pragma warning disable CS0618 // Type or member is obsolete
 public class ObjectPoolAutoClearTests
 {
     [Fact]
-    public void ObjectPool_Return_ClearsList()
+    public void ObjectPool_Rent_ClearsList()
     {
         var pool = new ObjectPool();
-        var list = pool.Get_Unsafe<List<int>>();
-        list.Add(1);
-        list.Add(2);
-        list.Add(3);
+        List<int> originalRef;
 
-        pool.Return(list, skipAutoClear: false);
+        using (pool.Rent<List<int>>(out var list))
+        {
+            list.Add(1);
+            list.Add(2);
+            list.Add(3);
+            originalRef = list;
+        } // Auto-returns with clearing (default)
 
-        var reused = pool.Get_Unsafe<List<int>>();
-        Assert.Same(list, reused);
-        Assert.Empty(reused);
+        using (pool.Rent<List<int>>(out var reused))
+        {
+            Assert.Same(originalRef, reused);
+            Assert.Empty(reused);
+        }
     }
 
     [Fact]
-    public void ObjectPool_Return_WithSkipAutoClear_PreservesState()
+    public void ObjectPool_Rent_WithSkipAutoClear_PreservesState()
     {
         var pool = new ObjectPool();
-        var list = pool.Get_Unsafe<List<int>>();
-        list.Add(10);
-        list.Add(20);
+        List<int> originalRef;
 
-        pool.Return(list, skipAutoClear: true);
+        using (pool.Rent<List<int>>(out var list, skipAutoClear: true))
+        {
+            list.Add(10);
+            list.Add(20);
+            originalRef = list;
+        } // Auto-returns without clearing
 
-        var reused = pool.Get_Unsafe<List<int>>();
-        Assert.Same(list, reused);
-        Assert.Equal(2, reused.Count);
+        using (pool.Rent<List<int>>(out var reused))
+        {
+            Assert.Same(originalRef, reused);
+            Assert.Equal(2, reused.Count);
+        }
     }
 
     [Fact]
     public void ObjectPool_Rent_AutoClearsOnDispose()
     {
         var pool = new ObjectPool();
-        Dictionary<string, int> dict;
+        Dictionary<string, int> originalRef;
 
-        using (var rented = pool.Rent<Dictionary<string, int>>(out var item))
+        using (pool.Rent<Dictionary<string, int>>(out var item))
         {
             item.Add("a", 1);
             item.Add("b", 2);
             Assert.Equal(2, item.Count);
-        }
+            originalRef = item;
+        } // Auto-returns with clearing
 
-        dict = pool.Get_Unsafe<Dictionary<string, int>>();
-        Assert.Empty(dict);
-    }
-
-    [Fact]
-    public void StaticPool_ReturnNew_ClearsHashSet()
-    {
-        var hashSet = StaticPool.Get<HashSet<string>>();
-        hashSet.Add("test1");
-        hashSet.Add("test2");
-
-        StaticPool.Return_New(hashSet);
-
-        var reusedSet = StaticPool.Get<HashSet<string>>();
-        Assert.Same(hashSet, reusedSet);
-        Assert.Empty(reusedSet);
-    }
-
-    [Fact]
-    public void ObjectPool_Return_TypeWithoutClear_DoesNotThrow()
-    {
-        var pool = new ObjectPool();
-        var obj = pool.Get_Unsafe<ClassWithoutClear>();
-        obj.Value = 42;
-
-        // Should not throw even though there's no Clear method
-        pool.Return(obj, skipAutoClear: false);
-
-        var reusedObj = pool.Get_Unsafe<ClassWithoutClear>();
-        Assert.Same(obj, reusedObj);
-        Assert.Equal(42, reusedObj.Value); // Value preserved since no Clear method
-    }
-
-    [Fact]
-    public void ObjectPool_Return_ClearsArray()
-    {
-        var pool = new ObjectPool();
-        var arr = pool.GetArray_Unsafe<int>(5);
-        for (int i = 0; i < arr.Length; i++)
+        using (pool.Rent<Dictionary<string, int>>(out var reused))
         {
-            arr[i] = i + 100;
+            Assert.Same(originalRef, reused);
+            Assert.Empty(reused);
         }
+    }
 
-        // Clear array before returning
-        pool.Return(arr, skipAutoClear: false);
+    [Fact]
+    public void StaticPool_Rent_ClearsHashSet()
+    {
+        HashSet<string> originalRef;
 
-        // Get the same array back (since there's only one in the pool)
-        var reusedArr = pool.GetArray_Unsafe<int>(5);
+        using (var rented = StaticPool.Rent<HashSet<string>>())
+        {
+            rented.Value.Add("test1");
+            rented.Value.Add("test2");
+            originalRef = rented.Value;
+        } // Auto-returns with clearing
 
-        // Verify it was cleared
-        Assert.All(reusedArr, item => Assert.Equal(0, item));
+        using var rented2 = StaticPool.Rent<HashSet<string>>();
+        Assert.Same(originalRef, rented2.Value);
+        Assert.Empty(rented2.Value);
+    }
+
+    [Fact]
+    public void ObjectPool_Rent_TypeWithoutClear_DoesNotThrow()
+    {
+        var pool = new ObjectPool();
+        ClassWithoutClear originalRef;
+
+        using (pool.Rent<ClassWithoutClear>(out var obj))
+        {
+            obj.Value = 42;
+            originalRef = obj;
+        } // Should not throw even though there's no Clear method
+
+        using (pool.Rent<ClassWithoutClear>(out var reused))
+        {
+            Assert.Same(originalRef, reused);
+            Assert.Equal(42, reused.Value); // Value preserved since no Clear method
+        }
+    }
+
+    [Fact]
+    public void ObjectPool_RentArray_ClearsArray()
+    {
+        var pool = new ObjectPool();
+        int[] originalRef;
+
+        using (pool.RentArray<int>(5, out var arr))
+        {
+            for (int i = 0; i < arr.Length; i++)
+            {
+                arr[i] = i + 100;
+            }
+            originalRef = arr;
+        } // Auto-returns with clearing (default)
+
+        using (pool.RentArray<int>(5, out var reused))
+        {
+            Assert.Same(originalRef, reused);
+            Assert.All(reused, item => Assert.Equal(0, item)); // Verify it was cleared
+        }
     }
 
     private class ClassWithoutClear
