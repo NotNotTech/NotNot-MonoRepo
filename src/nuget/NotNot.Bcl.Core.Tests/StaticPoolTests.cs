@@ -11,265 +11,182 @@ namespace NotNot.Bcl.Core.Tests;
 public class StaticPoolTests
 {
     [Fact]
-    public void Get_ReturnsNewInstance_WhenPoolIsEmpty()
+    public void Rent_ReturnsNewInstance_WhenPoolIsEmpty()
     {
-        var item = StaticPool.Get<List<int>>();
-
-        Assert.NotNull(item);
-        Assert.Empty(item);
+        using var rented = StaticPool.Rent<List<int>>();
+        Assert.NotNull(rented.Value);
+        Assert.Empty(rented.Value);
     }
 
     [Fact]
-    public void Return_DoesNotClear_WhenUsingLegacyReturn()
+    public void Rent_WithSkipAutoClear_PreservesContents()
     {
-        var list = StaticPool.Get<List<int>>();
-        list.Add(1);
-        list.Add(2);
+        List<int> reusedList;
+        List<int> originalRef;
 
-        // Legacy Return - should NOT clear
-        StaticPool.Return(list);
+        using (var rented = StaticPool.Rent<List<int>>(skipAutoClear: true))
+        {
+            rented.Value.Add(1);
+            rented.Value.Add(2);
+            originalRef = rented.Value;
+        } // Auto-returns without clearing
 
-        var reused = StaticPool.Get<List<int>>();
-        Assert.Same(list, reused);
-        Assert.Equal(2, reused.Count); // Should preserve contents
+        using var rented2 = StaticPool.Rent<List<int>>();
+        reusedList = rented2.Value;
+        Assert.Same(originalRef, reusedList);
+        Assert.Equal(2, reusedList.Count); // Should preserve contents
     }
 
     [Fact]
-    public void ReturnNew_ClearsObject_WhenSkipAutoClearIsFalse()
+    public void Rent_WithDefaultClear_ClearsObject()
     {
-        var list = StaticPool.Get<List<int>>();
-        list.Add(1);
-        list.Add(2);
+        List<int> originalRef;
 
-        // Return_New with default skipAutoClear=false
-        StaticPool.Return_New(list);
+        using (var rented = StaticPool.Rent<List<int>>())
+        {
+            rented.Value.Add(1);
+            rented.Value.Add(2);
+            originalRef = rented.Value;
+        } // Auto-returns with clearing
 
-        var reused = StaticPool.Get<List<int>>();
-        Assert.Same(list, reused);
-        Assert.Empty(reused); // Should be cleared
-    }
-
-    [Fact]
-    public void ReturnNew_PreservesObject_WhenSkipAutoClearIsTrue()
-    {
-        var list = StaticPool.Get<List<int>>();
-        list.Add(10);
-        list.Add(20);
-
-        // Return_New with skipAutoClear=true
-        StaticPool.Return_New(list, skipAutoClear: true);
-
-        var reused = StaticPool.Get<List<int>>();
-        Assert.Same(list, reused);
-        Assert.Equal(2, reused.Count); // Should preserve contents
+        using var rented2 = StaticPool.Rent<List<int>>();
+        Assert.Same(originalRef, rented2.Value);
+        Assert.Empty(rented2.Value); // Should be cleared
     }
 
     [Fact]
     public void Rent_ReturnsRentedWrapper_ThatAutoReturns()
     {
-        Dictionary<string, int> reusedDict;
+        Dictionary<string, int> originalRef;
 
         using (var rented = StaticPool.Rent<Dictionary<string, int>>())
         {
             rented.Value.Add("a", 1);
             rented.Value.Add("b", 2);
             Assert.Equal(2, rented.Value.Count);
+            originalRef = rented.Value;
         } // Auto-returns with clearing
 
-        reusedDict = StaticPool.Get<Dictionary<string, int>>();
-        Assert.Empty(reusedDict); // Should be cleared after disposal
+        using var rented2 = StaticPool.Rent<Dictionary<string, int>>();
+        Assert.Same(originalRef, rented2.Value);
+        Assert.Empty(rented2.Value); // Should be cleared after disposal
     }
 
     [Fact]
-    public void Rent_WithSkipAutoClear_PreservesContents()
+    public void Rent_ClearsHashSet()
     {
-        Dictionary<string, int> reusedDict;
-
-        using (var rented = StaticPool.Rent<Dictionary<string, int>>(skipAutoClear: true))
-        {
-            rented.Value.Add("x", 10);
-            rented.Value.Add("y", 20);
-        } // Auto-returns without clearing
-
-        reusedDict = StaticPool.Get<Dictionary<string, int>>();
-        Assert.Equal(2, reusedDict.Count); // Should preserve contents
-    }
-
-    [Fact]
-    public void Rent_WithDefaultClear_ClearsObject()
-    {
-        HashSet<string> reusedSet;
+        HashSet<string> originalRef;
 
         using (var rented = StaticPool.Rent<HashSet<string>>())
         {
             rented.Value.Add("test1");
             rented.Value.Add("test2");
             Assert.Equal(2, rented.Value.Count);
+            originalRef = rented.Value;
         } // Auto-returns with clearing
 
-        reusedSet = StaticPool.Get<HashSet<string>>();
-        Assert.Empty(reusedSet); // Should be cleared
+        using var rented2 = StaticPool.Rent<HashSet<string>>();
+        Assert.Same(originalRef, rented2.Value);
+        Assert.Empty(rented2.Value); // Should be cleared
     }
 
     [Fact]
-    public void GetArray_ReturnsArrayOfCorrectLength()
+    public void RentArray_ReturnsArrayOfCorrectLength()
     {
-        var array = StaticPool.GetArray<int>(10);
-
-        Assert.NotNull(array);
-        Assert.Equal(10, array.Length);
+        using var rented = StaticPool.RentArray<int>(10);
+        Assert.NotNull(rented.Value);
+        Assert.Equal(10, rented.Value.Length);
     }
 
     [Fact]
-    public void ReturnArray_ClearsArray_WhenPreserveContentsIsFalse()
+    public void RentArray_ClearsArray_WhenPreserveContentsIsFalse()
     {
-        var array = StaticPool.GetArray<int>(5);
-        for (int i = 0; i < array.Length; i++)
+        int[] originalRef;
+
+        using (var rented = StaticPool.RentArray<int>(5, preserveContents: false))
         {
-            array[i] = i + 100;
-        }
+            for (int i = 0; i < rented.Value.Length; i++)
+            {
+                rented.Value[i] = i + 100;
+            }
+            originalRef = rented.Value;
+        } // Auto-returns with clearing
 
-        StaticPool.ReturnArray(array, preserveContents: false);
-
-        var reused = StaticPool.GetArray<int>(5);
-        Assert.Same(array, reused);
-        Assert.All(reused, item => Assert.Equal(0, item)); // Should be cleared
+        using var rented2 = StaticPool.RentArray<int>(5);
+        Assert.Same(originalRef, rented2.Value);
+        Assert.All(rented2.Value, item => Assert.Equal(0, item)); // Should be cleared
     }
 
     [Fact]
-    public void ReturnArray_PreservesArray_WhenPreserveContentsIsTrue()
+    public void RentArray_PreservesArray_WhenPreserveContentsIsTrue()
     {
-        var array = StaticPool.GetArray<int>(3);
-        array[0] = 10;
-        array[1] = 20;
-        array[2] = 30;
+        int[] originalRef;
 
-        StaticPool.ReturnArray(array, preserveContents: true);
+        using (var rented = StaticPool.RentArray<int>(3, preserveContents: true))
+        {
+            rented.Value[0] = 10;
+            rented.Value[1] = 20;
+            rented.Value[2] = 30;
+            originalRef = rented.Value;
+        } // Auto-returns without clearing
 
-        var reused = StaticPool.GetArray<int>(3);
-        Assert.Same(array, reused);
-        Assert.Equal(10, reused[0]);
-        Assert.Equal(20, reused[1]);
-        Assert.Equal(30, reused[2]);
+        using var rented2 = StaticPool.RentArray<int>(3);
+        Assert.Same(originalRef, rented2.Value);
+        Assert.Equal(10, rented2.Value[0]);
+        Assert.Equal(20, rented2.Value[1]);
+        Assert.Equal(30, rented2.Value[2]);
     }
 
     [Fact]
     public void RentArray_ReturnsRentedArrayWrapper()
     {
-        int[] reusedArray;
+        int[] originalRef;
 
         using (var rented = StaticPool.RentArray<int>(4))
         {
             rented.Value[0] = 100;
             rented.Value[3] = 400;
             Assert.Equal(4, rented.Value.Length);
+            originalRef = rented.Value;
         } // Auto-returns with clearing
 
-        reusedArray = StaticPool.GetArray<int>(4);
-        Assert.All(reusedArray, item => Assert.Equal(0, item)); // Should be cleared
-    }
-
-    [Fact]
-    public void RentArray_PreservesContents_WhenRequested()
-    {
-        int[] reusedArray;
-
-        using (var rented = StaticPool.RentArray<int>(3, preserveContents: true))
-        {
-            rented.Value[0] = 111;
-            rented.Value[1] = 222;
-            rented.Value[2] = 333;
-        } // Auto-returns without clearing
-
-        reusedArray = StaticPool.GetArray<int>(3);
-        Assert.Equal(111, reusedArray[0]);
-        Assert.Equal(222, reusedArray[1]);
-        Assert.Equal(333, reusedArray[2]);
+        using var rented2 = StaticPool.RentArray<int>(4);
+        Assert.Same(originalRef, rented2.Value);
+        Assert.All(rented2.Value, item => Assert.Equal(0, item)); // Should be cleared
     }
 
     [Fact]
     public void TypeWithoutClear_DoesNotThrow()
     {
-        var obj = StaticPool.Get<ClassWithoutClear>();
-        obj.Value = 42;
+        ClassWithoutClear originalRef;
 
-        // Should not throw even though there's no Clear method
-        StaticPool.Return_New(obj);
+        using (var rented = StaticPool.Rent<ClassWithoutClear>())
+        {
+            rented.Value.Value = 42;
+            originalRef = rented.Value;
+        } // Should not throw even though there's no Clear method
 
-        var reused = StaticPool.Get<ClassWithoutClear>();
-        Assert.Same(obj, reused);
-        Assert.Equal(42, reused.Value); // Value preserved since no Clear method
+        using var rented2 = StaticPool.Rent<ClassWithoutClear>();
+        Assert.Same(originalRef, rented2.Value);
+        Assert.Equal(42, rented2.Value.Value); // Value preserved since no Clear method
     }
 
     [Fact]
     public void StaticPool_IsGloballyShared()
     {
-        // Since StaticPool is now static, this test verifies global sharing
-        var list = StaticPool.Get<List<string>>();
-        list.Add("shared");
-        StaticPool.Return(list);
+        // Since StaticPool is static, this test verifies global sharing
+        List<string> originalRef;
 
-        var retrieved = StaticPool.Get<List<string>>();
-        Assert.Same(list, retrieved); // Should be same instance from shared pool
-        Assert.Single(retrieved);
-        Assert.Equal("shared", retrieved[0]);
-    }
-
-    [Fact]
-    public void ReturnArray_DoubleDispose_IsGracefullyBlocked()
-    {
-        var array = StaticPool.GetArray<int>(5);
-        array[0] = 100;
-
-        // First return - should succeed
-        StaticPool.ReturnArray(array, preserveContents: false);
-
-        // Second return - should trigger __.AssertIfNot
-        // In DEBUG builds, this throws an exception from Debug.Fail
-        // In RELEASE builds, this silently blocks duplicate
-        try
+        using (var rented = StaticPool.Rent<List<string>>(skipAutoClear: true))
         {
-            StaticPool.ReturnArray(array, preserveContents: false);
-            // If we get here, we're in RELEASE mode or assertion was gracefully handled
-        }
-        catch (Exception ex)
-        {
-            // Expected in DEBUG builds - verify it's the right assertion
-            Assert.Contains("Double-return detected", ex.Message);
+            rented.Value.Add("shared");
+            originalRef = rented.Value;
         }
 
-        // Verify pool still functions correctly after double-dispose attempt
-        var reused = StaticPool.GetArray<int>(5);
-        Assert.NotNull(reused);
-        Assert.Equal(5, reused.Length);
-    }
-
-    [Fact]
-    public void Return_DoubleDispose_IsGracefullyBlocked()
-    {
-        var list = StaticPool.Get<List<int>>();
-        list.Add(100);
-
-        // First return - should succeed
-        StaticPool.Return(list);
-
-        // Second return - should trigger __.AssertIfNot
-        // In DEBUG builds, this throws an exception from Debug.Fail
-        // In RELEASE builds, this silently blocks duplicate
-        try
-        {
-            StaticPool.Return(list);
-            // If we get here, we're in RELEASE mode or assertion was gracefully handled
-        }
-        catch (Exception ex)
-        {
-            // Expected in DEBUG builds - verify it's the right assertion
-            Assert.Contains("Double-return detected", ex.Message);
-        }
-
-        // Verify pool still functions correctly after double-dispose attempt
-        var reused = StaticPool.Get<List<int>>();
-        Assert.NotNull(reused);
+        using var rented2 = StaticPool.Rent<List<string>>();
+        Assert.Same(originalRef, rented2.Value); // Should be same instance from shared pool
+        Assert.Single(rented2.Value);
+        Assert.Equal("shared", rented2.Value[0]);
     }
 
     [Fact]

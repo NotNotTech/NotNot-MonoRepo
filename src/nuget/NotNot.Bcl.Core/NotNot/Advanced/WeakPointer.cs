@@ -161,7 +161,7 @@ public record struct WeakPointer<T> : IDisposable where T : class
 	{
 		this.AssertIsAlive();
 
-		if (!_slotHandle.IsAllocated || !_store.IsHandleAlive(_slotHandle).isAlive)
+		if (!_slotHandle.IsAllocated || !_store.IsHandleAlive(_slotHandle))
 		{
 			target = default;
 			return false;

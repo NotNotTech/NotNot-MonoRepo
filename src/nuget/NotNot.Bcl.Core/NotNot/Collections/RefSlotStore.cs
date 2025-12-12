@@ -353,10 +353,10 @@ public class RefSlotStore<T> : IDisposeGuard
 		lock (_lock)
 		{
 			var validResult = _IsHandleAlive_Unsafe(slot);
-			if (!validResult.isAlive)
+			if (!validResult)
 			{
-				__.DebugAssertIfNot(validResult.isAlive, $"Invalid slot access: {validResult.invalidReason}");
-				throw new InvalidOperationException($"Invalid slot access: {validResult.invalidReason}");
+				__.DebugAssertIfNot(validResult, $"Invalid slot access: {validResult}");
+				throw new InvalidOperationException($"Invalid slot access: {validResult}");
 			}
 			return ref _data[slot.Index];
 		}
@@ -536,7 +536,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// </list>
 	/// <para><b>Thread Safety:</b> Method is thread-safe via internal locking.</para>
 	/// </remarks>
-	public (bool isAlive, string? invalidReason) IsHandleAlive(SlotHandle slot)
+	public bool IsHandleAlive(SlotHandle slot)
 	{
 		// Thread-safe public version
 		lock (_lock)
@@ -555,26 +555,28 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// Unsafe version for internal use when lock is already held.
 	/// Avoids lock recursion and improves performance for internal operations.
 	/// </remarks>
-	private (bool isAlive, string? invalidReason) _IsHandleAlive_Unsafe(SlotHandle slot)
+	private bool _IsHandleAlive_Unsafe(SlotHandle slot)
 	{
-		if (!slot.IsAllocated)
-		{
-			return (false, "slot.IsEmpty");
-		}
 
-		if (_allocTracker.Count <= slot.Index)
-		{
-			return (false, "storage not long enough");
-		}
+		
+		return slot.IsAllocated && _allocTracker[slot.Index]==slot;
+		//if (!slot.IsAllocated)
+		//{
+		//	return  (false, "slot.IsEmpty");
+		//}
+		//if (_allocTracker.Count <= slot.Index)
+		//{
+		//	return (false, "storage not long enough");
+		//}
 
-		if (_allocTracker[slot.Index].Version == slot.Version)
-		{
-			return (true, null);
-		}
-		else
-		{
-			return (false, "version mismatch");
-		}
+		//if (_allocTracker[slot.Index].Version == slot.Version)
+		//{
+		//	return (true, null);
+		//}
+		//else
+		//{
+		//	return (false, "version mismatch");
+		//}
 	}
 
 	/// <summary>
@@ -620,10 +622,10 @@ public class RefSlotStore<T> : IDisposeGuard
 		lock (_lock)
 		{
 			var validResult = _IsHandleAlive_Unsafe(slot);
-			if (!validResult.isAlive)
+			if (!validResult)
 			{
-				__.DebugAssertIfNot(validResult.isAlive);
-				throw new InvalidOperationException($"attempt to free invalid slot: {validResult.invalidReason}");
+				__.DebugAssertIfNot(validResult);
+				throw new InvalidOperationException($"attempt to free invalid slot: {validResult}");
 			}
 
 			// Insert into sorted free list using binary search
@@ -882,12 +884,12 @@ public class RefSlotStore<T> : IDisposeGuard
 			var fromValidation = _IsHandleAlive_Unsafe(fromSlot);
 			var toValidation = _IsHandleAlive_Unsafe(toSlot);
 
-			__.DebugAssertIfNot(fromValidation.isAlive, $"Invalid fromSlot: {fromValidation.invalidReason}");
-			__.DebugAssertIfNot(toValidation.isAlive, $"Invalid toSlot: {toValidation.invalidReason}");
+			__.DebugAssertIfNot(fromValidation, $"Invalid fromSlot");
+			__.DebugAssertIfNot(toValidation, $"Invalid toSlot");
 
-			if (!fromValidation.isAlive || !toValidation.isAlive)
+			if (!fromValidation || !toValidation)
 			{
-				throw new InvalidOperationException($"Cannot swap invalid slots: from={fromValidation.invalidReason}, to={toValidation.invalidReason}");
+				throw new InvalidOperationException($"Cannot swap invalid slots: from={fromValidation}, to={toValidation}");
 			}
 
 			int fromIndex = fromSlot.Index;

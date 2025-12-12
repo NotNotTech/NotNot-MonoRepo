@@ -128,7 +128,7 @@ public class SlimEventTests
    public void SlimEvent_BasicSubscribeInvoke_Works()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender("test");
       var recipient = new TestRecipient();
 
@@ -149,7 +149,7 @@ public class SlimEventTests
    public void SlimEvent_MultipleSubscribers_AllInvoked()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient1 = new TestRecipient("r1");
       var recipient2 = new TestRecipient("r2");
@@ -178,7 +178,7 @@ public class SlimEventTests
    public void SlimEvent_Unsubscribe_RemovesHandler()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient = new TestRecipient();
 
@@ -202,7 +202,7 @@ public class SlimEventTests
    public void SlimEvent_Clear_RemovesAllHandlers()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient1 = new TestRecipient("r1");
       var recipient2 = new TestRecipient("r2");
@@ -232,7 +232,7 @@ public class SlimEventTests
    public void SlimEvent_EmptyHandlerList_DoesNotThrow()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
 
       // Act & Assert
@@ -246,7 +246,7 @@ public class SlimEventTests
    public void SlimEvent_InstanceMethodHandler_Invoked()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient = new TestRecipient();
 
@@ -272,7 +272,7 @@ public class SlimEventTests
    public void SlimEventWithArgs_BasicSubscribeInvoke_Works()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender, string>();
+      using var slimEvent = new SlimEvent<TestSender, string>();
       var sender = new TestSender("test");
       var recipient = new TestRecipient();
 
@@ -294,7 +294,7 @@ public class SlimEventTests
    public void SlimEventWithArgs_IntArg_Works()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender, int>();
+      using var slimEvent = new SlimEvent<TestSender, int>();
       var sender = new TestSender();
       var recipient = new TestRecipient();
 
@@ -316,7 +316,7 @@ public class SlimEventTests
    public void SlimEventWithArgs_StructArg_Works()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender, TestArgs>();
+      using var slimEvent = new SlimEvent<TestSender, TestArgs>();
       var sender = new TestSender();
       var recipient = new TestRecipient();
 
@@ -340,7 +340,7 @@ public class SlimEventTests
    public void SlimEventWithArgs_CustomClassArg_Works()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender, TestRecipient>();
+      using var slimEvent = new SlimEvent<TestSender, TestRecipient>();
       var sender = new TestSender();
       var recipient = new TestRecipient();
       var testRecipient = new TestRecipient("arg");
@@ -364,7 +364,7 @@ public class SlimEventTests
    public void SlimEventWithArgs_InstanceMethodHandler_Invoked()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender, string>();
+      using var slimEvent = new SlimEvent<TestSender, string>();
       var sender = new TestSender();
       var recipient = new TestRecipient();
 
@@ -391,7 +391,7 @@ public class SlimEventTests
    {
 #if DEBUG
 		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
+		using var slimEvent = new SlimEvent<TestSender>();
 		var sender = new TestSender();
 		var recipient = new TestRecipient();
 
@@ -416,7 +416,7 @@ public class SlimEventTests
    public void SlimEvent_DisposedRecipient_AutoRemoved()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient1 = new TestRecipient("r1");
       var recipient2 = new TestRecipient("r2");
@@ -459,7 +459,7 @@ public class SlimEventTests
    {
 #if DEBUG
 		// Arrange
-		var slimEvent = new SlimEvent<TestSender, string>();
+		using var slimEvent = new SlimEvent<TestSender, string>();
 		var sender = new TestSender();
 		var recipient = new TestRecipient();
 
@@ -483,7 +483,7 @@ public class SlimEventTests
    public void SlimEvent_MultipleDisposedRecipients_AllDetected()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient1 = new TestRecipient("r1");
       var recipient2 = new TestRecipient("r2");
@@ -550,7 +550,7 @@ public class SlimEventTests
    public void SlimEvent_ConcurrentSubscription_ThreadSafe()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       const int threadCount = 10;
       const int subscriptionsPerThread = 100;
@@ -587,7 +587,7 @@ public class SlimEventTests
    public void SlimEvent_ConcurrentInvocation_ThreadSafe()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient = new TestRecipient();
 
@@ -612,7 +612,7 @@ public class SlimEventTests
    public void SlimEvent_ConcurrentSubscribeUnsubscribeInvoke_ThreadSafe()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipients = new List<TestRecipient>();
 
@@ -669,7 +669,7 @@ public class SlimEventTests
    public void SlimEvent_HandlerThrowsException_BubblesAndStopsInvocation()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient1 = new TestRecipient("r1");
       var recipient2 = new TestRecipient("r2");
@@ -697,7 +697,7 @@ public class SlimEventTests
    public void SlimEvent_HandlerUnsubscribesSelfDuringInvocation_Safe()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient = new TestRecipient();
       recipient.EventToModify = slimEvent;
@@ -720,7 +720,7 @@ public class SlimEventTests
    public void SlimEvent_HandlerSubscribesNewHandlerDuringInvocation_NewHandlerNotInvokedImmediately()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient1 = new TestRecipient("r1");
       var recipient2 = new TestRecipient("r2");
@@ -755,7 +755,7 @@ public class SlimEventTests
    {
 #if DEBUG
 		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
+		using var slimEvent = new SlimEvent<TestSender>();
 
 		// Act & Assert
 		var exception = Record.Exception(() => slimEvent.Raise(null!));
@@ -769,7 +769,7 @@ public class SlimEventTests
    {
 #if DEBUG
 		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
+		using var slimEvent = new SlimEvent<TestSender>();
 		var sender = new TestSender();
 		sender.Dispose();
 		// Act & Assert
@@ -782,7 +782,7 @@ public class SlimEventTests
    public void SlimEvent_StaticMethodHandler_WorksWithoutDisposalCheck()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
 
       // Static method handler has null Target - should work fine
@@ -805,7 +805,7 @@ public class SlimEventTests
    {
 #if DEBUG
 		// Arrange
-		var slimEvent = new SlimEvent<TestSender>();
+		using var slimEvent = new SlimEvent<TestSender>();
 		var recipient = new TestRecipient();
 
 		// Act & Assert
@@ -823,7 +823,7 @@ public class SlimEventTests
    public void SlimEvent_RemoveSpecificHandler_OnlyRemovesMatchingHandler()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient1 = new TestRecipient("r1");
       var recipient2 = new TestRecipient("r2");
@@ -853,7 +853,7 @@ public class SlimEventTests
    public void SlimEvent_RemoveSameHandlerAddedMultipleTimes_RemovesLastOccurrence()
    {
       // Arrange
-      var slimEvent = new SlimEvent<TestSender>();
+      using var slimEvent = new SlimEvent<TestSender>();
       var sender = new TestSender();
       var recipient = new TestRecipient();
 
