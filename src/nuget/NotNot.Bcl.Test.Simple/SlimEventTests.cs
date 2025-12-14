@@ -806,7 +806,7 @@ public class SlimEventTests
 #if DEBUG
 		// Arrange
 		using var slimEvent = new SlimEvent<TestSender>();
-		var recipient = new TestRecipient();
+		using var recipient = new TestRecipient();
 
 		// Act & Assert
 		// Lambdas not allowed - Target is closure object, not IDisposeGuard

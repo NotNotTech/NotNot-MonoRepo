@@ -14,7 +14,7 @@ public class ObjectPoolAutoClearTests
     [Fact]
     public void ObjectPool_Rent_ClearsList()
     {
-        var pool = new ObjectPool();
+		using var pool = new ObjectPool();
         List<int> originalRef;
 
         using (pool.Rent<List<int>>(out var list))
@@ -35,7 +35,7 @@ public class ObjectPoolAutoClearTests
     [Fact]
     public void ObjectPool_Rent_WithSkipAutoClear_PreservesState()
     {
-        var pool = new ObjectPool();
+        using var pool = new ObjectPool();
         List<int> originalRef;
 
         using (pool.Rent<List<int>>(out var list, skipAutoClear: true))
@@ -55,7 +55,7 @@ public class ObjectPoolAutoClearTests
     [Fact]
     public void ObjectPool_Rent_AutoClearsOnDispose()
     {
-        var pool = new ObjectPool();
+		using var pool = new ObjectPool();
         Dictionary<string, int> originalRef;
 
         using (pool.Rent<Dictionary<string, int>>(out var item))
@@ -93,7 +93,7 @@ public class ObjectPoolAutoClearTests
     [Fact]
     public void ObjectPool_Rent_TypeWithoutClear_DoesNotThrow()
     {
-        var pool = new ObjectPool();
+		using var pool = new ObjectPool();
         ClassWithoutClear originalRef;
 
         using (pool.Rent<ClassWithoutClear>(out var obj))
@@ -112,7 +112,7 @@ public class ObjectPoolAutoClearTests
     [Fact]
     public void ObjectPool_RentArray_ClearsArray()
     {
-        var pool = new ObjectPool();
+		using var pool = new ObjectPool();
         int[] originalRef;
 
         using (pool.RentArray<int>(5, out var arr))
