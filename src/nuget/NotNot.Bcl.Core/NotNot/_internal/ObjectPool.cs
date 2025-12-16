@@ -260,6 +260,12 @@ public class ObjectPool : IDisposeGuard
 #endif
 	}
 
+	public Rented<T> Rent<T>(Action<T>? clearAction = null, bool skipAutoClear = false) where T : class, new()
+	{
+		return Rent<T>(out _, clearAction, skipAutoClear);
+
+	}
+
 	/// <summary>
 	///    Rent an array from the pool. Use with `using` pattern to auto-return to pool.
 	/// </summary>
