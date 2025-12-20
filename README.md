@@ -1,76 +1,226 @@
 # NotNot-MonoRepo
 
-This is a monoRepo of open source C# Nuget packages.  
-  
+A collection of open source C# NuGet packages for .NET development.
 
-## Nuget Packages (you can use)
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 
-### [`NotNot.AppSettings`](./src/nuget/NotNot.AppSettings/)  
-_Strongly-Typed `appSettings.json` via source-generator_
-- **Get it on Nuget: https://www.nuget.org/packages/NotNot.AppSettings**
-- A high quality example of how to write a production-capable source-generator (includes inline docs)
-  
-_This project was formerly found at https://github.com/jasonswearingen/NotNot.AppSettings_
+---
 
+## Published Packages
 
-## Example Projects
-- see [./src/example/](./src/example/) for listing of example projects using the Nuget Packages
+### [NotNot.AppSettings](./src/nuget/NotNot.AppSettings/)
 
-## Other Projects
-_These projects are not in Nuget yet, and likely not ready for public use_
+**Strongly-Typed `appsettings.json` via Source Generator**
 
-### [`NotNot.Bcl`](./src/nuget/NotNot.Bcl/)
-_An opinionated base class library for professional project development_
+[![NuGet](https://img.shields.io/nuget/v/NotNot.AppSettings.svg)](https://www.nuget.org/packages/NotNot.AppSettings)
 
-- Base Class Library  ***Kitchen Sink Included***
-- includes a huge amount of extension methods usable in any project
-- focuses on supporting projects with support for `Microsoft.Extensions.DependencyInjection`
-  - if you don't use DI, most the library features are also found in `NotNot.Bcl.Core`
+Automatically generate strongly-typed C# classes from your `appsettings.json` files at compile time. No runtime reflection, just clean, type-safe configuration access.
 
-###  [`NotNot.Bcl.Core`](./src/nuget/NotNot.Bcl.Core/)
-- functionality of `NotNot.Bcl` that doesn't require platform specific features (ex: no DI)
+```bash
+dotnet add package NotNot.AppSettings
+```
 
-###  [`NotNot.Analyzers`](./src/nuget/NotNot.Analyzers/)
-Opinionated Code Checks not found in other OSS Analyzers
-- A couple code analazyers and some examples for making more.
-  - Banned API's
-  - Task Awaited on Return
+**Quick Start:**
 
-###  [`NotNot.GodotNet.SourceGen`](./src/nuget/NotNot.GodotNet.SourceGen/)
-_Source Generators for Godot Engine specific functionality._
-- For use with the `NotNot.GodotNet` library, which is currently private because Godot doesn't properly support libraries (lib code needs to be in the same project as the propritary game)
-- TODO:
-  - Needs a mirrored copy workflow setup to be able to checkin the libcode
+```json
+// appsettings.json
+{
+  "Database": {
+    "ConnectionString": "Server=localhost;Database=MyApp"
+  }
+}
+```
 
-###  [`NotNot.SimStorm`](./src/nuget/NotNot.SimStorm/)
-_Asynchronous Execution Framework_
-- provides a Node based scafolding to allow Task based, threaded execution with builtin data safety contracts.
-- This is not an ECS though it contains an Archetype based ECS
-- NOTE: While this works, it is rather old, developed during the .NET5 timeframe.  Currently the entire architecture is being reimagined in .NET10 terms.
-- TODO:
-  - rework for .NET10, Godot 4.4+, (work with, but not depend on godot)
-     
+```csharp
+// Generated class available after build
+var settings = AppSettingsBinder.LoadDirect();
+Console.WriteLine(settings.Database.ConnectionString);
+
+// Or with DI
+builder.Services.AddSingleton<IAppSettingsBinder, AppSettingsBinder>();
+```
+
+**Features:**
+- Zero runtime overhead - all parsing happens at compile time
+- Merges all `appsettings*.json` files into a unified schema
+- Works with or without Dependency Injection
+- Supports extending generated classes via partial classes
+
+[Full Documentation →](./src/nuget/NotNot.AppSettings/README.md)
+
+---
+
+## Pre-Release Packages
+
+> These packages are functional but not yet published to NuGet. They may have breaking changes.
+
+### [NotNot.Bcl](./src/nuget/NotNot.Bcl/) & [NotNot.Bcl.Core](./src/nuget/NotNot.Bcl.Core/)
+
+**Opinionated Base Class Library for Professional .NET Development**
+
+A "kitchen sink" utility library with a clean architectural split:
+
+| Package | Purpose | Dependencies |
+|---------|---------|--------------|
+| `NotNot.Bcl.Core` | Core utilities, Maybe<T> pattern, extensions | Pure .NET (no web) |
+| `NotNot.Bcl` | ASP.NET Core integration, web utilities | ASP.NET Core |
+
+**Highlights:**
+- **Maybe<T> Pattern** - Functional error handling with structured `Problem` types
+- **Pooled Memory Abstractions** - `Mem<T>`, `RefMem<T>`, `SpanGuard<T>` for low-GC allocations
+- **OpenGenericMethodExecutor** - Reflection utilities for creating delegates from generic methods
+- **Extension Methods** - Prefixed with `_` for easy discovery (e.g., `myList._Shuffle()`)
+
+### [NotNot.Mixins](./src/nuget/NotNot.Mixins/)
+
+**Source Generator for Inline Composition/Mixins Pattern**
+
+Port of [InlineComposition](https://github.com/BlackWhiteYoshi/InlineComposition) - compose classes by inlining members from other classes.
+
+```csharp
+[InlineComposition<LoggerMixin>]
+public partial class MyService { }
+
+// Members from LoggerMixin are inlined into MyService at compile time
+```
+
+**Status:** Initial port from InlineComposition v1.5.0. Same-project inlining works; cross-assembly support planned.
+
+### [NotNot.Analyzers](./src/nuget/NotNot.Analyzers/)
+
+**Opinionated Code Analyzers**
+
+Custom Roslyn analyzers for code quality:
+- **Banned APIs** - Block usage of problematic APIs
+- **Task Awaited on Return** - Enforce async best practices
+
+### [NotNot.GodotNet.SourceGen](./src/nuget/NotNot.GodotNet.SourceGen/)
+
+**Source Generators & Analyzers for Godot Engine (.NET)**
+
+Compile-time safety for Godot C# development:
+
+| Diagnostic | Purpose |
+|------------|---------|
+| `GODOT001` | Null safety in `_ExitTree()` overrides |
+| `GODOT002` | Prohibited API detection (e.g., `MultiMesh.CustomAabb`) |
+| `GODOT003` | Exception safety in `Dispose()` methods |
+
+**Features:**
+- `[NotNotSceneRoot]` attribute for type-safe scene instantiation
+- `_ResPath` class with compile-time asset path constants
+- Auto-configured via MSBuild `.props` and `.targets`
+
+> **Note:** Requires the `NotNot.GodotNet` library (currently private). Contact maintainer if interested.
+
+---
+
+## Deprecated Packages
+
+### ~~NotNot.SimStorm~~
+
+*Asynchronous execution framework with node-based architecture. Superseded by SlimGraph in private development.*
+
+### ~~NotNot.Server~~
+
+*Server utilities rolled into `NotNot.Bcl` and `NotNot.Bcl.Core`.*
+
+---
+
+## Examples
+
+Example projects demonstrating package usage:
+
+| Example | Description |
+|---------|-------------|
+| [NotNot.AppSettings.Example](./src/example/NotNot.AppSettings.Example/) | DI and non-DI usage patterns |
+| [NotNot.AppSettings.StandaloneExample](./src/example/NotNot.AppSettings.StandaloneExample/) | Minimal standalone usage |
+| [NotNot.Bcl.Example.HelloConsole](./src/example/NotNot.Bcl.Example.HelloConsole/) | Console app with BCL utilities |
+
+---
+
+## Repository Structure
+
+```
+NotNot-MonoRepo/
+├── src/
+│   ├── nuget/                    # NuGet package sources
+│   │   ├── NotNot.AppSettings/   # Published
+│   │   ├── NotNot.Bcl/           # Pre-release
+│   │   ├── NotNot.Bcl.Core/      # Pre-release
+│   │   ├── NotNot.Mixins/        # Pre-release
+│   │   ├── NotNot.Analyzers/     # Pre-release
+│   │   └── NotNot.GodotNet.SourceGen/  # Pre-release
+│   └── example/                  # Example projects
+├── contrib/                      # Contributing documentation
+├── meta/                         # Package metadata (logos, etc.)
+└── vm-scripts/                   # Development VM scripts
+```
+
+---
+
 ## Why MonoRepo?
 
-MonoRepo because:
-- easier to maintain/debug multiple Nugets when they are part of the same solution (build breaks are noticeable)
-- can share the same build workflows
-  - see `src/CommonSettings.targets`
-  - also see `Debug` vs `Debug` Build Configurations for how to easily switch between nuget dev/release builds
+- **Unified build/test** - Build breaks are immediately visible across packages
+- **Shared infrastructure** - Common MSBuild targets via `CommonSettings.targets`
+- **Easy local development** - Debug/Release configurations switch between project references and NuGet packages
 
-### MonoRepo weirdness
+### Build Configurations
 
-Because this repo is focused on the development of multiple Nuget projects, there are a few weird "quality of life" tweaks to aid development:
-- `MinVer` used for nuget versioning ()
--`Debug`: used to run examples referencing the local library project source code instead of their nuget packages (useful for debugging and development)
-  - This requires modifying `.csproj` for nuget references
+| Configuration | Behavior |
+|---------------|----------|
+| `Debug` | Uses local project references for rapid development |
+| `Release` | Uses published NuGet packages for validation |
 
-see `./contrib/creating-nuget-packages.md` for some more details on the above.
+See [creating-nuget-packages.md](./contrib/creating-nuget-packages.md) for detailed workflows.
 
-## License: MPL-2.0
+---
 
-A summary from [TldrLegal](https://www.tldrlegal.com/license/mozilla-public-license-2-0-mpl-2):
+## Contributing
 
->   MPL is a copyleft license that is easy to comply with. You must make the source code for any of your changes available under MPL, but you can combine the MPL software with proprietary code, as long as you keep the MPL code in separate files. Version 2.0 is, by default, compatible with LGPL and GPL version 2 or greater. You can distribute binaries under a proprietary license, as long as you make the source available under MPL.
+1. **Find or create an issue** describing the change
+2. **Fork and create a branch** from `master`
+3. **Make changes** following existing code conventions
+4. **Test thoroughly** - run affected example projects
+5. **Submit PR** with clear description
 
-See the [./LICENSE](./LICENSE) file for the license full text.
+### Local Development
+
+For rapid iteration, use Debug configuration which references local projects:
+
+```xml
+<ProjectReference Include="..\NotNot.AppSettings\NotNot.AppSettings.csproj"
+                  OutputItemType="Analyzer"
+                  ReferenceOutputAssembly="false" />
+```
+
+### Versioning
+
+Packages use [MinVer](https://github.com/adamralph/minver) for semantic versioning:
+- Tag format: `{PackageName}-{Major}.{Minor}.{Patch}` (e.g., `NotNot.AppSettings-2.0.3`)
+- Tags trigger version updates on next build
+
+---
+
+## License
+
+**[MPL-2.0](./LICENSE)** - Mozilla Public License 2.0
+
+From [TLDRLegal](https://www.tldrlegal.com/license/mozilla-public-license-2-0-mpl-2):
+
+> MPL is a copyleft license that is easy to comply with. You must make the source code for any of your changes available under MPL, but you can combine the MPL software with proprietary code, as long as you keep the MPL code in separate files.
+
+**In brief:** Use freely in commercial projects. Changes to MPL files must be open-sourced; your proprietary code stays proprietary.
+
+> **Note:** Exception: [`NotNot.Mixins`](./src/nuget/NotNot.Mixins/) is [MIT licensed](./src/nuget/NotNot.Mixins/LICENSE) (ported from InlineComposition).
+
+---
+
+## Contact
+
+- **Issues:** [GitHub Issues](https://github.com/NotNotTech/NotNot-MonoRepo/issues)
+- **Author:** Novaleaf / Jason Swearingen
+
+---
+
+*Formerly hosted at various locations including https://github.com/jasonswearingen/NotNot.AppSettings*
