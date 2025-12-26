@@ -277,6 +277,7 @@ namespace {config.StartingNamespace}
 		/// </summary>
 		/// <param name=""appSettingsJsonText""></param>
 		/// <returns></returns>
+		[System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadAsync() instead for save-capable settings."")]
 		public static AppSettings LoadDirectFromText(string appSettingsJsonText)
 		{{
 		
@@ -313,6 +314,7 @@ namespace {config.StartingNamespace}
 		/// </summary>
 		/// <param name=""appSettingsJsonText""></param>
 		/// <returns></returns>
+		[System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadAsync() instead for save-capable settings."")]
 		public static AppSettings LoadDirectFromTexts(params string[] appSettingsJsonTexts)
 		{{
 
@@ -350,6 +352,7 @@ namespace {config.StartingNamespace}
 		}}
 
 
+		 [System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadAsync() instead for save-capable settings."")]
 		 public static AppSettings LoadDirectFromStreams(List<Stream> appSettingsStreams)
 		 {{
 
@@ -400,6 +403,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
     /// </summary>
     /// <param name=""configuration"">builder.Configuration</param>
     /// <param name=""ignoreCache"">true to recreate the AppSettings even if it's already been created</param>
+    [System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadFromConfiguration() instead for consistent API."")]
     internal static {config.StartingNamespace}.AppSettings _AppSettings(this IConfiguration configuration, bool ignoreCache=false)
     {{
         if (ignoreCache == false && _cachedAppSettings is not null)
@@ -482,6 +486,13 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 		return toReturn;
 	}
 
+	/// <summary>
+	/// Checks if a type name represents a primitive JSON type.
+	/// </summary>
+	private static bool IsPrimitiveTypeName(string typeName)
+	{
+		return typeName == "string" || typeName == "double" || typeName == "bool" || typeName == "object";
+	}
 
 	/// <summary>
 	/// generate files for the given json hierarchy, recursively calling itself for each child node
@@ -492,23 +503,88 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 		var currentClassName = currentNodeName._ConvertToAlphanumericCaps();
 		var filename = $"{currentNamespace}.{currentClassName}.g.cs";
 
+		var fieldBuilder = new StringBuilder();
 		var propertyBuilder = new StringBuilder();
+		var propagateCallbackBuilder = new StringBuilder();
+
 		foreach (var kvp in currentNode)
 		{
 			var propertyName = kvp.Key._ConvertToAlphanumericCaps();
+			var fieldName = "_" + char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1);
 			var propertyNamespace = $"{currentNamespace}._{currentClassName}";
 			var valueType = GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config);
-			if (kvp.Value.ValueKind == JsonValueKind.Array)
+			var isArray = kvp.Value.ValueKind == JsonValueKind.Array;
+			if (isArray)
 			{
 				valueType += "[]";
 			}
-			propertyBuilder.Append($"   public {valueType}? {propertyName}{{get; set;}}\n");
+
+			// Generate backing field
+			fieldBuilder.Append($"   private {valueType}? {fieldName};\n");
+
+			// Check if this is a complex type (object/nested class) that can propagate callbacks
+			var isComplexType = kvp.Value.ValueKind == JsonValueKind.Object;
+			var isArrayOfComplexType = isArray && !IsPrimitiveTypeName(GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config));
+
+			// Generate property with change detection
+			propertyBuilder.Append($@"
+   public {valueType}? {propertyName}
+   {{
+      get => {fieldName};
+      set
+      {{
+         if (!Equals({fieldName}, value))
+         {{
+            {fieldName} = value;");
+
+			// For complex types, propagate the callback to nested objects
+			if (isComplexType)
+			{
+				propertyBuilder.Append($@"
+            (value as global::NotNot.AppSettingsHelper.ISettingsChangeAware)?._SetChangeCallback(_onChanged);");
+			}
+			else if (isArrayOfComplexType)
+			{
+				propertyBuilder.Append($@"
+            if (value != null)
+            {{
+               foreach (var item in value)
+               {{
+                  (item as global::NotNot.AppSettingsHelper.ISettingsChangeAware)?._SetChangeCallback(_onChanged);
+               }}
+            }}");
+			}
+
+			propertyBuilder.Append($@"
+            _onChanged?.Invoke();
+         }}
+      }}
+   }}
+");
+
+			// Add propagation for _SetChangeCallback (complex types only)
+			if (isComplexType)
+			{
+				propagateCallbackBuilder.Append($@"
+         ({fieldName} as global::NotNot.AppSettingsHelper.ISettingsChangeAware)?._SetChangeCallback(callback);");
+			}
+			else if (isArrayOfComplexType)
+			{
+				propagateCallbackBuilder.Append($@"
+         if ({fieldName} != null)
+         {{
+            foreach (var item in {fieldName})
+            {{
+               (item as global::NotNot.AppSettingsHelper.ISettingsChangeAware)?._SetChangeCallback(callback);
+            }}
+         }}");
+			}
 		}
 
 		var sourceBuilder = new StringBuilder();
 		sourceBuilder.Append(@$"
 #pragma warning disable
-/** 
+/**
  * This file is generated by the NotNot.AppSettings nuget package  (v{config.NugetVersion}).
  * Do not edit this file directly, instead edit the appsettings.json files and rebuild the project.
  * `GenerateFilesWorker()` was called for {currentNodeName}
@@ -520,8 +596,19 @@ namespace {currentNamespace};
 
 [CompilerGenerated]
 [GeneratedCode(""{Assembly.GetExecutingAssembly().GetName().Name}"",""{Assembly.GetExecutingAssembly().GetName().Version.ToString()}"")]
-{config.GenAccessModifier} partial class {currentClassName} {{
+{config.GenAccessModifier} partial class {currentClassName} : global::NotNot.AppSettingsHelper.ISettingsChangeAware {{
+   private global::System.Action? _onChanged;
+
+{fieldBuilder}
 {propertyBuilder}
+   /// <summary>
+   /// Sets the callback to be invoked when any property changes.
+   /// Propagates the callback recursively to all nested settings objects.
+   /// </summary>
+   void global::NotNot.AppSettingsHelper.ISettingsChangeAware._SetChangeCallback(global::System.Action? callback)
+   {{
+      _onChanged = callback;{propagateCallbackBuilder}
+   }}
 }}
 ");
 

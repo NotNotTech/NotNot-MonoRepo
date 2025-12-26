@@ -101,6 +101,79 @@ public class Program
 
 ```
 
+## State Management with AppSettingsManager
+
+For applications requiring **runtime settings persistence**, **auto-save**, and **reset to defaults**, use `AppSettingsManager<T>` from the `NotNot.Bcl` package:
+
+```csharp
+using NotNot.AppSettingsHelper;
+
+// Load settings
+var manager = new AppSettingsManager<AppSettings>();
+await manager.LoadAsync(default, "appsettings.json", "appsettings.Development.json");
+
+// Enable auto-save (changes saved after 500ms debounce)
+manager.EnableAutoSave();
+
+// Modify settings - automatically persisted to appsettings.user.json
+manager.Settings.Window.X = 100;
+manager.Settings.Window.Y = 200;
+
+// Manual operations
+await manager.SaveAsync();                // Immediate save
+await manager.ReloadAsync();              // Reload from disk
+await manager.ResetToDefaultsAsync();     // Delete user file, reload defaults
+
+// Cleanup
+await manager.DisposeAsync();
+```
+
+**Note:** Requires reference to `NotNot.Bcl` package (`Install-Package NotNot.Bcl`).
+
+### Load Workflows
+
+| Method | Save-Capable | Use Case |
+|--------|--------------|----------|
+| `LoadAsync(ct, params paths)` | Yes | File-based settings with layered merge |
+| `LoadAsync(streams, ct)` | Yes | Stream-based settings |
+| `LoadFromConfigurationAsync(config, basePath, ct)` | Yes | IConfiguration with save support |
+| `LoadFromConfiguration(config)` | No | Read-only mode |
+
+### Auto-Save Configuration
+
+```csharp
+// Custom debounce interval
+manager.EnableAutoSave(TimeSpan.FromSeconds(2));
+
+// Error handling
+manager.OnAutoSaveError = ex => Console.WriteLine($"Auto-save failed: {ex}");
+
+// Disable auto-save (optionally save pending changes)
+await manager.DisableAutoSaveAsync(saveNow: true);
+```
+
+### User Settings File
+
+Changes are persisted to a separate user file (default: `appsettings.user.json`). Only changed values are stored (diff-based).
+
+```csharp
+manager.UserSettingsPath = "config/user-settings.json";
+```
+
+### Reset Operations
+
+| Method | Behavior |
+|--------|----------|
+| `Clear()` | Reset to base settings in memory (triggers auto-save) |
+| `ResetToDefaultsAsync()` | Delete user file, reload from base files |
+| `ReloadAsync()` | Discard memory changes, reload from disk |
+
+### Known Limitations
+
+- **Array element mutations**: In-place changes like `items[0] = x` are NOT tracked. Reassign the entire array instead.
+- **Stream-based load**: Cannot distinguish base from user layers for reset operations.
+- **Platform-specific I/O**: Uses `System.IO` - for Godot/Unity, use `JsonSettingsUtils` directly with platform I/O.
+
 ## Troubleshooting / Tips
 
 ### How to access the generated classes from external code?
@@ -194,6 +267,12 @@ A summary from [TldrLegal](https://www.tldrlegal.com/license/mozilla-public-lice
 
 ## Notable Changes
 
+- **`3.0.0`** :
+	- **NEW**: `AppSettingsManager<T>` for runtime settings persistence, auto-save, and reset operations
+	- **NEW**: `JsonSettingsUtils` for diff-based save (only changed values persisted)
+	- **NEW**: `ISettingsChangeAware` interface for change tracking (source-generated)
+	- Breaking: Generated properties now use backing fields for change detection
+	- Runtime features require `NotNot.Bcl` package reference
 - **`2.0.3`** :
 	- New IConfiguration extension method to make usage easier
 - **`2.0.2`** :
