@@ -54,8 +54,7 @@ public class RootNode : SlimNode
 	protected override void OnDispose(bool managedDisposing)
 	{
 		if (managedDisposing)
-		{
-			MsDIContainer?.Dispose();
+		{			
 			_singletonCache.Clear();
 		}
 		base.OnDispose(managedDisposing);
