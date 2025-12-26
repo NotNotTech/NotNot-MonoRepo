@@ -87,6 +87,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\NotNot.Bcl.Core\NotNot.Bcl.Core.csproj" />
+		<ProjectReference Include="..\NotNot.Mixins\NotNot.Mixins.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 	<ItemGroup>
