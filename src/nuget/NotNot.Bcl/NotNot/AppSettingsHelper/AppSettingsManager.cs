@@ -38,6 +38,7 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
     private JsonNode? _originalJson;
     private JsonNode? _baseJsonSnapshot;
     private string[]? _loadedFilePaths;
+    private ISettingsStorageProvider? _storageProvider;
 
     /// <summary>
     /// The loaded settings object. Property changes trigger change notifications
@@ -233,6 +234,64 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
 
     #endregion
 
+    #region Load Workflows (Storage Provider)
+
+    /// <summary>
+    /// Loads settings from a storage provider (e.g., localStorage, IndexedDB).
+    /// Simpler than file-based: no base/user merge, no diffing.
+    /// </summary>
+    /// <param name="storage">The storage provider to use for persistence.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The loaded settings object.</returns>
+    /// <remarks>
+    /// When using a storage provider:
+    /// <list type="bullet">
+    /// <item>Settings are stored as a single JSON blob</item>
+    /// <item>No layered merge - latest value wins</item>
+    /// <item>Auto-save works the same way (debounced writes)</item>
+    /// <item>ResetToDefaultsAsync deletes storage and creates new TSettings</item>
+    /// </list>
+    /// </remarks>
+    public async ValueTask<TSettings> LoadFromStorageAsync(
+        ISettingsStorageProvider storage,
+        CancellationToken ct = default)
+    {
+        _storageProvider = storage;
+        _suppressNotifications = true;
+
+        try
+        {
+            var json = await storage.ReadAsync(ct);
+            if (json != null)
+            {
+                try
+                {
+                    var node = JsonNode.Parse(json);
+                    Settings = JsonSettingsUtils.Deserialize<TSettings>(node) ?? new TSettings();
+                }
+                catch (JsonException)
+                {
+                    // Corrupted or incompatible storage data - start fresh
+                    Settings = new TSettings();
+                }
+            }
+            else
+            {
+                Settings = new TSettings();
+            }
+
+            _originalJson = JsonSettingsUtils.SerializeToNode(Settings);
+            WireChangeTracking();
+            return Settings;
+        }
+        finally
+        {
+            _suppressNotifications = false;
+        }
+    }
+
+    #endregion
+
     #region Save Operations
 
     /// <summary>
@@ -252,6 +311,34 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
     /// </summary>
     private async ValueTask SaveCoreAsync(CancellationToken ct = default)
     {
+        // Storage provider path - simpler than file-based (no diffing)
+        if (_storageProvider != null)
+        {
+            if (Settings == null) return; // Defensive null guard
+
+            string json;
+            lock (_lock)
+            {
+                if (!_isDirty) return;
+                // Serialize while holding lock to capture consistent state
+                // Do NOT clear _isDirty here - must wait for successful write
+                json = JsonSerializer.Serialize(Settings, JsonSettingsUtils.DefaultOptions);
+            }
+
+            // Write can fail (quota exceeded, circuit disconnected, etc.)
+            // If it throws, _isDirty remains true so retry will occur
+            await _storageProvider.WriteAsync(json, ct);
+
+            // Only mark clean AFTER successful write to prevent data loss
+            lock (_lock)
+            {
+                _isDirty = false;
+            }
+            _originalJson = JsonSettingsUtils.SerializeToNode(Settings); // Update tracking state
+            return;
+        }
+
+        // File-based path - requires _originalJson to be set
         if (!CanSave)
         {
             throw new InvalidOperationException(
@@ -263,7 +350,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
         lock (_lock)
         {
             if (!_isDirty) return;
-            _isDirty = false;
+            // Serialize while holding lock to capture consistent state
+            // Do NOT clear _isDirty here - must wait for successful write
             serialized = JsonSettingsUtils.SerializeToNode(Settings);
         }
 
@@ -280,7 +368,17 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
                 Directory.CreateDirectory(dir);
             }
 
+            // Write can fail (disk full, permissions, etc.)
+            // If it throws, _isDirty remains true so retry will occur
             await File.WriteAllTextAsync(UserSettingsPath, merged.ToJsonString(JsonSettingsUtils.DefaultOptions), ct);
+        }
+
+        // Only mark clean AFTER successful write to prevent data loss
+        // Note: If a mutation occurs while WriteAsync is in flight, _isDirty will be
+        // set true again by the change callback. This is correct - next save cycle catches it.
+        lock (_lock)
+        {
+            _isDirty = false;
         }
         _originalJson = serialized;
     }
@@ -318,6 +416,27 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
     /// <exception cref="InvalidOperationException">Thrown in read-only mode.</exception>
     public async ValueTask ResetToDefaultsAsync(CancellationToken ct = default)
     {
+        // Storage provider path - delete storage and create fresh defaults
+        if (_storageProvider != null)
+        {
+            await DisableAutoSaveAsync(saveNow: false, ct);
+            await _storageProvider.DeleteAsync(ct);
+            _suppressNotifications = true;
+            try
+            {
+                Settings = new TSettings();
+                _originalJson = JsonSettingsUtils.SerializeToNode(Settings);
+                WireChangeTracking();
+            }
+            finally
+            {
+                _suppressNotifications = false;
+            }
+            EnableAutoSave(); // Re-enable auto-save after reset
+            return;
+        }
+
+        // File-based path
         if (!CanSave)
         {
             throw new InvalidOperationException("ResetToDefaultsAsync not supported in read-only mode.");
