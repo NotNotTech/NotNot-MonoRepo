@@ -315,13 +315,25 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
         if (_storageProvider != null)
         {
             if (Settings == null) return; // Defensive null guard
+
+            string json;
             lock (_lock)
             {
                 if (!_isDirty) return;
+                // Serialize while holding lock to capture consistent state
+                // Do NOT clear _isDirty here - must wait for successful write
+                json = JsonSerializer.Serialize(Settings, JsonSettingsUtils.DefaultOptions);
+            }
+
+            // Write can fail (quota exceeded, circuit disconnected, etc.)
+            // If it throws, _isDirty remains true so retry will occur
+            await _storageProvider.WriteAsync(json, ct);
+
+            // Only mark clean AFTER successful write to prevent data loss
+            lock (_lock)
+            {
                 _isDirty = false;
             }
-            var json = JsonSerializer.Serialize(Settings, JsonSettingsUtils.DefaultOptions);
-            await _storageProvider.WriteAsync(json, ct);
             _originalJson = JsonSettingsUtils.SerializeToNode(Settings); // Update tracking state
             return;
         }
@@ -338,7 +350,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
         lock (_lock)
         {
             if (!_isDirty) return;
-            _isDirty = false;
+            // Serialize while holding lock to capture consistent state
+            // Do NOT clear _isDirty here - must wait for successful write
             serialized = JsonSettingsUtils.SerializeToNode(Settings);
         }
 
@@ -355,7 +368,17 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
                 Directory.CreateDirectory(dir);
             }
 
+            // Write can fail (disk full, permissions, etc.)
+            // If it throws, _isDirty remains true so retry will occur
             await File.WriteAllTextAsync(UserSettingsPath, merged.ToJsonString(JsonSettingsUtils.DefaultOptions), ct);
+        }
+
+        // Only mark clean AFTER successful write to prevent data loss
+        // Note: If a mutation occurs while WriteAsync is in flight, _isDirty will be
+        // set true again by the change callback. This is correct - next save cycle catches it.
+        lock (_lock)
+        {
+            _isDirty = false;
         }
         _originalJson = serialized;
     }
