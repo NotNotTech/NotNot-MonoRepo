@@ -162,3 +162,50 @@ while (await timer.WaitForNextTickAsync(cancellationToken))
 - Mock time progression through controlled deltas
 - Verify base method calls via call counter
 - Test disposal cascades through tree
+
+## SlimMsDiHost - MS Generic Host Adapter
+
+Hosts SlimGraph RootNode lifecycle within Microsoft.Extensions.Hosting applications (console apps, worker services, ASP.NET Core).
+
+**File**: [SlimMsDiHost.cs](SlimMsDiHost.cs)
+
+**Base Classes**: `BackgroundService`, `IHostedLifecycleService`
+
+**Lifecycle Mapping**:
+| MS Host Phase | SlimMsDiHost Action | SlimGraph Action |
+|---------------|---------------------|------------------|
+| StartingAsync | (extensibility hook) | - |
+| StartAsync/ExecuteAsync | Create RootNode via factory, Initialize | `RootNode.RootInitialize(ct)` |
+| ExecuteAsync loop | PeriodicTimer tick (50ms default) | `RootNode.RootUpdate(elapsed)` |
+| StartedAsync | (extensibility hook) | - |
+| StoppingAsync | (extensibility hook) | - |
+| StopAsync | Await loop completion, dispose | `RootNode.Dispose()` |
+| StoppedAsync | (extensibility hook) | - |
+
+**Configuration**:
+- Default tick interval: 50ms (20fps) - suitable for background processing
+- Configurable via constructor parameter
+
+**Usage**:
+```csharp
+var builder = Host.CreateApplicationBuilder(args);
+var container = new MsDIContainer();
+await container.Initialize(builder);
+
+builder.Services.AddHostedService(_ => new SlimMsDiHost<MyRoot>(
+    () => new MyRoot { MsDIContainer = container },
+    tickInterval: TimeSpan.FromMilliseconds(50)  // optional, 50ms default
+));
+
+await builder.Build().RunAsync();
+```
+
+**Extensibility**: Override virtual `IHostedLifecycleService` methods for custom hooks:
+- `StartingAsync` - early initialization before tick loop
+- `StartedAsync` - post-initialization notifications
+- `StoppingAsync` - pre-shutdown preparation
+- `StoppedAsync` - post-shutdown cleanup
+
+**Error Handling**:
+- Exceptions in `RootUpdate`: logged and continued (matches Godot pattern)
+- Exceptions in `RootInitialize`: propagated to host (causes shutdown)
