@@ -192,7 +192,7 @@ manager.Clear();
 ## Known Limitations
 
 ### P1 Issues (from review)
-1. **Dirty state timing**: `_isDirty` cleared before save completes - exception can cause silent data loss
+1. ~~**Dirty state timing**~~: FIXED (335d38b) - `_isDirty` now cleared AFTER successful write
 2. **Array mutation**: In-place array changes (`items[0] = x`) not tracked - reassign array instead
 3. **IConfiguration persistence**: Non-file config sources (env vars) may persist to user file
 
