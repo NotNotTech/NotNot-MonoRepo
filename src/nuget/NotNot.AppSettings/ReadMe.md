@@ -11,6 +11,12 @@ Includes a simple deserialization helper for when you are using Dependency Injec
 	- [Getting Started](#getting-started)
 	- [How it works](#how-it-works)
 	- [Example](#example)
+	- [State Management with AppSettingsManager](#state-management-with-appsettingsmanager)
+	- [Storage Providers](#storage-providers)
+		- [ISettingsStorageProvider](#isettingsstorageprovider)
+		- [FileStorageProvider](#filestorageprovider)
+		- [LocalStorageStorageProvider (Blazor)](#localstoragestorageprovider-blazor)
+		- [Custom Storage Providers](#custom-storage-providers)
 	- [Troubleshooting / Tips](#troubleshooting--tips)
 		- [How to access the `AppSettings` class from external code?](#how-to-access-the-appsettings-class-from-external-code)
 		- [How to extend the generated `AppSettings` class?](#how-to-extend-the-generated-appsettings-class)
@@ -172,7 +178,112 @@ manager.UserSettingsPath = "config/user-settings.json";
 
 - **Array element mutations**: In-place changes like `items[0] = x` are NOT tracked. Reassign the entire array instead.
 - **Stream-based load**: Cannot distinguish base from user layers for reset operations.
-- **Platform-specific I/O**: Uses `System.IO` - for Godot/Unity, use `JsonSettingsUtils` directly with platform I/O.
+
+## Storage Providers
+
+For platforms without file system access (Blazor, sandboxed environments), use storage providers:
+
+### ISettingsStorageProvider
+
+The `ISettingsStorageProvider` interface abstracts settings persistence:
+
+```csharp
+public interface ISettingsStorageProvider
+{
+    ValueTask<string?> ReadAsync(CancellationToken ct = default);
+    ValueTask WriteAsync(string json, CancellationToken ct = default);
+    ValueTask DeleteAsync(CancellationToken ct = default);
+    ValueTask<bool> ExistsAsync(CancellationToken ct = default);
+}
+```
+
+### FileStorageProvider
+
+Built-in file system storage provider for desktop/server apps:
+
+```csharp
+using NotNot.AppSettingsHelper;
+
+// Create storage provider for a specific file
+var storage = new FileStorageProvider("/path/to/settings.json");
+
+// Load settings using the storage provider
+var manager = new AppSettingsManager<AppSettings>();
+await manager.LoadFromStorageAsync(storage);
+
+// Enable auto-save - changes persisted to the storage provider
+manager.EnableAutoSave();
+
+// Modify settings
+manager.Settings.Theme = "dark";
+
+// Cleanup
+await manager.DisposeAsync();
+```
+
+**Features:**
+- Automatic directory creation on first write
+- Graceful handling of locked/inaccessible files
+- Thread-safe for debounced auto-save
+
+### LocalStorageStorageProvider (Blazor)
+
+For Blazor apps, use `LocalStorageStorageProvider` from `NotNot.BlazorComponents`:
+
+```csharp
+// In Blazor component or service
+@inject IJSRuntime JSRuntime
+
+var storage = new LocalStorageStorageProvider(JSRuntime, "app-settings");
+var manager = new AppSettingsManager<AppSettings>();
+await manager.LoadFromStorageAsync(storage);
+manager.EnableAutoSave();
+```
+
+### Custom Storage Providers
+
+Implement `ISettingsStorageProvider` for custom backends (cloud, IndexedDB, etc.):
+
+```csharp
+public class IndexedDbStorageProvider : ISettingsStorageProvider
+{
+    private readonly IJSRuntime _jsRuntime;
+    private readonly string _storeName;
+
+    public IndexedDbStorageProvider(IJSRuntime jsRuntime, string storeName)
+    {
+        _jsRuntime = jsRuntime;
+        _storeName = storeName;
+    }
+
+    public async ValueTask<string?> ReadAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            return await _jsRuntime.InvokeAsync<string?>("indexedDbGet", ct, _storeName);
+        }
+        catch
+        {
+            return null; // Use defaults
+        }
+    }
+
+    public async ValueTask WriteAsync(string json, CancellationToken ct = default)
+    {
+        await _jsRuntime.InvokeVoidAsync("indexedDbSet", ct, _storeName, json);
+    }
+
+    public async ValueTask DeleteAsync(CancellationToken ct = default)
+    {
+        await _jsRuntime.InvokeVoidAsync("indexedDbDelete", ct, _storeName);
+    }
+
+    public async ValueTask<bool> ExistsAsync(CancellationToken ct = default)
+    {
+        return await _jsRuntime.InvokeAsync<bool>("indexedDbExists", ct, _storeName);
+    }
+}
+```
 
 ## Troubleshooting / Tips
 

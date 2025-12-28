@@ -17,6 +17,15 @@
 
 This separation exists because source generators (netstandard2.0) cannot use File I/O operations.
 
+#### Storage Abstraction
+The library supports pluggable storage backends via `ISettingsStorageProvider`:
+
+| Provider | Location | Use Case |
+|----------|----------|----------|
+| `FileStorageProvider` | `NotNot.Bcl` | Desktop/server apps with file system access |
+| `LocalStorageStorageProvider` | `NotNot.BlazorComponents` | Blazor apps using browser localStorage |
+| Custom | Your project | Cloud storage, IndexedDB, etc. |
+
 ### Namespace Design
 - **Runtime Library**: `NotNot.AppSettingsHelper` - contains `AppSettingsManager<T>`, `JsonSettingsUtils`, `ISettingsChangeAware`
 - **Generated Code**: `{RootNamespace}.AppSettingsGen` - contains `AppSettings`, nested types, `AppSettingsBinder`
@@ -48,13 +57,15 @@ The namespaces are intentionally different to avoid conflicts when both are used
 
 # VIBECACHE
 
-**LastCommitHash**: 44e64b9
-**Timestamp**: 2025-12-25 17:30
+**LastCommitHash**: 7f13062
+**Timestamp**: 2025-12-28 12:00
 
 ## Primary Resources
-- [`AppSettingsManager.cs`](./AppSettingsManager.cs) - Main manager class (557 lines)
+- [`AppSettingsManager.cs`](./AppSettingsManager.cs) - Main manager class (~600 lines)
 - [`JsonSettingsUtils.cs`](./JsonSettingsUtils.cs) - Diff/merge utilities (189 lines)
 - [`ISettingsChangeAware.cs`](./ISettingsChangeAware.cs) - Change tracking interface (32 lines)
+- [`ISettingsStorageProvider.cs`](./ISettingsStorageProvider.cs) - Storage abstraction interface (47 lines)
+- [`FileStorageProvider.cs`](./FileStorageProvider.cs) - File system storage implementation (86 lines)
 
 ## Related Topics
 - [`../../../NotNot.AppSettings/AGENTS.md`](../../../NotNot.AppSettings/AGENTS.md) - Source generator
@@ -87,8 +98,9 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
 #### Load Workflows
 | Method | Save-Capable | Use Case |
 |--------|--------------|----------|
-| `LoadAsync(ct, params paths)` | Yes | File-based settings |
+| `LoadAsync(ct, params paths)` | Yes | File-based settings with `UserSettingsPath` |
 | `LoadAsync(streams, ct)` | Yes | Stream-based settings |
+| `LoadFromStorageAsync(provider, ct)` | Yes | **Storage-provider-based persistence** |
 | `LoadFromConfigurationAsync(config, basePath, ct)` | Yes | IConfiguration with base file |
 | `LoadFromConfiguration(config)` | No | Read-only IConfiguration |
 
@@ -141,6 +153,39 @@ public interface ISettingsChangeAware
 }
 ```
 
+### ISettingsStorageProvider
+**File**: [`ISettingsStorageProvider.cs`](./ISettingsStorageProvider.cs)
+
+Async storage abstraction for pluggable persistence backends. Each provider instance represents a single settings "document" (e.g., one file or one localStorage key).
+
+```csharp
+public interface ISettingsStorageProvider
+{
+    ValueTask<string?> ReadAsync(CancellationToken ct = default);
+    ValueTask WriteAsync(string json, CancellationToken ct = default);
+    ValueTask DeleteAsync(CancellationToken ct = default);
+    ValueTask<bool> ExistsAsync(CancellationToken ct = default);
+}
+```
+
+### FileStorageProvider
+**File**: [`FileStorageProvider.cs`](./FileStorageProvider.cs)
+
+File system implementation of `ISettingsStorageProvider`. Thread-safe for use with `AppSettingsManager` debounced auto-save.
+
+```csharp
+public sealed class FileStorageProvider : ISettingsStorageProvider
+{
+    public FileStorageProvider(string filePath);
+    public string FilePath { get; }
+}
+```
+
+**Features:**
+- Directory creation handled automatically on first write
+- IOException caught on read (returns null, caller uses defaults)
+- Simple, synchronous file operations wrapped in async interface
+
 ---
 
 ## Usage Examples
@@ -185,6 +230,71 @@ await manager.ResetToDefaultsAsync();
 
 // Or soft reset (triggers auto-save with base values)
 manager.Clear();
+```
+
+### Storage Provider Pattern
+Use `LoadFromStorageAsync` for custom storage backends:
+
+```csharp
+using NotNot.AppSettingsHelper;
+
+// File-based persistence (desktop/server apps)
+var storage = new FileStorageProvider("/path/to/settings.json");
+var manager = new AppSettingsManager<AppSettings>();
+await manager.LoadFromStorageAsync(storage);
+manager.EnableAutoSave();
+
+// Modify settings - auto-saved to the storage provider
+manager.Settings.Window.X = 100;
+
+// Cleanup
+await manager.DisposeAsync();
+```
+
+### Custom Storage Provider
+Implement `ISettingsStorageProvider` for custom backends:
+
+```csharp
+public class CloudStorageProvider : ISettingsStorageProvider
+{
+    private readonly HttpClient _client;
+    private readonly string _endpoint;
+
+    public CloudStorageProvider(HttpClient client, string endpoint)
+    {
+        _client = client;
+        _endpoint = endpoint;
+    }
+
+    public async ValueTask<string?> ReadAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            return await _client.GetStringAsync(_endpoint, ct);
+        }
+        catch (HttpRequestException)
+        {
+            return null; // Use defaults
+        }
+    }
+
+    public async ValueTask WriteAsync(string json, CancellationToken ct = default)
+    {
+        await _client.PutAsync(_endpoint, new StringContent(json), ct);
+    }
+
+    public async ValueTask DeleteAsync(CancellationToken ct = default)
+    {
+        await _client.DeleteAsync(_endpoint, ct);
+    }
+
+    public async ValueTask<bool> ExistsAsync(CancellationToken ct = default)
+    {
+        var response = await _client.SendAsync(
+            new HttpRequestMessage(HttpMethod.Head, _endpoint), ct);
+        return response.IsSuccessStatusCode;
+    }
+}
 ```
 
 ---

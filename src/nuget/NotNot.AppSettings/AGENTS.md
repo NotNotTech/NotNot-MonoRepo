@@ -38,8 +38,8 @@
 
 # VIBECACHE
 
-**LastCommitHash**: 668173d
-**Timestamp**: 2025-12-25 16:15
+**LastCommitHash**: 7f13062
+**Timestamp**: 2025-12-28 12:00
 
 ## Primary Resources
 - [`AppSettingsGen.cs`](./AppSettingsGen.cs) - Main source generator implementation (721 lines)
@@ -59,6 +59,7 @@ None - this is a leaf package.
 2. **Developer uses DI** → registers `AppSettingsBinder` → injects settings
 3. **Developer uses non-DI** → calls `AppSettingsBinder.LoadDirect()` → gets settings
 4. **Developer enables auto-save** → references `NotNot.Bcl` → uses `AppSettingsManager<T>`
+5. **Developer uses storage provider** → `FileStorageProvider` or custom `ISettingsStorageProvider` → `LoadFromStorageAsync()`
 
 ## Key Components
 
@@ -124,6 +125,18 @@ await manager.LoadAsync(default, "appsettings.json");
 manager.EnableAutoSave();
 manager.Settings.Window.X = 100; // Auto-saved after 500ms
 ```
+
+#### Storage Provider Mode
+```csharp
+// For custom storage backends (file, localStorage, cloud, etc.)
+var storage = new FileStorageProvider("/path/to/settings.json");
+var manager = new AppSettingsManager<AppSettings>();
+await manager.LoadFromStorageAsync(storage);
+manager.EnableAutoSave();
+manager.Settings.Theme = "dark"; // Auto-saved to storage provider
+```
+
+See [`../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md) for full storage provider documentation.
 
 ---
 
