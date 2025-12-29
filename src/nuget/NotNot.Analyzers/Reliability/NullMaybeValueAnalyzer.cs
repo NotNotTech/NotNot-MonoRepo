@@ -30,7 +30,7 @@ public class NullMaybeValueAnalyzer : DiagnosticAnalyzer
         Title,
         MessageFormat,
         Category,
-        DiagnosticSeverity.Warning,
+        DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: Description);
 
@@ -153,18 +153,28 @@ public class NullMaybeValueAnalyzer : DiagnosticAnalyzer
     {
         // For static methods like Maybe.Success<T>, get type from method's type arguments
         // For instance methods like Maybe<T>.Success, get type from containing type's type arguments
+        ITypeSymbol? typeSymbol = null;
         string typeArgument;
         if (methodSymbol.IsGenericMethod && methodSymbol.TypeArguments.Length > 0)
         {
-            typeArgument = methodSymbol.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+            typeSymbol = methodSymbol.TypeArguments[0];
+            typeArgument = typeSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
         }
         else if (containingType.TypeArguments.Length > 0)
         {
-            typeArgument = containingType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+            typeSymbol = containingType.TypeArguments[0];
+            typeArgument = typeSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
         }
         else
         {
             typeArgument = "T";
+        }
+
+        // Allow null for explicitly nullable type arguments (e.g., Maybe<string?>.Success(null))
+        // This is intentional design - the developer explicitly marked the type as nullable
+        if (typeSymbol?.NullableAnnotation == NullableAnnotation.Annotated)
+        {
+            return;
         }
 
         context.ReportDiagnostic(Diagnostic.Create(

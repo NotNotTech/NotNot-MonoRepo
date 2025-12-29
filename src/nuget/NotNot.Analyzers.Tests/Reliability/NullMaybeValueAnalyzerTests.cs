@@ -60,7 +60,7 @@ namespace NotNot
 
 	private static DiagnosticResult NullMaybeDiagnostic(int line, int column, string typeArg)
 	{
-		return new DiagnosticResult(NullMaybeValueAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+		return new DiagnosticResult(NullMaybeValueAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
 			 .WithLocation(line, column)
 			 .WithArguments(typeArg);
 	}
@@ -413,6 +413,66 @@ public class TestClass
     {
         string? value = ""test"";
         return Maybe<string?>.Success(value);
+    }
+}";
+
+		await VerifyAnalyzerAsync(source);
+	}
+
+	[Fact]
+	public async Task NullableTypeArgumentWithNullLiteral_ShouldNotReport()
+	{
+		// When the type argument is explicitly nullable (string?), passing null is intentional
+		// This is the correct pattern for optional fields that can be absent
+		string source = @"
+using NotNot;
+
+public class TestClass
+{
+    public Maybe<string?> TestMethod()
+    {
+        return Maybe<string?>.Success(null);
+    }
+}";
+
+		await VerifyAnalyzerAsync(source);
+	}
+
+	[Fact]
+	public async Task NullableTypeArgumentWithDefault_ShouldNotReport()
+	{
+		// default on nullable type argument is intentional - represents absent value
+		string source = @"
+using NotNot;
+
+public class TestClass
+{
+    public Maybe<string?> TestMethod()
+    {
+        return Maybe<string?>.Success(default);
+    }
+}";
+
+		await VerifyAnalyzerAsync(source);
+	}
+
+	[Fact]
+	public async Task StaticMaybeSuccessWithNullableTypeArg_ShouldNotReport()
+	{
+		// Static Maybe.Success<T?>(null) should also be allowed
+		string source = @"
+using NotNot;
+
+public static class Maybe
+{
+    public static Maybe<T> Success<T>(T value) => default;
+}
+
+public class TestClass
+{
+    public Maybe<string?> TestMethod()
+    {
+        return Maybe.Success<string?>(null);
     }
 }";
 

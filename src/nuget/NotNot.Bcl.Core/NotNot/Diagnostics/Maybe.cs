@@ -240,8 +240,7 @@ public record class Maybe<TValue> : IMaybe
 	public Maybe(TValue value, [CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
-	{
-		__.ThrowIfNot(value is not null, "successful Maybe's must always have a non-null `.Value`.   If you really don't want a value, consider using `Maybe.SuccessResult()`", memberName, sourceFilePath, sourceLineNumber);
+	{		
 		_Value = value;
 		IsSuccess = true;
 		TraceId = TraceId.Generate(memberName, sourceFilePath, sourceLineNumber);
@@ -254,7 +253,6 @@ public record class Maybe<TValue> : IMaybe
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
-		__.ThrowIfNot(problem is not null, "Failure Maybe's must always have a non-null `.Problem`", memberName, sourceFilePath, sourceLineNumber);
 		Problem = problem;
 		TraceId = TraceId.Generate(memberName, sourceFilePath, sourceLineNumber);
 	}
