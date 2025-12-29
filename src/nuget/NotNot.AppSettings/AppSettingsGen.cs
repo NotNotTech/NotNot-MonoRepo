@@ -446,7 +446,13 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 				toReturn = "string";
 				break;
 			case JsonValueKind.Number:
-				toReturn = "double";
+				// Detect whole numbers and emit appropriate type
+				if (elm.TryGetInt32(out _))
+					toReturn = "int";
+				else if (elm.TryGetInt64(out _))
+					toReturn = "long";
+				else
+					toReturn = "double";
 				break;
 			case JsonValueKind.True:
 			case JsonValueKind.False:
@@ -491,7 +497,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 	/// </summary>
 	private static bool IsPrimitiveTypeName(string typeName)
 	{
-		return typeName == "string" || typeName == "double" || typeName == "bool" || typeName == "object";
+		return typeName == "string" || typeName == "int" || typeName == "long" || typeName == "double" || typeName == "bool" || typeName == "object";
 	}
 
 	/// <summary>
@@ -507,8 +513,32 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 		var propertyBuilder = new StringBuilder();
 		var propagateCallbackBuilder = new StringBuilder();
 
+		// Extract __min/__max metadata before property generation
+		var metadataLookup = new Dictionary<string, (double? min, double? max)>(StringComparer.Ordinal);
 		foreach (var kvp in currentNode)
 		{
+			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) && kvp.Value.ValueKind == JsonValueKind.Number)
+			{
+				var baseName = kvp.Key.Substring(0, kvp.Key.Length - 5);
+				if (!metadataLookup.TryGetValue(baseName, out var existing))
+					existing = (null, null);
+				metadataLookup[baseName] = (kvp.Value.GetDouble(), existing.max);
+			}
+			else if (kvp.Key.EndsWith("__max", StringComparison.Ordinal) && kvp.Value.ValueKind == JsonValueKind.Number)
+			{
+				var baseName = kvp.Key.Substring(0, kvp.Key.Length - 5);
+				if (!metadataLookup.TryGetValue(baseName, out var existing))
+					existing = (null, null);
+				metadataLookup[baseName] = (existing.min, kvp.Value.GetDouble());
+			}
+		}
+
+		foreach (var kvp in currentNode)
+		{
+			// Skip metadata keys - they're not properties
+			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal))
+				continue;
+
 			var propertyName = kvp.Key._ConvertToAlphanumericCaps();
 			var fieldName = "_" + char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1);
 			var propertyNamespace = $"{currentNamespace}._{currentClassName}";
@@ -526,16 +556,76 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 			var isComplexType = kvp.Value.ValueKind == JsonValueKind.Object;
 			var isArrayOfComplexType = isArray && !IsPrimitiveTypeName(GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config));
 
+			// Check for min/max metadata for this property
+			metadataLookup.TryGetValue(kvp.Key, out var propMeta);
+			var hasMin = propMeta.min.HasValue;
+			var hasMax = propMeta.max.HasValue;
+			var isNumericType = valueType == "int" || valueType == "long" || valueType == "double";
+
 			// Generate property with change detection
 			propertyBuilder.Append($@"
    public {valueType}? {propertyName}
    {{
       get => {fieldName};
       set
-      {{
+      {{");
+
+			// For numeric types with min/max constraints, apply clamping
+			if (isNumericType && (hasMin || hasMax))
+			{
+				if (hasMin && hasMax)
+				{
+					// Clamp to both min and max
+					if (valueType == "int")
+						propertyBuilder.Append($@"
+         var clamped = Math.Max({(int)propMeta.min!}, Math.Min({(int)propMeta.max!}, value ?? {(int)propMeta.min!}));");
+					else if (valueType == "long")
+						propertyBuilder.Append($@"
+         var clamped = Math.Max({(long)propMeta.min!}L, Math.Min({(long)propMeta.max!}L, value ?? {(long)propMeta.min!}L));");
+					else
+						propertyBuilder.Append($@"
+         var clamped = Math.Max({propMeta.min!}, Math.Min({propMeta.max!}, value ?? {propMeta.min!}));");
+				}
+				else if (hasMin)
+				{
+					// Clamp to min only
+					if (valueType == "int")
+						propertyBuilder.Append($@"
+         var clamped = Math.Max({(int)propMeta.min!}, value ?? {(int)propMeta.min!});");
+					else if (valueType == "long")
+						propertyBuilder.Append($@"
+         var clamped = Math.Max({(long)propMeta.min!}L, value ?? {(long)propMeta.min!}L);");
+					else
+						propertyBuilder.Append($@"
+         var clamped = Math.Max({propMeta.min!}, value ?? {propMeta.min!});");
+				}
+				else // hasMax only
+				{
+					// Clamp to max only
+					if (valueType == "int")
+						propertyBuilder.Append($@"
+         var clamped = Math.Min({(int)propMeta.max!}, value ?? 0);");
+					else if (valueType == "long")
+						propertyBuilder.Append($@"
+         var clamped = Math.Min({(long)propMeta.max!}L, value ?? 0L);");
+					else
+						propertyBuilder.Append($@"
+         var clamped = Math.Min({propMeta.max!}, value ?? 0.0);");
+				}
+
+				propertyBuilder.Append($@"
+         if (!Equals({fieldName}, clamped))
+         {{
+            {fieldName} = clamped;");
+			}
+			else
+			{
+				// No clamping - use original logic
+				propertyBuilder.Append($@"
          if (!Equals({fieldName}, value))
          {{
             {fieldName} = value;");
+			}
 
 			// For complex types, propagate the callback to nested objects
 			if (isComplexType)
@@ -618,6 +708,10 @@ namespace {currentNamespace};
 		//recurse into children
 		foreach (var kvp in currentNode)
 		{
+			// Skip metadata keys - they're not properties
+			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal))
+				continue;
+
 			var propertyNamespace = $"{currentNamespace}._{currentClassName}";
 			var jsonKind = kvp.Value.ValueKind;
 			var propertyName = kvp.Key._ConvertToAlphanumericCaps();
