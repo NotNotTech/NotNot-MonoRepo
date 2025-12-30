@@ -171,10 +171,12 @@ public static class DebuggableTimeoutCancelTokenHelper
 			_workerThreadTask?.Dispose();
 			_disposeCts?.Dispose();
 		}
+#pragma warning disable NN_R005 // Re-throws via __.Throw()
 		catch (Exception ex)
 		{
 			__.Throw(ex);
 		}
+#pragma warning restore NN_R005
 	}
 
 

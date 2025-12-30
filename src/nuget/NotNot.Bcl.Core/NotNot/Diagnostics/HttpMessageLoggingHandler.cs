@@ -41,10 +41,12 @@ public class HttpMessageLoggingHandler : DelegatingHandler
 			{
 				contentString = await response.Content.ReadAsStringAsync(ct);
 			}
+#pragma warning disable NN_R005 // Logging handler must capture all read failures
 			catch (Exception ex)
 			{
 				contentString = $"[ERROR calling response.Content.ReadAsStringAsync(): {ex._ToUserFriendlyString()}";
 			}
+#pragma warning restore NN_R005
 
 			if (logger._IfInfo())
 			{

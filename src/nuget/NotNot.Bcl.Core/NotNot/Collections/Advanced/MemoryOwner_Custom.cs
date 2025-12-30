@@ -211,11 +211,13 @@ public sealed class MemoryOwner_Custom<T> : IMemoryOwner<T>, IEnumerable<T>
 		{
 			Dispose();
 		}
+#pragma warning disable NN_R005 // Finalizer must catch all to prevent GC crashes
 		catch(Exception ex)
 		{
 			ex._RethrowUnlessAppShutdownOrRelease();
 		}
-		
+#pragma warning restore NN_R005
+
 	}
 
 		[Conditional("CHECKED")]

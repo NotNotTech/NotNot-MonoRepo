@@ -185,9 +185,11 @@ where TKey : notnull
 		{
 			Dispose(disposing: false);
 		}
+#pragma warning disable NN_R005 // Finalizer must catch all to prevent GC crashes
 		catch(Exception ex) {
 			ex._RethrowUnlessAppShutdownOrRelease();
 		}
+#pragma warning restore NN_R005
 	}
 	// IEnumerable implementation...
 }

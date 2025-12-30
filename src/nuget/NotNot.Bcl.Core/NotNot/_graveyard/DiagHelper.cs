@@ -159,6 +159,7 @@ public class DiagHelper
 			ex = typeof(TException)._CreateInstance<TException>($"{level}_THROW({conditionName}) {message}",
 				innerException);
 		}
+#pragma warning disable NN_R005 // Reflection may throw any exception type
 		catch (Exception e)
 		{
 			Kill(EnvLevel.ERROR, false
@@ -167,6 +168,7 @@ public class DiagHelper
 				, conditionName, memberName, sourceFilePath, sourceLineNumber
 			);
 		}
+#pragma warning restore NN_R005
 
 		ex.Source = $"{memberName}:{sourceFilePath}:{sourceLineNumber}";
 

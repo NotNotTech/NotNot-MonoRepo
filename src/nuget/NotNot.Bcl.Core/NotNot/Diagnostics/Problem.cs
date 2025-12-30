@@ -713,10 +713,12 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 					JsonSerializer.Serialize(writer, poco, __.SerializationHelper._logJsonOptions);
 				}
 			}
+#pragma warning disable NN_R005 // Serialization must not crash for logging
 			catch (Exception ex)
 			{
 				writer.WriteStringValue($"ERROR_SERIALIZING:{ex.Message}");
 			}
+#pragma warning restore NN_R005
 		}
 
 		writer.WriteEndObject();

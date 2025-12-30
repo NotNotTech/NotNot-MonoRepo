@@ -63,7 +63,9 @@ public static class MutexUtil
 		}
 		finally
 		{
-			try { mutex.ReleaseMutex(); } catch { /* ignored */ }
+#pragma warning disable NN_R005 // Mutex may already be released - safe to ignore
+			try { mutex.ReleaseMutex(); } catch (ApplicationException) { /* Mutex not owned by this thread */ }
+#pragma warning restore NN_R005
 		}
 	}
 }

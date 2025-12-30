@@ -19,10 +19,12 @@ public class TestHelper
       {
          await action();
       }
+#pragma warning disable NN_R005 // Test utility - must catch all exception types
       catch (Exception)
       {
          return;
       }
+#pragma warning restore NN_R005
 
       __.GetLogger()._Kill($"Expected an exception to be thrown, but none was.  {message}", sourceMemberName: sourceMemberName,
          sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber);
@@ -38,11 +40,13 @@ public class TestHelper
       {
          await action();
       }
+#pragma warning disable NN_R005 // Test utility - must catch all exception types
       catch (Exception ex)
       {
          __.GetLogger()._Kill($"Expected success.  {message}", innerException: ex, sourceMemberName: sourceMemberName,
             sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber);
       }
+#pragma warning restore NN_R005
    }
 
    //private ITestOutputHelper _testOutputHelper;
@@ -170,9 +174,9 @@ public class TestHelper
          __.placeholder.ToDo("implement below");
          //_testOutputHelper.WriteLine(completeMsg);
       }
-      catch (InvalidOperationException e)
+      catch (InvalidOperationException)
       {
-         //noop
+         // Test output helper may be disposed - safe to ignore
       }
    }
 }

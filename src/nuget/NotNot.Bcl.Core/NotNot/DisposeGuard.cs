@@ -94,10 +94,13 @@ public class DisposeGuard : IDisposeGuard
 				}
 				OnDispose(false);
 			}
-		}catch(Exception ex)
+		}
+#pragma warning disable NN_R005 // Finalizer must catch all to prevent GC crashes
+		catch(Exception ex)
 		{
 			ex._RethrowUnlessAppShutdownOrRelease();
 		}
+#pragma warning restore NN_R005
 	}
 
 	/// <summary>
@@ -223,10 +226,12 @@ public class AsyncDisposeGuard : IAsyncDisposable
 				OnDispose(false)._SyncWait();
 			}
 		}
+#pragma warning disable NN_R005 // Finalizer must catch all to prevent GC crashes
 		catch (Exception ex)
 		{
 			ex._RethrowUnlessAppShutdownOrRelease();
 		}
+#pragma warning restore NN_R005
 	}
 
 	/// <summary>

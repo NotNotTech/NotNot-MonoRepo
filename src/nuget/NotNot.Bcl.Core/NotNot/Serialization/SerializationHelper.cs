@@ -56,10 +56,12 @@ public class SerializationHelper
 					{
 						disposable.Dispose();
 					}
+#pragma warning disable NN_R005 // Disposal cleanup must continue despite individual converter failures
 					catch (Exception ex)
 					{
 						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex.Message}");
 					}
+#pragma warning restore NN_R005
 				}
 			}
 			if (_logJsonOptions.IsReadOnly is false)
@@ -79,10 +81,12 @@ public class SerializationHelper
 					{
 						disposable.Dispose();
 					}
+#pragma warning disable NN_R005 // Disposal cleanup must continue despite individual converter failures
 					catch (Exception ex)
 					{
 						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex.Message}");
 					}
+#pragma warning restore NN_R005
 				}
 			}
 			if (_roundtripJsonOptions.IsReadOnly is false)

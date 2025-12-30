@@ -9,6 +9,41 @@ Analyzers for human and agents, to enforce workspace design decisions.
 
 ---
 
+# Analyzers
+
+## NN_R005: Catch Block Must Rethrow
+
+**Severity**: Error
+
+**Category**: Reliability
+
+**Description**: Catch blocks that catch general exception types (`Exception`, `SystemException`, or bare `catch`) must rethrow the exception. Silent exception swallowing masks bugs and makes debugging difficult.
+
+**Flagged (Error)**:
+```csharp
+catch { }                            // Bare catch without rethrow
+catch (Exception) { }                // Catches Exception without rethrow
+catch (Exception ex) { Log(ex); }    // Logs but doesn't rethrow
+catch (SystemException) { }          // Catches SystemException without rethrow
+```
+
+**Allowed**:
+```csharp
+catch (Exception ex) { throw; }                          // Rethrows original exception
+catch (Exception ex) { throw new WrapperException(ex); } // Rethrows wrapped
+catch (Exception ex) when (condition) { }                // Exception filter narrows scope
+catch (IOException ex) { }                               // Specific exception type
+catch (JsonException ex) { Log(ex); }                    // Specific exception type can swallow
+```
+
+**Code Fix**: Adds `throw;` statement at the end of the catch block.
+
+**Files**:
+- `Reliability/Exceptions/CatchBlockMustRethrowAnalyzer.cs`
+- `Reliability/Exceptions/CatchBlockMustRethrowCodeFixProvider.cs`
+
+---
+
 # Diagnostic Suppressors
 
 The `NotNotDiagnosticSuppressor` in `Advanced/SuppressionProvider.cs` provides intelligent suppression of false positive diagnostics based on code patterns.
@@ -161,8 +196,10 @@ NotNot.Analyzers/
 ├── Advanced/
 │   └── SuppressionProvider.cs    # All NNS* suppressors
 ├── Reliability/
-│   └── Concurrency/
-│       ├── TaskAwaitedOrReturnedAnalyzer.cs  # NN_R001
-│       └── TaskResultNotObservedAnalyzer.cs  # NN_R002
+│   ├── Concurrency/
+│   │   ├── TaskAwaitedOrReturnedAnalyzer.cs  # NN_R001
+│   │   └── TaskResultNotObservedAnalyzer.cs  # NN_R002
+│   └── Exceptions/
+│       └── CatchBlockMustRethrowAnalyzer.cs  # NN_R005
 └── AGENTS.MD                      # This file
 ```

@@ -418,11 +418,11 @@ public static partial class zz_Extensions_Task
       {
          await task;
       }
-#pragma warning disable ERP022, RCS1075 // Avoid empty catch clause that catches System.Exception.
+#pragma warning disable ERP022, RCS1075, NN_R005 // Method designed to swallow all exceptions
       catch (Exception)
       {
       }
-#pragma warning restore ERP022, RCS1075 // Avoid empty catch clause that catches System.Exception.
+#pragma warning restore ERP022, RCS1075, NN_R005
    }
 
    public static async Task<T?> _WaitWithoutException<T>(this Task<T> task)
@@ -431,12 +431,12 @@ public static partial class zz_Extensions_Task
       {
          return await task;
       }
+#pragma warning disable ERP022, RCS1075, NN_R005 // Method designed to swallow all exceptions
       catch (Exception)
       {
-#pragma warning disable ERP022, RCS1075 // Avoid empty catch clause that catches System.Exception.
          return default;
-#pragma warning restore ERP022, RCS1075 // Avoid empty catch clause that catches System.Exception.
       }
+#pragma warning restore ERP022, RCS1075, NN_R005
    }
 
    /// <summary>
@@ -449,11 +449,11 @@ public static partial class zz_Extensions_Task
       {
          await task;
       }
-#pragma warning disable ERP022, RCS1075 // Avoid empty catch clause that catches System.Exception.
+#pragma warning disable ERP022, RCS1075, NN_R005 // Method designed to swallow all exceptions
       catch (Exception)
       {
       }
-#pragma warning restore ERP022, RCS1075 // Avoid empty catch clause that catches System.Exception.
+#pragma warning restore ERP022, RCS1075, NN_R005
    }
 
    /// <summary>
@@ -466,12 +466,12 @@ public static partial class zz_Extensions_Task
       {
          return await task;
       }
-#pragma warning disable ERP022, RCS1075 // Avoid empty catch clause that catches System.Exception.
+#pragma warning disable ERP022, RCS1075, NN_R005 // Method designed to swallow all exceptions
       catch (Exception)
       {
          return default;
       }
-#pragma warning restore ERP022, RCS1075 // Avoid empty catch clause that catches System.Exception.
+#pragma warning restore ERP022, RCS1075, NN_R005
    }
 
 
@@ -1004,10 +1004,12 @@ public static partial class zz_Extensions_Task
       {
          _SyncWait(task, timeout);
       }
-      catch (Exception ex)
+#pragma warning disable NN_R005 // Method designed to swallow all exceptions
+      catch (Exception)
       {
-         //no op
+         // Method contract: swallow all exceptions
       }
+#pragma warning restore NN_R005
 
 
    }
@@ -1030,6 +1032,7 @@ public static partial class zz_Extensions_Task
       {
          _SyncWait(task, ct);
       }
+#pragma warning disable NN_R005 // Filters cancellation, re-throws others via __.Throw()
       catch (Exception ex)
       {
          switch (ex)
@@ -1053,6 +1056,7 @@ public static partial class zz_Extensions_Task
                break;
          }
       }
+#pragma warning restore NN_R005
 
 
    }
@@ -1077,11 +1081,13 @@ public static partial class zz_Extensions_Task
          Maybe<T> maybeResult = await task.ConfigureAwait(false);
          return maybeResult;
       }
+#pragma warning disable NN_R005 // _ToMaybe is designed to convert all exceptions to Maybe<T>
       catch (Exception ex)
       {
          NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
          return Maybe<T>.Error(problem, memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning restore NN_R005
    }
    /// <summary>
    /// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
@@ -1104,11 +1110,13 @@ public static partial class zz_Extensions_Task
          Maybe<T> maybeResult = await task.ConfigureAwait(false);
          return maybeResult;
       }
+#pragma warning disable NN_R005 // _ToMaybe is designed to convert all exceptions to Maybe<T>
       catch (Exception ex)
       {
          NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
          return Maybe<T>.Error(problem, memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning restore NN_R005
    }
    /// <summary>
    /// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
@@ -1131,11 +1139,13 @@ public static partial class zz_Extensions_Task
          Maybe maybeResult = await task.ConfigureAwait(false);
          return maybeResult;
       }
+#pragma warning disable NN_R005 // _ToMaybe is designed to convert all exceptions to Maybe<T>
       catch (Exception ex)
       {
          NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
          return new Maybe(problem, memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning restore NN_R005
    }
    /// <summary>
    /// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
@@ -1158,11 +1168,13 @@ public static partial class zz_Extensions_Task
          Maybe maybeResult = await task.ConfigureAwait(false);
          return maybeResult;
       }
+#pragma warning disable NN_R005 // _ToMaybe is designed to convert all exceptions to Maybe<T>
       catch (Exception ex)
       {
          NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
          return new Maybe(problem, memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning restore NN_R005
    }
 
 
@@ -1188,6 +1200,7 @@ public static partial class zz_Extensions_Task
          T result = await task.ConfigureAwait(false);
          return Maybe<T>.Success(result, memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning disable NN_R005 // _ToMaybe is designed to convert all exceptions to Maybe<T>
       catch (Exception ex)
       {
          NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
@@ -1196,6 +1209,7 @@ public static partial class zz_Extensions_Task
 
          return toReturn;
       }
+#pragma warning restore NN_R005
    }
 
    /// <summary>
@@ -1220,11 +1234,13 @@ public static partial class zz_Extensions_Task
          T result = await valueTask.ConfigureAwait(false);
          return Maybe<T>.Success(result, memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning disable NN_R005 // _ToMaybe is designed to convert all exceptions to Maybe<T>
       catch (Exception ex)
       {
          NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
          return Maybe<T>.Error(problem, memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning restore NN_R005
    }
 
    /// <summary>
@@ -1248,11 +1264,13 @@ public static partial class zz_Extensions_Task
          await task.ConfigureAwait(false);
          return Maybe.SuccessResult(memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning disable NN_R005 // _ToMaybe is designed to convert all exceptions to Maybe<T>
       catch (Exception ex)
       {
          NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
          return new Maybe(problem, memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning restore NN_R005
    }
 
    /// <summary>
@@ -1276,11 +1294,13 @@ public static partial class zz_Extensions_Task
          await valueTask.ConfigureAwait(false);
          return Maybe.SuccessResult(memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning disable NN_R005 // _ToMaybe is designed to convert all exceptions to Maybe<T>
       catch (Exception ex)
       {
          NotNot.Problem problem = NotNot.Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber);
          return new Maybe(problem, memberName, sourceFilePath, sourceLineNumber);
       }
+#pragma warning restore NN_R005
    }
 }
 
@@ -1745,6 +1765,7 @@ public static class zz_Extensions_HttpContent
          // Re-throw our custom exceptions
          throw;
       }
+#pragma warning disable NN_R005 // Re-throws via __.Throw() after building error message
       catch (Exception ex)
       {
          // Catch any other unexpected exceptions
@@ -1753,13 +1774,14 @@ public static class zz_Extensions_HttpContent
          {
             contentText = await content.ReadAsStringAsync();
          }
-         catch
+         catch (Exception)
          {
-            // Ignore read errors for error message
+            // Ignore read errors for error message building
          }
 
          __.Throw($"Content not Maybe<{typeof(T).Name}> - Unexpected error: {ex.Message}. Content is: {contentText}");
       }
+#pragma warning restore NN_R005
 
       // This should never be reached due to the throws above, but satisfies compiler
       throw new InvalidOperationException("Unreachable code");
@@ -1812,6 +1834,7 @@ public static class zz_Extensions_HttpContent
          // Re-throw our custom exceptions
          throw;
       }
+#pragma warning disable NN_R005 // Re-throws via __.Throw() after building error message
       catch (Exception ex)
       {
          // Catch any other unexpected exceptions
@@ -1820,13 +1843,14 @@ public static class zz_Extensions_HttpContent
          {
             contentText = await content.ReadAsStringAsync();
          }
-         catch
+         catch (Exception)
          {
-            // Ignore read errors for error message
+            // Ignore read errors for error message building
          }
 
          __.Throw($"Content not `Maybe` - Unexpected error: {ex.Message}. Content is: {contentText}");
       }
+#pragma warning restore NN_R005
 
       // This should never be reached due to the throws above, but satisfies compiler
       throw new InvalidOperationException("Unreachable code");

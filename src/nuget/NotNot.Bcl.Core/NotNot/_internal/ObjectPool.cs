@@ -366,11 +366,13 @@ public class ObjectPool : IDisposeGuard
 		{
 			clearAction?.Invoke(item);
 		}
-		catch
+#pragma warning disable NN_R005 // Pool must swallow Clear() exceptions to prevent corruption
+		catch (Exception)
 		{
 			// Swallow exceptions from Clear() to prevent pool corruption
 			// User's Clear() implementation issues should not crash the pool
 		}
+#pragma warning restore NN_R005
 	}
 
 
