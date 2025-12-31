@@ -112,18 +112,12 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
             JsonObject finalMerged = _baseJsonSnapshot?.DeepClone()?.AsObject() ?? new JsonObject();
             if (File.Exists(UserSettingsPath))
             {
-                try
+                // Greenfield: let exceptions propagate - if user settings file is corrupt, we need to know
+                using var userStream = new FileStream(UserSettingsPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+                var userNode = await JsonNode.ParseAsync(userStream, cancellationToken: ct);
+                if (userNode is JsonObject userObj)
                 {
-                    using var userStream = new FileStream(UserSettingsPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
-                    var userNode = await JsonNode.ParseAsync(userStream, cancellationToken: ct);
-                    if (userNode is JsonObject userObj)
-                    {
-                        finalMerged = (JsonObject)JsonSettingsUtils.MergeJson(finalMerged, userObj);
-                    }
-                }
-                catch
-                {
-                    // Ignore user file errors, use base only
+                    finalMerged = (JsonObject)JsonSettingsUtils.MergeJson(finalMerged, userObj);
                 }
             }
 
@@ -556,10 +550,13 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
             {
                 SaveAsync().AsTask().GetAwaiter().GetResult();
             }
-            catch
+#pragma warning disable NN_R005 // Dispose must not throw, but report errors via callback
+            catch (Exception ex)
             {
-                // Best effort save on sync dispose
+                // Greenfield: surface dispose save errors via callback - they indicate real problems
+                OnAutoSaveError?.Invoke(ex);
             }
+#pragma warning restore NN_R005
         }
     }
 
@@ -660,15 +657,9 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
     {
         if (File.Exists(UserSettingsPath))
         {
-            try
-            {
-                var json = await File.ReadAllTextAsync(UserSettingsPath, ct);
-                return JsonNode.Parse(json)?.AsObject() ?? new JsonObject();
-            }
-            catch
-            {
-                return new JsonObject();
-            }
+            // Greenfield: let exceptions propagate - if user settings file is corrupt, we need to know
+            var json = await File.ReadAllTextAsync(UserSettingsPath, ct);
+            return JsonNode.Parse(json)?.AsObject() ?? new JsonObject();
         }
         return new JsonObject();
     }

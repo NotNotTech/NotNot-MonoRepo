@@ -95,6 +95,7 @@ public class SlimMsDiHost<TRoot> : BackgroundService, IHostedLifecycleService
 		{
 			await _rootNode.RootInitialize(stoppingToken);
 		}
+#pragma warning disable NN_R005 // Cleanup on any exception before rethrow
 		catch
 		{
 			// Cleanup if initialization fails (host may terminate without calling StopAsync)
@@ -102,6 +103,7 @@ public class SlimMsDiHost<TRoot> : BackgroundService, IHostedLifecycleService
 			_rootNode = null;
 			throw;
 		}
+#pragma warning restore NN_R005
 
 		// Tick loop with actual elapsed time measurement
 		using var timer = new PeriodicTimer(_tickInterval);

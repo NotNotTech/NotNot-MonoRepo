@@ -108,19 +108,12 @@ public static class zz_Extensions_HostApplicationBuilder
 
 				if (!string.IsNullOrEmpty(aiConnectionString))
 				{
-					try
-					{
-						loggerConfiguration = loggerConfiguration.WriteTo.ApplicationInsights(
-							connectionString: aiConnectionString,
-							telemetryConverter: new Serilog.Sinks.ApplicationInsights.TelemetryConverters.TraceTelemetryConverter(),
-							restrictedToMinimumLevel: LogEventLevel.Information
-						);
-					}
-					catch (Exception ex)
-					{
-						// Log error but don't fail application startup if AI is misconfigured
-						Console.WriteLine($"Warning: Failed to configure Application Insights logging: {ex.Message}");
-					}
+					// Greenfield: if AI is configured, it should work - let exceptions propagate
+					loggerConfiguration = loggerConfiguration.WriteTo.ApplicationInsights(
+						connectionString: aiConnectionString,
+						telemetryConverter: new Serilog.Sinks.ApplicationInsights.TelemetryConverters.TraceTelemetryConverter(),
+						restrictedToMinimumLevel: LogEventLevel.Information
+					);
 				}
 
 				if (extraLoggerConfig != null)
