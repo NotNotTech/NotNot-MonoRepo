@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+    XRay Source Line Metadata Generator
+    Register .razor files as AdditionalTexts for the source generator.
+    Exclude build output directories to avoid processing generated files.
+    -->
+    <ItemGroup>
+        <AdditionalFiles Include="**/*.razor" Exclude="bin/**;obj/**;.vs/**" />
+    </ItemGroup>
+</Project>

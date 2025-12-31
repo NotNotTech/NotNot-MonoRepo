@@ -16,6 +16,10 @@
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<!-- Ensure analyzer deps are copied to bin for VS MEF resolution when referenced as ProjectReference -->
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+		<!-- Source generator properties (required for XRay metadata generator) -->
+		<IsRoslynComponent>true</IsRoslynComponent>
+		<DevelopmentDependency>true</DevelopmentDependency>
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -34,6 +38,8 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.0.0-1.25277.114" PrivateAssets="all" />
 		<!-- Code Fix Provider dependencies -->
 		<PackageReference Include="System.Composition" Version="10.0.0" PrivateAssets="all" />
+		<!-- PolySharp for [ModuleInitializer] attribute in netstandard2.0 -->
+		<PackageReference Include="PolySharp" Version="1.15.0" PrivateAssets="all" />
 	</ItemGroup>
 
 	<!-- Development-time analyzers (for this project only) -->
@@ -53,6 +59,11 @@
 	<!-- Analyzer packaging configuration -->
 	<ItemGroup>
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	</ItemGroup>
+
+	<!-- Source generator props file (registers .razor as AdditionalTexts) -->
+	<ItemGroup>
+		<None Include="build\NotNot.BlazorAnalyzers.props" Pack="true" PackagePath="build\" />
 	</ItemGroup>
 
 	<!-- NuGet package metadata -->
