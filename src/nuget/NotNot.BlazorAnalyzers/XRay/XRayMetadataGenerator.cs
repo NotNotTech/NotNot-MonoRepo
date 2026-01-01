@@ -126,14 +126,9 @@ internal static partial class XRayMetadata
                     jsonBuilder.Append(",\"text\":\"").Append(EscapeJson(element.Text)).Append('"');
                 }
 
-                // Conditional depth
+                // Conditional depth (used in scoring penalty: -3 per level)
                 jsonBuilder.Append(",\"conditionalDepth\":").Append(element.ConditionalDepth);
-
-                // Sibling index
-                jsonBuilder.Append(",\"siblingIndex\":").Append(element.SiblingIndex);
-
-                // DOM order (primary discriminator for matching)
-                jsonBuilder.Append(",\"domOrder\":").Append(element.DomOrder);
+                // NOTE: siblingIndex and domOrder removed (2026-01-01) - never consumed by JS matcher
 
                 jsonBuilder.Append('}');
             }

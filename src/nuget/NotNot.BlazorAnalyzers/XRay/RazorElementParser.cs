@@ -13,15 +13,7 @@ internal sealed class RazorElement
     public Dictionary<string, string> Attributes { get; } = new();
     public string? Text { get; set; }
     public int ConditionalDepth { get; set; }
-    public int SiblingIndex { get; set; }
-
-    /// <summary>
-    /// DOM render order within the file (1-based).
-    /// Elements render in source order, so the Nth element in source
-    /// becomes the Nth element with this file's CSS scope in the DOM.
-    /// Used as primary discriminator for XRay matching.
-    /// </summary>
-    public int DomOrder { get; set; }
+    // NOTE: SiblingIndex was removed (2026-01-01) - was generated but never used in JS matching
 }
 
 /// <summary>
@@ -103,9 +95,6 @@ internal static class RazorElementParser
         var lines = content.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
 
         int conditionalDepth = 0;
-        int domOrderCounter = 0;  // Track render order (1-based)
-        var siblingStack = new Stack<int>();
-        siblingStack.Push(0);
 
         for (int i = 0; i < lines.Length; i++)
         {
@@ -120,7 +109,6 @@ internal static class RazorElementParser
             foreach (Match _ in condStartMatches)
             {
                 conditionalDepth++;
-                siblingStack.Push(0);
             }
 
             // Parse elements on this line
@@ -133,22 +121,16 @@ internal static class RazorElementParser
                 if (tag == "script" || tag == "style" || tag.StartsWith("@"))
                     continue;
 
-                domOrderCounter++;  // Increment before assignment (1-based)
                 var element = new RazorElement
                 {
                     Tag = tag,
                     Line = lineNumber,
-                    ConditionalDepth = conditionalDepth,
-                    SiblingIndex = siblingStack.Peek(),
-                    DomOrder = domOrderCounter
+                    ConditionalDepth = conditionalDepth
                 };
 
-                // Increment sibling index for next element at same depth
-                var currentSibling = siblingStack.Pop();
-                siblingStack.Push(currentSibling + 1);
-
-                // Extract attributes from the rest of the line after the tag
-                var afterTag = line.Substring(match.Index + match.Length);
+                // NOTE: Previously computed afterTag but used `line` for all regex matches.
+                // Since single-element-per-line is the common case, we continue using `line`.
+                // Multi-element-per-line is a documented limitation (~60% accuracy).
 
                 // Class attribute
                 var classMatch = ClassRegex.Match(line);
@@ -232,7 +214,6 @@ internal static class RazorElementParser
                 if (conditionalDepth > 0)
                 {
                     conditionalDepth--;
-                    if (siblingStack.Count > 1) siblingStack.Pop();
                 }
             }
         }
