@@ -48,6 +48,22 @@ internal static class RazorElementParser
         @"\bVariant\s*=\s*""([^""]+)""",
         RegexOptions.Compiled);
 
+    // Extract Text attribute (MudBlazor - used by MudExpansionPanel, MudChip, etc.)
+    private static readonly Regex TextAttrRegex = new(
+        @"\bText\s*=\s*""([^""]+)""",
+        RegexOptions.Compiled);
+
+    // Extract Icon attribute (MudBlazor - MudIconButton, MudChip, MudNavLink, etc.)
+    // Captures the icon name from patterns like Icon="@Icons.Material.Filled.Home"
+    private static readonly Regex IconRegex = new(
+        @"\bIcon\s*=\s*""([^""]+)""",
+        RegexOptions.Compiled);
+
+    // Extract Href attribute (MudBlazor - MudNavLink, MudLink, MudButton, etc.)
+    private static readonly Regex HrefRegex = new(
+        @"\bHref\s*=\s*""([^""]+)""",
+        RegexOptions.Compiled);
+
     // Match text content between > and </ (single-line only)
     private static readonly Regex TextRegex = new(
         @">([^<]{1,100})</",
@@ -155,6 +171,27 @@ internal static class RazorElementParser
                     element.Attributes["Variant"] = variantMatch.Groups[1].Value;
                     var mapped = MapVariant(variantMatch.Groups[1].Value);
                     if (mapped != null) mudRuntimeClasses.Add(mapped);
+                }
+
+                // Text attribute (MudExpansionPanel, MudChip, etc.)
+                var textAttrMatch = TextAttrRegex.Match(line);
+                if (textAttrMatch.Success)
+                {
+                    element.Attributes["Text"] = textAttrMatch.Groups[1].Value;
+                }
+
+                // Icon attribute (MudIconButton, MudChip, MudNavLink, etc.)
+                var iconMatch = IconRegex.Match(line);
+                if (iconMatch.Success)
+                {
+                    element.Attributes["Icon"] = iconMatch.Groups[1].Value;
+                }
+
+                // Href attribute (MudNavLink, MudLink, MudButton, etc.)
+                var hrefMatch = HrefRegex.Match(line);
+                if (hrefMatch.Success)
+                {
+                    element.Attributes["Href"] = hrefMatch.Groups[1].Value;
                 }
 
                 // Add MudBlazor runtime class mapping
