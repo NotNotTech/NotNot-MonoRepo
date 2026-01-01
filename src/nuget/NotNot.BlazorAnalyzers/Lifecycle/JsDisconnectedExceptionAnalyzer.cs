@@ -54,6 +54,12 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
         "Invoke"
     };
 
+    // Safe wrapper methods that internally handle JSDisconnectedException
+    private static readonly string[] SafeWrapperMethodNames =
+    {
+        "_SafeWait"
+    };
+
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
     {
@@ -102,6 +108,10 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
 
             // Check if this call is inside a try-catch that catches JSDisconnectedException
             if (IsInsideJsDisconnectedExceptionHandler(invocation))
+                continue;
+
+            // Check if this call is wrapped with a safe wrapper method (e.g., ._SafeWait())
+            if (IsWrappedWithSafeMethod(invocation))
                 continue;
 
             // Report diagnostic
@@ -198,6 +208,24 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
         // Check if the node is inside the try block (not catch or finally)
         var tryBlock = tryStatement.Block;
         return tryBlock.Span.Contains(node.Span);
+    }
+
+    private static bool IsWrappedWithSafeMethod(InvocationExpressionSyntax invocation)
+    {
+        // Check if this invocation is the target of a safe wrapper call
+        // Pattern: invocation._SafeWait() where invocation is the JS interop call
+        // Syntax: InvocationExpression (outer) -> MemberAccessExpression -> InvocationExpression (inner, this is us)
+        if (invocation.Parent is not MemberAccessExpressionSyntax memberAccess)
+            return false;
+
+        // Check if the member being accessed is a safe wrapper method
+        var methodName = memberAccess.Name.Identifier.Text;
+        if (!SafeWrapperMethodNames.Contains(methodName))
+            return false;
+
+        // Verify this member access is actually being invoked (i.e., there's a () after it)
+        // The member access should be the expression of another invocation
+        return memberAccess.Parent is InvocationExpressionSyntax;
     }
 
     private static string GetCallText(InvocationExpressionSyntax invocation)

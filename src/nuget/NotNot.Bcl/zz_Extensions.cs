@@ -18,6 +18,29 @@ public static class zz_Extensions_Spectre_Console_Color
 	}
 }
 
+public static class zz_Extensions_ValueTask
+{
+	/// <summary>
+	/// Waits for the specified ValueTask to complete, suppressing exceptions related to disconnection, cancellation, or
+	/// disposal.
+	/// </summary>
+	/// <remarks>This method is intended for scenarios where exceptions such as JSDisconnectedException,
+	/// TaskCanceledException, or ObjectDisposedException are expected and should not interrupt the flow of execution.
+	/// Other exceptions will not be suppressed and will propagate to the caller.</remarks>
+	/// <param name="task">The ValueTask to await. Represents an asynchronous operation whose exceptions for disconnection, cancellation, or
+	/// disposal will be ignored.</param>
+	/// <returns>A ValueTask that represents the asynchronous wait operation.</returns>
+	public static async ValueTask _SafeWait(this ValueTask task)
+	{
+		try
+		{
+			await task;
+		}
+		catch (Microsoft.JSInterop.JSDisconnectedException) { }
+		catch (TaskCanceledException) { }
+		catch (ObjectDisposedException) { }
+	}
+}
 
 //public static class zz_Extensions_OneOf
 //{

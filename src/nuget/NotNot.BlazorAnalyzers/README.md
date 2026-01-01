@@ -83,7 +83,7 @@ public async ValueTask DisposeAsync()
     }
 }
 
-// ✅ Properly handled
+// ✅ Properly handled with try-catch
 public async ValueTask DisposeAsync()
 {
     if (_module is not null)
@@ -99,7 +99,19 @@ public async ValueTask DisposeAsync()
         }
     }
 }
+
+// ✅ Properly handled with _SafeWait() extension (from NotNot.Bcl)
+public async ValueTask DisposeAsync()
+{
+    if (_module is not null)
+    {
+        await _module.InvokeVoidAsync("cleanup")._SafeWait();
+        await _module.DisposeAsync()._SafeWait();
+    }
+}
 ```
+
+The `_SafeWait()` extension method (from NotNot.Bcl) internally catches `JSDisconnectedException`, `TaskCanceledException`, and `ObjectDisposedException`, providing a concise alternative to try-catch blocks.
 
 ## Configuration
 

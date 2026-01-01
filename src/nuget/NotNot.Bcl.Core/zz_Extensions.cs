@@ -456,11 +456,14 @@ public static partial class zz_Extensions_Task
 #pragma warning restore ERP022, RCS1075, NN_R005
    }
 
-   /// <summary>
-   ///    awaits any result (success, cancel, error) without throwing.
-   ///    the result of this call will always succeed.   Inspect the original task for result status.
-   /// </summary>
-   public static async ValueTask<TResult?> _WaitWithoutException<TResult>(this ValueTask<TResult> task)
+
+
+
+	/// <summary>
+	///    awaits any result (success, cancel, error) without throwing.
+	///    the result of this call will always succeed.   Inspect the original task for result status.
+	/// </summary>
+	public static async ValueTask<TResult?> _WaitWithoutException<TResult>(this ValueTask<TResult> task)
    {
       try
       {

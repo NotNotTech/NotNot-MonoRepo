@@ -14,6 +14,14 @@ internal sealed class RazorElement
     public string? Text { get; set; }
     public int ConditionalDepth { get; set; }
     public int SiblingIndex { get; set; }
+
+    /// <summary>
+    /// DOM render order within the file (1-based).
+    /// Elements render in source order, so the Nth element in source
+    /// becomes the Nth element with this file's CSS scope in the DOM.
+    /// Used as primary discriminator for XRay matching.
+    /// </summary>
+    public int DomOrder { get; set; }
 }
 
 /// <summary>
@@ -95,6 +103,7 @@ internal static class RazorElementParser
         var lines = content.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
 
         int conditionalDepth = 0;
+        int domOrderCounter = 0;  // Track render order (1-based)
         var siblingStack = new Stack<int>();
         siblingStack.Push(0);
 
@@ -124,12 +133,14 @@ internal static class RazorElementParser
                 if (tag == "script" || tag == "style" || tag.StartsWith("@"))
                     continue;
 
+                domOrderCounter++;  // Increment before assignment (1-based)
                 var element = new RazorElement
                 {
                     Tag = tag,
                     Line = lineNumber,
                     ConditionalDepth = conditionalDepth,
-                    SiblingIndex = siblingStack.Peek()
+                    SiblingIndex = siblingStack.Peek(),
+                    DomOrder = domOrderCounter
                 };
 
                 // Increment sibling index for next element at same depth

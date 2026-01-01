@@ -270,4 +270,41 @@ public class RegularService : IAsyncDisposable
         // NNB007 only applies to Blazor components
         await VerifyAnalyzerAsync(source);
     }
+
+    [Fact]
+    public async Task JsInteropCall_InDisposeAsync_WithSafeWait_NoDiagnostic()
+    {
+        var source = @"
+using System;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
+
+public class TestComponent : ComponentBase, IAsyncDisposable
+{
+    private IJSObjectReference? _module;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            // _SafeWait() internally handles JSDisconnectedException
+            await _module.InvokeVoidAsync(""cleanup"")._SafeWait();
+        }
+    }
+}
+
+public static class SafeWaitExtensions
+{
+    public static async ValueTask _SafeWait(this ValueTask task)
+    {
+        try { await task; }
+        catch (JSDisconnectedException) { }
+        catch (TaskCanceledException) { }
+        catch (ObjectDisposedException) { }
+    }
+}";
+
+        await VerifyAnalyzerAsync(source);
+    }
 }

@@ -65,14 +65,14 @@ internal static partial class XRayMetadata
                 return;
             }
 
-            var code = GenerateSource(assemblyName, filesWithElements.Select(f => (f.FileName, f.Elements)).ToImmutableArray());
+            var code = GenerateSource(assemblyName, filesWithElements.Select(f => (f.FileName, f.FilePath, f.Elements)).ToImmutableArray());
             spc.AddSource("XRayMetadata.g.cs", SourceText.From(code, Encoding.UTF8));
         });
     }
 
     private static string GenerateSource(
         string assemblyName,
-        ImmutableArray<(string FileName, IReadOnlyList<RazorElement> Elements)> metadata)
+        ImmutableArray<(string FileName, string FilePath, IReadOnlyList<RazorElement> Elements)> metadata)
     {
         var sb = new StringBuilder();
 
@@ -81,14 +81,19 @@ internal static partial class XRayMetadata
         jsonBuilder.Append('{');
 
         bool firstFile = true;
-        foreach (var (fileName, elements) in metadata)
+        foreach (var (fileName, filePath, elements) in metadata)
         {
             if (!firstFile) jsonBuilder.Append(',');
             firstFile = false;
 
+            // Compute relative path (remove common prefixes, normalize separators)
+            var relativePath = ComputeRelativePath(filePath, fileName);
+
             jsonBuilder.Append('"');
             jsonBuilder.Append(EscapeJson(fileName));
-            jsonBuilder.Append("\":{\"elements\":[");
+            jsonBuilder.Append("\":{\"relativePath\":\"");
+            jsonBuilder.Append(EscapeJson(relativePath));
+            jsonBuilder.Append("\",\"elements\":[");
 
             bool firstElement = true;
             foreach (var element in elements)
@@ -127,6 +132,9 @@ internal static partial class XRayMetadata
                 // Sibling index
                 jsonBuilder.Append(",\"siblingIndex\":").Append(element.SiblingIndex);
 
+                // DOM order (primary discriminator for matching)
+                jsonBuilder.Append(",\"domOrder\":").Append(element.DomOrder);
+
                 jsonBuilder.Append('}');
             }
 
@@ -155,6 +163,33 @@ internal static partial class XRayMetadata
         sb.AppendLine("}");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Compute a relative path that uniquely identifies the file within the project.
+    /// Extracts the path after common patterns like "Components/" or "Features/".
+    /// </summary>
+    private static string ComputeRelativePath(string fullPath, string fileName)
+    {
+        if (string.IsNullOrEmpty(fullPath))
+            return fileName;
+
+        // Normalize path separators
+        var normalized = fullPath.Replace('\\', '/');
+
+        // Try to find meaningful path segments
+        var patterns = new[] { "/Components/", "/Features/", "/Pages/", "/Shared/", "/Layout/" };
+        foreach (var pattern in patterns)
+        {
+            var idx = normalized.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                return normalized.Substring(idx + 1);  // Include the folder name but not leading slash
+            }
+        }
+
+        // Fallback: just use the filename
+        return fileName;
     }
 
     /// <summary>
