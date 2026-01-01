@@ -28,9 +28,9 @@ internal static class RazorElementParser
         @"<([A-Z][A-Za-z0-9]*|[a-z][a-z0-9-]*)(?:\s|>|/>)",
         RegexOptions.Compiled);
 
-    // Extract Class attribute value
+    // Extract Class/class attribute value (both Blazor `Class` and HTML `class`)
     private static readonly Regex ClassRegex = new(
-        @"\bClass\s*=\s*""([^""]+)""",
+        @"\b[Cc]lass\s*=\s*""([^""]+)""",
         RegexOptions.Compiled);
 
     // Extract Typo attribute (MudBlazor typography)
