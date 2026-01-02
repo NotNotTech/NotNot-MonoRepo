@@ -20,6 +20,14 @@ public class XRayMetadataGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // Check for opt-out via AnalyzerConfig (set XRayGeneratorEnabled = false to disable)
+        var optionsProvider = context.AnalyzerConfigOptionsProvider
+            .Select((options, _) =>
+            {
+                options.GlobalOptions.TryGetValue("build_property.XRayGeneratorEnabled", out var enabled);
+                return !string.Equals(enabled, "false", StringComparison.OrdinalIgnoreCase);
+            });
+
         // Filter for .razor files from AdditionalTexts (registered via .props file)
         var razorFiles = context.AdditionalTextsProvider
             .Where(static file => file.Path.EndsWith(".razor", StringComparison.OrdinalIgnoreCase));
@@ -34,16 +42,24 @@ public class XRayMetadataGenerator : IIncrementalGenerator
                 return (FileName: fileName, FilePath: file.Path, Elements: elements);
             });
 
-        // Collect all metadata and combine with assembly name
+        // Collect all metadata and combine with assembly name and enabled flag
         var collectedMetadata = razorMetadata.Collect();
 
         var assemblyAndMetadata = context.CompilationProvider
-            .Combine(collectedMetadata);
+            .Combine(collectedMetadata)
+            .Combine(optionsProvider);
 
         // Generate source
         context.RegisterSourceOutput(assemblyAndMetadata, static (spc, source) =>
         {
-            var (compilation, metadata) = source;
+            var ((compilation, metadata), isEnabled) = source;
+
+            // Skip generation if disabled via XRayGeneratorEnabled=false
+            if (!isEnabled)
+            {
+                return;
+            }
+
             var assemblyName = compilation.AssemblyName ?? "Unknown";
 
             var fileCount = metadata.Length;
@@ -65,7 +81,13 @@ internal static partial class XRayMetadata
                 return;
             }
 
-            var code = GenerateSource(assemblyName, filesWithElements.Select(f => (f.FileName, f.FilePath, f.Elements)).ToImmutableArray());
+            // Sort files by name for deterministic output - prevents hot reload issues
+            // caused by non-deterministic file enumeration order
+            var code = GenerateSource(assemblyName,
+                filesWithElements
+                    .OrderBy(f => f.FileName, StringComparer.Ordinal)
+                    .Select(f => (f.FileName, f.FilePath, f.Elements))
+                    .ToImmutableArray());
             spc.AddSource("XRayMetadata.g.cs", SourceText.From(code, Encoding.UTF8));
         });
     }
@@ -105,12 +127,12 @@ internal static partial class XRayMetadata
                 jsonBuilder.Append("\"tag\":\"").Append(EscapeJson(element.Tag)).Append('"');
                 jsonBuilder.Append(",\"line\":").Append(element.Line);
 
-                // Attributes
+                // Attributes (sorted for deterministic output - Dictionary order is not guaranteed)
                 if (element.Attributes.Count > 0)
                 {
                     jsonBuilder.Append(",\"attrs\":{");
                     bool firstAttr = true;
-                    foreach (var attr in element.Attributes)
+                    foreach (var attr in element.Attributes.OrderBy(a => a.Key, StringComparer.Ordinal))
                     {
                         if (!firstAttr) jsonBuilder.Append(',');
                         firstAttr = false;
