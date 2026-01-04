@@ -111,8 +111,10 @@ internal static partial class XRayMetadata
             // Compute relative path (remove common prefixes, normalize separators)
             var relativePath = ComputeRelativePath(filePath, fileName);
 
+            // Use relativePath as the key to avoid filename collisions across directories
+            // (e.g., Features/X/Components/ErrorDrawer.razor vs Components/ErrorDrawer.razor)
             jsonBuilder.Append('"');
-            jsonBuilder.Append(EscapeJson(fileName));
+            jsonBuilder.Append(EscapeJson(relativePath));
             jsonBuilder.Append("\":{\"relativePath\":\"");
             jsonBuilder.Append(EscapeJson(relativePath));
             jsonBuilder.Append("\",\"elements\":[");
@@ -195,7 +197,10 @@ internal static partial class XRayMetadata
         var normalized = fullPath.Replace('\\', '/');
 
         // Try to find meaningful path segments
-        var patterns = new[] { "/Components/", "/Features/", "/Pages/", "/Shared/", "/Layout/" };
+        // IMPORTANT: Order matters! More specific patterns first to avoid partial matches.
+        // e.g., Features/X/Components/Y.razor should match /Features/ not /Components/
+        // NOTE: Pattern list must match XRayRuntimeService.cs and xray-interop.js extractRelativePath()
+        var patterns = new[] { "/Features/", "/Pages/", "/Shared/", "/Layout/", "/NotNot/", "/Components/" };
         foreach (var pattern in patterns)
         {
             var idx = normalized.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);
