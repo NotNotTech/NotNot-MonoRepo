@@ -588,11 +588,13 @@ public record class Maybe<TValue> : IMaybe
 			return false;
 		}
 	}
-}
 
-/// <summary>
+	public TValue GetValueOrDefault(TValue? defaultValue = default) => IsSuccess ? _Value! : defaultValue!;
+ }
+ 
+ /// <summary>
 /// Factory for creating JSON converters for generic Maybe&lt;T&gt; types
-/// </summary>
+ /// </summary>
 public class MaybeJsonConverterFactory : JsonConverterFactory
 /// <summary>
 /// Determines whether the specified type can be converted by this factory.
