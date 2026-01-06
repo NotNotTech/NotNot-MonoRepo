@@ -180,9 +180,9 @@ Provide .NET developers with zero-configuration, strongly-typed access to `appse
 
 ## Primary Resources
 - [`AppSettingsGen.cs`](./AppSettingsGen.cs) - Source generator
-- [`AppSettingsManager.cs`](../NotNot.Bcl/NotNot/AppSettingsGen/AppSettingsManager.cs) - Runtime manager
-- [`JsonSettingsUtils.cs`](../NotNot.Bcl/NotNot/AppSettingsGen/JsonSettingsUtils.cs) - Diff/merge utilities
-- [`ISettingsChangeAware.cs`](../NotNot.Bcl/NotNot/AppSettingsGen/ISettingsChangeAware.cs) - Change tracking interface
+- [`AppSettingsManager.cs`](../NotNot.Bcl/NotNot/AppSettingsHelper/AppSettingsManager.cs) - Runtime manager
+- [`JsonSettingsUtils.cs`](../NotNot.Bcl/NotNot/AppSettingsHelper/JsonSettingsUtils.cs) - Diff/merge utilities
+- [`ISettingsChangeAware.cs`](../NotNot.Bcl/NotNot/AppSettingsHelper/ISettingsChangeAware.cs) - Change tracking interface
 
 ## Key Components
 
@@ -200,9 +200,9 @@ Provide .NET developers with zero-configuration, strongly-typed access to `appse
 
 | File | Purpose | Lines |
 |------|---------|-------|
-| [`AppSettingsManager.cs`](../NotNot.Bcl/NotNot/AppSettingsGen/AppSettingsManager.cs) | Lifecycle manager | 557 |
-| [`JsonSettingsUtils.cs`](../NotNot.Bcl/NotNot/AppSettingsGen/JsonSettingsUtils.cs) | Diff/merge | 189 |
-| [`ISettingsChangeAware.cs`](../NotNot.Bcl/NotNot/AppSettingsGen/ISettingsChangeAware.cs) | Change interface | 32 |
+| [`AppSettingsManager.cs`](../NotNot.Bcl/NotNot/AppSettingsHelper/AppSettingsManager.cs) | Lifecycle manager | 668 |
+| [`JsonSettingsUtils.cs`](../NotNot.Bcl/NotNot/AppSettingsHelper/JsonSettingsUtils.cs) | Diff/merge | 189 |
+| [`ISettingsChangeAware.cs`](../NotNot.Bcl/NotNot/AppSettingsHelper/ISettingsChangeAware.cs) | Change interface | 32 |
 
 ## Integration Flow
 
@@ -488,9 +488,9 @@ dotnet add package NotNot.Bcl
 ### P1 Issues (from review)
 | Issue | Description | Status |
 |-------|-------------|--------|
-| P1-1 | Dirty flag cleared before save completes | Documented |
-| P1-2 | Standalone still requires NotNot.Bcl | Documented |
-| P1-3 | Missing explicit package references | Documented |
+| P1-1 | Dirty flag cleared before save completes | **FIXED** - `_isDirty` now cleared AFTER successful write |
+| P1-2 | Standalone still requires NotNot.Bcl | Known Limitation - by design |
+| P1-3 | Missing explicit package references | Known Limitation - documented in README |
 
 ### Missing Tests
 - Concurrent access test
@@ -499,7 +499,7 @@ dotnet add package NotNot.Bcl
 
 ## Related Topics
 - [`AGENTS.md`](./AGENTS.md) - Source generator documentation
-- [`../NotNot.Bcl/NotNot/AppSettingsGen/AGENTS.md`](../NotNot.Bcl/NotNot/AppSettingsGen/AGENTS.md) - Runtime documentation
+- [`../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md) - Runtime documentation
 - [`../NotNot.AppSettings.Tests/`](../NotNot.AppSettings.Tests/) - Test suite
 
 ## ADRs
