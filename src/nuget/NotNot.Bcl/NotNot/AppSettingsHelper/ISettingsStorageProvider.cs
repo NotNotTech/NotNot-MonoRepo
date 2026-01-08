@@ -1,21 +1,28 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace NotNot.AppSettingsHelper;
 
 /// <summary>
-/// Async storage abstraction for settings persistence.
+/// Async storage abstraction for USER settings persistence.
 /// Enables AppSettingsManager to use alternative backends such as localStorage, IndexedDB, cloud storage, etc.
 /// </summary>
 /// <remarks>
+/// <para>
+/// This interface is specifically for USER-level settings that may differ from base/default settings.
+/// The naming clarifies that this is distinct from base configuration sources (like appsettings.json).
+/// </para>
+/// <para>
 /// This interface provides a simple key-value-like contract where:
+/// </para>
 /// <list type="bullet">
 /// <item>Each provider instance represents a single settings "document"</item>
 /// <item>The storage key/location is determined at provider construction</item>
 /// <item>All operations are async to support both local and remote backends</item>
 /// </list>
 /// </remarks>
-public interface ISettingsStorageProvider
+public interface IUserSettingsStorageProvider
 {
     /// <summary>
     /// Reads settings JSON from storage.
@@ -44,3 +51,4 @@ public interface ISettingsStorageProvider
     /// <returns>True if settings exist, false otherwise.</returns>
     ValueTask<bool> ExistsAsync(CancellationToken ct = default);
 }
+

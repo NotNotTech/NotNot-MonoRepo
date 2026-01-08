@@ -25,14 +25,17 @@
 - **Backing Fields**: Generated properties use private backing fields (not auto-properties) to enable change detection
 - **Recursive Callback Propagation**: Nested settings objects propagate change callbacks automatically
 - **Internal by Default**: Generated classes are `internal` unless `<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>` is set
-- **Namespace Convention**: Generated code lives under `{RootNamespace}.AppSettingsGen`
+- **Namespace Convention**: Classes in `{RootNamespace}.AppSettingsGen`, interfaces in `{RootNamespace}.AppSettingsGen.Interfaces`
+- **Automatic Interface Generation**: Interfaces are ALWAYS generated alongside classes (enables DispatchProxy workflow)
 
 ### Generated Files
 | File | Purpose |
 |------|---------|
 | `_BinderShims.g.cs` | `AppSettingsBinder`, `IAppSettingsBinder`, `LoadDirect()` methods |
-| `{Namespace}.AppSettings.g.cs` | Root settings class |
+| `{Namespace}.AppSettings.g.cs` | Root settings class (implements `IAppSettings`) |
+| `{Namespace}.Interfaces.IAppSettings.g.cs` | Root settings interface |
 | `{Namespace}._{ClassName}.{PropertyName}.g.cs` | Nested settings classes |
+| `{Namespace}.Interfaces.I{PropertyName}.g.cs` | Nested settings interfaces |
 
 ---
 
@@ -59,7 +62,8 @@ None - this is a leaf package.
 2. **Developer uses DI** → registers `AppSettingsBinder` → injects settings
 3. **Developer uses non-DI** → calls `AppSettingsBinder.LoadDirect()` → gets settings
 4. **Developer enables auto-save** → references `NotNot.Bcl` → uses `AppSettingsManager<T>`
-5. **Developer uses storage provider** → `FileStorageProvider` or custom `ISettingsStorageProvider` → `LoadFromStorageAsync()`
+5. **Developer uses storage provider** → `FileUserSettingsStorageProvider` or custom `IUserSettingsStorageProvider` → `RegisterUserStorageAndTryLoad()`
+6. **Developer uses DispatchProxy workflow** → `AppSettingsManager<IAppSettings>` (generated interface) → access via `.Proxy`
 
 ## Key Components
 
@@ -129,14 +133,29 @@ manager.Settings.Window.X = 100; // Auto-saved after 500ms
 #### Storage Provider Mode
 ```csharp
 // For custom storage backends (file, localStorage, cloud, etc.)
-var storage = new FileStorageProvider("/path/to/settings.json");
+var storage = new FileUserSettingsStorageProvider("/path/to/settings.json");
 var manager = new AppSettingsManager<AppSettings>();
-await manager.LoadFromStorageAsync(storage);
+await manager.RegisterUserStorageAndTryLoad(storage);
 manager.EnableAutoSave();
 manager.Settings.Theme = "dark"; // Auto-saved to storage provider
 ```
 
-See [`../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md) for full storage provider documentation.
+#### DispatchProxy Mode (using generated interface)
+```csharp
+// Use generated interface for DispatchProxy-based change detection
+// Namespace: {RootNamespace}.AppSettingsGen.Interfaces
+using MyApp.AppSettingsGen.Interfaces;
+
+var storage = new FileUserSettingsStorageProvider("/path/to/settings.json");
+var manager = new AppSettingsManager<IAppSettings>(() => new AppSettings());
+await manager.RegisterUserStorageAndTryLoad(storage);
+manager.EnableAutoSave();
+
+// Access via Proxy - all property setters automatically trigger change detection
+manager.Proxy.Theme = "dark"; // Auto-saved via DispatchProxy interception
+```
+
+See [`../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md) for full storage provider and dual-workflow documentation.
 
 ---
 

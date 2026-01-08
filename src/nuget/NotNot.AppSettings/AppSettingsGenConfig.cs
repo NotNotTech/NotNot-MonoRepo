@@ -18,8 +18,12 @@ public class AppSettingsGenConfig
 	 /// </summary>
 	 public bool IsPublic { get; set; }
 
+	 // Note: Interfaces are ALWAYS generated in a separate .Interfaces namespace.
+	 // This enables DispatchProxy-based change detection for all source-generated types.
+	 // Example: MyApp.AppSettingsGen.Interfaces.IAppSettings
+
 	 /// <summary>
-	 /// the "sourceTexts" from the consuming project, 
+	 /// the "sourceTexts" from the consuming project,
 	 /// </summary>
 	 public Dictionary<string, SourceText> CombinedSourceTexts { get; set; }
 

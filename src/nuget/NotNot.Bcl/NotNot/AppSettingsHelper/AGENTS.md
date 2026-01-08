@@ -17,39 +17,66 @@
 
 This separation exists because source generators (netstandard2.0) cannot use File I/O operations.
 
+#### Dual Workflow Support
+
+The library supports **two distinct workflows** for settings change detection:
+
+| Workflow | Settings Type | Change Detection | Use Case |
+|----------|---------------|------------------|----------|
+| **A: Source-Generated** | Generated `AppSettings` class | `ISettingsChangeAware` callback | File-based JSON schemas, nested structures |
+| **B: POCO/Interface** | Interface + POCO class | `SettingsProxy<T>` (DispatchProxy) | localStorage, code-defined settings |
+
+**Critical**: Both workflows use `AppSettingsManager<T>` but with different TSettings constraints and access patterns.
+
 #### Storage Abstraction
-The library supports pluggable storage backends via `ISettingsStorageProvider`:
+The library supports pluggable storage backends via `IUserSettingsStorageProvider`:
 
 | Provider | Location | Use Case |
 |----------|----------|----------|
-| `FileStorageProvider` | `NotNot.Bcl` | Desktop/server apps with file system access |
+| `FileUserSettingsStorageProvider` | `NotNot.Bcl` | Desktop/server apps with file system access |
 | `LocalStorageStorageProvider` | `NotNot.BlazorComponents` | Blazor apps using browser localStorage |
 | Custom | Your project | Cloud storage, IndexedDB, etc. |
 
 ### Namespace Design
-- **Runtime Library**: `NotNot.AppSettingsHelper` - contains `AppSettingsManager<T>`, `JsonSettingsUtils`, `ISettingsChangeAware`
-- **Generated Code**: `{RootNamespace}.AppSettingsGen` - contains `AppSettings`, nested types, `AppSettingsBinder`
+- **Runtime Library**: `NotNot.AppSettingsHelper` - contains `AppSettingsManager<T>`, `SettingsProxy<T>`, `JsonSettingsUtils`, `ISettingsChangeAware`
+- **Generated Classes**: `{RootNamespace}.AppSettingsGen` - contains `AppSettings`, nested types, `AppSettingsBinder`
+- **Generated Interfaces**: `{RootNamespace}.AppSettingsGen.Interfaces` - contains `IAppSettings`, nested interfaces (for DispatchProxy workflow)
 
 The namespaces are intentionally different to avoid conflicts when both are used together.
 
 ### Key Design Decisions
 
-1. **ISettingsChangeAware Interface**
+1. **ISettingsChangeAware Interface** (Workflow A)
    - Marked `[EditorBrowsable(Never)]` - internal implementation detail
    - Uses underscore-prefixed method `_SetChangeCallback` to avoid conflicts
    - Implemented by source-generated settings classes
 
-2. **Debounced Auto-Save**
+2. **SettingsProxy<T>** (Workflow B)
+   - Uses `System.Reflection.DispatchProxy` to intercept property setters
+   - **Flat structure only** - nested properties not detected (throws at creation)
+   - Interface must be `public` (DispatchProxy runtime constraint)
+
+3. **Single-Mode Access**
+   - Access via `Settings` (Workflow A) OR `Proxy` (Workflow B), not both
+   - Accessing `Proxy` clears `ISettingsChangeAware` callback to prevent double notification
+   - `Proxy` throws if TSettings is not an interface
+
+4. **Factory Pattern**
+   - Constructor accepts `Func<TSettings>` factory
+   - Captures concrete type from factory for JSON deserialization of interfaces
+   - Default parameterless constructor uses `Activator.CreateInstance<T>`
+
+5. **Debounced Auto-Save**
    - Default 500ms debounce interval
    - Uses `Task.Delay` pattern (not `System.Threading.Timer`)
    - Errors reported via `OnAutoSaveError` callback
 
-3. **Diff-Based Save**
+6. **Diff-Based Save**
    - Only changed values written to user settings file
    - Base settings remain in original files
    - Deletion semantics: null sentinel removes keys
 
-4. **Thread Safety**
+7. **Thread Safety**
    - Lock covers serialization during save
    - `_suppressNotifications` prevents cascading during load
 
@@ -57,15 +84,16 @@ The namespaces are intentionally different to avoid conflicts when both are used
 
 # VIBECACHE
 
-**LastCommitHash**: 7f13062
-**Timestamp**: 2025-12-28 12:00
+**LastCommitHash**: TBD (dual-workflow refactor)
+**Timestamp**: 2026-01-08
 
 ## Primary Resources
-- [`AppSettingsManager.cs`](./AppSettingsManager.cs) - Main manager class (~600 lines)
-- [`JsonSettingsUtils.cs`](./JsonSettingsUtils.cs) - Diff/merge utilities (189 lines)
-- [`ISettingsChangeAware.cs`](./ISettingsChangeAware.cs) - Change tracking interface (32 lines)
-- [`ISettingsStorageProvider.cs`](./ISettingsStorageProvider.cs) - Storage abstraction interface (47 lines)
-- [`FileStorageProvider.cs`](./FileStorageProvider.cs) - File system storage implementation (86 lines)
+- [`AppSettingsManager.cs`](./AppSettingsManager.cs) - Main manager class with factory pattern
+- [`SettingsProxy.cs`](./SettingsProxy.cs) - DispatchProxy-based change interceptor
+- [`JsonSettingsUtils.cs`](./JsonSettingsUtils.cs) - Diff/merge utilities
+- [`ISettingsChangeAware.cs`](./ISettingsChangeAware.cs) - Change tracking interface (Workflow A)
+- [`IUserSettingsStorageProvider.cs`](./ISettingsStorageProvider.cs) - Storage abstraction interface
+- [`FileUserSettingsStorageProvider.cs`](./FileStorageProvider.cs) - File system storage implementation
 
 ## Related Topics
 - [`../../../NotNot.AppSettings/AGENTS.md`](../../../NotNot.AppSettings/AGENTS.md) - Source generator
@@ -80,6 +108,7 @@ None - this is a leaf folder.
 3. **Auto-save on change** → debounce → persist only differences
 4. **Reload external changes** → re-read files → update in-memory state
 5. **Reset to defaults** → delete user file → reload base settings
+6. **POCO workflow** → define interface + POCO → access via Proxy → auto-save on setter
 
 ---
 
@@ -88,11 +117,24 @@ None - this is a leaf folder.
 ### AppSettingsManager<TSettings>
 **File**: [`AppSettingsManager.cs`](./AppSettingsManager.cs)
 
-Primary manager for settings lifecycle.
+Primary manager for settings lifecycle. Supports both source-generated and POCO workflows.
 
 ```csharp
 public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposable
-    where TSettings : class, new()
+    where TSettings : class
+{
+    // Factory constructor (required for interface TSettings)
+    public AppSettingsManager(Func<TSettings> factory);
+
+    // Parameterless constructor (uses Activator.CreateInstance)
+    public AppSettingsManager();
+
+    // Workflow A: Source-generated settings with ISettingsChangeAware
+    public TSettings Settings { get; }
+
+    // Workflow B: Interface + POCO with DispatchProxy
+    public TSettings Proxy { get; }  // Creates proxy on first access
+}
 ```
 
 #### Load Workflows
@@ -100,7 +142,7 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
 |--------|--------------|----------|
 | `LoadAsync(ct, params paths)` | Yes | File-based settings with `UserSettingsPath` |
 | `LoadAsync(streams, ct)` | Yes | Stream-based settings |
-| `LoadFromStorageAsync(provider, ct)` | Yes | **Storage-provider-based persistence** |
+| `RegisterUserStorageAndTryLoad(provider, ct)` | Yes | **Storage-provider-based persistence** |
 | `LoadFromConfigurationAsync(config, basePath, ct)` | Yes | IConfiguration with base file |
 | `LoadFromConfiguration(config)` | No | Read-only IConfiguration |
 
@@ -117,6 +159,25 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
 |--------|-------------|
 | `EnableAutoSave(debounce?)` | Enable with optional interval |
 | `DisableAutoSaveAsync(saveNow?)` | Disable, optionally save pending |
+
+### SettingsProxy<TSettings>
+**File**: [`SettingsProxy.cs`](./SettingsProxy.cs)
+
+DispatchProxy-based interceptor for POCO settings (Workflow B).
+
+```csharp
+public class SettingsProxy<TSettings> : DispatchProxy
+    where TSettings : class
+{
+    public static TSettings Create(TSettings target, Action onPropertyChanged);
+}
+```
+
+**Constraints:**
+- `TSettings` must be an interface
+- Interface must be `public` (DispatchProxy runtime requirement)
+- Only top-level properties tracked (flat structure enforced)
+- Nested reference types cause `InvalidOperationException` at creation
 
 ### JsonSettingsUtils
 **File**: [`JsonSettingsUtils.cs`](./JsonSettingsUtils.cs)
@@ -153,13 +214,13 @@ public interface ISettingsChangeAware
 }
 ```
 
-### ISettingsStorageProvider
+### IUserSettingsStorageProvider
 **File**: [`ISettingsStorageProvider.cs`](./ISettingsStorageProvider.cs)
 
-Async storage abstraction for pluggable persistence backends. Each provider instance represents a single settings "document" (e.g., one file or one localStorage key).
+Async storage abstraction for USER settings persistence. Each provider instance represents a single settings "document" (e.g., one file or one localStorage key).
 
 ```csharp
-public interface ISettingsStorageProvider
+public interface IUserSettingsStorageProvider
 {
     ValueTask<string?> ReadAsync(CancellationToken ct = default);
     ValueTask WriteAsync(string json, CancellationToken ct = default);
@@ -168,15 +229,15 @@ public interface ISettingsStorageProvider
 }
 ```
 
-### FileStorageProvider
+### FileUserSettingsStorageProvider
 **File**: [`FileStorageProvider.cs`](./FileStorageProvider.cs)
 
-File system implementation of `ISettingsStorageProvider`. Thread-safe for use with `AppSettingsManager` debounced auto-save.
+File system implementation of `IUserSettingsStorageProvider`. Thread-safe for use with `AppSettingsManager` debounced auto-save.
 
 ```csharp
-public sealed class FileStorageProvider : ISettingsStorageProvider
+public class FileUserSettingsStorageProvider : IUserSettingsStorageProvider
 {
-    public FileStorageProvider(string filePath);
+    public FileUserSettingsStorageProvider(string filePath);
     public string FilePath { get; }
 }
 ```
@@ -190,18 +251,55 @@ public sealed class FileStorageProvider : ISettingsStorageProvider
 
 ## Usage Examples
 
-### Basic Load/Save
+### Workflow A: Source-Generated Settings (Nested Structures)
+
+Use when you have JSON schema files and need nested property support.
+
 ```csharp
 using NotNot.AppSettingsHelper;
 
 var manager = new AppSettingsManager<AppSettings>();
 await manager.LoadAsync(default, "appsettings.json", "appsettings.Development.json");
 
-// Modify settings
+// Modify nested settings - ISettingsChangeAware detects all changes
 manager.Settings.Window.X = 100;
+manager.Settings.Database.ConnectionString = "...";
 
 // Manual save
 await manager.SaveAsync();
+```
+
+### Workflow B: POCO/Interface Settings (Flat Structures)
+
+Use for localStorage, code-defined settings with flat property structures.
+
+```csharp
+using NotNot.AppSettingsHelper;
+
+// 1. Define interface (must be public)
+public interface IMySettings
+{
+    string? Theme { get; set; }
+    int? FontSize { get; set; }
+}
+
+// 2. Define POCO implementation
+public class MySettings : IMySettings
+{
+    public string? Theme { get; set; }
+    public int? FontSize { get; set; }
+}
+
+// 3. Create manager with factory
+var manager = new AppSettingsManager<IMySettings>(() => new MySettings());
+await manager.RegisterUserStorageAndTryLoad(storageProvider);
+manager.EnableAutoSave();
+
+// 4. Access via Proxy - changes auto-detected via DispatchProxy
+manager.Proxy.Theme = "dark";     // Triggers auto-save
+manager.Proxy.FontSize = 14;      // Triggers auto-save
+
+await manager.DisposeAsync();
 ```
 
 ### Auto-Save Pattern
@@ -232,30 +330,11 @@ await manager.ResetToDefaultsAsync();
 manager.Clear();
 ```
 
-### Storage Provider Pattern
-Use `LoadFromStorageAsync` for custom storage backends:
-
-```csharp
-using NotNot.AppSettingsHelper;
-
-// File-based persistence (desktop/server apps)
-var storage = new FileStorageProvider("/path/to/settings.json");
-var manager = new AppSettingsManager<AppSettings>();
-await manager.LoadFromStorageAsync(storage);
-manager.EnableAutoSave();
-
-// Modify settings - auto-saved to the storage provider
-manager.Settings.Window.X = 100;
-
-// Cleanup
-await manager.DisposeAsync();
-```
-
 ### Custom Storage Provider
-Implement `ISettingsStorageProvider` for custom backends:
+Implement `IUserSettingsStorageProvider` for custom backends:
 
 ```csharp
-public class CloudStorageProvider : ISettingsStorageProvider
+public class CloudStorageProvider : IUserSettingsStorageProvider
 {
     private readonly HttpClient _client;
     private readonly string _endpoint;
@@ -299,12 +378,46 @@ public class CloudStorageProvider : ISettingsStorageProvider
 
 ---
 
+## Migration Guide
+
+### From `ISettingsStorageProvider` to `IUserSettingsStorageProvider`
+
+The interface was renamed to clarify it's for USER settings (distinct from base config).
+
+```diff
+- public class MyProvider : ISettingsStorageProvider
++ public class MyProvider : IUserSettingsStorageProvider
+```
+
+### From `LoadFromStorageAsync` to `RegisterUserStorageAndTryLoad`
+
+The method was renamed to clarify its semantics (registers provider, attempts load).
+
+```diff
+- await manager.LoadFromStorageAsync(provider, ct);
++ await manager.RegisterUserStorageAndTryLoad(provider, ct);
+```
+
+### From `FileStorageProvider` to `FileUserSettingsStorageProvider`
+
+```diff
+- var storage = new FileStorageProvider("/path/to/settings.json");
++ var storage = new FileUserSettingsStorageProvider("/path/to/settings.json");
+```
+
+---
+
 ## Known Limitations
 
 ### P1 Issues (from review)
 1. ~~**Dirty state timing**~~: FIXED (335d38b) - `_isDirty` now cleared AFTER successful write
 2. **Array mutation**: In-place array changes (`items[0] = x`) not tracked - reassign array instead
 3. **IConfiguration persistence**: Non-file config sources (env vars) may persist to user file
+
+### Workflow B Limitations
+1. **Flat structures only**: Nested reference-type properties throw at Proxy creation
+2. **Interface visibility**: TSettings interface must be `public` (DispatchProxy constraint)
+3. **Property setters only**: Method calls not tracked, only `set_*` intercepted
 
 ### Documented Behaviors
 - Top-level deletion is ambiguous (returns null = same as "no changes")

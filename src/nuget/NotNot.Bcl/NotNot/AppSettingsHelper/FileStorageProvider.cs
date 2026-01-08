@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 namespace NotNot.AppSettingsHelper;
 
 /// <summary>
-/// ISettingsStorageProvider implementation using the local file system.
+/// IUserSettingsStorageProvider implementation using the local file system.
 /// Stores settings as JSON in a single file at the specified path.
 /// </summary>
 /// <remarks>
@@ -18,7 +18,7 @@ namespace NotNot.AppSettingsHelper;
 /// Directory creation is handled automatically on first write.
 /// </para>
 /// </remarks>
-public sealed class FileStorageProvider : ISettingsStorageProvider
+public class FileUserSettingsStorageProvider : IUserSettingsStorageProvider
 {
     private readonly string _filePath;
 
@@ -27,7 +27,7 @@ public sealed class FileStorageProvider : ISettingsStorageProvider
     /// </summary>
     /// <param name="filePath">Full path to the settings JSON file.</param>
     /// <exception cref="ArgumentException">Thrown if filePath is null or whitespace.</exception>
-    public FileStorageProvider(string filePath)
+    public FileUserSettingsStorageProvider(string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         _filePath = filePath;
@@ -84,3 +84,4 @@ public sealed class FileStorageProvider : ISettingsStorageProvider
     public ValueTask<bool> ExistsAsync(CancellationToken ct = default)
         => ValueTask.FromResult(File.Exists(_filePath));
 }
+

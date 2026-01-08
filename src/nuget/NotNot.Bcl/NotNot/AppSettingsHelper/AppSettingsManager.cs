@@ -25,26 +25,61 @@ namespace NotNot.AppSettingsHelper;
 /// </summary>
 /// <typeparam name="TSettings">The settings type, must be a generated settings class.</typeparam>
 public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposable
-    where TSettings : class, new()
+    where TSettings : class
 {
     private readonly object _lock = new();
+    private readonly Func<TSettings> _factory;
+    private readonly Type _concreteType;
     private CancellationTokenSource? _debounceCts;
     private Task? _debounceTask;
     private bool _isDirty;
     private bool _disposed;
     private bool _suppressNotifications;
     private TimeSpan _debounceInterval = TimeSpan.FromMilliseconds(500);
+    private TSettings? _proxy;
+    private bool _proxyModeActive;
 
     private JsonNode? _originalJson;
     private JsonNode? _baseJsonSnapshot;
     private string[]? _loadedFilePaths;
-    private ISettingsStorageProvider? _storageProvider;
+    private IUserSettingsStorageProvider? _storageProvider;
+
+    /// <summary>
+    /// Creates a new AppSettingsManager using a factory function for settings instantiation.
+    /// </summary>
+    /// <param name="factory">Factory function that creates new TSettings instances.</param>
+    /// <remarks>
+    /// <para>Use this constructor for interface-based settings (Workflow B: POCO/DispatchProxy).</para>
+    /// <para>The factory's return type determines the concrete type for JSON deserialization.</para>
+    /// </remarks>
+    public AppSettingsManager(Func<TSettings> factory)
+    {
+        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        // Capture concrete type from factory for deserialization (SME blocker fix)
+        var sample = _factory();
+        _concreteType = sample.GetType();
+        Settings = sample;
+    }
+
+    /// <summary>
+    /// Creates a new AppSettingsManager using Activator for types with parameterless constructors.
+    /// </summary>
+    /// <remarks>
+    /// <para>Use this constructor for source-generated settings classes (Workflow A).</para>
+    /// <para>Requires TSettings to have a public parameterless constructor.</para>
+    /// </remarks>
+    public AppSettingsManager() : this(() => Activator.CreateInstance<TSettings>()!) { }
 
     /// <summary>
     /// The loaded settings object. Property changes trigger change notifications
     /// (and auto-save if enabled).
     /// </summary>
-    public TSettings Settings { get; private set; } = new();
+    /// <remarks>
+    /// <para>For source-generated types with ISettingsChangeAware, use this for change tracking.</para>
+    /// <para><b>Warning</b>: After accessing <see cref="Proxy"/>, ISettingsChangeAware callbacks
+    /// are disabled. The Proxy handles change detection instead.</para>
+    /// </remarks>
+    public TSettings Settings { get; private set; } = default!;
 
     /// <summary>
     /// Path to the user settings file. Changes from defaults are persisted here.
@@ -68,6 +103,60 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
     /// If not set, errors are silently ignored.
     /// </summary>
     public Action<Exception>? OnAutoSaveError { get; set; }
+
+    /// <summary>
+    /// Gets a proxy wrapper that intercepts property setters for change notification.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this for POCO/interface-based settings that don't implement ISettingsChangeAware.
+    /// For source-generated settings classes, use <see cref="Settings"/> directly.
+    /// </para>
+    /// <para>
+    /// <b>Mode Selection</b>: Accessing this property activates Proxy Mode. Once activated,
+    /// ISettingsChangeAware callbacks are disabled to prevent double notification.
+    /// To reset to Settings Mode, call <see cref="ReloadAsync"/> or create a new manager instance.
+    /// </para>
+    /// <para>
+    /// <b>Limitation</b>: Only top-level property mutations are detected. Nested object
+    /// changes (e.g., Settings.Config.Value = x) bypass the proxy. Use flat structures only.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if TSettings is not a public interface.
+    /// </exception>
+    public TSettings Proxy
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (_proxy == null)
+                {
+                    if (!typeof(TSettings).IsInterface)
+                    {
+                        throw new InvalidOperationException(
+                            $"Proxy requires TSettings '{typeof(TSettings).Name}' to be an interface. " +
+                            $"Source-generated settings classes implement ISettingsChangeAware and work " +
+                            $"with 'manager.Settings' directly for change tracking. " +
+                            $"To use Proxy with source-generated types, use the generated interface " +
+                            $"(e.g., AppSettingsManager<IAppSettings>).");
+                    }
+
+                    _proxy = SettingsProxy<TSettings>.Create(Settings, OnPropertyChanged);
+
+                    // Clear ISettingsChangeAware callback - proxy handles change detection now
+                    // This prevents double notification when TSettings implements both
+                    if (Settings is ISettingsChangeAware aware)
+                    {
+                        aware._SetChangeCallback(null);
+                    }
+                    _proxyModeActive = true;
+                }
+                return _proxy;
+            }
+        }
+    }
 
     #region Load Workflows (Save-Capable)
 
@@ -121,7 +210,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
                 }
             }
 
-            Settings = JsonSettingsUtils.Deserialize<TSettings>(finalMerged) ?? new TSettings();
+            ResetProxyMode();
+            Settings = DeserializeToConcreteType(finalMerged) ?? _factory();
             _originalJson = finalMerged.DeepClone();
             WireChangeTracking();
             return Settings;
@@ -147,7 +237,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
         {
             var merged = await JsonSettingsUtils.MergeStreamsAsync(baseStreams, ct);
 
-            Settings = JsonSettingsUtils.Deserialize<TSettings>(merged) ?? new TSettings();
+            ResetProxyMode();
+            Settings = DeserializeToConcreteType(merged) ?? _factory();
             // When loading from streams, we can't distinguish base from user,
             // so base snapshot is the merged result (Clear() will reset to this)
             _baseJsonSnapshot = merged.DeepClone();
@@ -177,7 +268,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
         _suppressNotifications = true;
         try
         {
-            Settings = config.Get<TSettings>() ?? new TSettings();
+            ResetProxyMode();
+            Settings = config.Get<TSettings>() ?? _factory();
 
             if (File.Exists(baseJsonPath))
             {
@@ -215,7 +307,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
         _suppressNotifications = true;
         try
         {
-            Settings = config.Get<TSettings>() ?? new TSettings();
+            ResetProxyMode();
+            Settings = config.Get<TSettings>() ?? _factory();
             _originalJson = null; // Signals read-only mode
             WireChangeTracking();
             return Settings;
@@ -231,14 +324,19 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
     #region Load Workflows (Storage Provider)
 
     /// <summary>
-    /// Loads settings from a storage provider (e.g., localStorage, IndexedDB).
+    /// Registers a storage provider and attempts to load settings from it.
     /// Simpler than file-based: no base/user merge, no diffing.
     /// </summary>
     /// <param name="storage">The storage provider to use for persistence.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The loaded settings object.</returns>
     /// <remarks>
-    /// When using a storage provider:
+    /// <para>This method performs TWO functions:</para>
+    /// <list type="number">
+    /// <item>Registers the storage provider for future save operations</item>
+    /// <item>Attempts to load existing settings from the provider</item>
+    /// </list>
+    /// <para>When using a storage provider:</para>
     /// <list type="bullet">
     /// <item>Settings are stored as a single JSON blob</item>
     /// <item>No layered merge - latest value wins</item>
@@ -246,8 +344,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
     /// <item>ResetToDefaultsAsync deletes storage and creates new TSettings</item>
     /// </list>
     /// </remarks>
-    public async ValueTask<TSettings> LoadFromStorageAsync(
-        ISettingsStorageProvider storage,
+    public async ValueTask<TSettings> RegisterUserStorageAndTryLoad(
+        IUserSettingsStorageProvider storage,
         CancellationToken ct = default)
     {
         _storageProvider = storage;
@@ -255,23 +353,24 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
 
         try
         {
+            ResetProxyMode();
             var json = await storage.ReadAsync(ct);
             if (json != null)
             {
                 try
                 {
                     var node = JsonNode.Parse(json);
-                    Settings = JsonSettingsUtils.Deserialize<TSettings>(node) ?? new TSettings();
+                    Settings = DeserializeToConcreteType(node) ?? _factory();
                 }
                 catch (JsonException)
                 {
                     // Corrupted or incompatible storage data - start fresh
-                    Settings = new TSettings();
+                    Settings = _factory();
                 }
             }
             else
             {
-                Settings = new TSettings();
+                Settings = _factory();
             }
 
             _originalJson = JsonSettingsUtils.SerializeToNode(Settings);
@@ -418,7 +517,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
             _suppressNotifications = true;
             try
             {
-                Settings = new TSettings();
+                ResetProxyMode();
+                Settings = _factory();
                 _originalJson = JsonSettingsUtils.SerializeToNode(Settings);
                 WireChangeTracking();
             }
@@ -452,7 +552,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
             _suppressNotifications = true;
             try
             {
-                Settings = JsonSettingsUtils.Deserialize<TSettings>(_baseJsonSnapshot) ?? new TSettings();
+                ResetProxyMode();
+                Settings = DeserializeToConcreteType(_baseJsonSnapshot) ?? _factory();
                 _originalJson = _baseJsonSnapshot.DeepClone();
                 WireChangeTracking();
             }
@@ -481,7 +582,8 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
         _suppressNotifications = true;
         try
         {
-            Settings = JsonSettingsUtils.Deserialize<TSettings>(_baseJsonSnapshot) ?? new TSettings();
+            ResetProxyMode();
+            Settings = DeserializeToConcreteType(_baseJsonSnapshot) ?? _factory();
             WireChangeTracking();
         }
         finally
@@ -580,8 +682,40 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
 
     #region Private Helpers
 
+    /// <summary>
+    /// Resets proxy mode state, allowing Settings to be used for change tracking again.
+    /// Called by all Load methods before assigning new Settings.
+    /// </summary>
+    private void ResetProxyMode()
+    {
+        lock (_lock)
+        {
+            _proxy = default;
+            _proxyModeActive = false;
+        }
+    }
+
+    /// <summary>
+    /// Deserializes JSON to the concrete type captured from the factory.
+    /// This enables interface-based TSettings to work with JSON deserialization.
+    /// </summary>
+    private TSettings? DeserializeToConcreteType(JsonNode? node)
+    {
+        if (node == null)
+            return default;
+
+        // Use runtime type from factory for deserialization (SME blocker fix)
+        // This allows TSettings to be an interface while deserializing to concrete type
+        var result = node.Deserialize(_concreteType, JsonSettingsUtils.DefaultOptions);
+        return result as TSettings;
+    }
+
     private void WireChangeTracking()
     {
+        // Skip if proxy mode is active - proxy handles change detection
+        if (_proxyModeActive)
+            return;
+
         if (Settings is ISettingsChangeAware aware)
         {
             aware._SetChangeCallback(OnPropertyChanged);
