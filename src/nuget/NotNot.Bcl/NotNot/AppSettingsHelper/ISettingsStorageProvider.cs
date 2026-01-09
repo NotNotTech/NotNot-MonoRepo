@@ -6,7 +6,7 @@ namespace NotNot.AppSettingsHelper;
 
 /// <summary>
 /// Async storage abstraction for USER settings persistence.
-/// Enables AppSettingsManager to use alternative backends such as localStorage, IndexedDB, cloud storage, etc.
+/// Enables SettingsManager to use alternative backends such as localStorage, IndexedDB, cloud storage, etc.
 /// </summary>
 /// <remarks>
 /// <para>

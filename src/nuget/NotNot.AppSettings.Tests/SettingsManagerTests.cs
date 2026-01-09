@@ -47,13 +47,13 @@ public class TestSettings : ISettingsChangeAware
     }
 }
 
-public class AppSettingsManagerTests : IDisposable
+public class SettingsManagerTests : IDisposable
 {
     private readonly string _testDir;
     private readonly string _baseFile;
     private readonly string _userFile;
 
-    public AppSettingsManagerTests()
+    public SettingsManagerTests()
     {
         _testDir = Path.Combine(Path.GetTempPath(), $"AppSettingsTest_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_testDir);
@@ -78,7 +78,7 @@ public class AppSettingsManagerTests : IDisposable
     {
         File.WriteAllText(_baseFile, """{"Name": "Test", "Value": 42}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         var settings = await manager.LoadAsync(default, _baseFile);
 
         settings.Name.Should().Be("Test");
@@ -88,7 +88,7 @@ public class AppSettingsManagerTests : IDisposable
     [Fact]
     public async Task LoadAsync_WhenFileNotExists_ReturnsDefaults()
     {
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         var settings = await manager.LoadAsync(default, "nonexistent.json");
 
         settings.Should().NotBeNull();
@@ -101,7 +101,7 @@ public class AppSettingsManagerTests : IDisposable
         File.WriteAllText(_baseFile, """{"Name": "Base", "Value": 1}""");
         File.WriteAllText(_userFile, """{"Value": 100}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         var settings = await manager.LoadAsync(default, _baseFile);
 
         settings.Name.Should().Be("Base");
@@ -113,7 +113,7 @@ public class AppSettingsManagerTests : IDisposable
     {
         File.WriteAllText(_baseFile, """{"Name": "Test"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         await manager.LoadAsync(default, _baseFile);
 
         manager.CanSave.Should().BeTrue();
@@ -128,7 +128,7 @@ public class AppSettingsManagerTests : IDisposable
     {
         File.WriteAllText(_baseFile, """{"Name": "Original"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         var settings = await manager.LoadAsync(default, _baseFile);
 
         settings.Name = "Modified";
@@ -144,7 +144,7 @@ public class AppSettingsManagerTests : IDisposable
     {
         File.WriteAllText(_baseFile, """{"Name": "Test"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         await manager.LoadAsync(default, _baseFile);
         await manager.SaveAsync();
 
@@ -158,7 +158,7 @@ public class AppSettingsManagerTests : IDisposable
             .AddJsonStream(new MemoryStream("""{"Name": "Test"}"""u8.ToArray()))
             .Build();
 
-        var manager = new AppSettingsManager<TestSettings>();
+        var manager = new SettingsManager<TestSettings>();
         manager.LoadFromConfiguration(config);
 
         var act = async () => await manager.SaveAsync();
@@ -174,7 +174,7 @@ public class AppSettingsManagerTests : IDisposable
     {
         File.WriteAllText(_baseFile, """{"Name": "Original"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         var settings = await manager.LoadAsync(default, _baseFile);
         manager.EnableAutoSave(TimeSpan.FromMilliseconds(50));
 
@@ -195,7 +195,7 @@ public class AppSettingsManagerTests : IDisposable
             .AddJsonStream(new MemoryStream("""{"Name": "Test"}"""u8.ToArray()))
             .Build();
 
-        var manager = new AppSettingsManager<TestSettings>();
+        var manager = new SettingsManager<TestSettings>();
         manager.LoadFromConfiguration(config);
 
         var act = () => manager.EnableAutoSave();
@@ -207,7 +207,7 @@ public class AppSettingsManagerTests : IDisposable
     {
         File.WriteAllText(_baseFile, """{"Name": "Original"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         var settings = await manager.LoadAsync(default, _baseFile);
         manager.EnableAutoSave(TimeSpan.FromMilliseconds(500));
 
@@ -225,7 +225,7 @@ public class AppSettingsManagerTests : IDisposable
     {
         File.WriteAllText(_baseFile, """{"Name": "Original"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         var settings = await manager.LoadAsync(default, _baseFile);
         manager.EnableAutoSave(TimeSpan.FromMilliseconds(500));
 
@@ -244,7 +244,7 @@ public class AppSettingsManagerTests : IDisposable
     {
         File.WriteAllText(_baseFile, """{"Name": "Initial"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         await manager.LoadAsync(default, _baseFile);
 
         // Simulate external edit
@@ -265,7 +265,7 @@ public class AppSettingsManagerTests : IDisposable
         File.WriteAllText(_baseFile, """{"Name": "Base"}""");
         File.WriteAllText(_userFile, """{"Name": "User"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         await manager.LoadAsync(default, _baseFile);
 
         await manager.ResetToDefaultsAsync();
@@ -284,7 +284,7 @@ public class AppSettingsManagerTests : IDisposable
         File.WriteAllText(_baseFile, """{"Name": "Base", "Value": 10}""");
         File.WriteAllText(_userFile, """{"Value": 100}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         await manager.LoadAsync(default, _baseFile);
 
         manager.Settings.Value.Should().Be(100);
@@ -300,7 +300,7 @@ public class AppSettingsManagerTests : IDisposable
         File.WriteAllText(_baseFile, """{"Name": "Base"}""");
         File.WriteAllText(_userFile, """{"Name": "User"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         await manager.LoadAsync(default, _baseFile);
         manager.EnableAutoSave(TimeSpan.FromMilliseconds(50));
 
@@ -322,7 +322,7 @@ public class AppSettingsManagerTests : IDisposable
     {
         File.WriteAllText(_baseFile, """{"Name": "Original"}""");
 
-        var manager = new AppSettingsManager<TestSettings> { UserSettingsPath = _userFile };
+        var manager = new SettingsManager<TestSettings> { UserSettingsPath = _userFile };
         var settings = await manager.LoadAsync(default, _baseFile);
 
         settings.Name = "BeforeDispose";

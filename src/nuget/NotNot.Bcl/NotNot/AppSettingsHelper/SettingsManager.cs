@@ -24,7 +24,7 @@ namespace NotNot.AppSettingsHelper;
 /// </para>
 /// </summary>
 /// <typeparam name="TSettings">The settings type, must be a generated settings class.</typeparam>
-public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposable
+public sealed class SettingsManager<TSettings> : IDisposable, IAsyncDisposable
     where TSettings : class
 {
     private readonly object _lock = new();
@@ -45,14 +45,14 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
     private IUserSettingsStorageProvider? _storageProvider;
 
     /// <summary>
-    /// Creates a new AppSettingsManager using a factory function for settings instantiation.
+    /// Creates a new SettingsManager using a factory function for settings instantiation.
     /// </summary>
     /// <param name="factory">Factory function that creates new TSettings instances.</param>
     /// <remarks>
     /// <para>Use this constructor for interface-based settings (Workflow B: POCO/DispatchProxy).</para>
     /// <para>The factory's return type determines the concrete type for JSON deserialization.</para>
     /// </remarks>
-    public AppSettingsManager(Func<TSettings> factory)
+    public SettingsManager(Func<TSettings> factory)
     {
         _factory = factory ?? throw new ArgumentNullException(nameof(factory));
         // Capture concrete type from factory for deserialization (SME blocker fix)
@@ -62,13 +62,13 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
     }
 
     /// <summary>
-    /// Creates a new AppSettingsManager using Activator for types with parameterless constructors.
+    /// Creates a new SettingsManager using Activator for types with parameterless constructors.
     /// </summary>
     /// <remarks>
     /// <para>Use this constructor for source-generated settings classes (Workflow A).</para>
     /// <para>Requires TSettings to have a public parameterless constructor.</para>
     /// </remarks>
-    public AppSettingsManager() : this(() => Activator.CreateInstance<TSettings>()!) { }
+    public SettingsManager() : this(() => Activator.CreateInstance<TSettings>()!) { }
 
     /// <summary>
     /// The loaded settings object. Property changes trigger change notifications
@@ -140,7 +140,7 @@ public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposabl
                             $"Source-generated settings classes implement ISettingsChangeAware and work " +
                             $"with 'manager.Settings' directly for change tracking. " +
                             $"To use Proxy with source-generated types, use the generated interface " +
-                            $"(e.g., AppSettingsManager<IAppSettings>).");
+                            $"(e.g., SettingsManager<IAppSettings>).");
                     }
 
                     _proxy = SettingsProxy<TSettings>.Create(Settings, OnPropertyChanged);

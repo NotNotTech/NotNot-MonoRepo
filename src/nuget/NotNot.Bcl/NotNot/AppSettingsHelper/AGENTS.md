@@ -26,7 +26,7 @@ The library supports **two distinct workflows** for settings change detection:
 | **A: Source-Generated** | Generated `AppSettings` class | `ISettingsChangeAware` callback | File-based JSON schemas, nested structures |
 | **B: POCO/Interface** | Interface + POCO class | `SettingsProxy<T>` (DispatchProxy) | localStorage, code-defined settings |
 
-**Critical**: Both workflows use `AppSettingsManager<T>` but with different TSettings constraints and access patterns.
+**Critical**: Both workflows use `SettingsManager<T>` but with different TSettings constraints and access patterns.
 
 #### Storage Abstraction
 The library supports pluggable storage backends via `IUserSettingsStorageProvider`:
@@ -38,7 +38,7 @@ The library supports pluggable storage backends via `IUserSettingsStorageProvide
 | Custom | Your project | Cloud storage, IndexedDB, etc. |
 
 ### Namespace Design
-- **Runtime Library**: `NotNot.AppSettingsHelper` - contains `AppSettingsManager<T>`, `SettingsProxy<T>`, `JsonSettingsUtils`, `ISettingsChangeAware`
+- **Runtime Library**: `NotNot.AppSettingsHelper` - contains `SettingsManager<T>`, `SettingsProxy<T>`, `JsonSettingsUtils`, `ISettingsChangeAware`
 - **Generated Classes**: `{RootNamespace}.AppSettingsGen` - contains `AppSettings`, nested types, `AppSettingsBinder`
 - **Generated Interfaces**: `{RootNamespace}.AppSettingsGen.Interfaces` - contains `IAppSettings`, nested interfaces (for DispatchProxy workflow)
 
@@ -88,7 +88,7 @@ The namespaces are intentionally different to avoid conflicts when both are used
 **Timestamp**: 2026-01-08
 
 ## Primary Resources
-- [`AppSettingsManager.cs`](./AppSettingsManager.cs) - Main manager class with factory pattern
+- [`SettingsManager.cs`](./SettingsManager.cs) - Main manager class with factory pattern
 - [`SettingsProxy.cs`](./SettingsProxy.cs) - DispatchProxy-based change interceptor
 - [`JsonSettingsUtils.cs`](./JsonSettingsUtils.cs) - Diff/merge utilities
 - [`ISettingsChangeAware.cs`](./ISettingsChangeAware.cs) - Change tracking interface (Workflow A)
@@ -114,20 +114,20 @@ None - this is a leaf folder.
 
 ## Key Components
 
-### AppSettingsManager<TSettings>
-**File**: [`AppSettingsManager.cs`](./AppSettingsManager.cs)
+### SettingsManager<TSettings>
+**File**: [`SettingsManager.cs`](./SettingsManager.cs)
 
 Primary manager for settings lifecycle. Supports both source-generated and POCO workflows.
 
 ```csharp
-public sealed class AppSettingsManager<TSettings> : IDisposable, IAsyncDisposable
+public sealed class SettingsManager<TSettings> : IDisposable, IAsyncDisposable
     where TSettings : class
 {
     // Factory constructor (required for interface TSettings)
-    public AppSettingsManager(Func<TSettings> factory);
+    public SettingsManager(Func<TSettings> factory);
 
     // Parameterless constructor (uses Activator.CreateInstance)
-    public AppSettingsManager();
+    public SettingsManager();
 
     // Workflow A: Source-generated settings with ISettingsChangeAware
     public TSettings Settings { get; }
@@ -232,7 +232,7 @@ public interface IUserSettingsStorageProvider
 ### FileUserSettingsStorageProvider
 **File**: [`FileStorageProvider.cs`](./FileStorageProvider.cs)
 
-File system implementation of `IUserSettingsStorageProvider`. Thread-safe for use with `AppSettingsManager` debounced auto-save.
+File system implementation of `IUserSettingsStorageProvider`. Thread-safe for use with `SettingsManager` debounced auto-save.
 
 ```csharp
 public class FileUserSettingsStorageProvider : IUserSettingsStorageProvider
@@ -258,7 +258,7 @@ Use when you have JSON schema files and need nested property support.
 ```csharp
 using NotNot.AppSettingsHelper;
 
-var manager = new AppSettingsManager<AppSettings>();
+var manager = new SettingsManager<AppSettings>();
 await manager.LoadAsync(default, "appsettings.json", "appsettings.Development.json");
 
 // Modify nested settings - ISettingsChangeAware detects all changes
@@ -291,7 +291,7 @@ public class MySettings : IMySettings
 }
 
 // 3. Create manager with factory
-var manager = new AppSettingsManager<IMySettings>(() => new MySettings());
+var manager = new SettingsManager<IMySettings>(() => new MySettings());
 await manager.RegisterUserStorageAndTryLoad(storageProvider);
 manager.EnableAutoSave();
 
@@ -304,7 +304,7 @@ await manager.DisposeAsync();
 
 ### Auto-Save Pattern
 ```csharp
-var manager = new AppSettingsManager<AppSettings>
+var manager = new SettingsManager<AppSettings>
 {
     UserSettingsPath = "appsettings.user.json",
     OnAutoSaveError = ex => Console.WriteLine($"Auto-save failed: {ex}")

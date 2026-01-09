@@ -7,7 +7,7 @@ namespace NotNot.AppSettingsHelper;
 /// Interface for settings objects that can notify when their properties change.
 /// <para>
 /// This interface is implemented by source-generated settings classes.
-/// It allows <see cref="AppSettingsManager{TSettings}"/> to wire up change
+/// It allows <see cref="SettingsManager{TSettings}"/> to wire up change
 /// tracking for automatic save functionality.
 /// </para>
 /// <para>

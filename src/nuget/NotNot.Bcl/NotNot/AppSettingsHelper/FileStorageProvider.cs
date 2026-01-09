@@ -11,7 +11,7 @@ namespace NotNot.AppSettingsHelper;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Thread-safe for use with AppSettingsManager debounced auto-save.
+/// Thread-safe for use with SettingsManager debounced auto-save.
 /// The manager's internal lock + debounce pattern serializes writes.
 /// </para>
 /// <para>
