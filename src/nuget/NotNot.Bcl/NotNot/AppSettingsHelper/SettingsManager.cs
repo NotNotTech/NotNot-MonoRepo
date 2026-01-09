@@ -105,6 +105,16 @@ public sealed class SettingsManager<TSettings> : IDisposable, IAsyncDisposable
     public Action<Exception>? OnAutoSaveError { get; set; }
 
     /// <summary>
+    /// Callback invoked when any setting property is modified.
+    /// Use this to wire up external change notification (e.g., UI events).
+    /// </summary>
+    /// <remarks>
+    /// <para>Called synchronously from the setter thread. Keep handlers fast and non-blocking.</para>
+    /// <para>Not called during load/reload operations (only on user-initiated property changes).</para>
+    /// </remarks>
+    public Action? OnSettingsModified { get; set; }
+
+    /// <summary>
     /// Gets a proxy wrapper that intercepts property setters for change notification.
     /// </summary>
     /// <remarks>
@@ -735,6 +745,9 @@ public sealed class SettingsManager<TSettings> : IDisposable, IAsyncDisposable
         {
             ScheduleDebouncedSave();
         }
+
+        // External notification hook for UI change events
+        OnSettingsModified?.Invoke();
     }
 
     private void ScheduleDebouncedSave()
