@@ -167,7 +167,7 @@ public static class DebuggableTimeoutCancelTokenHelper
 			}
 
 
-			_workerThreadTask?._SyncWaitNoCancelException();
+			_workerThreadTask?._SyncWaitNoCancelExceptions();
 			_workerThreadTask?.Dispose();
 			_disposeCts?.Dispose();
 		}

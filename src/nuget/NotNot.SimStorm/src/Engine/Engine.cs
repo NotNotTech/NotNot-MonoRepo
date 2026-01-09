@@ -78,7 +78,7 @@ public class Engine : DisposeGuard
 
 	protected override void OnDispose(bool managedDisposing)
 	{
-		//Updater?.Stop()._SyncWaitNoCancelException();
+		//Updater?.Stop()._SyncWaitNoCancelExceptions();
 		Updater?.Dispose();
 
 		_simManager?.Dispose();

@@ -604,6 +604,28 @@ public sealed class SettingsManager<TSettings> : IDisposable, IAsyncDisposable
         OnPropertyChanged();
     }
 
+    /// <summary>
+    /// Explicitly marks settings as dirty and schedules auto-save if enabled.
+    /// Use for reference-type properties (like immutable collections) accessed via Settings
+    /// rather than Proxy.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method is a no-op if notifications are suppressed (during load operations).
+    /// </para>
+    /// <para>
+    /// <b>When to use:</b> When accessing Settings directly (not Proxy) to modify
+    /// reference-type properties like <see cref="System.Collections.Immutable.ImmutableList{T}"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// manager.Settings.Filters = manager.Settings.Filters.Add("newItem");
+    /// manager.MarkDirty(); // Notify that save is needed
+    /// </code>
+    /// </example>
+    public void MarkDirty() => OnPropertyChanged();
+
     #endregion
 
     #region Auto-Save Control
@@ -760,16 +782,12 @@ public sealed class SettingsManager<TSettings> : IDisposable, IAsyncDisposable
         {
             try
             {
-                await Task.Delay(_debounceInterval, token);
+                await Task.Delay(_debounceInterval, token)._WaitNoCancelExceptions();
                 if (!token.IsCancellationRequested)
                 {
                     // P1-1: Use SaveCoreAsync to avoid self-deadlock
                     await SaveCoreAsync(token);
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                // Expected on cancel
             }
             catch (Exception ex)
             {

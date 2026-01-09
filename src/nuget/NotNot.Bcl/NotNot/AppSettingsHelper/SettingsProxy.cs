@@ -83,6 +83,10 @@ public class SettingsProxy<TSettings> : DispatchProxy where TSettings : class
             if (underlying != null && (underlying.IsPrimitive || underlying == typeof(string) || underlying.IsValueType))
                 continue;
 
+            // Allow immutable collections (they require replacement, triggering setter)
+            if (type.Namespace?.StartsWith("System.Collections.Immutable", StringComparison.Ordinal) == true)
+                continue;
+
             // Disallow reference types (classes, interfaces) - they cause silent mutation failures
             throw new InvalidOperationException(
                 $"SettingsProxy requires flat structure. Property '{prop.Name}' " +

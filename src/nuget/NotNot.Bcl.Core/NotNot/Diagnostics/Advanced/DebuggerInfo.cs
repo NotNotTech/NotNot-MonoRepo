@@ -85,7 +85,7 @@ public static class DebuggerInfo
 	private static void Dispose()
 	{
 		_cts.Cancel();
-		_workerThreadTask._SyncWaitNoCancelException();
+		_workerThreadTask._SyncWaitNoCancelExceptions();
 	}
 
 	private static async Task _workerThread()

@@ -408,7 +408,7 @@ public static partial class zz_Extensions_Task
    ///    awaits any result (success, cancel, error) without throwing.
    ///    the result of this call will always succeed.  Inspect the original task for result status.
    /// </summary>
-   public static async Task _WaitWithoutException(this Task task)
+   public static async Task _WaitNoExceptions(this Task task)
    {
       if (task is null)
       {
@@ -425,7 +425,7 @@ public static partial class zz_Extensions_Task
 #pragma warning restore ERP022, RCS1075, NN_R005
    }
 
-   public static async Task<T?> _WaitWithoutException<T>(this Task<T> task)
+   public static async Task<T?> _WaitNoExceptions<T>(this Task<T> task)
    {
       try
       {
@@ -443,7 +443,7 @@ public static partial class zz_Extensions_Task
    ///    awaits any result (success, cancel, error) without throwing.
    ///    the result of this call will always succeed.   Inspect the original task for result status.
    /// </summary>
-   public static async ValueTask _WaitWithoutException(this ValueTask task)
+   public static async ValueTask _WaitNoExceptions(this ValueTask task)
    {
       try
       {
@@ -463,7 +463,7 @@ public static partial class zz_Extensions_Task
 	///    awaits any result (success, cancel, error) without throwing.
 	///    the result of this call will always succeed.   Inspect the original task for result status.
 	/// </summary>
-	public static async ValueTask<TResult?> _WaitWithoutException<TResult>(this ValueTask<TResult> task)
+	public static async ValueTask<TResult?> _WaitNoExceptions<TResult>(this ValueTask<TResult> task)
    {
       try
       {
@@ -484,7 +484,7 @@ public static partial class zz_Extensions_Task
    ///    the result of this call will always succeed if original task throws a TaskAbort or operationCancelled exception.   Inspect the original task for result status.
    /// </summary>
    [DebuggerHidden, DebuggerNonUserCode]
-   public static async Task _WaitWithoutCancel(this Task task)
+   public static async Task _WaitNoCancelExceptions(this Task task)
    {
       try
       {
@@ -501,7 +501,7 @@ public static partial class zz_Extensions_Task
    ///    the result of this call will always succeed if original task throws a TaskAbort or operationCancelled exception.   Inspect the original task for result status.
    /// </summary>
    [DebuggerHidden, DebuggerNonUserCode]
-   public static async Task<T?> _WaitWithoutCancel<T>(this Task<T> task)
+   public static async Task<T?> _WaitNoCancelExceptions<T>(this Task<T> task)
    {
       try
       {
@@ -518,7 +518,7 @@ public static partial class zz_Extensions_Task
    ///    the result of this call will always succeed if original task throws a TaskAbort or operationCancelled exception.   Inspect the original task for result status.
    /// </summary>
    [DebuggerHidden, DebuggerNonUserCode]
-   public static async ValueTask _WaitWithoutCancel(this ValueTask task)
+   public static async ValueTask _WaitNoCancelExceptions(this ValueTask task)
    {
       try
       {
@@ -535,7 +535,7 @@ public static partial class zz_Extensions_Task
    ///    the result of this call will always succeed if original task throws a TaskAbort or operationCancelled exception.   Inspect the original task for result status.
    /// </summary>
    [DebuggerHidden, DebuggerNonUserCode]
-   public static async ValueTask<TResult?> _WaitWithoutCancel<TResult>(this ValueTask<TResult> task)
+   public static async ValueTask<TResult?> _WaitNoCancelExceptions<TResult>(this ValueTask<TResult> task)
    {
       try
       {
@@ -1016,10 +1016,10 @@ public static partial class zz_Extensions_Task
 
 
    }
-   public static void _SyncWaitNoCancelException(this Task task, TimeSpan timeout)
+   public static void _SyncWaitNoCancelExceptions(this Task task, TimeSpan timeout)
    {
       var ct = __.Async.CancelAfter(timeout);
-      _SyncWaitNoCancelException(task, ct);
+      _SyncWaitNoCancelExceptions(task, ct);
 
 
 
@@ -1028,7 +1028,7 @@ public static partial class zz_Extensions_Task
 
 
 
-   public static void _SyncWaitNoCancelException(this Task task, CancellationToken ct = default)
+   public static void _SyncWaitNoCancelExceptions(this Task task, CancellationToken ct = default)
    {
 
       try
