@@ -54,10 +54,13 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
         "Invoke"
     };
 
-    // Safe wrapper methods that internally handle JSDisconnectedException
+    // Safe wrapper methods that internally handle JSDisconnectedException (from NotNot.Bcl.Core)
+    // - _WaitIgnoreCancel: catches TaskCanceledException, OperationCanceledException, JSDisconnectedException
+    // - _WaitIgnoreCancelOrNull: nullable wrapper around _WaitIgnoreCancel
     private static readonly string[] SafeWrapperMethodNames =
     {
-        "_SafeWait"
+        "_WaitIgnoreCancel",
+        "_WaitIgnoreCancelOrNull"
     };
 
     /// <inheritdoc/>
@@ -213,9 +216,19 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
     private static bool IsWrappedWithSafeMethod(InvocationExpressionSyntax invocation)
     {
         // Check if this invocation is the target of a safe wrapper call
-        // Pattern: invocation._SafeWait() where invocation is the JS interop call
-        // Syntax: InvocationExpression (outer) -> MemberAccessExpression -> InvocationExpression (inner, this is us)
-        if (invocation.Parent is not MemberAccessExpressionSyntax memberAccess)
+        // Pattern 1: invocation._SafeWait() where invocation is the JS interop call
+        // Pattern 2: (invocation)._WaitIgnoreCancelOrNull() with parentheses for null-conditional
+        // Pattern 3: (_obj?.invocation)._WaitIgnoreCancelOrNull() with null-conditional access
+        // Syntax tree can have: ConditionalAccessExpression -> ParenthesizedExpression -> MemberAccess -> Invocation
+
+        // Skip through wrapping syntax nodes to find the member access for the safe wrapper
+        SyntaxNode? current = invocation.Parent;
+        while (current is ParenthesizedExpressionSyntax or ConditionalAccessExpressionSyntax)
+        {
+            current = current.Parent;
+        }
+
+        if (current is not MemberAccessExpressionSyntax memberAccess)
             return false;
 
         // Check if the member being accessed is a safe wrapper method

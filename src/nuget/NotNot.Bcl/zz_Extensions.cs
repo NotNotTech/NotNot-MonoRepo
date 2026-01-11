@@ -30,6 +30,7 @@ public static class zz_Extensions_ValueTask
 	/// <param name="task">The ValueTask to await. Represents an asynchronous operation whose exceptions for disconnection, cancellation, or
 	/// disposal will be ignored.</param>
 	/// <returns>A ValueTask that represents the asynchronous wait operation.</returns>
+	[Obsolete("use `task._WaitIgnoreCancel()` instead, it's in NotNot.Bcl.Core and more robust",true)]
 	public static async ValueTask _SafeWait(this ValueTask task)
 	{
 		try

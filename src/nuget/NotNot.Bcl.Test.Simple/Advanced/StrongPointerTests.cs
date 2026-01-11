@@ -357,6 +357,7 @@ public class StrongPointerTests
 		var pointers = new System.Collections.Concurrent.ConcurrentBag<StrongPointer<TestTarget>>();
 
 		// Act
+#pragma warning disable PH_S022 // Parallel.For with Monitor Synchronization
 		Parallel.For(0, threadCount, _ =>
 		{
 			for (int i = 0; i < allocsPerThread; i++)
@@ -368,6 +369,7 @@ public class StrongPointerTests
 				pointers.Add(pointer);
 			}
 		});
+#pragma warning restore PH_S022 // Parallel.For with Monitor Synchronization
 
 		// Assert
 		var pointerList = pointers.ToList();
@@ -396,11 +398,13 @@ public class StrongPointerTests
 		const int iterations = 1000;
 
 		// Act - Multiple threads checking same handle
+#pragma warning disable PH_S010 // Parallel.For Side-Effects
 		Parallel.For(0, iterations, _ =>
 		{
 			var isAlive = pointer.CheckIsAlive();
 			Assert.True(isAlive);
 		});
+#pragma warning restore PH_S010 // Parallel.For Side-Effects
 
 		// Cleanup
 		pointer.Dispose();
@@ -416,12 +420,14 @@ public class StrongPointerTests
 		const int iterations = 1000;
 
 		// Act - Multiple threads accessing same target
+#pragma warning disable PH_S010 // Parallel.For Side-Effects
 		Parallel.For(0, iterations, _ =>
 		{
 			var retrieved = pointer.GetTarget();
 			Assert.Same(target, retrieved);
 			Assert.Equal("concurrent", retrieved.Name);
 		});
+#pragma warning restore PH_S010 // Parallel.For Side-Effects
 
 		// Cleanup
 		pointer.Dispose();

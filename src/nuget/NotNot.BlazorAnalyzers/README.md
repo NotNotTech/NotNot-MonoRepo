@@ -100,18 +100,27 @@ public async ValueTask DisposeAsync()
     }
 }
 
-// ✅ Properly handled with _SafeWait() extension (from NotNot.Bcl)
+// ✅ Properly handled with _WaitIgnoreCancel() extension (from NotNot.Bcl.Core)
 public async ValueTask DisposeAsync()
 {
     if (_module is not null)
     {
-        await _module.InvokeVoidAsync("cleanup")._SafeWait();
-        await _module.DisposeAsync()._SafeWait();
+        await _module.InvokeVoidAsync("cleanup")._WaitIgnoreCancel();
     }
+    // For nullable IJSObjectReference disposal:
+    await (_module?.DisposeAsync())._WaitIgnoreCancelOrNull();
+    _module = null;
 }
 ```
 
-The `_SafeWait()` extension method (from NotNot.Bcl) internally catches `JSDisconnectedException`, `TaskCanceledException`, and `ObjectDisposedException`, providing a concise alternative to try-catch blocks.
+The analyzer recognizes these safe wrapper extension methods (from NotNot.Bcl.Core):
+
+| Method | Catches |
+|--------|---------|
+| `_WaitIgnoreCancel()` | `TaskCanceledException`, `OperationCanceledException`, `JSDisconnectedException` |
+| `_WaitIgnoreCancelOrNull()` | Same as above, plus handles `null` ValueTask |
+
+These provide a concise alternative to verbose try-catch blocks.
 
 ## Configuration
 

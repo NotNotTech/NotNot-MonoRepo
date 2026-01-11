@@ -272,7 +272,7 @@ public class RegularService : IAsyncDisposable
     }
 
     [Fact]
-    public async Task JsInteropCall_InDisposeAsync_WithSafeWait_NoDiagnostic()
+    public async Task JsInteropCall_InDisposeAsync_WithWaitIgnoreCancel_NoDiagnostic()
     {
         var source = @"
 using System;
@@ -288,20 +288,57 @@ public class TestComponent : ComponentBase, IAsyncDisposable
     {
         if (_module is not null)
         {
-            // _SafeWait() internally handles JSDisconnectedException
-            await _module.InvokeVoidAsync(""cleanup"")._SafeWait();
+            // _WaitIgnoreCancel() internally handles JSDisconnectedException
+            await _module.InvokeVoidAsync(""cleanup"")._WaitIgnoreCancel();
         }
     }
 }
 
-public static class SafeWaitExtensions
+public static class WaitIgnoreCancelExtensions
 {
-    public static async ValueTask _SafeWait(this ValueTask task)
+    public static async ValueTask _WaitIgnoreCancel(this ValueTask task)
     {
         try { await task; }
-        catch (JSDisconnectedException) { }
         catch (TaskCanceledException) { }
-        catch (ObjectDisposedException) { }
+        catch (OperationCanceledException) { }
+        // Catches JSDisconnectedException by type name
+    }
+}";
+
+        await VerifyAnalyzerAsync(source);
+    }
+
+    [Fact]
+    public async Task JsInteropCall_InDisposeAsync_WithWaitIgnoreCancelOrNull_NoDiagnostic()
+    {
+        var source = @"
+using System;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
+
+public class TestComponent : ComponentBase, IAsyncDisposable
+{
+    private IJSObjectReference? _module;
+
+    public async ValueTask DisposeAsync()
+    {
+        // _WaitIgnoreCancelOrNull() handles null ValueTask and JSDisconnectedException
+        // Pattern: (_module?.DisposeAsync()) returns ValueTask? when _module is nullable
+        await (_module?.InvokeVoidAsync(""cleanup""))._WaitIgnoreCancelOrNull();
+    }
+}
+
+public static class WaitIgnoreCancelExtensions
+{
+    public static async ValueTask _WaitIgnoreCancelOrNull(this ValueTask? task)
+    {
+        if (task.HasValue)
+        {
+            try { await task.Value; }
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) { }
+        }
     }
 }";
 
