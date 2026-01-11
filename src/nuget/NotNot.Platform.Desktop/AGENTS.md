@@ -57,9 +57,34 @@ Process.Start(new ProcessStartInfo
 
 ## Current Features
 
-| Class | Method | Purpose |
-|-------|--------|---------|
-| `FileSystemHelper` | `RevealInOsGui()` | Open file explorer and highlight file |
+| Class | Method | Purpose | Platforms |
+|-------|--------|---------|-----------|
+| `FileSystemHelper` | `RevealInOsGui()` | Open file explorer and highlight file | Win/macOS/Linux |
+| `IdeHelper` | `OpenInVSCode()` | Open file in VSCode at specific line | Win/macOS/Linux |
+| `IdeHelper` | `OpenInRider()` | Open file in JetBrains Rider at specific line | Win/macOS/Linux |
+| `IdeHelper` | `OpenInVisualStudio()` | Open file in Visual Studio | Windows only |
+| `IdeHelper` | `FindRunningDevenv()` | Find path to running VS instance | Windows only |
+| `IdeHelper` | `FindDevenvPath()` | Find installed VS by version | Windows only |
+
+## IDE Support Matrix
+
+| Editor | Windows | macOS | Linux | Notes |
+|--------|---------|-------|-------|-------|
+| VSCode | ✅ | ✅ | ✅ | Requires `code` in PATH |
+| VSCode Insiders | ✅ | ✅ | ✅ | Requires `code-insiders` in PATH |
+| JetBrains Rider | ✅ | ✅ | ✅ | Windows: `rider64`, others: `rider` |
+| Visual Studio | ✅ | ❌ | ❌ | vswhere.exe + path probing |
+
+### Visual Studio Version Support
+
+| Version String | Description |
+|----------------|-------------|
+| `vs2026` | VS2026 stable (Enterprise → Pro → Community → Preview fallback) |
+| `vs2026-insiders` | VS2026 Preview/Insiders first |
+| `vs2022` | VS2022 stable |
+| `vs2022-preview` | VS2022 Preview first |
+| `vs-running` | Reuse currently running VS instance |
+| `null` | Auto-detect newest available |
 
 ## Future Expansion
 
