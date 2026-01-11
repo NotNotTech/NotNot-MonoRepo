@@ -7,10 +7,10 @@
 - Used by both web and non-web applications
 
 ## Critical Architectural Boundaries
-- **NO ASP.NET Core dependencies** - This is NotNot.Bcl's responsibility
-- **NO MVC/Web API references** - Keep this pure .NET
-- **NO IResult or HttpContext usage** - Web concerns belong in NotNot.Bcl
-- Type detection by name/string matching only when needed for web types
+- **NO Microsoft.Extensions.* dependencies** - Those belong in NotNot.Bcl
+- **NO ASP.NET Core dependencies** - Optional ASP.NET support is in NotNot.Bcl
+- **NO IResult or HttpContext usage** - Web utilities belong in NotNot.Bcl
+- Type detection by name/string matching only when needed for framework types
 
 ## Important usage patterns
 
@@ -60,11 +60,11 @@
 - See [OpenGenericMethodExecutor.cs](./NotNot/Advanced/OpenGenericMethodExecutor.cs) and [OpenGenericMethodExecutor_Static.cs](./NotNot/Advanced/OpenGenericMethodExecutor_Static.cs)
 
 ### Extensions
-- Pure .NET extension methods only.   
+- Pure .NET extension methods only.
 - conventions:
-	- follow same `zz_Extensions_{type}` naming convention for new extensions.  
+	- follow same `zz_Extensions_{type}` naming convention for new extensions.
    - always prefix our extension methods with `_` to visibly signal this is our extension method.
-- No web-specific extensions (those go in NotNot.Bcl)
+- No Microsoft.Extensions.* dependent extensions (those go in NotNot.Bcl)
 - Focus on general-purpose utilities
 
 # VIBECACHE
@@ -77,12 +77,12 @@
 - [.NET Base Class Library](https://learn.microsoft.com/en-us/dotnet/api/)
 
 ## Related Topics
-- [../NotNot.Bcl/CLAUDE.md](../NotNot.Bcl/CLAUDE.md) - Web framework extensions
+- [../NotNot.Bcl/AGENTS.md](../NotNot.Bcl/AGENTS.md) - Modern cross-platform utilities with Microsoft.Extensions.* support
 
 ## Dependency Rules
 1. **Allowed**: System.* namespaces, pure .NET libraries
-2. **Forbidden**: Microsoft.AspNetCore.*, Microsoft.Extensions.* (web-specific)
-3. **Exception**: Can detect web types by fully-qualified name strings
+2. **Forbidden**: Microsoft.AspNetCore.*, Microsoft.Extensions.* (belong in NotNot.Bcl)
+3. **Exception**: Can detect framework types by fully-qualified name strings
 
 ## IResult Handling Strategy
 When Maybe<T> encounters IResult types during deserialization:
@@ -91,10 +91,19 @@ When Maybe<T> encounters IResult types during deserialization:
 - Cannot reference IResult directly - only string-based detection
 
 ## Why This Separation Matters
-- Allows NotNot.Bcl.Core to be used in:
-  - Console applications
-  - Desktop applications (WPF, WinForms)
-  - Background services
-  - Libraries that don't need web dependencies
-- Keeps package size minimal
-- Avoids forcing web dependencies on non-web projects
+
+**NotNot.Bcl.Core** (this package) can be used in:
+- Console applications with minimal dependencies
+- Desktop applications (WPF, WinForms, MAUI)
+- Libraries that cannot reference Microsoft.Extensions.*
+- Embedded or constrained scenarios
+
+**NotNot.Bcl** extends Core for modern environments:
+- Apps using IHostBuilder, IServiceCollection, modern DI
+- Console apps, services, web apps, desktop apps with modern hosting
+- Optional ASP.NET Core utilities when needed
+
+This separation ensures:
+- Minimal-dependency scenarios can use Core alone
+- Modern apps get full Microsoft.Extensions.* integration
+- Clear architectural boundaries

@@ -62,8 +62,9 @@ A "kitchen sink" utility library with a clean architectural split:
 
 | Package | Purpose | Dependencies |
 |---------|---------|--------------|
-| `NotNot.Bcl.Core` | Core utilities, Maybe<T> pattern, extensions | Pure .NET (no web) |
-| `NotNot.Bcl` | ASP.NET Core integration, web utilities | ASP.NET Core |
+| `NotNot.Bcl.Core` | Core utilities, Maybe<T> pattern, extensions | Pure .NET (no external deps) |
+| `NotNot.Bcl` | Modern cross-platform with DI/hosting integration | Microsoft.Extensions.*, optional ASP.NET Core |
+| `NotNot.Platform.Desktop` | Desktop OS integration (file explorer, shell) | Pure .NET |
 
 **Highlights:**
 - **Maybe<T> Pattern** - Functional error handling with structured `Problem` types
@@ -148,6 +149,7 @@ NotNot-MonoRepo/
 │   │   ├── NotNot.AppSettings/   # Published
 │   │   ├── NotNot.Bcl/           # Pre-release
 │   │   ├── NotNot.Bcl.Core/      # Pre-release
+│   │   ├── NotNot.Platform.Desktop/  # Pre-release (NEW)
 │   │   ├── NotNot.Mixins/        # Pre-release
 │   │   ├── NotNot.Analyzers/     # Pre-release
 │   │   └── NotNot.GodotNet.SourceGen/  # Pre-release

@@ -1,15 +1,15 @@
 # VIBEGUIDE
 
-## Web Extensions Library Philosophy
-- ASP.NET Core extensions for NotNot.Bcl.Core
-- Provides web-specific functionality on top of Core
-- Bridge between pure .NET patterns and web frameworks
-- This is where ALL ASP.NET Core dependencies belong
+## Modern Cross-Platform Library Philosophy
+- Extensions for NotNot.Bcl.Core in modern .NET environments
+- Can reference (not necessarily use) Microsoft.Extensions.* and ASP.NET Core helpers
+- Cross-platform: works in console apps, services, web apps, desktop apps
+- Centralizes dependencies that require modern hosting/DI infrastructure
 
 ## Critical Architectural Boundaries
-- **ASP.NET Core dependencies GO HERE** - Not in Core
-- **IResult conversions and extensions** - Web-specific patterns
-- **HttpContext utilities** - Web request/response handling
+- **Microsoft.Extensions.* dependencies GO HERE** - Not in Core
+- **ASP.NET Core utilities** - Optional web-specific patterns (IResult, HttpContext)
+- **Modern DI/Hosting patterns** - IHostBuilder, IServiceCollection extensions
 - Depends on and extends NotNot.Bcl.Core functionality
 
 # VIBECACHE
@@ -60,26 +60,28 @@ public static IResult ToIResult<T>(this Maybe<T> maybe) { ... }
 ## Why This Separation Exists
 
 ### NotNot.Bcl.Core (Pure .NET)
-- Used by: Console apps, services, libraries
-- Dependencies: None (pure .NET)
-- Focus: Core patterns like Maybe<T>
+- Used by: Any .NET application, libraries, minimal environments
+- Dependencies: None beyond .NET BCL
+- Focus: Core patterns like Maybe<T>, pooling, diagnostics
 
-### NotNot.Bcl (Web Extensions)
-- Used by: ASP.NET Core applications
-- Dependencies: ASP.NET Core framework
-- Focus: Web-specific extensions and utilities
+### NotNot.Bcl (Modern Cross-Platform)
+- Used by: Console apps, services, web apps, desktop apps with modern .NET hosting
+- Dependencies: Microsoft.Extensions.*, optional ASP.NET Core framework reference
+- Focus: DI integration, hosting extensions, web utilities when needed
 
 This separation ensures:
-- Non-web projects don't pull in unnecessary web dependencies
-- Web projects get full ASP.NET Core integration
+- Minimal-dependency projects can use Core alone
+- Modern apps get full Microsoft.Extensions.* integration
+- Web projects get optional ASP.NET Core utilities
 - Clear architectural boundaries
-- Minimal package sizes for each use case
+- Appropriate package sizes for each use case
 
 ## Migration Guide
 When adding new functionality, ask:
-1. Does it require ASP.NET Core types? → Goes in NotNot.Bcl
-2. Is it pure .NET logic? → Goes in NotNot.Bcl.Core
-3. Does it bridge web and core patterns? → Goes in NotNot.Bcl
+1. Does it require Microsoft.Extensions.* or ASP.NET Core types? → Goes in NotNot.Bcl
+2. Is it pure .NET logic with no external dependencies? → Goes in NotNot.Bcl.Core
+3. Does it require desktop OS integration (Process.Start, platform detection)? → Goes in NotNot.Platform.Desktop
+4. Does it bridge hosting/DI with core patterns? → Goes in NotNot.Bcl
 
 ## Known Limitations
 - IResult types cannot be deserialized due to sealed constructors
