@@ -108,8 +108,8 @@ internal static partial class XRayMetadata
             if (!firstFile) jsonBuilder.Append(',');
             firstFile = false;
 
-            // Compute relative path (remove common prefixes, normalize separators)
-            var relativePath = ComputeRelativePath(filePath, fileName);
+            // Compute relative path using assembly name as anchor (more reliable than pattern heuristics)
+            var relativePath = ComputeRelativePath(filePath, fileName, assemblyName);
 
             // Use relativePath as the key to avoid filename collisions across directories
             // (e.g., Features/X/Components/ErrorDrawer.razor vs Components/ErrorDrawer.razor)
@@ -186,9 +186,14 @@ internal static partial class XRayMetadata
 
     /// <summary>
     /// Compute a relative path that uniquely identifies the file within the project.
-    /// Extracts the path after common patterns like "Components/" or "Features/".
+    /// Uses assembly name as anchor to find project folder, more reliable than pattern heuristics.
     /// </summary>
-    private static string ComputeRelativePath(string fullPath, string fileName)
+    /// <remarks>
+    /// Strategy:
+    /// 1. PRIMARY: Find assembly name in path - everything after is relative to project
+    /// 2. FALLBACK: Pattern-based heuristics for edge cases where assembly name doesn't match folder
+    /// </remarks>
+    private static string ComputeRelativePath(string fullPath, string fileName, string assemblyName)
     {
         if (string.IsNullOrEmpty(fullPath))
             return fileName;
@@ -196,21 +201,37 @@ internal static partial class XRayMetadata
         // Normalize path separators
         var normalized = fullPath.Replace('\\', '/');
 
-        // Try to find meaningful path segments
-        // IMPORTANT: Order matters! More specific patterns first to avoid partial matches.
-        // e.g., Features/X/Components/Y.razor should match /Features/ not /Components/
-        // NOTE: Pattern list must match XRayRuntimeService.cs and xray-interop.js extractRelativePath()
-        var patterns = new[] { "/Features/", "/Pages/", "/Shared/", "/Layout/", "/NotNot/", "/Components/" };
+        // PRIMARY: Find assembly name in path (most reliable)
+        // e.g., ".../NotNot.Cct.WebApp/NotNot/Vow/..." → "NotNot/Vow/..."
+        // Handle both exact match and common naming patterns (with/without dots)
+        var assemblyMarkers = new[]
+        {
+            $"/{assemblyName}/",           // Exact: NotNot.Cct.WebApp
+            $"/{assemblyName.Replace(".", "")}/",  // No dots: NotNotCctWebApp
+        };
+
+        foreach (var marker in assemblyMarkers)
+        {
+            var idx = normalized.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                return normalized.Substring(idx + marker.Length);
+            }
+        }
+
+        // FALLBACK: Pattern-based heuristics for edge cases
+        // NOTE: This path should rarely be hit when assembly name matches folder
+        var patterns = new[] { "/Features/", "/Pages/", "/Shared/", "/Layout/", "/Components/" };
         foreach (var pattern in patterns)
         {
             var idx = normalized.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);
             if (idx >= 0)
             {
-                return normalized.Substring(idx + 1);  // Include the folder name but not leading slash
+                return normalized.Substring(idx + 1);
             }
         }
 
-        // Fallback: just use the filename
+        // Last resort: just use the filename
         return fileName;
     }
 
