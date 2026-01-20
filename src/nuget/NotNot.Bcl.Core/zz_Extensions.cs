@@ -1575,68 +1575,26 @@ public static partial class zz_Extensions_Task
 			return null;
 		}
 	}
+	
+
+	/////////////////////////
+	///
+
 
 
 	/// <summary>
-	/// ignore the TIgnoreException
+	/// ignore cancel exceptions, or if the ValueTask? is null
 	/// <para>meant for throw-away awaits, like during disposals</para>
+	/// <para>also ignores Microsoft.JSInterop.JSDisconnectedException</para>
 	/// <para>returns null if throws for the above reasons</para>
 	/// </summary>
 	/// <returns></returns>
-	public static async ValueTask<TValue?> _WaitIgnore<TValue, TIgnoreException>(this ValueTask<TValue?> valueTask,
+	public static async Task<TValue?> _WaitIgnoreCancel<TValue>(this Task<TValue?> task, TValue defaultValue,
 		[CallerMemberName] string sourceMemberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
 		[CallerArgumentExpression("task")] string valueTaskArgName = ""
-		) where TValue : class where TIgnoreException : Exception
-	{
-		try
-		{
-			return await valueTask;
-		}
-		catch (Exception ex)
-		{
-			//handle aggregate exceptions (wrapped)
-			if (ex is AggregateException ae && ae.InnerException != null)
-			{
-				ex = ae.InnerException;
-			}
-
-			switch (ex)
-			{
-				case TIgnoreException:
-					break;
-				default:
-					{
-						//handle cancel exceptions from other non-core libraries (like Blazor WebAssembly)
-						switch (ex.GetType().FullName)
-						{
-							//case "Microsoft.JSInterop.JSDisconnectedException":
-							//	//JSInterop exception when Blazor WebAssembly is unloaded/disconnected
-							//	break;
-							default:
-								throw __.Throw(ex, sourceMemberName, sourceFilePath, sourceLineNumber);
-								break;
-						}
-						break;
-					}
-
-			}
-			return null;
-		}
-	}
-	/// <summary>
-	/// ignore the TIgnoreException
-	/// <para>meant for throw-away awaits, like during disposals</para>
-	/// <para>returns null if throws for the above reasons</para>
-	/// </summary>
-	/// <returns></returns>
-	public static async Task<TValue?> _WaitIgnore<TValue, TIgnoreException>(this Task<TValue?> task,
-		[CallerMemberName] string sourceMemberName = "",
-		[CallerFilePath] string sourceFilePath = "",
-		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("task")] string valueTaskArgName = ""
-		) where TValue : class where TIgnoreException : Exception
+		) 
 	{
 		try
 		{
@@ -1652,44 +1610,46 @@ public static partial class zz_Extensions_Task
 
 			switch (ex)
 			{
-				case TIgnoreException:
+				case TaskCanceledException:
+				case OperationCanceledException:
 					break;
 				default:
 					{
 						//handle cancel exceptions from other non-core libraries (like Blazor WebAssembly)
 						switch (ex.GetType().FullName)
 						{
-							//case "Microsoft.JSInterop.JSDisconnectedException":
-							//	//JSInterop exception when Blazor WebAssembly is unloaded/disconnected
-							//	break;
+							case "Microsoft.JSInterop.JSDisconnectedException":
+								//JSInterop exception when Blazor WebAssembly is unloaded/disconnected
+								break;
 							default:
 								throw __.Throw(ex, sourceMemberName, sourceFilePath, sourceLineNumber);
 								break;
 						}
 						break;
 					}
-
 			}
-			return null;
+			return defaultValue;
 		}
 	}
 
 
 	/// <summary>
-	/// ignore the TIgnoreException
+	/// ignore cancel exceptions, or if the ValueTask? is null
 	/// <para>meant for throw-away awaits, like during disposals</para>
+	/// <para>also ignores Microsoft.JSInterop.JSDisconnectedException</para>
+	/// <para>returns null if throws for the above reasons</para>
 	/// </summary>
 	/// <returns></returns>
-	public static async ValueTask _WaitIgnore<TIgnoreException>(this ValueTask valueTask,
+	public static async ValueTask<TValue?> _WaitIgnoreCancel<TValue>(this ValueTask<TValue?> valueTask, TValue defaultValue,
 		[CallerMemberName] string sourceMemberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
 		[CallerArgumentExpression("task")] string valueTaskArgName = ""
-		) where TIgnoreException : Exception
+		)
 	{
 		try
 		{
-			await valueTask;
+			return await valueTask;
 		}
 		catch (Exception ex)
 		{
@@ -1701,70 +1661,30 @@ public static partial class zz_Extensions_Task
 
 			switch (ex)
 			{
-				case TIgnoreException:
+				case TaskCanceledException:
+				case OperationCanceledException:
 					break;
 				default:
 					{
 						//handle cancel exceptions from other non-core libraries (like Blazor WebAssembly)
 						switch (ex.GetType().FullName)
 						{
-							//case "Microsoft.JSInterop.JSDisconnectedException":
-							//	//JSInterop exception when Blazor WebAssembly is unloaded/disconnected
-							//	break;
+							case "Microsoft.JSInterop.JSDisconnectedException":
+								//JSInterop exception when Blazor WebAssembly is unloaded/disconnected
+								break;
 							default:
 								throw __.Throw(ex, sourceMemberName, sourceFilePath, sourceLineNumber);
 								break;
 						}
 						break;
 					}
-			}
-		}
-	}
-	/// <summary>
-	/// ignore the TIgnoreException
-	/// <para>meant for throw-away awaits, like during disposals</para>
-	/// </summary>
-	/// <returns></returns>
-	public static async Task _WaitIgnore<TIgnoreException>(this Task task,
-		[CallerMemberName] string sourceMemberName = "",
-		[CallerFilePath] string sourceFilePath = "",
-		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("task")] string valueTaskArgName = ""
-		) where TIgnoreException : Exception
-	{
-		try
-		{
-			await task;
-		}
-		catch (Exception ex)
-		{
-			//handle aggregate exceptions (wrapped)
-			if (ex is AggregateException ae && ae.InnerException != null)
-			{
-				ex = ae.InnerException;
-			}
 
-			switch (ex)
-			{
-				case TIgnoreException:
-					break;
-				default:
-					{
-						//handle cancel exceptions from other non-core libraries (like Blazor WebAssembly)
-						switch (ex.GetType().FullName)
-						{
-							//case "Microsoft.JSInterop.JSDisconnectedException":
-							//	//JSInterop exception when Blazor WebAssembly is unloaded/disconnected
-							//	break;
-							default:
-								throw __.Throw(ex, sourceMemberName, sourceFilePath, sourceLineNumber);
-								break;
-						}
-						break;
-					}
 			}
+			return defaultValue;
 		}
 	}
+
+
 }
 
 
