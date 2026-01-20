@@ -94,8 +94,11 @@ public class TestComponent : ComponentBase, IAsyncDisposable
     }
 
     [Fact]
-    public async Task JsInteropCall_InDisposeAsync_WithExceptionCatch_NoDiagnostic()
+    public async Task JsInteropCall_InDisposeAsync_WithSpecificThenBlanketCatch_ReportsDiagnostic()
     {
+        // R4.1 (2026-01-20): Multi-catch with BOTH JSDisconnectedException AND blanket catch is NOT acceptable.
+        // The blanket catch masks bugs even when specific exception is also caught.
+        // Analyzer must check ALL catch clauses, not short-circuit on first valid match.
         var source = @"
 using System;
 using System.Threading.Tasks;
@@ -112,22 +115,28 @@ public class TestComponent : ComponentBase, IAsyncDisposable
         {
             try
             {
-                await _module.InvokeVoidAsync(""cleanup"");
+                await {|#0:_module.InvokeVoidAsync(""cleanup"")|};
+            }
+            catch (JSDisconnectedException)
+            {
+                // Specific catch - good
             }
             catch (Exception)
             {
-                // Catches all exceptions including JSDisconnectedException
+                // WRONG: Blanket catch after specific catch still masks other bugs!
             }
         }
     }
 }";
 
-        await VerifyAnalyzerAsync(source);
+        await VerifyAnalyzerAsync(source, JsDisconnectedDiagnostic("_module.InvokeVoidAsync"));
     }
 
     [Fact]
-    public async Task JsInteropCall_InDisposeAsync_WithBareCatch_NoDiagnostic()
+    public async Task JsInteropCall_InDisposeAsync_WithExceptionCatch_ReportsDiagnostic()
     {
+        // R4.1 (2026-01-20): catch (Exception) blanket catches are NOT acceptable per FAIL_FAST_PRINCIPLE.
+        // They mask bugs and should be replaced with specific exception handling or _WaitIgnoreCancel().
         var source = @"
 using System;
 using System.Threading.Tasks;
@@ -144,17 +153,51 @@ public class TestComponent : ComponentBase, IAsyncDisposable
         {
             try
             {
-                await _module.InvokeVoidAsync(""cleanup"");
+                await {|#0:_module.InvokeVoidAsync(""cleanup"")|};
             }
-            catch
+            catch (Exception)
             {
-                // Bare catch catches everything
+                // WRONG: Blanket catch masks bugs - use _WaitIgnoreCancel() or catch specific exception
             }
         }
     }
 }";
 
-        await VerifyAnalyzerAsync(source);
+        await VerifyAnalyzerAsync(source, JsDisconnectedDiagnostic("_module.InvokeVoidAsync"));
+    }
+
+    [Fact]
+    public async Task JsInteropCall_InDisposeAsync_WithBareCatch_ReportsDiagnostic()
+    {
+        // R4.1 (2026-01-20): Bare catch {} is NOT acceptable per FAIL_FAST_PRINCIPLE.
+        // It masks ALL exceptions including logic bugs. Use specific catches or _WaitIgnoreCancel().
+        var source = @"
+using System;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
+
+public class TestComponent : ComponentBase, IAsyncDisposable
+{
+    private IJSObjectReference? _module;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await {|#0:_module.InvokeVoidAsync(""cleanup"")|};
+            }
+            catch
+            {
+                // WRONG: Bare catch masks ALL exceptions - use _WaitIgnoreCancel() or specific catches
+            }
+        }
+    }
+}";
+
+        await VerifyAnalyzerAsync(source, JsDisconnectedDiagnostic("_module.InvokeVoidAsync"));
     }
 
     [Fact]

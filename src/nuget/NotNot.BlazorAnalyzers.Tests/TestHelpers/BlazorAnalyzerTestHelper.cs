@@ -60,6 +60,26 @@ namespace Microsoft.JSInterop
     {
         public JSDisconnectedException(string message) : base(message) { }
     }
+
+    public class JSException : Exception
+    {
+        public JSException(string message) : base(message) { }
+    }
+}
+
+namespace System.Text.Json
+{
+    public class JsonException : Exception
+    {
+        public JsonException() { }
+        public JsonException(string message) : base(message) { }
+    }
+
+    public static class JsonSerializer
+    {
+        public static T? Deserialize<T>(string json) => default;
+        public static string Serialize<T>(T value) => string.Empty;
+    }
 }
 ";
 }

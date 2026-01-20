@@ -173,13 +173,27 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
         {
             if (current is TryStatementSyntax tryStatement)
             {
-                // Check if any catch clause catches JSDisconnectedException
+                // First verify the invocation is actually inside the try block, not the catch/finally
+                if (!IsNodeInsideTryBlock(invocation, tryStatement))
+                {
+                    current = current.Parent;
+                    continue;
+                }
+
+                // FAIL_FAST_PRINCIPLE: Must check ALL catch clauses.
+                // If ANY blanket pattern exists (bare catch, catch(Exception)), the try-catch is NOT safe.
+                // This prevents escape hatches like: catch(JSDisconnectedException){} catch(Exception){}
+                bool hasJsDisconnectedExceptionCatch = false;
+                bool hasBlanketCatch = false;
+
                 foreach (var catchClause in tryStatement.Catches)
                 {
                     if (catchClause.Declaration == null)
                     {
-                        // Bare catch {} catches everything
-                        return true;
+                        // Bare catch {} catches everything - this is a blanket pattern
+                        // Per R4.1 decision (2026-01-20): Reject bare catch as valid handler
+                        hasBlanketCatch = true;
+                        continue;
                     }
 
                     var exceptionType = catchClause.Declaration.Type;
@@ -188,16 +202,26 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
 
                     var typeName = exceptionType.ToString();
 
-                    // Check for JSDisconnectedException or Exception (catches all)
-                    if (typeName.Contains("JSDisconnectedException") ||
-                        typeName == "Exception" ||
-                        typeName == "System.Exception")
+                    // Check for JSDisconnectedException specifically
+                    if (typeName.Contains("JSDisconnectedException"))
                     {
-                        // Verify the invocation is actually inside the try block, not the catch/finally
-                        if (IsNodeInsideTryBlock(invocation, tryStatement))
-                            return true;
+                        hasJsDisconnectedExceptionCatch = true;
+                    }
+                    // Check for blanket Exception catch
+                    // FAIL_FAST_PRINCIPLE: catch (Exception) blanket catches mask bugs
+                    // Per R4.1 decision (2026-01-20): Reject catch(Exception) as valid handler
+                    else if (typeName == "Exception" || typeName == "System.Exception")
+                    {
+                        hasBlanketCatch = true;
                     }
                 }
+
+                // Only valid if JSDisconnectedException is caught AND no blanket catches exist
+                if (hasJsDisconnectedExceptionCatch && !hasBlanketCatch)
+                    return true;
+
+                // If blanket catch exists, this try-catch is NOT a valid handler - report diagnostic
+                // Continue searching outer scopes in case there's a proper handler
             }
 
             current = current.Parent;
