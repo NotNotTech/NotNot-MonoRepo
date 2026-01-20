@@ -59,6 +59,43 @@
 - **Direct MethodInfo**: `CreateExact*Invoker` bypasses search for known methods
 - See [OpenGenericMethodExecutor.cs](./NotNot/Advanced/OpenGenericMethodExecutor.cs) and [OpenGenericMethodExecutor_Static.cs](./NotNot/Advanced/OpenGenericMethodExecutor_Static.cs)
 
+### Concurrency Utilities (NotNot.Concurrency namespace)
+
+#### Debouncer
+- **Trailing-edge debouncer** using `Timer.Change` pattern
+- Executes ONCE after activity stops (quiet period)
+- Zero exceptions, zero allocations per `Trigger()` call
+- Thread-safe with lock synchronization
+- **Use for**: UI event debouncing, search-as-you-type, resize handlers
+
+```csharp
+var debouncer = new Debouncer(
+    async () => await SaveAsync(),
+    delayMs: 300);
+
+debouncer.Trigger();  // Rapid calls → single execution after 300ms quiet
+debouncer.Dispose();  // Cleanup
+```
+
+**Important**: Timer callbacks run on ThreadPool. For UI frameworks, marshal to the appropriate context:
+- Blazor: `InvokeAsync(() => StateHasChanged())`
+- WPF: `Dispatcher.Invoke(() => ...)`
+
+#### KeyedThrottler
+- **Key-based throttle/rate-limiter** ensuring minimum time BETWEEN executions
+- Multiple rapid calls → multiple executions spaced by `MinDelay`
+- Supports parallelism control via `MinimumParallel` and `ParallelGrowthMultiplier`
+- **Use for**: API rate limiting, service-level coordination
+
+```csharp
+var throttler = new KeyedThrottler { MinDelay = TimeSpan.FromSeconds(1) };
+
+// These will execute with ~1 second between them
+await throttler.EventuallyOnce("api-call", () => CallApiAsync());
+```
+
+**Key difference**: Debouncer = fire once after quiet. KeyedThrottler = fire repeatedly with spacing.
+
 ### Extensions
 - Pure .NET extension methods only.
 - conventions:

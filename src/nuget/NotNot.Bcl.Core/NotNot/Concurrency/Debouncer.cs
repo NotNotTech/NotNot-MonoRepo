@@ -1,186 +1,143 @@
-using System.Collections.Concurrent;
-
 namespace NotNot.Concurrency;
 
 /// <summary>
-/// Allows debouncing an action given a key.  The action will be executed at least once, but not more than once per period specified by MinDelay
-/// <para>duplicate (debounced) calls get a task that completes when the allowed action call finishes.</para>
-/// <para>optionally can limit concurrency of multiple debounceKeys</para>
+/// Trailing-edge debouncer using <see cref="Timer.Change(int, int)"/> pattern.
+/// Reschedules without throwing exceptions or allocating per trigger.
+/// Thread-safe for <see cref="Trigger"/> and <see cref="Dispose"/>; see remarks for async callback race window.
 /// </summary>
-public partial class Debouncer
+/// <remarks>
+/// <para>
+/// <b>This is a trailing-edge debouncer.</b> The action executes ONCE after activity stops.
+/// For throttle/rate-limiting (minimum time between executions), use <see cref="KeyedThrottler"/>.
+/// </para>
+/// <para>
+/// <b>Key differences from <see cref="KeyedThrottler"/>:</b>
+/// <list type="bullet">
+///   <item><b>Debouncer</b>: Executes ONCE after activity stops. Multiple rapid calls result in single execution after quiet period.</item>
+///   <item><b>KeyedThrottler</b>: Ensures minimum time BETWEEN executions. Multiple rapid calls result in multiple executions spaced by MinDelay.</item>
+/// </list>
+/// </para>
+/// <para>
+/// Unlike CancellationTokenSource+Task.Delay pattern, this approach:
+/// <list type="bullet">
+///   <item>Throws zero exceptions per debounce reset</item>
+///   <item>Allocates zero bytes per trigger (Timer reuse)</item>
+///   <item>Creates no first-chance exception debugger noise</item>
+/// </list>
+/// </para>
+/// <para>
+/// Timer callbacks run on ThreadPool. If updating UI state,
+/// marshal to the appropriate synchronization context (e.g., Blazor's <c>InvokeAsync</c>,
+/// WPF's <c>Dispatcher.Invoke</c>, or WinForms' <c>Control.Invoke</c>).
+/// </para>
+/// <para>
+/// <b>Disposal Race Window:</b> Because the lock is released before awaiting
+/// the action, a race window exists where <see cref="Dispose"/> may complete
+/// between the disposed check and action execution. Consumer code MUST verify
+/// its own disposal state within the action callback:
+/// <code>
+/// var debouncer = new Debouncer(
+///     async () =&gt;
+///     {
+///         if (_isDisposed) return;  // Guard inside callback
+///         await DoWorkAsync();
+///     },
+///     delayMs: 150);
+/// </code>
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// // Basic usage
+/// var debouncer = new Debouncer(
+///     async () =&gt; await SaveDataAsync(),
+///     delayMs: 300);
+///
+/// // Rapid calls - only last one fires after 300ms quiet period
+/// debouncer.Trigger();  // Ignored
+/// debouncer.Trigger();  // Ignored
+/// debouncer.Trigger();  // This one fires after 300ms
+///
+/// // Cleanup
+/// debouncer.Dispose();
+/// </code>
+/// </example>
+public sealed class Debouncer : IDisposable
 {
-	/// <summary>
-	/// The minimum amount of time to wait between calls to the debounced action function.
-	/// <para>Default (TimeSpan.Zero) is no delay.   value should range Zero+</para>
-	/// </summary>
-	public TimeSpan MinDelay { get; init; } = TimeSpan.Zero;
-	/// <summary>
-	/// The minimum number of action (for different debounceKeys) to execute at once.
-	/// can adjust upwards based on ParallelGrowthMultiplier, which defaults to 1 (allowing all debounced actions to execute in parallel)
-	/// <para>default 1.  value should range 1+</para>
-	/// </summary>
-	public int MinimumParallel { get; init; } = 1;
+	private readonly Timer _timer;
+	private readonly Func<Task> _action;
+	private readonly int _delayMs;
+	private readonly object _lock = new();
+	private bool _disposed;
 
 	/// <summary>
-	/// allows ParallelActions to increase if there is a backlog of actions.  
-	/// <para>default is 0,  value should range 0 to 1</para>
-	/// <para>a value of 0 means no growth</para>
-	/// <para>a value of 0.05 means 1 additional (more than DefaultParallel) request  when less than 20 enqueued actions,  2 when 20-39 actions, 3 when 40-59, etc.</para>
-	/// <para>a value of 1 means all debounced actions can run in parallel. </para>
+	/// Creates a new trailing-edge debouncer.
 	/// </summary>
-	public double ParallelGrowthMultiplier { get; init; } = 0;
-
-	private readonly ConcurrentDictionary<object, DateTime> _nextExecutionTimes = new ConcurrentDictionary<object, DateTime>();
-	private readonly ConcurrentDictionary<object, Task> _ongoingTasks = new ConcurrentDictionary<object, Task>();
-
-	private AsyncSlots _slots;
-
-	public Debouncer()
+	/// <param name="action">
+	/// Action to execute after the debounce delay.
+	/// For UI frameworks, wrap in the appropriate synchronization context
+	/// (e.g., Blazor's <c>InvokeAsync</c>, WPF's <c>Dispatcher.Invoke</c>).
+	/// </param>
+	/// <param name="delayMs">Debounce delay in milliseconds.</param>
+	public Debouncer(Func<Task> action, int delayMs)
 	{
-		_slots = new AsyncSlots(MinimumParallel);
-
-		__.ThrowIfNot(MinimumParallel >= 1);
-		__.ThrowIfNot(ParallelGrowthMultiplier >= 0 && ParallelGrowthMultiplier <= 1);
-		__.ThrowIfNot(MinDelay >= TimeSpan.Zero);
-
+		__.ThrowIfNot(delayMs >= 0, "delayMs must be non-negative");
+		_action = action ?? throw new ArgumentNullException(nameof(action));
+		_delayMs = delayMs;
+		_timer = new Timer(OnTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
 	}
 
 	/// <summary>
-	/// allows waiting for the debounceKey to clear the queue.   if not in queue, immediately returns success
+	/// Schedules or reschedules the debounced action.
+	/// No exceptions thrown, no allocations.
 	/// </summary>
-	public async Task AwaitComplete(object debounceKey, CancellationToken ct = default)
+	public void Trigger()
 	{
-		if (_ongoingTasks.TryGetValue(debounceKey, out var ongoingTask))
+		lock (_lock)
 		{
-			//await ongoingTask;
-
-			__.DevTrace("await the ongoingTask, or the cancelation token, whichever comes first", debounceKey);
-			var result= await Task.WhenAny(ongoingTask, Task.Delay(-1, ct));
-			await result;
+			if (_disposed) return;
+			_timer.Change(_delayMs, Timeout.Infinite);
 		}
-		else
-		{
-			__.DevTrace("nothing ongoing to await", debounceKey, _ongoingTasks.Count, MinDelay);
-
-
-
-		}
-		ct.ThrowIfCancellationRequested();
 	}
 
-	public async Task EventuallyOnce(object debounceKey, Func<Task> action, CancellationToken ct = default)
+	private async void OnTimerElapsed(object? state)
 	{
-		var result = await EventuallyOnce(debounceKey, async () =>
+		lock (_lock)
 		{
-			await action();
-			return true;
-		}, ct);
-	}
-
-	/// <summary>
-	/// Execute the action for the given debounceKey at least once, but not more than once per period specified by MinDelay.
-	/// </summary>
-	/// <param name="debounceKey">tracks all calls to the action for this key</param>
-	/// <param name="action"></param>
-	/// <param name="ct">allows canceling if needed</param>
-	/// <returns>a Task that resolves when the action finally completes</returns>
-	public async Task<TResult> EventuallyOnce<TResult>(object debounceKey, Func<Task<TResult>> action, CancellationToken ct = default)
-	{
-		__.DevTrace("staring EventuallyOnce");
-		var toReturn = (Task<TResult>)_ongoingTasks.GetOrAdd(debounceKey, _ => Task.Run(async () =>
-		{
-			__.DevTrace("inside EventuallyOnce Task.Run");
-			try
-			{
-				{
-					//wait until the minimum delay has passed since the last execution
-					//as a loop so we can adjust the next execution time (see below)
-					while (true)
-					{
-						ct.ThrowIfCancellationRequested();
-
-						var now = DateTime.UtcNow;
-						var nextExecutionTime = _nextExecutionTimes.GetOrAdd(debounceKey, now.Add(MinDelay));
-						if (nextExecutionTime > now)
-						{
-							var delay = nextExecutionTime - now;
-							delay = delay < MinDelay ? delay : MinDelay; //can't use delay directly because below we sometimes set next time to DateTime.MaxValue
-							await Task.Delay(delay, ct);
-						}
-						else
-						{
-							//done waiting
-							break;
-						}
-					}
-
-				}
-				_BalanceSlots();
-
-
-				__.DevTrace($"{debounceKey} done waiting");
-				try
-				{
-					using (await _slots.Lock(ct))
-					{
-						//set next exec time to infinity, so that other calls to this function will wait until this one completes
-						_nextExecutionTimes[debounceKey] = DateTime.MaxValue;
-						//remove from ongoing tasks before executing, so that other calls can enqueue new requests while the action is executing
-						__.DevTrace($"{debounceKey} remove from ongoing tasks before executing, so that other calls can enqueue new requests while the action is executing");
-						_ongoingTasks.TryRemove(debounceKey, out var _);
-
-						ct.ThrowIfCancellationRequested();
-
-						__.DevTrace($"{debounceKey} action start");
-						var result = await action();
-						__.DevTrace($"{debounceKey} action finish");
-
-						_BalanceSlots();
-
-						return result;
-					}
-
-				}
-				finally
-				{
-					//remove our infinite delay
-					var result = _nextExecutionTimes.TryRemove(debounceKey, out var _);
-					__.AssertIfNot(result);
-					ct.ThrowIfCancellationRequested();
-				}
-			}
-			finally
-			{
-				__.DevTrace("exiting EventuallyOnce Task.Run", debounceKey);
-			}
-		}, ct));
-
-
-		var isInserted = _ongoingTasks.ContainsKey(debounceKey);
-		__.DevTrace("was insert successful?", isInserted, debounceKey);
-
-		if (_ongoingTasks.TryGetValue(debounceKey, out var ongoingTask))
-		{
-			__.DevTrace("(_ongoingTasks.TryGetValue TRUE", debounceKey);
+			if (_disposed) return;
 		}
-		else
+
+		try
 		{
-			__.DevTrace("(_ongoingTasks.TryGetValue FALSE", debounceKey);
+			await _action();
 		}
-		//await to bubble up any problems within this callstack
-		return await toReturn;
+		catch (ObjectDisposedException)
+		{
+			// Expected during disposal - component may have been disposed
+			// between timer firing and callback execution
+		}
+		// Async void timer callback MUST NOT propagate exceptions - they would crash the process.
+		// This is the correct pattern for fire-and-forget Timer callbacks.
+#pragma warning disable NN_R005
+		catch (Exception ex)
+#pragma warning restore NN_R005
+		{
+			// Timer callbacks are async void - unhandled exceptions would crash the process.
+			// Use __.DebugAssert for visibility during development.
+			__.DebugAssert(ex);
+		}
 	}
 
 	/// <summary>
-	/// potentially adjust parallel slots
+	/// Disposes the debouncer and stops any pending timer callbacks.
 	/// </summary>
-	private void _BalanceSlots()
+	public void Dispose()
 	{
-		var targetMaxSlots = MinimumParallel + (int)(_ongoingTasks.Count * ParallelGrowthMultiplier);
-		//adjust slots avaiable
-		if (_slots.Max != targetMaxSlots)
+		lock (_lock)
 		{
-			_slots.ChangeMax(targetMaxSlots);
+			if (_disposed) return;
+			_disposed = true;
 		}
+		_timer.Dispose();
 	}
 }
