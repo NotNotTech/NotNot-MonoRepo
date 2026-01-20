@@ -14,11 +14,23 @@ public class ReflectHelper
 	///    return details about the callsite of the caller
 	///    this is generated at build time, so no performance impact.
 	/// </summary>
-	public static (string MemberName, string FilePath, int LineNumber) GetCallerInfo([CallerMemberName] string memberName = "",
-		[CallerFilePath] string sourceFilePath = "",
-		[CallerLineNumber] int sourceLineNumber = 0)
+	public static (string MemberName, string FilePath, int LineNumber) GetCallerInfo([CallerMemberName] string callerMemberName = "",
+		[CallerFilePath] string callerFilePath = "",
+		[CallerLineNumber] int callerLineNumber = 0)
 	{
-		return (memberName, sourceFilePath, sourceLineNumber);
+		return (callerMemberName, callerFilePath, callerLineNumber);
+	}
+
+	/// <summary>
+	/// return callerInfo formatted "{callerMemberName}|{callerFilePath}:{callerLineNumber}"
+	/// </summary>
+	/// <param name="callerMemberName"></param>
+	/// <param name="callerFilePath"></param>
+	/// <param name="callerLineNumber"></param>
+	/// <returns></returns>
+	public string GetCallerInfoString([CallerMemberName] string callerMemberName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
+	{
+		return $"{callerMemberName}|{callerFilePath}:{callerLineNumber}";
 	}
 
 	// Extension method to check if a virtual method is overridden
