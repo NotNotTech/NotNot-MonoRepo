@@ -122,6 +122,77 @@ The analyzer recognizes these safe wrapper extension methods (from NotNot.Bcl.Co
 
 These provide a concise alternative to verbose try-catch blocks.
 
+### NNB008: JsonException from JS Interop - Fix JavaScript Instead
+
+**Severity:** Error
+**Category:** Reliability
+
+Detects catching and swallowing `JsonException` from JS interop calls. When `InvokeAsync<T>` fails with `JsonException`, it typically indicates a bug in the JavaScript function (null reference, undefined property). The correct fix is to improve the JavaScript with defensive coding, not mask the error in C#.
+
+```csharp
+// ❌ WRONG - masks JS bug, NNB008 fires
+try
+{
+    var result = await _module.InvokeAsync<string>("parseJson", data);
+}
+catch (JsonException)
+{
+    // Silently swallowing JS error - the JS function has a bug!
+}
+
+// ✅ CORRECT - fix the JavaScript function instead
+// In your .js file, add defensive coding:
+// const element = container?.querySelector('.selector');
+// if (!element) {
+//     console.warn('[module] element not found');
+//     return null; // Graceful return instead of throwing
+// }
+```
+
+**Why ERROR severity?** Per the FAIL_FAST principle, masking bugs leads to harder-to-debug issues later. When JS interop throws `JsonException`, the JavaScript function needs fixing - catching it in C# hides the root cause.
+
+**Known Limitations:**
+- Skips try blocks also containing `System.Text.Json` API calls (e.g., `JsonSerializer.Deserialize`) to avoid false positives
+- Applies to all classes, not just Blazor components (JsonException masking is an anti-pattern everywhere)
+
+### NNB009: Verbose Disposal Exception Catching
+
+**Severity:** Warning
+**Category:** Lifecycle
+
+Detects verbose catch blocks for cancel exceptions in `DisposeAsync` methods. When you catch `JSDisconnectedException`, `OperationCanceledException`, or `TaskCanceledException` separately with empty handlers, consider using `_WaitIgnoreCancel()` for cleaner, more maintainable code.
+
+```csharp
+// ❌ VERBOSE - NNB009 fires
+public async ValueTask DisposeAsync()
+{
+    try
+    {
+        await _module.InvokeVoidAsync("cleanup");
+    }
+    catch (JSDisconnectedException) { }
+    catch (OperationCanceledException) { }
+    catch (TaskCanceledException) { }  // Easy to miss one!
+}
+
+// ✅ CONCISE - use _WaitIgnoreCancel() from NotNot.Bcl.Core
+public async ValueTask DisposeAsync()
+{
+    await _module.InvokeVoidAsync("cleanup")._WaitIgnoreCancel();
+}
+```
+
+**Why WARNING severity?** This is a style/maintainability improvement, not a logic bug. The verbose pattern works but is error-prone (easy to forget one exception type) and violates DRY.
+
+**When NNB009 does NOT fire:**
+- Catch blocks with actual logic (not just swallowing)
+- Patterns also catching `ObjectDisposedException` or `JSException` (different semantics)
+- Catch clauses with non-trivial `when` filters (intentional conditional handling)
+
+**Known Limitations:**
+- v1 scope: `DisposeAsync` methods in Blazor components only
+- Code fix not yet implemented (coming in v2)
+
 ## Configuration
 
 Configure rules via `.editorconfig`:
@@ -131,6 +202,8 @@ Configure rules via `.editorconfig`:
 # Configure rule severity
 dotnet_diagnostic.NNB002.severity = error
 dotnet_diagnostic.NNB007.severity = warning
+dotnet_diagnostic.NNB008.severity = error
+dotnet_diagnostic.NNB009.severity = warning
 ```
 
 ## Why These Rules?
