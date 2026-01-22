@@ -28,9 +28,21 @@ public class ReflectHelper
 	/// <param name="callerFilePath"></param>
 	/// <param name="callerLineNumber"></param>
 	/// <returns></returns>
-	public string GetCallerInfoString([CallerMemberName] string callerMemberName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
+	public static string GetCallerInfoString([CallerMemberName] string callerMemberName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
 	{
 		return $"{callerMemberName}|{callerFilePath}:{callerLineNumber}";
+	}
+
+	/// <summary>
+	/// shortcut for injecting
+	/// </summary>
+	/// <param name="callerMemberName"></param>
+	/// <param name="callerFilePath"></param>
+	/// <param name="callerLineNumber"></param>
+	/// <returns></returns>
+	public static string Gcis([CallerMemberName] string callerMemberName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
+	{
+		return GetCallerInfoString(callerMemberName, callerFilePath, callerLineNumber);
 	}
 
 	// Extension method to check if a virtual method is overridden
