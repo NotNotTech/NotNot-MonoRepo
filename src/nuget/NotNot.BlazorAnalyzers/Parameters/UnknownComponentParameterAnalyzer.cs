@@ -56,6 +56,35 @@ public class UnknownComponentParameterAnalyzer : DiagnosticAnalyzer
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
 
+    /// <summary>
+    /// Hardcoded exemptions for known-good attributes.
+    /// These are common HTML attributes that pass through to the underlying element.
+    /// </summary>
+    private static readonly string[] ExemptedAttributes =
+    {
+        "data-xcs",     // XRay callsite instrumentation
+        "title",        // Native HTML tooltip
+        "role",         // ARIA role attribute
+        "tabindex",     // Keyboard navigation
+        "style",        // Inline styles (though usually prefer Class)
+        "id",           // Element ID
+        "name",         // Form element name
+        "placeholder",  // Input placeholder
+        "disabled",     // Disabled state
+        "readonly",     // Read-only state
+        "autofocus",    // Auto-focus on load
+    };
+
+    /// <summary>
+    /// Attribute prefixes that are always exempt (e.g., aria-*, data-*, on*).
+    /// </summary>
+    private static readonly string[] ExemptedPrefixes =
+    {
+        "aria-",        // All ARIA accessibility attributes
+        "data-",        // All data-* attributes (HTML5 custom data)
+        "on",           // All event handlers (onclick, onchange, onkeydown, etc.)
+    };
+
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
     {
@@ -103,8 +132,8 @@ public class UnknownComponentParameterAnalyzer : DiagnosticAnalyzer
         if (IsValidParameter(componentType, parameterName))
             return;
 
-        // Hardcoded exemption for data-xcs (XRay callsite instrumentation)
-        if (parameterName == "data-xcs")
+        // Check hardcoded exemptions (exact match and prefix match)
+        if (IsExemptedAttribute(parameterName))
             return;
 
         // Skip components with CaptureUnmatchedValues (attribute splatting)
@@ -377,5 +406,24 @@ public class UnknownComponentParameterAnalyzer : DiagnosticAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Checks if the attribute name is in the exemption list (exact or prefix match).
+    /// </summary>
+    private static bool IsExemptedAttribute(string attributeName)
+    {
+        // Exact match check
+        if (ExemptedAttributes.Contains(attributeName))
+            return true;
+
+        // Prefix match check (e.g., aria-*, data-*)
+        foreach (var prefix in ExemptedPrefixes)
+        {
+            if (attributeName.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 }

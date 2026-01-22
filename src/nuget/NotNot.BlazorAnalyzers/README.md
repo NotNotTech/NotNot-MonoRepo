@@ -164,20 +164,18 @@ Detects unknown parameters passed to Blazor components that don't support attrib
 
 ```razor
 @* ❌ Unknown parameter - NNB010 fires *@
-<MudButton data-xcs="@Rh.Gcis()" Color="Color.Primary">Click</MudButton>
+<MudButton unknownparam="value" Color="Color.Primary">Click</MudButton>
 @* If MudButton doesn't have [Parameter(CaptureUnmatchedValues = true)],
-   "data-xcs" will cause a runtime exception *@
+   unknown parameters will cause a runtime exception *@
 
 @* ❌ Typo in parameter name - NNB010 fires *@
 <MudButton Colr="Color.Primary">Click</MudButton>
 @* "Colr" instead of "Color" - caught at compile time! *@
 
-@* ❌ Even components with attribute splatting trigger NNB010 *@
-<MudButtonSplatted data-xcs="@Rh.Gcis()" aria-label="Close">
-    @* NNB010 fires even though MudButtonSplatted has CaptureUnmatchedValues.
-       This is STRICT MODE - all unknown params are flagged.
-       Suppress via .editorconfig if intentional. *@
-</MudButtonSplatted>
+@* ✅ Common HTML attributes are exempt - no error *@
+<MudButton aria-label="Close" title="Close button" @onclick="HandleClick">
+    Click
+</MudButton>
 ```
 
 **How it works:**
@@ -187,9 +185,16 @@ Detects unknown parameters passed to Blazor components that don't support attrib
 4. Validates parameter names against the component's `[Parameter]` properties
 5. Skips components with `CaptureUnmatchedValues` (those are handled by NNB011)
 
-**Note:** HTML elements (`<div>`, `<span>`, etc.) are NOT analyzed - only Blazor components. HTML5 `data-*` attributes are valid on HTML elements.
+**Note:** HTML elements (`<div>`, `<span>`, etc.) are NOT analyzed - only Blazor components.
 
-**Exemptions:** `data-xcs` is hardcoded as exempt (XRay callsite instrumentation).
+**Exempted Attributes:**
+
+| Pattern | Examples | Rationale |
+|---------|----------|-----------|
+| `aria-*` | `aria-label`, `aria-hidden` | Accessibility attributes |
+| `data-*` | `data-xcs`, `data-testid` | HTML5 custom data attributes |
+| `on*` | `onclick`, `onchange` | Event handlers |
+| Common HTML | `title`, `role`, `tabindex`, `id`, `style` | Standard HTML passthrough |
 
 **Suppression:** To allow specific unknown attributes, use `.editorconfig`:
 ```ini
@@ -203,30 +208,32 @@ dotnet_diagnostic.NNB010.severity = none  # Disable entirely
 **Severity:** Error
 **Category:** Parameters
 
-Strict sibling to NNB010. Detects unknown parameters on components that HAVE `[Parameter(CaptureUnmatchedValues = true)]`. While splatting allows these at runtime, this catches typos and enforces explicit parameter usage.
+Strict sibling to NNB010. Detects unknown parameters on components that HAVE `[Parameter(CaptureUnmatchedValues = true)]`. While splatting allows these at runtime, this catches typos and enforces explicit parameter usage for non-standard attributes.
 
 ```razor
 @* ❌ NNB011 fires - unknown param on splatted component *@
-<MudButton aria-label="Close">Click</MudButton>
+<MudButton customattr="value">Click</MudButton>
 @* MudButton has splatting, so this works at runtime,
    but NNB011 flags it to catch potential typos *@
 
-@* ✅ No error - data-xcs is exempted *@
-<MudButton data-xcs="@Rh.Gcis()">Click</MudButton>
+@* ✅ No error - common HTML attributes are exempted *@
+<MudButton aria-label="Close" title="Tooltip" @onclick="HandleClick">
+    Click
+</MudButton>
 
 @* ✅ No error - known parameter *@
 <MudButton Color="Color.Primary">Click</MudButton>
 ```
 
-**When to disable NNB011:**
-- If you intentionally use attribute splatting for HTML passthrough (e.g., `aria-*`, `data-*`)
-- When using third-party components with splatting by design
+**Exempted Attributes:** Same as NNB010 (see table above).
 
-**Exemptions:** `data-xcs` is hardcoded as exempt.
+**When to disable NNB011:**
+- When using third-party components with splatting for custom attributes
+- For components that intentionally accept arbitrary props
 
 ```ini
 [*.razor]
-dotnet_diagnostic.NNB011.severity = none  # Allow splatted attributes
+dotnet_diagnostic.NNB011.severity = none  # Allow non-standard splatted attributes
 ```
 
 ### NNB009: Verbose Disposal Exception Catching

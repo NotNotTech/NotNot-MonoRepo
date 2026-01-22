@@ -126,14 +126,14 @@ namespace TestApp
         protected override void BuildRenderTree(RenderTreeBuilder __builder)
         {
             __builder.OpenComponent<MudButtonSplatted>(0);
-            __builder.AddComponentParameter(1, {|#0:""aria-label""|}, ""Close button"");
+            __builder.AddComponentParameter(1, {|#0:""unknownattr""|}, ""Close button"");
             __builder.CloseComponent();
         }
     }
 }
 ";
 
-        await VerifyAnalyzerAsync(source, SplattedUnknownDiagnostic("aria-label", "MudButtonSplatted"));
+        await VerifyAnalyzerAsync(source, SplattedUnknownDiagnostic("unknownattr", "MudButtonSplatted"));
     }
 
     [Fact]
@@ -217,6 +217,64 @@ namespace TestApp
     }
 
     [Fact]
+    public async Task AriaAttributes_ExemptedByPrefix_NoDiagnostic()
+    {
+        // All aria-* attributes are exempted by prefix
+        var source = TestComponentWithSplatting + @"
+namespace TestApp
+{
+    using Microsoft.AspNetCore.Components;
+    using Microsoft.AspNetCore.Components.Rendering;
+    using TestComponents;
+
+    public class TestPage : ComponentBase
+    {
+        protected override void BuildRenderTree(RenderTreeBuilder __builder)
+        {
+            __builder.OpenComponent<MudButtonSplatted>(0);
+            __builder.AddComponentParameter(1, ""aria-label"", ""test"");
+            __builder.AddComponentParameter(2, ""aria-hidden"", ""true"");
+            __builder.AddComponentParameter(3, ""aria-describedby"", ""desc"");
+            __builder.CloseComponent();
+        }
+    }
+}
+";
+
+        // No diagnostics - all aria-* attributes are exempted
+        await VerifyAnalyzerAsync(source);
+    }
+
+    [Fact]
+    public async Task CommonHtmlAttributes_Exempted_NoDiagnostic()
+    {
+        // Common HTML passthrough attributes are exempted
+        var source = TestComponentWithSplatting + @"
+namespace TestApp
+{
+    using Microsoft.AspNetCore.Components;
+    using Microsoft.AspNetCore.Components.Rendering;
+    using TestComponents;
+
+    public class TestPage : ComponentBase
+    {
+        protected override void BuildRenderTree(RenderTreeBuilder __builder)
+        {
+            __builder.OpenComponent<MudButtonSplatted>(0);
+            __builder.AddComponentParameter(1, ""title"", ""tooltip"");
+            __builder.AddComponentParameter(2, ""role"", ""button"");
+            __builder.AddComponentParameter(3, ""tabindex"", ""0"");
+            __builder.CloseComponent();
+        }
+    }
+}
+";
+
+        // No diagnostics - common HTML attributes are exempted
+        await VerifyAnalyzerAsync(source);
+    }
+
+    [Fact]
     public async Task MultipleUnknownParameters_OnSplattedComponent_ReportsAll()
     {
         var source = TestComponentWithSplatting + @"
@@ -231,13 +289,13 @@ namespace TestApp
         protected override void BuildRenderTree(RenderTreeBuilder __builder)
         {
             __builder.OpenComponent<MudButtonSplatted>(0);
-            __builder.AddComponentParameter(1, {|#0:""aria-label""|}, ""Button"");
+            __builder.AddComponentParameter(1, {|#0:""unknownattr""|}, ""Button"");
             __builder.AddComponentParameter(2, ""Color"", ""primary""); // Valid
             __builder.AddComponentParameter(3, ""data-xcs"", ""xyz""); // Exempted
             __builder.CloseComponent();
 
             __builder.OpenComponent<MudButtonSplatted>(4);
-            __builder.AddComponentParameter(5, {|#1:""role""|}, ""button"");
+            __builder.AddComponentParameter(5, {|#1:""foobar""|}, ""button"");
             __builder.CloseComponent();
         }
     }
@@ -245,7 +303,7 @@ namespace TestApp
 ";
 
         await VerifyAnalyzerAsync(source,
-            SplattedUnknownDiagnostic("aria-label", "MudButtonSplatted", 0),
-            SplattedUnknownDiagnostic("role", "MudButtonSplatted", 1));
+            SplattedUnknownDiagnostic("unknownattr", "MudButtonSplatted", 0),
+            SplattedUnknownDiagnostic("foobar", "MudButtonSplatted", 1));
     }
 }
