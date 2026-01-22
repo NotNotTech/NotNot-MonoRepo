@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -34,16 +35,73 @@ public class ReflectHelper
 	}
 
 	/// <summary>
-	/// shortcut for injecting
+	/// helper for injecting a short unique id for a callsite, plus the callsite info.  output is `$"{xrayId}.{callerLineNumber}|{callsite}"`  eg:  "MyFile.42|MyMethod|C:\Path\To\MyFile.cs:42"
 	/// </summary>
-	/// <param name="callerMemberName"></param>
-	/// <param name="callerFilePath"></param>
-	/// <param name="callerLineNumber"></param>
-	/// <returns></returns>
-	public static string Gcis([CallerMemberName] string callerMemberName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
+	public static string XrayId([CallerMemberName] string callerMemberName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
 	{
-		return GetCallerInfoString(callerMemberName, callerFilePath, callerLineNumber);
+		var callsite = GetCallerInfoString(callerMemberName, callerFilePath, callerLineNumber);
+		if (!_xrayIdCache.TryGetValue(callerFilePath, out var xrayId))
+		{
+			//this filepath doesn't have an xrayId yet, generate one
+			lock (_xrayIdCache)
+			{
+				// generate a short unique id for this callsite
+				var fileAcronym = Path.GetFileNameWithoutExtension(callerFilePath)._ToAcronym();
+
+				//get/create the xrayId for this file
+				{
+
+					//make sure not already used, loop until unique
+					int? attempts = null;
+					while (true)
+					{
+						var xrayIdToTry = attempts == null ? fileAcronym : $"{fileAcronym}{attempts}";
+						//in addition to callerFilePath --> xrayId mapping, we also store xrayId --> callerFilePath mapping to detect collisions
+						if (_xrayIdCache.TryGetValue(xrayIdToTry, out var existingFilePath))
+						{
+							if (existingFilePath != callerFilePath)
+							{
+								//collision, add suffix
+								if (attempts == null)
+								{
+									attempts = 1;
+								}
+								else
+								{
+									attempts++;
+								}
+								continue;
+							}
+							else
+							{
+								//same file, use it, as some other callsite raced us to add it
+								xrayId = xrayIdToTry;
+								break;
+							}
+						}
+						else
+						{
+							//found a "slot" not used, use it for this mapping
+							xrayId = xrayIdToTry;
+							//store both mappings
+							_xrayIdCache[xrayIdToTry] = callerFilePath; // xrayId --> callerFilePath
+							_xrayIdCache[callerFilePath] = xrayIdToTry; // callerFilePath --> xrayId
+							break;
+						}
+					}
+
+				}
+
+
+			}
+		}
+		//now, xrayId is mapped to callerFilePath
+		return $"{xrayId}.{callerLineNumber}|{callsite}";
+
 	}
+
+	private static ConcurrentDictionary<string, string> _xrayIdCache = new();
+
 
 	// Extension method to check if a virtual method is overridden
 	public static bool IsMethodOverridden(Object obj, string methodName)
