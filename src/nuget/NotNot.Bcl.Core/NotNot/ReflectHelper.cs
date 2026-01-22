@@ -35,7 +35,7 @@ public class ReflectHelper
 	}
 
 	/// <summary>
-	/// helper for injecting a short unique id for a callsite, plus the callsite info.  output is `$"{xrayId}.{callerLineNumber}|{callsite}"`  eg:  "MF.42|MyMethod|C:\Path\To\MyFile.cs:42"
+	/// helper for injecting a short unique id for a callsite, plus the callsite info.  output is `"XRAYID|METHOD|CALLSITE"`.   `  eg:  "MF.42|MyMethod|C:\Path\To\MyFile.cs:42"
 	/// </summary>
 	public static string XrayId([CallerMemberName] string callerMemberName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
 	{
