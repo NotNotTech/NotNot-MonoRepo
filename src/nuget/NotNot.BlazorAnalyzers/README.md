@@ -155,6 +155,80 @@ catch (JsonException)
 - Skips try blocks also containing `System.Text.Json` API calls (e.g., `JsonSerializer.Deserialize`) to avoid false positives
 - Applies to all classes, not just Blazor components (JsonException masking is an anti-pattern everywhere)
 
+### NNB010: Unknown Component Parameter
+
+**Severity:** Error
+**Category:** Parameters
+
+Detects unknown parameters passed to Blazor components that don't support attribute splatting. This catches typos in parameter names and prevents runtime errors from invalid attributes.
+
+```razor
+@* ❌ Unknown parameter - NNB010 fires *@
+<MudButton data-xcs="@Rh.Gcis()" Color="Color.Primary">Click</MudButton>
+@* If MudButton doesn't have [Parameter(CaptureUnmatchedValues = true)],
+   "data-xcs" will cause a runtime exception *@
+
+@* ❌ Typo in parameter name - NNB010 fires *@
+<MudButton Colr="Color.Primary">Click</MudButton>
+@* "Colr" instead of "Color" - caught at compile time! *@
+
+@* ❌ Even components with attribute splatting trigger NNB010 *@
+<MudButtonSplatted data-xcs="@Rh.Gcis()" aria-label="Close">
+    @* NNB010 fires even though MudButtonSplatted has CaptureUnmatchedValues.
+       This is STRICT MODE - all unknown params are flagged.
+       Suppress via .editorconfig if intentional. *@
+</MudButtonSplatted>
+```
+
+**How it works:**
+1. Analyzes generated Razor code (`.g.cs` files)
+2. Tracks `OpenComponent<T>` calls to identify component types
+3. Detects `AddComponentParameter(N, "string-literal", value)` calls (vs `nameof()`)
+4. Validates parameter names against the component's `[Parameter]` properties
+5. Skips components with `CaptureUnmatchedValues` (those are handled by NNB011)
+
+**Note:** HTML elements (`<div>`, `<span>`, etc.) are NOT analyzed - only Blazor components. HTML5 `data-*` attributes are valid on HTML elements.
+
+**Exemptions:** `data-xcs` is hardcoded as exempt (XRay callsite instrumentation).
+
+**Suppression:** To allow specific unknown attributes, use `.editorconfig`:
+```ini
+[*.razor]
+dotnet_diagnostic.NNB010.severity = none  # Disable entirely
+# Or use #pragma warning disable NNB010 for specific cases
+```
+
+### NNB011: Unknown Parameter on Splatted Component (Strict Mode)
+
+**Severity:** Error
+**Category:** Parameters
+
+Strict sibling to NNB010. Detects unknown parameters on components that HAVE `[Parameter(CaptureUnmatchedValues = true)]`. While splatting allows these at runtime, this catches typos and enforces explicit parameter usage.
+
+```razor
+@* ❌ NNB011 fires - unknown param on splatted component *@
+<MudButton aria-label="Close">Click</MudButton>
+@* MudButton has splatting, so this works at runtime,
+   but NNB011 flags it to catch potential typos *@
+
+@* ✅ No error - data-xcs is exempted *@
+<MudButton data-xcs="@Rh.Gcis()">Click</MudButton>
+
+@* ✅ No error - known parameter *@
+<MudButton Color="Color.Primary">Click</MudButton>
+```
+
+**When to disable NNB011:**
+- If you intentionally use attribute splatting for HTML passthrough (e.g., `aria-*`, `data-*`)
+- When using third-party components with splatting by design
+
+**Exemptions:** `data-xcs` is hardcoded as exempt.
+
+```ini
+[*.razor]
+dotnet_diagnostic.NNB011.severity = none  # Allow splatted attributes
+```
+
 ### NNB009: Verbose Disposal Exception Catching
 
 **Severity:** Warning
@@ -204,6 +278,8 @@ dotnet_diagnostic.NNB002.severity = error
 dotnet_diagnostic.NNB007.severity = warning
 dotnet_diagnostic.NNB008.severity = error
 dotnet_diagnostic.NNB009.severity = warning
+dotnet_diagnostic.NNB010.severity = error
+dotnet_diagnostic.NNB011.severity = error
 ```
 
 ## Why These Rules?
