@@ -299,6 +299,7 @@ public partial class LoLoRoot
    /// assert, but only in DEBUG builds
    /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
    /// </summary>
+   [Conditional("DEBUG")]
    public void DebugAssert(Exception ex, [CallerMemberName] string sourceMemberName = "",
       [CallerFilePath] string sourceFilePath = "",
       [CallerLineNumber] int sourceLineNumber = 0)

@@ -59,6 +59,47 @@
 - **Direct MethodInfo**: `CreateExact*Invoker` bypasses search for known methods
 - See [OpenGenericMethodExecutor.cs](./NotNot/Advanced/OpenGenericMethodExecutor.cs) and [OpenGenericMethodExecutor_Static.cs](./NotNot/Advanced/OpenGenericMethodExecutor_Static.cs)
 
+### Event Utilities (NotNot namespace)
+
+Thread-safe event registration and invocation with automatic cleanup of expired handlers.
+
+#### Sync Events (WeakReference storage)
+- **`Event<TEventArgs>`**: Standard event pattern with sender + EventArgs
+- **`ActionEvent<TArgs>`**: Lightweight - no sender parameter
+- **`ActionEventSpan<TArgs>`**: For high-perf scenarios passing `Span<TArgs>`
+
+WeakReference storage allows handlers to be garbage collected without explicit unsubscription.
+
+```csharp
+var changed = new ActionEvent<string>();
+changed.Handler += (msg) => Console.WriteLine(msg);
+changed.Raise("Hello");  // Invokes all live handlers
+```
+
+#### Async Events (Strong reference storage)
+- **`AsyncActionEvent<TArgs>`**: Async version of ActionEvent
+- **`AsyncEvent<TEventArgs>`**: Async version with sender parameter
+
+**Why strong references for async?** WeakReference + async is architecturally problematic - GC can collect handlers during the await window between `TryGetTarget` and completion.
+
+```csharp
+var dataReady = new AsyncActionEvent<byte[]>();
+dataReady.Handler += async (data) => await ProcessAsync(data);
+await dataReady.RaiseAsync(buffer, ct);  // Sequential await with backpressure
+dataReady.Handler -= myHandler;  // MUST unsubscribe explicitly
+```
+
+**Key differences**:
+| Feature | Sync (Event/ActionEvent) | Async (AsyncActionEvent/AsyncEvent) |
+|---------|-------------------------|-------------------------------------|
+| Storage | WeakReference | Strong reference |
+| Cleanup | Automatic (GC) | Manual (must unsubscribe) |
+| Backpressure | None | Sequential await |
+| CancellationToken | N/A | Optional (checked between handlers) |
+| Exception handling | Per-handler (continues) | First exception stops chain |
+
+**Exception semantics**: Async variants stop invocation on first exception (bubbles to caller). If resilient "fire-all-despite-errors" semantics are needed, callers must wrap handlers individually.
+
 ### Concurrency Utilities (NotNot.Concurrency namespace)
 
 #### Debouncer
