@@ -143,15 +143,16 @@ public class SerializationHelper
 	/// <summary>
 	/// how the serialization helper should convert objects to json (for use with logging, etc).
 	/// <para>if you have a custom type that needs to be handled, add it to _jsonOptions.Converters at application start up.</para>
+	/// <para>Deep object graphs are truncated at depth 10 with "[depth limit exceeded]" placeholder.</para>
 	/// </summary>
 	public JsonSerializerOptions _logJsonOptions = new()
 	{
-		MaxDepth = 10,
+		MaxDepth = 64, // High limit - actual truncation handled by DepthTruncatingConverterFactory
 		IncludeFields = true,
 		ReferenceHandler = ReferenceHandler.IgnoreCycles,
 		Converters =
 		{
-			//new ObjConverter<Exception>(value => $"EX={value.GetType().Name}_MSG={value.Message}_INNER={value.InnerException?.Message}"),			
+			//new ObjConverter<Exception>(value => $"EX={value.GetType().Name}_MSG={value.Message}_INNER={value.InnerException?.Message}"),
 			new ObjConverter<MethodBase>(value => value.Name),
 			new ObjConverter<Type>(value => value.FullName),
 			new ObjConverter<StackTrace>(value => value.GetFrames()),
@@ -159,6 +160,8 @@ public class SerializationHelper
 			new ObjConverter<StackFrame>(value =>
 				$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
 			//new ObjConverter<StackFrame>((value) => $"{value.ToString()}\n"),
+			// Must be LAST - gracefully truncates deep graphs instead of throwing
+			new DepthTruncatingConverterFactory(maxDepth: 10),
 		},
 		AllowTrailingCommas = true,
 		WriteIndented = true,
@@ -552,5 +555,112 @@ internal class CaseInsensitiveEnumConverter<T> : JsonConverter<T> where T : stru
 	public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
 	{
 		writer.WriteStringValue(value.ToString());
+	}
+}
+
+/// <summary>
+/// A JsonConverterFactory that wraps serialization to gracefully truncate deep object graphs
+/// instead of throwing MaxDepth exceptions. Uses Utf8JsonWriter.CurrentDepth for tracking.
+/// <para>Add as the LAST converter in the chain (lowest priority) so type-specific converters run first.</para>
+/// </summary>
+internal class DepthTruncatingConverterFactory : JsonConverterFactory
+{
+	private readonly int _maxDepth;
+	private readonly string _truncationMessage;
+
+	public DepthTruncatingConverterFactory(int maxDepth = 10, string truncationMessage = "[depth limit exceeded]")
+	{
+		_maxDepth = maxDepth;
+		_truncationMessage = truncationMessage;
+	}
+
+	public override bool CanConvert(Type typeToConvert)
+	{
+		// Handle complex types that can cause deep nesting
+		// Exclude primitives, strings, enums which don't need depth protection
+		return !typeToConvert.IsPrimitive
+			&& typeToConvert != typeof(string)
+			&& typeToConvert != typeof(decimal)
+			&& typeToConvert != typeof(DateTime)
+			&& typeToConvert != typeof(DateTimeOffset)
+			&& typeToConvert != typeof(Guid)
+			&& typeToConvert != typeof(TimeSpan)
+			&& !typeToConvert.IsEnum;
+	}
+
+	public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+	{
+		var converterType = typeof(DepthTruncatingConverter<>).MakeGenericType(typeToConvert);
+		return (JsonConverter?)Activator.CreateInstance(converterType, _maxDepth, _truncationMessage);
+	}
+
+	private class DepthTruncatingConverter<T> : JsonConverter<T>
+	{
+		private readonly int _maxDepth;
+		private readonly string _truncationMessage;
+
+		public DepthTruncatingConverter(int maxDepth, string truncationMessage)
+		{
+			_maxDepth = maxDepth;
+			_truncationMessage = truncationMessage;
+		}
+
+		public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			// For reading, delegate to default behavior
+			// Create temporary options without this converter
+			var tempOptions = CreateOptionsWithoutThisConverter(options);
+			return JsonSerializer.Deserialize<T>(ref reader, tempOptions);
+		}
+
+		public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
+		{
+			if (value is null)
+			{
+				writer.WriteNullValue();
+				return;
+			}
+
+			// Check depth using the writer's CurrentDepth property
+			if (writer.CurrentDepth >= _maxDepth)
+			{
+				// At max depth - write truncation message instead of recursing
+				writer.WriteStringValue(_truncationMessage);
+				return;
+			}
+
+			// Serialize normally using options without this converter to avoid recursion
+			var tempOptions = CreateOptionsWithoutThisConverter(options);
+			JsonSerializer.Serialize(writer, value, tempOptions);
+		}
+
+		private static JsonSerializerOptions? _cachedOptionsWithoutConverter;
+
+		private JsonSerializerOptions CreateOptionsWithoutThisConverter(JsonSerializerOptions options)
+		{
+			// Cache the options since creating them is expensive
+			// Thread-safety: worst case we create a few extra instances, no correctness issue
+			if (_cachedOptionsWithoutConverter is not null)
+			{
+				return _cachedOptionsWithoutConverter;
+			}
+
+			var newOptions = new JsonSerializerOptions(options);
+
+			// Remove DepthTruncatingConverterFactory to avoid infinite recursion
+			for (int i = newOptions.Converters.Count - 1; i >= 0; i--)
+			{
+				if (newOptions.Converters[i] is DepthTruncatingConverterFactory)
+				{
+					newOptions.Converters.RemoveAt(i);
+				}
+			}
+
+			// Increase MaxDepth on inner options since we're handling truncation ourselves
+			newOptions.MaxDepth = 64;
+
+			_cachedOptionsWithoutConverter = newOptions;
+			return newOptions;
+		}
 	}
 }
