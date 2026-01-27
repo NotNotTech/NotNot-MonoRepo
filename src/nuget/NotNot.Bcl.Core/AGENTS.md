@@ -68,35 +68,35 @@ Thread-safe event registration and invocation with automatic cleanup of expired 
 - **`ActionEvent<TArgs>`**: Lightweight - no sender parameter
 - **`ActionEventSpan<TArgs>`**: For high-perf scenarios passing `Span<TArgs>`
 
-WeakReference storage allows handlers to be garbage collected without explicit unsubscription.
-
 ```csharp
 var changed = new ActionEvent<string>();
 changed.Handler += (msg) => Console.WriteLine(msg);
 changed.Raise("Hello");  // Invokes all live handlers
 ```
 
-#### Async Events (Strong reference storage)
+#### Async Events (WeakReference storage)
 - **`AsyncActionEvent<TArgs>`**: Async version of ActionEvent
 - **`AsyncEvent<TEventArgs>`**: Async version with sender parameter
-
-**Why strong references for async?** WeakReference + async is architecturally problematic - GC can collect handlers during the await window between `TryGetTarget` and completion.
 
 ```csharp
 var dataReady = new AsyncActionEvent<byte[]>();
 dataReady.Handler += async (data) => await ProcessAsync(data);
 await dataReady.RaiseAsync(buffer, ct);  // Sequential await with backpressure
-dataReady.Handler -= myHandler;  // MUST unsubscribe explicitly
+// No explicit unsubscribe required - cleaned up when subscriber is GC'd
 ```
+
+**All event types use WeakReference storage** - handlers are automatically cleaned up when the subscriber is garbage collected. Explicit unsubscription is optional but allows deterministic cleanup.
 
 **Key differences**:
 | Feature | Sync (Event/ActionEvent) | Async (AsyncActionEvent/AsyncEvent) |
 |---------|-------------------------|-------------------------------------|
-| Storage | WeakReference | Strong reference |
-| Cleanup | Automatic (GC) | Manual (must unsubscribe) |
+| Storage | WeakReference | WeakReference |
+| Cleanup | Automatic (GC) | Automatic (GC) |
 | Backpressure | None | Sequential await |
 | CancellationToken | N/A | Optional (checked between handlers) |
-| Exception handling | Per-handler (continues) | First exception stops chain |
+| Exception handling | First exception stops chain | First exception stops chain |
+
+**Lambda caution**: Anonymous lambdas not stored elsewhere may be collected before invocation. For reliable delivery, use instance method groups (`myEvent.Handler += this.OnEvent`) or store lambda delegates in subscriber fields.
 
 **Exception semantics**: Async variants stop invocation on first exception (bubbles to caller). If resilient "fire-all-despite-errors" semantics are needed, callers must wrap handlers individually.
 

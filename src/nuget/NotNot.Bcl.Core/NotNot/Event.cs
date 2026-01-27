@@ -291,13 +291,14 @@ public class ActionEventSpan<TArgs> where TArgs : struct
 
 
 /// <summary>
-/// Async event with strong reference storage and sequential await for backpressure control.
-/// Unlike <see cref="ActionEvent{TArgs}"/>, uses strong references - subscribers MUST explicitly unsubscribe.
+/// Async event with WeakReference storage and sequential await for backpressure control.
+/// Like <see cref="ActionEvent{TArgs}"/>, handlers can be garbage collected without explicit unsubscription.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why strong references?</b> WeakReference + async is architecturally problematic:
-/// GC can collect handlers during the await window between TryGetTarget and completion.
+/// <b>WeakReference semantics:</b> Handlers are stored as weak references. Once the subscriber holding
+/// the delegate is garbage collected, the handler is automatically cleaned up on next invocation.
+/// Explicit unsubscription is optional but allows deterministic cleanup.
 /// </para>
 /// <para>
 /// <b>Backpressure:</b> All handlers are awaited sequentially. A slow handler blocks subsequent handlers.
@@ -309,15 +310,19 @@ public class ActionEventSpan<TArgs> where TArgs : struct
 /// <para>
 /// <b>Exception handling:</b> First exception bubbles to caller and stops invocation of remaining handlers.
 /// </para>
+/// <para>
+/// <b>Lambda caution:</b> Anonymous lambdas not stored elsewhere may be collected before invocation.
+/// For reliable delivery, use instance method groups or store lambda delegates in subscriber fields.
+/// </para>
 /// </remarks>
 /// <typeparam name="TArgs">The type of argument passed to handlers.</typeparam>
 public class AsyncActionEvent<TArgs>
 {
 	private readonly Lock _lock = new();
-	private readonly List<Func<TArgs, ValueTask>> _storage = new();
+	private readonly List<WeakReference<Func<TArgs, ValueTask>>> _storage = new();
 
 	/// <summary>
-	/// Gets the number of subscribed handlers.
+	/// Gets the number of registered handlers (may include expired weak references).
 	/// </summary>
 	public int Count
 	{
@@ -329,7 +334,8 @@ public class AsyncActionEvent<TArgs>
 	}
 
 	/// <summary>
-	/// Subscribe or unsubscribe handlers. Subscribers MUST unsubscribe explicitly to avoid memory leaks.
+	/// Subscribe or unsubscribe handlers. Unsubscription is optional - handlers are automatically
+	/// cleaned up when the subscriber is garbage collected.
 	/// </summary>
 	public event Func<TArgs, ValueTask> Handler
 	{
@@ -338,20 +344,21 @@ public class AsyncActionEvent<TArgs>
 			value._NotNull();
 			using (_lock.EnterScope())
 			{
-				_storage.Add(value);
+				_storage.Add(new WeakReference<Func<TArgs, ValueTask>>(value));
 			}
 		}
 		remove
 		{
 			using (_lock.EnterScope())
 			{
-				_storage._RemoveLast(x => x == value);
+				_storage._RemoveLast(x => x.TryGetTarget(out var target) && target == value);
 			}
 		}
 	}
 
 	/// <summary>
-	/// Sequentially awaits all handlers with backpressure control.
+	/// Sequentially awaits all live handlers with backpressure control.
+	/// Expired handlers are skipped and cleaned up after iteration.
 	/// </summary>
 	/// <param name="args">The argument to pass to each handler.</param>
 	/// <param name="ct">Optional cancellation token checked between handler invocations.</param>
@@ -362,22 +369,51 @@ public class AsyncActionEvent<TArgs>
 		if (_storage.Count == 0)
 			return;
 
-		// Copy to array to minimize lock duration during async iteration
-		Func<TArgs, ValueTask>[] snapshot;
+		// Rent a list to minimize allocations during high-frequency invocations
+		using var _ = __.pool.Rent<List<WeakReference<Func<TArgs, ValueTask>>>>(out var snapshot);
+		__.GetLogger()._EzError(snapshot.Count == 0, "when recycling to pool, should always clear objects");
+
 		using (_lock.EnterScope())
 		{
-			snapshot = _storage.ToArray();
+			snapshot.AddRange(_storage);
 		}
 
-		foreach (var handler in snapshot)
+		var anyExpired = false;
+		try
 		{
-			ct.ThrowIfCancellationRequested();
-			await handler(args);
+			foreach (var weakRef in snapshot)
+			{
+				ct.ThrowIfCancellationRequested();
+				if (weakRef.TryGetTarget(out var handler))
+				{
+					await handler(args);
+				}
+				else
+				{
+					anyExpired = true;
+				}
+			}
+		}
+		finally
+		{
+			if (anyExpired)
+			{
+				_RemoveExpiredSubscriptions();
+			}
+			snapshot.Clear();
+		}
+	}
+
+	private void _RemoveExpiredSubscriptions()
+	{
+		using (_lock.EnterScope())
+		{
+			_storage.RemoveAll(weakRef => !weakRef.TryGetTarget(out _));
 		}
 	}
 
 	/// <summary>
-	/// Removes all handlers. Use during owner disposal.
+	/// Removes all handlers. Use during owner disposal for deterministic cleanup.
 	/// </summary>
 	public void Clear()
 	{
@@ -390,13 +426,14 @@ public class AsyncActionEvent<TArgs>
 
 
 /// <summary>
-/// Async event with sender parameter, strong reference storage, and sequential await for backpressure control.
-/// Unlike <see cref="Event{TEventArgs}"/>, uses strong references - subscribers MUST explicitly unsubscribe.
+/// Async event with sender parameter, WeakReference storage, and sequential await for backpressure control.
+/// Like <see cref="Event{TEventArgs}"/>, handlers can be garbage collected without explicit unsubscription.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why strong references?</b> WeakReference + async is architecturally problematic:
-/// GC can collect handlers during the await window between TryGetTarget and completion.
+/// <b>WeakReference semantics:</b> Handlers are stored as weak references. Once the subscriber holding
+/// the delegate is garbage collected, the handler is automatically cleaned up on next invocation.
+/// Explicit unsubscription is optional but allows deterministic cleanup.
 /// </para>
 /// <para>
 /// <b>Backpressure:</b> All handlers are awaited sequentially. A slow handler blocks subsequent handlers.
@@ -408,15 +445,19 @@ public class AsyncActionEvent<TArgs>
 /// <para>
 /// <b>Exception handling:</b> First exception bubbles to caller and stops invocation of remaining handlers.
 /// </para>
+/// <para>
+/// <b>Lambda caution:</b> Anonymous lambdas not stored elsewhere may be collected before invocation.
+/// For reliable delivery, use instance method groups or store lambda delegates in subscriber fields.
+/// </para>
 /// </remarks>
 /// <typeparam name="TEventArgs">The type of event arguments, must derive from EventArgs.</typeparam>
 public class AsyncEvent<TEventArgs> where TEventArgs : EventArgs
 {
 	private readonly Lock _lock = new();
-	private readonly List<Func<object, TEventArgs, ValueTask>> _storage = new();
+	private readonly List<WeakReference<Func<object, TEventArgs, ValueTask>>> _storage = new();
 
 	/// <summary>
-	/// Gets the number of subscribed handlers.
+	/// Gets the number of registered handlers (may include expired weak references).
 	/// </summary>
 	public int Count
 	{
@@ -428,7 +469,8 @@ public class AsyncEvent<TEventArgs> where TEventArgs : EventArgs
 	}
 
 	/// <summary>
-	/// Subscribe or unsubscribe handlers. Subscribers MUST unsubscribe explicitly to avoid memory leaks.
+	/// Subscribe or unsubscribe handlers. Unsubscription is optional - handlers are automatically
+	/// cleaned up when the subscriber is garbage collected.
 	/// </summary>
 	public event Func<object, TEventArgs, ValueTask> Handler
 	{
@@ -437,20 +479,21 @@ public class AsyncEvent<TEventArgs> where TEventArgs : EventArgs
 			value._NotNull();
 			using (_lock.EnterScope())
 			{
-				_storage.Add(value);
+				_storage.Add(new WeakReference<Func<object, TEventArgs, ValueTask>>(value));
 			}
 		}
 		remove
 		{
 			using (_lock.EnterScope())
 			{
-				_storage._RemoveLast(x => x == value);
+				_storage._RemoveLast(x => x.TryGetTarget(out var target) && target == value);
 			}
 		}
 	}
 
 	/// <summary>
-	/// Sequentially awaits all handlers with backpressure control.
+	/// Sequentially awaits all live handlers with backpressure control.
+	/// Expired handlers are skipped and cleaned up after iteration.
 	/// </summary>
 	/// <param name="sender">The event sender.</param>
 	/// <param name="args">The event arguments to pass to each handler.</param>
@@ -462,22 +505,51 @@ public class AsyncEvent<TEventArgs> where TEventArgs : EventArgs
 		if (_storage.Count == 0)
 			return;
 
-		// Copy to array to minimize lock duration during async iteration
-		Func<object, TEventArgs, ValueTask>[] snapshot;
+		// Rent a list to minimize allocations during high-frequency invocations
+		using var _ = __.pool.Rent<List<WeakReference<Func<object, TEventArgs, ValueTask>>>>(out var snapshot);
+		__.GetLogger()._EzError(snapshot.Count == 0, "when recycling to pool, should always clear objects");
+
 		using (_lock.EnterScope())
 		{
-			snapshot = _storage.ToArray();
+			snapshot.AddRange(_storage);
 		}
 
-		foreach (var handler in snapshot)
+		var anyExpired = false;
+		try
 		{
-			ct.ThrowIfCancellationRequested();
-			await handler(sender, args);
+			foreach (var weakRef in snapshot)
+			{
+				ct.ThrowIfCancellationRequested();
+				if (weakRef.TryGetTarget(out var handler))
+				{
+					await handler(sender, args);
+				}
+				else
+				{
+					anyExpired = true;
+				}
+			}
+		}
+		finally
+		{
+			if (anyExpired)
+			{
+				_RemoveExpiredSubscriptions();
+			}
+			snapshot.Clear();
+		}
+	}
+
+	private void _RemoveExpiredSubscriptions()
+	{
+		using (_lock.EnterScope())
+		{
+			_storage.RemoveAll(weakRef => !weakRef.TryGetTarget(out _));
 		}
 	}
 
 	/// <summary>
-	/// Removes all handlers. Use during owner disposal.
+	/// Removes all handlers. Use during owner disposal for deterministic cleanup.
 	/// </summary>
 	public void Clear()
 	{
