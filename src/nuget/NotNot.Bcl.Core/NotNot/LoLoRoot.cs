@@ -649,8 +649,16 @@ public partial class LoLoRoot
       SerializationHelper.Dispose();
       SerializationHelper = null;
 
-      _loggerFactory.Dispose();
-      LoLoRoot._loggerFactory = null;
+      // Only dispose if we OWN it (our fallback), NOT if borrowed from DI
+      lock (_factoryLock)
+      {
+         if (_isOwnedFallbackFactory)
+         {
+            _loggerFactory_INTERNAL?.Dispose();
+         }
+         _loggerFactory_INTERNAL = null;
+         _isOwnedFallbackFactory = false;
+      }
 
       pool.Dispose();
       pool = null;
@@ -819,43 +827,79 @@ public partial class LoLoRoot
    }
 
 
-   private static ILoggerFactory _loggerFactory_INTERNAL;
+   /// <summary>
+   /// Lock for thread-safe access to logger factory static state.
+   /// Prevents race conditions during fallback creation, DI initialization, and disposal.
+   /// </summary>
+   private static readonly object _factoryLock = new();
+
+   private static ILoggerFactory? _loggerFactory_INTERNAL;
 
    /// <summary>
-   /// logger factory.  defaults to a simple console logger factory until DI services have registered.
+   /// Tracks whether we OWN the logger factory (created it ourselves as fallback) vs borrowed from DI.
+   /// Only dispose if we own it - never dispose a DI-provided factory.
+   /// </summary>
+   private static bool _isOwnedFallbackFactory;
+
+   /// <summary>
+   /// Logger factory. Defaults to a simple console logger factory until DI services have registered.
+   /// <para>Note: Logger factory is shared across all LoLoRoot instances (static singleton pattern).</para>
    /// </summary>
    private static ILoggerFactory _loggerFactory
    {
       get
       {
-         if (_loggerFactory_INTERNAL is null)
+         lock (_factoryLock)
          {
-            _loggerFactory_INTERNAL = LoggerFactory.Create(builder =>
+            if (_loggerFactory_INTERNAL is null)
             {
-               builder.ClearProviders();
-               builder.SetMinimumLevel(LogLevel.Trace);
+               _loggerFactory_INTERNAL = LoggerFactory.Create(builder =>
+               {
+                  builder.ClearProviders();
+                  builder.SetMinimumLevel(LogLevel.Trace);
 
-               builder.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
-            });
+                  builder.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
+               });
+               _isOwnedFallbackFactory = true; // We created this, we own it
+            }
+            return _loggerFactory_INTERNAL;
          }
-         return _loggerFactory_INTERNAL;
       }
       set
       {
-         if (_loggerFactory_INTERNAL is not null)
+         lock (_factoryLock)
          {
-            _loggerFactory_INTERNAL.Dispose();
+            // Only dispose if we OWN it (our fallback), NOT if borrowed from DI
+            if (_loggerFactory_INTERNAL is not null && _isOwnedFallbackFactory)
+            {
+               _loggerFactory_INTERNAL.Dispose();
+            }
+            _loggerFactory_INTERNAL = value;
+            _isOwnedFallbackFactory = false; // DI-provided factory, don't own it
          }
-         _loggerFactory_INTERNAL = value;
       }
    }
 
    /// <summary>
-   /// optional initializer to pass in DI services for loggerFactory creation
+   /// Optional initializer to pass in DI services for loggerFactory creation.
+   /// Idempotent: subsequent calls are no-ops if already initialized with a DI factory.
+   /// <para>Note: Logger factory is shared across all LoLoRoot instances (static singleton pattern).</para>
    /// </summary>
-   /// <param name="serviceProvider"></param>
+   /// <param name="serviceProvider">The DI service provider to obtain ILoggerFactory from.</param>
+   /// <exception cref="ArgumentNullException">Thrown if serviceProvider is null.</exception>
    public void Initialize(IServiceProvider serviceProvider)
    {
+      ArgumentNullException.ThrowIfNull(serviceProvider);
+
+      lock (_factoryLock)
+      {
+         // Idempotent: skip if already initialized with DI factory (not our fallback)
+         if (_loggerFactory_INTERNAL is not null && !_isOwnedFallbackFactory)
+         {
+            return;
+         }
+      }
+      // Note: _loggerFactory setter also acquires lock, so we release here to avoid nested lock
       _loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
    }
 
