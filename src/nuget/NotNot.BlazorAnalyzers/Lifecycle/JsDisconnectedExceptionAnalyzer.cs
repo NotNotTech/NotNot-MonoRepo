@@ -181,7 +181,7 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
                 }
 
                 // FAIL_FAST_PRINCIPLE: Must check ALL catch clauses.
-                // If ANY blanket pattern exists (bare catch, catch(Exception)), the try-catch is NOT safe.
+                // If ANY blanket pattern exists (bare catch, catch(Exception) without filter), the try-catch is NOT safe.
                 // This prevents escape hatches like: catch(JSDisconnectedException){} catch(Exception){}
                 bool hasJsDisconnectedExceptionCatch = false;
                 bool hasBlanketCatch = false;
@@ -207,7 +207,19 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
                     {
                         hasJsDisconnectedExceptionCatch = true;
                     }
-                    // Check for blanket Exception catch
+                    // Check for exception filter pattern: catch (Exception ex) when (ex is JSDisconnectedException or ...)
+                    // This modern C# pattern is preferable to blanket catches
+                    else if ((typeName == "Exception" || typeName == "System.Exception") && catchClause.Filter != null)
+                    {
+                        // Has a when clause - check if it filters for JSDisconnectedException
+                        if (FilterContainsJsDisconnectedException(catchClause.Filter))
+                        {
+                            hasJsDisconnectedExceptionCatch = true;
+                        }
+                        // If filter doesn't mention JSDisconnectedException, it's not catching it
+                        // Don't mark as blanket catch since it's filtered
+                    }
+                    // Check for blanket Exception catch (without filter)
                     // FAIL_FAST_PRINCIPLE: catch (Exception) blanket catches mask bugs
                     // Per R4.1 decision (2026-01-20): Reject catch(Exception) as valid handler
                     else if (typeName == "Exception" || typeName == "System.Exception")
@@ -228,6 +240,17 @@ public class JsDisconnectedExceptionAnalyzer : DiagnosticAnalyzer
         }
 
         return false;
+    }
+
+    private static bool FilterContainsJsDisconnectedException(CatchFilterClauseSyntax filter)
+    {
+        // Check if the filter expression mentions JSDisconnectedException
+        // Patterns we support:
+        // - catch (Exception ex) when (ex is JSDisconnectedException)
+        // - catch (Exception ex) when (ex is JSDisconnectedException or JSException or ...)
+        // - catch (Exception ex) when (ex is JSDisconnectedException || ex is JSException)
+        var filterText = filter.FilterExpression.ToString();
+        return filterText.Contains("JSDisconnectedException");
     }
 
     private static bool IsNodeInsideTryBlock(SyntaxNode node, TryStatementSyntax tryStatement)

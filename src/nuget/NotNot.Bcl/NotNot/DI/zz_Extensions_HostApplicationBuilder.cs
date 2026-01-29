@@ -241,6 +241,41 @@ public static class zz_Extensions_HostApplicationBuilder
 
 		});
 
+		// ═══════════════════════════════════════════════════════════════════════════
+		// Validate no duplicate IHostedService registrations
+		// ═══════════════════════════════════════════════════════════════════════════
+		// Scrutor uses RegistrationStrategy.Append which bypasses duplicate prevention.
+		// Manual AddHostedService<T>() calls combined with auto-registration causes
+		// duplicate instances running simultaneously - a subtle bug that wastes resources
+		// and can cause race conditions.
+		//
+		// Detection strategy: Scrutor registers IHostedService implementations via a
+		// factory (ImplementationType = null, ImplementationFactory != null). Manual
+		// AddHostedService<T>() calls register with ImplementationType != null.
+		// So we detect manual registrations by checking for non-null ImplementationType.
+		//
+		// Check for IHostedService registrations that have ImplementationType set.
+		// Scrutor registers via factory (ImplementationType = null), so any direct type
+		// registration indicates a manual AddHostedService<T>() call that will create
+		// a duplicate since Scrutor also auto-registers it.
+		//
+		// Exception: Microsoft.AspNetCore.* framework services are registered before
+		// Scrutor and are excluded from our assembly scan, so they're not duplicates.
+		var manualHostedServiceRegistrations = builder.Services
+			.Where(sd => sd.ServiceType == typeof(IHostedService) &&
+						 sd.ImplementationType != null &&
+						 !sd.ImplementationType.FullName!.StartsWith("Microsoft."))
+			.Select(sd => sd.ImplementationType!)
+			.ToList();
+
+		if (manualHostedServiceRegistrations.Any())
+		{
+			var msg = string.Join("\n", manualHostedServiceRegistrations.Select(t =>
+				$"  - {t.FullName}"));
+			__.Throw($"Manual IHostedService registrations detected. " +
+				$"IHostedService implementations are auto-registered by Scrutor - do NOT call AddHostedService<T>().\n{msg}");
+		}
+
 	}
 
 
