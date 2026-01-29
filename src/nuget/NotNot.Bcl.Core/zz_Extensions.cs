@@ -5539,6 +5539,40 @@ public static class zz_Extensions_DateTime
 	}
 
 	/// <summary>
+	/// Formats a DateTime as a compact, significance-based local time string.
+	/// Converts to local time, then displays with decreasing precision based on age.
+	/// </summary>
+	/// <param name="dateTime">The DateTime to format (any Kind — will be converted to local).</param>
+	/// <returns>
+	/// <list type="bullet">
+	/// <item><b>&lt;24h ago</b>: <c>HH.MM.SS</c> (24-hour local time, e.g. <c>14.32.07</c>)</item>
+	/// <item><b>&lt;1 month ago</b>: <c>MM-DD:HH.MM</c> (e.g. <c>01-28:14.32</c>)</item>
+	/// <item><b>&gt;=1 month ago</b>: <c>YYYY-MM-DD:HH.MM</c> (e.g. <c>2026-01-28:14.32</c>)</item>
+	/// </list>
+	/// </returns>
+	public static string _ToStringSignificantLocal(this DateTime dateTime)
+	{
+		var local = dateTime.Kind == DateTimeKind.Local ? dateTime : dateTime.ToLocalTime();
+		var now = DateTime.UtcNow.ToLocalTime();
+		var age = now - local;
+
+		if (age.TotalHours >= 0 && age.TotalHours < 24)
+		{
+			return local.ToString("HH.mm.ss");
+		}
+
+		// Use calendar month comparison: same year+month = "less than 1 month"
+		// Guard: monthDiff >= 0 prevents future dates from losing year information
+		var monthDiff = (now.Year - local.Year) * 12 + now.Month - local.Month;
+		if (monthDiff >= 0 && (monthDiff < 1 || (monthDiff == 1 && now.Day < local.Day)))
+		{
+			return local.ToString("MM-dd:HH.mm");
+		}
+
+		return local.ToString("yyyy-MM-dd:HH.mm");
+	}
+
+	/// <summary>
 	/// Truncates DateTime to microsecond precision (6 decimal places) for PostgreSQL compatibility.
 	/// WHY: PostgreSQL timestamp has microsecond precision while .NET DateTime has 100-nanosecond precision.
 	/// This prevents roundtrip test failures and ensures consistent timestamps across database operations.
