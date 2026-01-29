@@ -6332,6 +6332,28 @@ public static class zz_Extensions_TimeSpan
 		//	return toReturn;
 		//}
 	}
+
+	/// <summary>
+	/// Formats a TimeSpan as a human-readable string using the single most significant unit,
+	/// rounded down (truncated). Output units: y, d, h, m, s.
+	/// <para>Examples: "2y", "14d", "3h", "45m", "8s", "0s" (for sub-second or zero).</para>
+	/// <para>Negative timespans return the absolute value prefixed with "-" (e.g., "-3m").</para>
+	/// </summary>
+	public static string _ToStringSignificant(this TimeSpan timeSpan)
+	{
+		if (timeSpan < TimeSpan.Zero)
+			return "-" + (-timeSpan)._ToStringSignificant();
+
+		if (timeSpan.TotalDays >= 365)
+			return $"{(int)(timeSpan.TotalDays / 365)}y";
+		if (timeSpan.TotalDays >= 1)
+			return $"{(int)timeSpan.TotalDays}d";
+		if (timeSpan.TotalHours >= 1)
+			return $"{(int)timeSpan.TotalHours}h";
+		if (timeSpan.TotalMinutes >= 1)
+			return $"{(int)timeSpan.TotalMinutes}m";
+		return $"{(int)timeSpan.TotalSeconds}s";
+	}
 }
 
 //[System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1050:DeclareTypesInNamespaces")]
