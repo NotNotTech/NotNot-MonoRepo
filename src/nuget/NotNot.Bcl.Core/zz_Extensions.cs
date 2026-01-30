@@ -5558,7 +5558,7 @@ public static class zz_Extensions_DateTime
 
 		if (age.TotalHours >= 0 && age.TotalHours < 24)
 		{
-			return local.ToString("HH.mm.ss");
+			return local.ToString("HH:mm.ss");
 		}
 
 		// Use calendar month comparison: same year+month = "less than 1 month"
@@ -5566,10 +5566,10 @@ public static class zz_Extensions_DateTime
 		var monthDiff = (now.Year - local.Year) * 12 + now.Month - local.Month;
 		if (monthDiff >= 0 && (monthDiff < 1 || (monthDiff == 1 && now.Day < local.Day)))
 		{
-			return local.ToString("MM-dd:HH.mm");
+			return local.ToString("MM-dd @ HH:mm");
 		}
 
-		return local.ToString("yyyy-MM-dd:HH.mm");
+		return local.ToString("yyyy-MM-dd @ HH:mm");
 	}
 
 	/// <summary>
