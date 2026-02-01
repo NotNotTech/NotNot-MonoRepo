@@ -14,12 +14,12 @@ public class GraphTreeTests
 	/// Test node implementing IComparable with tie-breaking (R2.5 compliance).
 	/// </summary>
 	/// <remarks>
-	/// CompareTo returns value such that when used with OrderByDescending:
-	/// - Higher Order values come FIRST (newest-first display pattern)
+	/// CompareTo returns standard comparison value. With GraphTree's OrderBy (ascending):
+	/// - Lower Order values come FIRST (oldest-first internal order)
 	/// - When Order is equal, lower Id comes first (stable tie-breaker)
 	///
-	/// OrderByDescending behavior: if a.CompareTo(b) > 0, a comes BEFORE b.
-	/// To get higher Order first: return positive when THIS.Order > other.Order.
+	/// OrderBy behavior: if a.CompareTo(b) &lt; 0, a comes BEFORE b.
+	/// To get lower Order first: return negative when THIS.Order &lt; other.Order.
 	/// </remarks>
 	private record TestNode(string Id, string? ParentId, int Order) : IComparable<TestNode>
 	{
@@ -27,14 +27,14 @@ public class GraphTreeTests
 		{
 			if (other is null) return 1;
 
-			// Primary sort: higher Order comes first when used with OrderByDescending
-			// Return positive when this.Order > other.Order (so "this" comes first)
+			// Primary sort: lower Order comes first with OrderBy (ascending)
+			// Return negative when this.Order < other.Order (so "this" comes first)
 			var cmp = Order.CompareTo(other.Order);
 			if (cmp != 0) return cmp;
 
 			// Tie-breaker: lower Id comes first (stable ordering)
 			// Return negative when this.Id < other.Id (so "this" comes first)
-			return -string.Compare(Id, other.Id, StringComparison.Ordinal);
+			return string.Compare(Id, other.Id, StringComparison.Ordinal);
 		}
 	}
 
@@ -92,7 +92,7 @@ public class GraphTreeTests
 		tree.Add(new TestNode("A", null, 1));
 
 		GraphTreeChange<string, TestNode>? capturedChange = null;
-		tree.OnChangeGranular += change => capturedChange = change;
+		tree.OnChanged += change => capturedChange = change;
 
 		tree.Add(new TestNode("A", null, 2));
 
@@ -153,10 +153,19 @@ public class GraphTreeTests
 		tree.Add(new TestNode("B", "A", 2));
 
 		var removedKeys = new List<string>();
-		tree.OnChangeGranular += change =>
+		tree.OnChanged += change =>
 		{
-			if (change.ChangeType == GraphTreeChangeType.Removed)
+			// Multi-node cascade removes fire as BatchComplete with individual Removed changes inside
+			if (change.ChangeType == GraphTreeChangeType.BatchComplete && change.BatchChanges != null)
+			{
+				foreach (var c in change.BatchChanges)
+					if (c.ChangeType == GraphTreeChangeType.Removed)
+						removedKeys.Add(c.Key);
+			}
+			else if (change.ChangeType == GraphTreeChangeType.Removed)
+			{
 				removedKeys.Add(change.Key);
+			}
 		};
 
 		tree.Remove("A");
@@ -190,7 +199,7 @@ public class GraphTreeTests
 		tree.Add(new TestNode("B", null, 2));
 
 		var clearCount = 0;
-		tree.OnChangeGranular += change =>
+		tree.OnChanged += change =>
 		{
 			if (change.ChangeType == GraphTreeChangeType.Cleared)
 				clearCount++;
@@ -282,9 +291,9 @@ public class GraphTreeTests
 		var children = tree.GetChildren("A");
 
 		Assert.Equal(2, children.Count);
-		// Descending order: C (3) before B (2)
-		Assert.Equal("C", children[0].Id);
-		Assert.Equal("B", children[1].Id);
+		// Ascending order: B (2) before C (3)
+		Assert.Equal("B", children[0].Id);
+		Assert.Equal("C", children[1].Id);
 	}
 
 	[Fact]
@@ -344,7 +353,7 @@ public class GraphTreeTests
 	}
 
 	[Fact]
-	public void GetOrderedNodes_MultipleRoots_SortedDescending()
+	public void GetOrderedNodes_MultipleRoots_SortedAscending()
 	{
 		var tree = CreateTree();
 		tree.Add(new TestNode("A", null, 1));
@@ -354,10 +363,10 @@ public class GraphTreeTests
 		var ordered = tree.GetOrderedNodes();
 
 		Assert.Equal(3, ordered.Count);
-		// Higher Order values come first (descending by Order)
-		Assert.Equal("C", ordered[0].Id); // Order 3
+		// Lower Order values come first (ascending by Order)
+		Assert.Equal("A", ordered[0].Id); // Order 1
 		Assert.Equal("B", ordered[1].Id); // Order 2
-		Assert.Equal("A", ordered[2].Id); // Order 1
+		Assert.Equal("C", ordered[2].Id); // Order 3
 	}
 
 	[Fact]
@@ -371,12 +380,12 @@ public class GraphTreeTests
 
 		var ordered = tree.GetOrderedNodes();
 
-		// Root first (DFS pre-order), then children in descending order by Order
+		// Root first (DFS pre-order), then children in ascending order by Order
 		Assert.Equal(4, ordered.Count);
 		Assert.Equal("Root", ordered[0].Id);     // Order 10, parent
-		Assert.Equal("Child2", ordered[1].Id);   // Order 8 (highest child)
+		Assert.Equal("Child3", ordered[1].Id);   // Order 3 (lowest child)
 		Assert.Equal("Child1", ordered[2].Id);   // Order 5
-		Assert.Equal("Child3", ordered[3].Id);   // Order 3 (lowest child)
+		Assert.Equal("Child2", ordered[3].Id);   // Order 8 (highest child)
 	}
 
 	[Fact]
@@ -395,10 +404,11 @@ public class GraphTreeTests
 	public void GetOrderedNodes_CacheInvalidatedOnMutation()
 	{
 		var tree = CreateTree();
-		tree.Add(new TestNode("A", null, 1));
+		tree.Add(new TestNode("B", null, 2));
 
 		var ordered1 = tree.GetOrderedNodes();
-		tree.Add(new TestNode("B", null, 2));
+		// Add node that sorts BEFORE existing (lower Order in ascending) to invalidate cache
+		tree.Add(new TestNode("A", null, 1));
 		var ordered2 = tree.GetOrderedNodes();
 
 		Assert.NotSame(ordered1, ordered2);
@@ -463,7 +473,7 @@ public class GraphTreeTests
 	{
 		var tree = CreateTree();
 		var changes = new List<GraphTreeChange<string, TestNode>>();
-		tree.OnChangeGranular += change => changes.Add(change);
+		tree.OnChanged += change => changes.Add(change);
 
 		tree.Add(new TestNode("A", null, 1));
 
@@ -477,7 +487,7 @@ public class GraphTreeTests
 	{
 		var tree = CreateTree();
 		var fireCount = 0;
-		tree.OnChanged += () => fireCount++;
+		tree.OnChanged += _ => fireCount++;
 
 		tree.Add(new TestNode("A", null, 1));
 		tree.Add(new TestNode("B", null, 2));
@@ -493,7 +503,7 @@ public class GraphTreeTests
 		tree.Add(new TestNode("B", "A", 2));
 
 		var fireCount = 0;
-		tree.OnChanged += () => fireCount++;
+		tree.OnChanged += _ => fireCount++;
 
 		tree.Remove("A"); // Removes A and B
 
@@ -506,7 +516,7 @@ public class GraphTreeTests
 		var tree = CreateTree();
 		var capturedVersions = new List<int>();
 
-		tree.OnChangeGranular += change => capturedVersions.Add(tree.Version);
+		tree.OnChanged += change => capturedVersions.Add(tree.Version);
 
 		tree.Add(new TestNode("A", null, 1));
 		tree.Add(new TestNode("B", null, 2));
@@ -519,7 +529,7 @@ public class GraphTreeTests
 	}
 
 	[Fact]
-	public void OnChangeGranular_Remove_NodesAlreadyRemovedWhenNotificationFires()
+	public void OnChanged_Remove_NodesAlreadyRemovedWhenNotificationFires()
 	{
 		var tree = CreateTree();
 		tree.Add(new TestNode("A", null, 1));
@@ -527,7 +537,7 @@ public class GraphTreeTests
 		tree.Add(new TestNode("C", "A", 3));
 
 		var nodesDuringNotifications = new List<int>();
-		tree.OnChangeGranular += change =>
+		tree.OnChanged += change =>
 		{
 			// During notification, the nodes should already be removed
 			nodesDuringNotifications.Add(tree.Count);
@@ -535,9 +545,9 @@ public class GraphTreeTests
 
 		tree.Remove("A"); // Removes A, B, and C
 
-		// All 3 nodes should be removed BEFORE any notification fires
-		Assert.Equal(3, nodesDuringNotifications.Count);
-		Assert.All(nodesDuringNotifications, count => Assert.Equal(0, count));
+		// Single BatchComplete notification fired AFTER all 3 nodes removed
+		Assert.Single(nodesDuringNotifications);
+		Assert.Equal(0, nodesDuringNotifications[0]);
 	}
 
 	#endregion
@@ -612,9 +622,9 @@ public class GraphTreeTests
 		// GetChildren should work correctly after parent is added
 		var children = tree.GetChildren("A");
 		Assert.Equal(2, children.Count);
-		// Descending order by Order value: C(3), B(2)
-		Assert.Equal("C", children[0].Id);
-		Assert.Equal("B", children[1].Id);
+		// Ascending order by Order value: B(2), C(3)
+		Assert.Equal("B", children[0].Id);
+		Assert.Equal("C", children[1].Id);
 	}
 
 	#endregion
@@ -633,8 +643,8 @@ public class GraphTreeTests
 
 		var ordered1 = tree.GetOrderedNodes();
 
-		// Force cache invalidation
-		tree.Add(new TestNode("D", null, 2));
+		// Force cache invalidation by adding and removing node with different Order
+		tree.Add(new TestNode("D", null, 0)); // Order 0, sorts before Order 1
 		tree.Remove("D");
 
 		var ordered2 = tree.GetOrderedNodes();
@@ -649,6 +659,370 @@ public class GraphTreeTests
 		Assert.Equal("A", ordered1[0].Id);
 		Assert.Equal("B", ordered1[1].Id);
 		Assert.Equal("C", ordered1[2].Id);
+	}
+
+	#endregion
+
+	#region Scale Tests (P0 Stack Overflow Prevention)
+
+	[Fact]
+	public void GetOrderedNodes_DeepChain_DoesNotStackOverflow()
+	{
+		var tree = CreateTree();
+
+		// Build 15,000-node linear chain (depth = count)
+		for (int i = 0; i < 15000; i++)
+		{
+			var parentId = i == 0 ? null : $"node-{i - 1}";
+			tree.Add(new TestNode($"node-{i}", parentId, i));
+		}
+
+		var ordered = tree.GetOrderedNodes();
+		Assert.Equal(15000, ordered.Count);
+		Assert.Equal("node-0", ordered[0].Id);
+		Assert.Equal("node-14999", ordered[14999].Id);
+	}
+
+	[Fact]
+	public void Remove_DeepChain_DoesNotStackOverflow()
+	{
+		var tree = CreateTree();
+
+		for (int i = 0; i < 15000; i++)
+		{
+			var parentId = i == 0 ? null : $"node-{i - 1}";
+			tree.Add(new TestNode($"node-{i}", parentId, i));
+		}
+
+		// Remove root should cascade delete all 15k nodes
+		var removed = tree.Remove("node-0");
+		Assert.True(removed);
+		Assert.Equal(0, tree.Count);
+	}
+
+	[Fact]
+	public void Remove_WideTree_DoesNotExhibitQuadraticBehavior()
+	{
+		var tree = CreateTree();
+
+		// Build 15k-node wide tree (all children of root)
+		tree.Add(new TestNode("root", null, 0));
+		for (int i = 1; i < 15000; i++)
+			tree.Add(new TestNode($"node-{i}", "root", i));
+
+		// Removing root should be O(N), not O(N^2)
+		var sw = System.Diagnostics.Stopwatch.StartNew();
+		tree.Remove("root");
+		sw.Stop();
+
+		Assert.Equal(0, tree.Count);
+		// O(N) should complete in <500ms, O(N^2) would be >10s
+		Assert.True(sw.ElapsedMilliseconds < 2000, $"Removal took {sw.ElapsedMilliseconds}ms - possible O(N^2)");
+	}
+
+	#endregion
+
+	#region Incremental Cache Tests (P1)
+
+	[Fact]
+	public void Add_ForwardReference_DemotesChildFromRoots()
+	{
+		var tree = CreateTree();
+
+		// Add child first (forward reference - parent doesn't exist yet)
+		tree.Add(new TestNode("child", "parent", 2));
+
+		// Child should be root (parent doesn't exist)
+		var roots1 = tree.GetOrderedNodes();
+		Assert.Single(roots1);
+		Assert.Equal("child", roots1[0].Id);
+
+		// Add parent
+		tree.Add(new TestNode("parent", null, 1));
+
+		// Now parent should be root, child demoted
+		var roots2 = tree.GetOrderedNodes();
+		Assert.Equal(2, roots2.Count);
+		Assert.Equal("parent", roots2[0].Id);
+		Assert.Equal("child", roots2[1].Id);
+	}
+
+	[Fact]
+	public void Add_ParentChange_UpdatesChildrenMaps()
+	{
+		var tree = CreateTree();
+
+		tree.Add(new TestNode("parent1", null, 1));
+		tree.Add(new TestNode("parent2", null, 2));
+		tree.Add(new TestNode("child", "parent1", 3));
+
+		Assert.Single(tree.GetChildren("parent1"));
+		Assert.Empty(tree.GetChildren("parent2"));
+
+		// Re-add child with different parent
+		tree.Add(new TestNode("child", "parent2", 3));
+
+		Assert.Empty(tree.GetChildren("parent1"));
+		Assert.Single(tree.GetChildren("parent2"));
+	}
+
+	[Fact]
+	public void IncrementalState_RemainsConsistentAfterComplexOperations()
+	{
+		var tree = CreateTree();
+
+		// Build tree with various operations (binary tree-like structure)
+		for (int i = 0; i < 100; i++)
+			tree.Add(new TestNode($"node-{i}", i == 0 ? null : $"node-{(i - 1) / 2}", i));
+
+		// Perform updates and removals
+		tree.Add(new TestNode("node-50", "node-10", 50)); // Re-parent
+
+		// Verify re-parent worked
+		var children10 = tree.GetChildren("node-10");
+		Assert.Contains(children10, c => c.Id == "node-50");
+
+		// node-50's old parent (node-24) should no longer have node-50
+		var children24 = tree.GetChildren("node-24");
+		Assert.DoesNotContain(children24, c => c.Id == "node-50");
+
+		tree.Remove("node-25"); // Remove subtree
+
+		// Verify removal - node-25 and its descendants should be gone
+		Assert.Null(tree.GetNode("node-25"));
+		Assert.Null(tree.GetNode("node-51")); // Child of node-25
+		Assert.Null(tree.GetNode("node-52")); // Child of node-25
+
+		// Tree should still be traversable
+		var ordered = tree.GetOrderedNodes();
+		Assert.DoesNotContain(ordered, n => n.Id == "node-25");
+		Assert.DoesNotContain(ordered, n => n.Id == "node-51");
+	}
+
+	#endregion
+
+	#region ParentKey Notification Tests (REQ-3)
+
+	[Fact]
+	public void GraphTreeChange_Add_ContainsParentKey()
+	{
+		var tree = CreateTree();
+		GraphTreeChange<string, TestNode>? capturedChange = null;
+		tree.OnChanged += change => capturedChange = change;
+
+		tree.Add(new TestNode("parent", null, 1));
+		tree.Add(new TestNode("child", "parent", 2));
+
+		Assert.NotNull(capturedChange);
+		Assert.Equal("child", capturedChange.Key);
+		Assert.Equal("parent", capturedChange.ParentKey);
+	}
+
+	[Fact]
+	public void GraphTreeChange_AddRoot_ParentKeyIsNull()
+	{
+		var tree = CreateTree();
+		GraphTreeChange<string, TestNode>? capturedChange = null;
+		tree.OnChanged += change => capturedChange = change;
+
+		tree.Add(new TestNode("root", null, 1));
+
+		Assert.NotNull(capturedChange);
+		Assert.Equal("root", capturedChange.Key);
+		Assert.Null(capturedChange.ParentKey);
+	}
+
+	[Fact]
+	public void GraphTreeChange_Remove_ContainsPreCapturedParentKey()
+	{
+		var tree = CreateTree();
+		tree.Add(new TestNode("parent", null, 1));
+		tree.Add(new TestNode("child", "parent", 2));
+
+		var removedChanges = new List<GraphTreeChange<string, TestNode>>();
+		tree.OnChanged += change =>
+		{
+			// Cascade removes fire BatchComplete containing individual Removed changes
+			if (change.ChangeType == GraphTreeChangeType.BatchComplete && change.BatchChanges != null)
+			{
+				foreach (var c in change.BatchChanges)
+					if (c.ChangeType == GraphTreeChangeType.Removed)
+						removedChanges.Add(c);
+			}
+			else if (change.ChangeType == GraphTreeChangeType.Removed)
+			{
+				removedChanges.Add(change);
+			}
+		};
+
+		tree.Remove("parent");
+
+		// Both parent and child should be removed
+		Assert.Equal(2, removedChanges.Count);
+
+		// Parent's ParentKey should be null (it was a root)
+		var parentChange = removedChanges.First(c => c.Key == "parent");
+		Assert.Null(parentChange.ParentKey);
+
+		// Child's ParentKey should be "parent" (captured BEFORE deletion)
+		var childChange = removedChanges.First(c => c.Key == "child");
+		Assert.Equal("parent", childChange.ParentKey);
+	}
+
+	#endregion
+
+	#region AddRange and Stable-Append Tests
+
+	[Fact]
+	public void AddRange_FiresSingleOnChangedNotification()
+	{
+		var tree = CreateTree();
+		var onChangedCount = 0;
+		GraphTreeChange<string, TestNode>? lastChange = null;
+		tree.OnChanged += change =>
+		{
+			onChangedCount++;
+			lastChange = change;
+		};
+
+		var nodes = Enumerable.Range(0, 100)
+			.Select(i => new TestNode($"node-{i}", null, i))
+			.ToList();
+
+		var added = tree.AddRange(nodes);
+
+		Assert.Equal(100, added);
+		Assert.Equal(1, onChangedCount); // Single notification for entire batch
+		Assert.NotNull(lastChange);
+		Assert.Equal(GraphTreeChangeType.BatchComplete, lastChange.ChangeType);
+		Assert.NotNull(lastChange.BatchChanges);
+		Assert.Equal(100, lastChange.BatchChanges.Count); // All changes in batch
+	}
+
+	[Fact]
+	public void AddRange_VersionIncrementedOnce()
+	{
+		var tree = CreateTree();
+		var initialVersion = tree.Version;
+
+		var nodes = Enumerable.Range(0, 50)
+			.Select(i => new TestNode($"node-{i}", null, i))
+			.ToList();
+
+		tree.AddRange(nodes);
+
+		Assert.Equal(initialVersion + 1, tree.Version);
+	}
+
+	[Fact]
+	public void StableAppend_SequentialRootAdditionsUseCacheAppend()
+	{
+		var tree = CreateTree();
+
+		// Prime the cache with lowest Order (oldest first in ascending order)
+		tree.Add(new TestNode("node-0", null, 0)); // Sorts first (lowest value, ascending order)
+		var ordered1 = tree.GetOrderedNodes(); // Build cache
+		Assert.Single(ordered1);
+
+		// Add nodes with higher Order (newer = higher value) - should use stable-append
+		// In ascending sort, higher values come AFTER lower values
+		// So node-1 with Order=1 should sort AFTER node-0 (since 1 > 0)
+		tree.Add(new TestNode("node-1", null, 1));
+
+		var ordered2 = tree.GetOrderedNodes();
+		Assert.Equal(2, ordered2.Count);
+		Assert.Equal("node-0", ordered2[0].Id); // Lower value first (ascending)
+		Assert.Equal("node-1", ordered2[1].Id); // Higher value last
+	}
+
+	[Fact]
+	public void StableAppend_OutOfOrderAdditionInvalidatesCache()
+	{
+		var tree = CreateTree();
+
+		// Add first node and prime cache
+		tree.Add(new TestNode("node-1", null, 1));
+		var ordered1 = tree.GetOrderedNodes();
+
+		// Add node that sorts BEFORE existing (lower value in ascending order)
+		// This should NOT use stable-append, must invalidate cache
+		tree.Add(new TestNode("node-0", null, 0));
+
+		var ordered2 = tree.GetOrderedNodes();
+		Assert.Equal(2, ordered2.Count);
+		Assert.Equal("node-0", ordered2[0].Id); // Lower value first (ascending)
+		Assert.Equal("node-1", ordered2[1].Id); // Higher value last
+	}
+
+	[Fact]
+	public void StableAppend_ForwardReferenceResolutionInvalidatesCache()
+	{
+		var tree = CreateTree();
+
+		// Add child with missing parent (forward reference)
+		tree.Add(new TestNode("child", "parent", 2));
+		var ordered1 = tree.GetOrderedNodes(); // Cache built with child as temporary root
+
+		// Add parent - this resolves forward reference and must invalidate cache
+		tree.Add(new TestNode("parent", null, 1));
+
+		var ordered2 = tree.GetOrderedNodes();
+		Assert.Equal(2, ordered2.Count);
+		Assert.Equal("parent", ordered2[0].Id); // Parent is visited first in DFS
+		Assert.Equal("child", ordered2[1].Id); // Child follows parent
+	}
+
+	[Fact]
+	public void AddRange_WithAscendingOrder_UsesStableAppend()
+	{
+		var tree = CreateTree();
+
+		// Prime the cache
+		tree.GetOrderedNodes();
+
+		// Add nodes in ascending order (should all use stable-append)
+		// In ascending sort: 0 < 1 < 2 < ... < 99, so each new node sorts AFTER previous
+		var nodes = Enumerable.Range(0, 100)
+			.Select(i => new TestNode($"node-{i}", null, i)) // Positive = higher values = sort later
+			.ToList();
+
+		var added = tree.AddRange(nodes);
+
+		Assert.Equal(100, added);
+
+		var ordered = tree.GetOrderedNodes();
+		Assert.Equal(100, ordered.Count);
+		// First added sorts first (lowest value = 0)
+		Assert.Equal("node-0", ordered[0].Id);
+		// Last added sorts last (highest value = 99)
+		Assert.Equal("node-99", ordered[99].Id);
+	}
+
+	[Fact]
+	public void AddRange_WithMixedOrder_FallsBackToRebuild()
+	{
+		var tree = CreateTree();
+
+		// Add some initial nodes and prime cache
+		tree.Add(new TestNode("existing", null, 50));
+		tree.GetOrderedNodes();
+
+		// Add nodes that include one that sorts BEFORE existing (ascending: lower values first)
+		var nodes = new[]
+		{
+			new TestNode("before", null, 25),  // Sorts before existing (25 < 50)
+			new TestNode("after1", null, 75),  // Sorts after existing (75 > 50)
+			new TestNode("after2", null, 100), // Sorts after existing (100 > 50)
+		};
+
+		tree.AddRange(nodes);
+
+		var ordered = tree.GetOrderedNodes();
+		Assert.Equal(4, ordered.Count);
+		Assert.Equal("before", ordered[0].Id);   // 25 (lowest)
+		Assert.Equal("existing", ordered[1].Id); // 50
+		Assert.Equal("after1", ordered[2].Id);   // 75
+		Assert.Equal("after2", ordered[3].Id);   // 100 (highest)
 	}
 
 	#endregion
