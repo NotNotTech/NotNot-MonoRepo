@@ -8,4 +8,9 @@
     <ItemGroup>
         <AdditionalFiles Include="**/*.razor" Exclude="bin/**;obj/**;.vs/**" />
     </ItemGroup>
+
+    <!-- Expose XRayGeneratorEnabled property to analyzer via CompilerVisibleProperty -->
+    <ItemGroup>
+        <CompilerVisibleProperty Include="XRayGeneratorEnabled" />
+    </ItemGroup>
 </Project>
