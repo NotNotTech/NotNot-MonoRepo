@@ -36,6 +36,9 @@ public class ReflectHelper
 
 	/// <summary>
 	/// helper for injecting a short unique id for a callsite, plus the callsite info.  output is `"XRAYID|METHOD|CALLSITE"`.   `  eg:  "MF.42|MyMethod|C:\Path\To\MyFile.cs:42"
+	/// <para>When called multiple times from the same callsite (e.g., in a loop), appends a counter suffix:
+	/// first call returns "MF.42", second returns "MF.42.2", tenth returns "MF.42.10".</para>
+	/// <para>Call <see cref="ResetXrayCounters"/> at the start of each render cycle to reset loop counters.</para>
 	/// </summary>
 	public static string XrayId([CallerMemberName] string callerMemberName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
 	{
@@ -95,12 +98,29 @@ public class ReflectHelper
 
 			}
 		}
-		//now, xrayId is mapped to callerFilePath
-		return $"{xrayId}.{callerLineNumber}|{callsite}";
 
+		// Track callsite invocation count for loop support
+		var callsiteKey = $"{callerFilePath}:{callerLineNumber}";
+		var count = _xrayCallsiteCounters.AddOrUpdate(callsiteKey, 1, (_, c) => c + 1);
+
+		// First call: "MF.42", subsequent calls: "MF.42.2", "MF.42.3", etc.
+		var baseId = $"{xrayId}.{callerLineNumber}";
+		var finalId = count == 1 ? baseId : $"{baseId}.{count}";
+
+		return $"{finalId}|{callsite}";
+	}
+
+	/// <summary>
+	/// Reset all callsite invocation counters. Call at the start of each render cycle
+	/// to ensure loop counters restart from 1.
+	/// </summary>
+	public static void ResetXrayCounters()
+	{
+		_xrayCallsiteCounters.Clear();
 	}
 
 	private static ConcurrentDictionary<string, string> _xrayIdCache = new();
+	private static ConcurrentDictionary<string, int> _xrayCallsiteCounters = new();
 
 
 	// Extension method to check if a virtual method is overridden
