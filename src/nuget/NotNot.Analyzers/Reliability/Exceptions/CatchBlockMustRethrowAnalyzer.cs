@@ -37,11 +37,12 @@ public class CatchBlockMustRethrowAnalyzer : DiagnosticAnalyzer
     public const string DiagnosticId = "NN_R005";
 
     private static readonly LocalizableString Title = "Catch block must rethrow exception";
-    private static readonly LocalizableString MessageFormat = "Catch block catches '{0}' but does not rethrow. Either rethrow the exception or catch a more specific exception type.";
+    private static readonly LocalizableString MessageFormat = "Catch block catches '{0}' but does not rethrow. Either rethrow the exception, use __.DebugAssertOnce(ex), or catch a more specific exception type. See protocols/debugging.md for diagnostic patterns.";
     private static readonly LocalizableString Description =
         "Catch blocks that catch general exception types (Exception, SystemException, or bare catch) must rethrow the exception. " +
         "Silent exception swallowing masks bugs and makes debugging difficult. " +
-        "Either add 'throw;' to rethrow the original exception, wrap and throw a new exception, or catch a specific exception type instead.";
+        "Options: (1) Add 'throw;' to rethrow, (2) Use __.DebugAssertOnce(ex) for debug-only assertion + return fallback, " +
+        "(3) Catch a specific exception type instead (IOException, JsonException, etc.).";
     private const string Category = "Reliability";
 
     private static readonly DiagnosticDescriptor Rule = new(
@@ -80,6 +81,10 @@ public class CatchBlockMustRethrowAnalyzer : DiagnosticAnalyzer
 
         // Check if the catch block contains any throw statement or expression
         if (HasThrowInBlock(catchClause.Block)) return;
+
+        // Check if the catch block uses __.DebugAssertOnce(ex) or similar debug assertion
+        // This is an approved pattern for graceful degradation with debug visibility
+        if (HasDebugAssertCall(catchClause, context)) return;
 
         // Report diagnostic - general exception caught without rethrow
         var displayName = string.IsNullOrEmpty(caughtTypeName) ? "(bare catch)" : caughtTypeName;
@@ -174,5 +179,60 @@ public class CatchBlockMustRethrowAnalyzer : DiagnosticAnalyzer
             LocalFunctionStatementSyntax => false,     // void Local() { throw ex; }
             _ => true
         };
+    }
+
+    /// <summary>
+    /// Checks if the catch block contains a call to __.DebugAssert* with the exception variable.
+    /// This is an approved pattern for graceful degradation with debug visibility.
+    /// </summary>
+    /// <remarks>
+    /// Approved patterns:
+    /// - __.DebugAssert(ex)
+    /// - __.DebugAssertOnce(ex)
+    /// - __.DebugAssertOnceIfNot(...)
+    /// </remarks>
+    private static bool HasDebugAssertCall(CatchClauseSyntax catchClause, SyntaxNodeAnalysisContext context)
+    {
+        if (catchClause.Block == null) return false;
+
+        // Get the exception variable name if one is declared
+        var exceptionVarName = catchClause.Declaration?.Identifier.Text;
+
+        // Look for invocations in the catch block
+        var directDescendants = catchClause.Block.DescendantNodes(ShouldDescendIntoNode);
+
+        foreach (var invocation in directDescendants.OfType<InvocationExpressionSyntax>())
+        {
+            // Check for __.DebugAssert* pattern
+            if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
+            {
+                var memberName = memberAccess.Name.Identifier.Text;
+
+                // Check if calling a DebugAssert* method
+                if (!memberName.StartsWith("DebugAssert")) continue;
+
+                // Check if the receiver is __ (LoLoRoot singleton)
+                if (memberAccess.Expression is IdentifierNameSyntax identifier &&
+                    identifier.Identifier.Text == "__")
+                {
+                    // If we have an exception variable, verify it's being passed
+                    if (!string.IsNullOrEmpty(exceptionVarName))
+                    {
+                        // Check if any argument references the exception variable
+                        var hasExceptionArg = invocation.ArgumentList.Arguments
+                            .Any(arg => arg.ToString().Contains(exceptionVarName));
+
+                        if (hasExceptionArg) return true;
+                    }
+                    else
+                    {
+                        // Bare catch with DebugAssert call - still acceptable
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }

@@ -14,7 +14,23 @@ Roslyn analyzers and suppressors enforcing workspace design decisions.
 Catch blocks catching `Exception`, `SystemException`, or bare `catch` must rethrow.
 
 **Flagged**: `catch { }`, `catch (Exception) { }`, `catch (Exception ex) { Log(ex); }`
-**Allowed**: `throw;`, `throw new Wrapped(ex);`, `when (condition)`, specific types like `IOException`
+**Allowed**:
+- `throw;` - rethrows original exception
+- `throw new Wrapped(ex);` - rethrows wrapped
+- `when (condition)` - exception filter narrows scope
+- Specific types like `IOException`, `JsonException`
+- `__.DebugAssertOnce(ex)` - debug assertion with graceful degradation
+
+**Preferred Pattern** (graceful degradation with visibility):
+```csharp
+catch (Exception ex)
+{
+    __.DebugAssertOnce(ex);  // Fires in DEBUG, logs once, doesn't throw
+    return fallbackValue;    // Graceful degradation in RELEASE
+}
+```
+
+See `protocols/debugging.md` for diagnostic patterns.
 
 ## Suppressors (CA2000)
 
