@@ -70,7 +70,7 @@
 		<!--NotNot.Utils nugets-->
 		<!--DI and App Host stuff-->
 
-		<PackageReference Include="Scrutor" Version="7.0.0" />
+		<!-- Scrutor removed: DI scanning moved to NotNot.Bcl.Core (available transitively) -->
 		<PackageReference Include="Serilog" Version="4.3.1-dev-02387" />
 		<PackageReference Include="Serilog.Expressions" Version="5.1.0-dev-02301" />
 		<PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />

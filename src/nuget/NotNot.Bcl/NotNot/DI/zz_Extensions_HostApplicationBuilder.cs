@@ -1,66 +1,46 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NotNot.Collections;
-using NotNot.DI.Advanced;
-using Scrutor;
 using Serilog;
 using Serilog.Configuration;
 using Serilog.Core;
 using Serilog.Events;
 
 
-
 public static class zz_Extensions_HostApplicationBuilder
 {
-
-	private static ObjectTrackingCollection<object> _initializedServiceTracker = new();
+	// DI scanning (_ScrutorRegisterServiceInterfaces, _DecorateAutoInitializeServices, TypeDiscovery,
+	// _ScrutorHookAutoInitialize_old) have been moved to NotNot.Bcl.Core.
+	// See: NotNot.Bcl.Core/NotNot/DI/zz_Extensions_IServiceCollection_DI.cs
+	// This class now delegates to AddNotNotDiServices() and retains only Serilog/logging config.
 
 	/// <summary>
-	/// registeres services extending interfaces like ISingleton and also decorates services implementing IAutoInitialize with a call to .AutoInitialize()
+	/// Configures Serilog logging and auto-registers DI services via Scrutor marker interfaces
+	/// (IDiSingletonService, IDiScopedService, IDiTransientService, IHostedService).
+	/// DI scanning logic lives in NotNot.Bcl.Core via AddNotNotDiServices().
 	/// </summary>
-	/// <param name="services"></param>
+	/// <param name="builder"></param>
 	/// <param name="ct"></param>
 	/// <param name="scanAssemblies">assemblies you want to scan for scrutor types.  default is everything: AppDomain.CurrentDomain.GetAssemblies()</param>
-	/// <param name="scanIgnore">assemblies to not scan for DI types.   if null is passed, the default will be ["Microsoft.*", "netstandard*", "Serilog*", "System*"] because ASP NetCore IHostedService internal registrations conflict, and others are internal packages.
+	/// <param name="scanIgnore">assemblies to not scan for DI types.   if null is passed, the default will be ["Microsoft.*", "netstandard*", "Serilog*", "System*", "Azure*"] because ASP NetCore IHostedService internal registrations conflict, and others are internal packages.
 	/// <para>example of the assembly name that will be matched against:  "Cleartrix.Cloud.WebApi, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"</para></param>
 	/// <returns></returns>
 	public static async Task _NotNotEzSetup(this IHostApplicationBuilder builder, CancellationToken ct, IEnumerable<Assembly>? scanAssemblies = null
 		, IEnumerable<string>? scanIgnore = null, Action<IConfiguration, LoggerConfiguration> extraLoggerConfig = null)
 	{
-		scanIgnore ??= ["Microsoft.*", "netstandard*", "Serilog*", "System*", "Azure*"];
 		await _NotNotUtils_ConfigureLogging(builder, ct, extraLoggerConfig);
-
-		var targetAssemblies = AssemblyReflectionHelper._FilterAssemblies(
-			scanAssemblies: scanAssemblies
-			, scanIgnore: scanIgnore
-			//, keepRegardless:new[] { "Microsoft.CodeAnalysis" }
-			);
-
-
 
 		try
 		{
-			//add scutor found in all assemblies
-			await _ScrutorRegisterServiceInterfaces(builder, ct, targetAssemblies);
-
+			builder.Services.AddNotNotDiServices(scanAssemblies, scanIgnore);
 		}
 		catch (Exception ex)
 		{
 			throw new Exception("If this is an assembly load exception, try adding it's referencing assembly to 'scanIgnore'", ex);
 		}
-
-
-		await _DecorateAutoInitializeServices(builder, ct);
-
-
-
-
-
 	}
 
 
@@ -135,300 +115,4 @@ public static class zz_Extensions_HostApplicationBuilder
 			restrictedToMinimumLevel,
 			levelSwitch);
 	}
-
-	/// <summary>
-	/// hooks up all services that implement ISingleton, ITransient, IScoped to be auto-registered
-	/// </summary>
-	/// <param name="services"></param>
-	/// <param name="ct"></param>
-	/// <returns></returns>
-	[SuppressMessage("ReSharper", "PossibleMultipleEnumeration")]
-	internal static async Task _ScrutorRegisterServiceInterfaces(this IHostApplicationBuilder builder, CancellationToken ct, IEnumerable<Assembly> targetAssemblies)
-	{
-
-
-		//in targetAssemblies, ensure that any IHostedService do not also implement ISingletonService, ITransientService, IScopedService
-		//this is because IHostedService is already registered as a singleton by default
-
-		var invalidServices = targetAssemblies
-			 .SelectMany(assembly => assembly.GetTypes())
-			 .Where(type => typeof(IHostedService).IsAssignableFrom(type) &&
-								(typeof(IDiSingletonService).IsAssignableFrom(type) ||
-								 typeof(IDiTransientService).IsAssignableFrom(type) ||
-								 typeof(IDiScopedService).IsAssignableFrom(type)))
-			 .Select(type => new
-			 {
-				 Type = type,
-				 Violations = new[]
-				  {
-						  typeof(IDiSingletonService).IsAssignableFrom(type) ? "ISingletonService" : null,
-						  typeof(IDiTransientService).IsAssignableFrom(type) ? "ITransientService" : null,
-						  typeof(IDiScopedService).IsAssignableFrom(type) ? "IScopedService" : null
-				  }.Where(x => x != null)
-			 })
-			 .ToList();
-
-		if (invalidServices.Any())
-		{
-			var errorMessage = "DI services cannot implement both IHostedService and other auto registering interfaces:\n\n" +
-				 string.Join("\n", invalidServices.Select(s =>
-					  $"- {s.Type.FullName}\n  Conflicting interfaces: {string.Join(", ", s.Violations)}"));
-
-			__.Throw(errorMessage);
-
-		}
-
-
-		//logger.LogTrace("utilizing Scrutor auto-registration of DI services....");
-
-		//use Scrutor nuget library to auto-register DI Services
-		builder.Services.Scan(scan =>
-		{
-
-			{
-				//register all services that implement IHostedService
-				scan.FromAssemblies(targetAssemblies)
-					.AddClasses(classes => classes.AssignableTo<IHostedService>())
-					.UsingRegistrationStrategy(RegistrationStrategy.Append)
-					.AsSelfWithInterfaces()
-					.WithSingletonLifetime();
-			}
-
-			{
-				//register all services that implement ISingletonService
-				//as interface, append
-				scan.FromAssemblies(targetAssemblies)
-					.AddClasses((classes) =>
-					{
-						var result = classes.AssignableTo<IDiSingletonService>();
-
-					})
-					//.AddClasses(classes => classes.Where(t => !t.IsGenericTypeDefinition &&
-					//                                          t.GetInterfaces().Any(i => i.IsGenericType &&
-					//                                                                     i.GetGenericTypeDefinition() == typeof(TInterface).GetGenericTypeDefinition())))
-					//.AddClasses(classes => classes.Where(t => !t.IsGenericTypeDefinition &&
-					//                                          t.BaseType != null && t.BaseType.GetInterfaces().Any(i => i.IsGenericType &&
-					//                                                                                                    i.GetGenericTypeDefinition() == typeof(TInterface).GetGenericTypeDefinition())))
-					//.AddClasses(classes => classes.Where(t => !t.IsGenericTypeDefinition &&
-					//                                          t.BaseType != null && t.BaseType._IsAssignableTo<TInterface>()))
-					//.AddClasses(classes => classes.Where(t => !t.IsGenericTypeDefinition &&
-					//                                          t._IsAssignableTo<TInterface>()))
-
-					.UsingRegistrationStrategy(RegistrationStrategy.Append)
-					.AsSelfWithInterfaces()
-					.WithSingletonLifetime();
-			}
-			{
-				//			//register all services that implement ITransientService
-				//as interface, append
-				scan.FromAssemblies(targetAssemblies)
-					.AddClasses(classes => classes.AssignableTo<IDiTransientService>())
-					.UsingRegistrationStrategy(RegistrationStrategy.Append)
-					.AsSelfWithInterfaces()
-					.WithTransientLifetime();
-			}
-
-			{
-				//register all services that implement IScopedService
-				//as interface, append
-				scan.FromAssemblies(targetAssemblies)
-					.AddClasses(classes => classes.AssignableTo<IDiScopedService>())
-					.UsingRegistrationStrategy(RegistrationStrategy.Append)
-					.AsSelfWithInterfaces()
-					.WithScopedLifetime()
-					;
-			}
-
-		});
-
-		// ═══════════════════════════════════════════════════════════════════════════
-		// Validate no duplicate IHostedService registrations
-		// ═══════════════════════════════════════════════════════════════════════════
-		// Scrutor uses RegistrationStrategy.Append which bypasses duplicate prevention.
-		// Manual AddHostedService<T>() calls combined with auto-registration causes
-		// duplicate instances running simultaneously - a subtle bug that wastes resources
-		// and can cause race conditions.
-		//
-		// Detection strategy: Scrutor registers IHostedService implementations via a
-		// factory (ImplementationType = null, ImplementationFactory != null). Manual
-		// AddHostedService<T>() calls register with ImplementationType != null.
-		// So we detect manual registrations by checking for non-null ImplementationType.
-		//
-		// Check for IHostedService registrations that have ImplementationType set.
-		// Scrutor registers via factory (ImplementationType = null), so any direct type
-		// registration indicates a manual AddHostedService<T>() call that will create
-		// a duplicate since Scrutor also auto-registers it.
-		//
-		// Exception: Microsoft.AspNetCore.* framework services are registered before
-		// Scrutor and are excluded from our assembly scan, so they're not duplicates.
-		var manualHostedServiceRegistrations = builder.Services
-			.Where(sd => sd.ServiceType == typeof(IHostedService) &&
-						 sd.ImplementationType != null &&
-						 !sd.ImplementationType.FullName!.StartsWith("Microsoft."))
-			.Select(sd => sd.ImplementationType!)
-			.ToList();
-
-		if (manualHostedServiceRegistrations.Any())
-		{
-			var msg = string.Join("\n", manualHostedServiceRegistrations.Select(t =>
-				$"  - {t.FullName}"));
-			__.Throw($"Manual IHostedService registrations detected. " +
-				$"IHostedService implementations are auto-registered by Scrutor - do NOT call AddHostedService<T>().\n{msg}");
-		}
-
-	}
-
-
-	//// Skip open generic types
-	/// if (serviceType.Name.StartsWith("Cache"))
-	/// {
-	/// var xxx = 0;
-	/// }
-	//if (serviceType.IsGenericTypeDefinition)
-	//{
-	//   continue;
-	//}
-
-	public static class TypeDiscovery
-	{
-		public static List<Type> FindClosedGenericsOfOpenGeneric(Type openGenericType)
-		{
-
-
-
-			if (!openGenericType.IsGenericTypeDefinition)
-			{
-				throw new ArgumentException("The provided type must be an open generic type", nameof(openGenericType));
-			}
-			// Get all loaded assemblies
-			Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
-
-			var closedTypes = new List<Type>();
-
-			foreach (var assembly in assemblies)
-			{
-				foreach (var type in assembly.GetTypes())
-				{
-					// Check if the type is a generic type and if it is constructed from the openGenericType
-					if (type.IsGenericType && type.GetGenericTypeDefinition() == openGenericType)
-					{
-						closedTypes.Add(type);
-					}
-				}
-			}
-
-			return closedTypes;
-		}
-	}
-
-	internal static async Task _DecorateAutoInitializeServices(this IHostApplicationBuilder builder, CancellationToken ct)
-	{
-		var services = builder.Services;
-
-		foreach (var serviceDescriptor in services.ToList())
-		{
-			var serviceType = serviceDescriptor.ServiceType;
-
-
-			if (typeof(IDiAutoInitialize).IsAssignableFrom(serviceType))
-			{
-				//ok
-			}
-			else if (serviceDescriptor.ImplementationType != null && typeof(IDiAutoInitialize).IsAssignableFrom(serviceDescriptor.ImplementationType))
-			{
-				//ok
-			}
-			else if (serviceDescriptor.ImplementationInstance != null && typeof(IDiAutoInitialize).IsAssignableFrom(serviceDescriptor.ImplementationInstance.GetType()))
-			{
-				//ok
-			}
-			else
-			{
-				//not assignable
-				continue;
-			}
-
-			Decorate_AutoInit_ServiceRegistrationUpdater.DecorateService(services, serviceDescriptor);
-
-		}
-	}
-
-
-	/// <summary>
-	/// hooks up all services that implement IAutoInitialize to be decorated with a call to .AutoInitialize()
-	/// </summary>
-	internal static async Task _ScrutorHookAutoInitialize_old(this IHostApplicationBuilder builder, CancellationToken ct)
-	{
-		var hasImplementation = builder.Services.Where(sd =>
-		{
-			var serviceType = sd.ServiceType;
-
-			if (typeof(IDiAutoInitialize).IsAssignableFrom(serviceType))
-			{
-				return true;
-			}
-
-			//can't check factory return type, so always have to decorate and try their returned result
-			if (sd.ImplementationFactory != null)
-			{
-				return true;
-			}
-
-			//check if ImplementationInstance inherits from IInitializeableService
-			if (sd.ImplementationInstance != null)
-			{
-				if (typeof(IDiAutoInitialize).IsAssignableFrom(sd.ImplementationInstance.GetType()))
-				{
-					return true;
-				}
-
-				return false;
-			}
-
-			//check if ImplementationType inherits from IInitializeableService
-			if (sd.ImplementationType != null)
-			{
-				if (typeof(IDiAutoInitialize).IsAssignableFrom(sd.ImplementationType))
-				{
-					return true;
-				}
-
-				return false;
-			}
-
-			return false;
-		});
-
-		var groupedByServiceType = hasImplementation
-			.GroupBy(serviceDescriptor => serviceDescriptor.ServiceType);
-
-		List<Type> serviceTypes = groupedByServiceType.Select(grouping => grouping.Key).ToList();
-
-		foreach (Type serviceType in serviceTypes)
-		{
-			try
-			{
-				var _myServiceType1 = serviceType;
-				builder.Services.Decorate(serviceType, (innerService, serviceProvider) =>
-				{
-					var _myServiceType2 = serviceType;
-					if (innerService is IDiAutoInitialize initService)
-					{
-						//ensure that we only call .AutoInitialize() once per object, first time it's requested
-						if (_initializedServiceTracker.TryAdd(innerService))
-						{
-							initService.AutoInitialize(serviceProvider, ct)._SyncWait();
-						}
-					}
-
-					return innerService;
-				});
-			}
-			catch (DecorationException ex)
-			{
-				__.GetLogger()._EzError("error calling .AutoInitialzie() on  decorated service. ", serviceType, ex);
-			}
-		}
-	}
-
 }
