@@ -1,14 +1,2 @@
-namespace NotNot.Bcl.Diagnostics;
-
-/// <summary>
-/// Excludes a controller or method from Maybe return pattern enforcement.
-/// Use sparingly for legacy compatibility or special cases only.
-/// </summary>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = false)]
-public sealed class MaybeReturnNotRequiredAttribute : Attribute
-{
-	/// <summary>
-	/// Optional reason for excluding Maybe return pattern
-	/// </summary>
-	public string? Reason { get; set; }
-}
+// MaybeReturnNotRequiredAttribute has been moved to NotNot.Bcl.Core.
+// See: NotNot.Bcl.Core/NotNot/Diagnostics/MaybeReturnNotRequiredAttribute.cs

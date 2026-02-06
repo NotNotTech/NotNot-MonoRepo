@@ -1,13 +1,13 @@
 # NotNot.AppSettingsHelper Runtime Library
 
-Runtime support for AppSettings load/save/auto-save operations. Located in `NotNot.Bcl` package.
+Runtime support for AppSettings load/save/auto-save operations. Located in `NotNot.Bcl.Core` package.
 
 ## Architecture
 
 | Component | Target | Purpose |
 |-----------|--------|---------|
 | `NotNot.AppSettings` | netstandard2.0 | Source generator (compile-time) |
-| `NotNot.Bcl/NotNot/AppSettingsHelper` | net10.0 | Runtime manager (run-time) |
+| `NotNot.Bcl.Core/NotNot/AppSettingsHelper` | net10.0 | Runtime manager (run-time) |
 
 Separation exists because source generators (netstandard2.0) cannot use File I/O.
 
@@ -24,7 +24,7 @@ Access via `Settings` (Workflow A) OR `Proxy` (Workflow B), not both.
 
 | Provider | Location | Use Case |
 |----------|----------|----------|
-| `FileUserSettingsStorageProvider` | `NotNot.Bcl` | Desktop/server apps |
+| `FileUserSettingsStorageProvider` | `NotNot.Bcl.Core` | Desktop/server apps |
 | `LocalStorageStorageProvider` | `NotNot.BlazorComponents` | Blazor localStorage |
 
 ## Key Design Decisions

@@ -8,6 +8,10 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using NotNot;
 
+// Analyzer suppression: pre-existing pattern from Bcl (which used WarningLevel=0).
+// Should be fixed properly in a future code quality pass.
+#pragma warning disable NN_R002 // Unobserved Task result
+
 namespace NotNot.AppSettingsHelper;
 
 /// <summary>
@@ -786,10 +790,15 @@ public sealed class SettingsManager<TSettings> : IDisposable, IAsyncDisposable
 				// P1-1: Use SaveCoreAsync to avoid self-deadlock
 				await SaveCoreAsync(token);
 			}
+			catch (OperationCanceledException)
+			{
+				// Expected during debounce cancellation or disposal — not an error
+			}
 			catch (Exception ex)
 			{
 				// P1-6: Don't swallow exceptions silently
 				OnAutoSaveError?.Invoke(ex);
+				__.DebugAssertOnce(ex);
 			}
 		}, token);
 	}

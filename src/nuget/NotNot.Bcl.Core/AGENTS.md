@@ -1,13 +1,13 @@
 # VIBEGUIDE
 
 ## Core Library Philosophy
-- Pure .NET library with NO web framework dependencies
-- Foundation for Maybe<T> pattern and core utilities
-- Must remain framework-agnostic for broad compatibility
+- Lightweight .NET library with NO web framework dependencies
+- Foundation for Maybe<T> pattern, core utilities, DI infrastructure, and settings management
+- Must remain framework-agnostic for broad compatibility (no ASP.NET Core)
 - Used by both web and non-web applications
 
 ## Critical Architectural Boundaries
-- **NO Microsoft.Extensions.* dependencies** - Those belong in NotNot.Bcl
+- **Microsoft.Extensions.Hosting/DI/Configuration allowed** - Required for DI infrastructure and AppSettingsHelper
 - **NO ASP.NET Core dependencies** - Optional ASP.NET support is in NotNot.Bcl
 - **NO IResult or HttpContext usage** - Web utilities belong in NotNot.Bcl
 - Type detection by name/string matching only when needed for framework types
@@ -142,8 +142,32 @@ await throttler.EventuallyOnce("api-call", () => CallApiAsync());
 - conventions:
 	- follow same `zz_Extensions_{type}` naming convention for new extensions.
    - always prefix our extension methods with `_` to visibly signal this is our extension method.
-- No Microsoft.Extensions.* dependent extensions (those go in NotNot.Bcl)
 - Focus on general-purpose utilities
+
+### DI Infrastructure (NotNot.DI namespace)
+- **DI Service Markers**: `IMsDiService`, `IDiScopedService`, `IDiSingletonService`, `IDiTransientService`, `IDiAutoInitialize`
+- **MsDIContainer**: Base class for managing a DI container using Generic Host (`DisposeGuard`-based)
+- **Service Registration Extensions**: `zz_Extensions_IServiceCollection_DI.cs` for auto-registration
+- **Decoration**: `Advanced/_Decoration.cs` for service decoration patterns
+
+### AppSettingsHelper (NotNot.AppSettingsHelper namespace)
+- Runtime support for AppSettings load/save/auto-save operations
+- `SettingsManager<T>`: Main manager with file-based and storage-provider workflows
+- `SettingsProxy<T>`: DispatchProxy-based change interceptor for POCO settings
+- `JsonSettingsUtils`: Diff/merge utilities for layered JSON settings
+- `IUserSettingsStorageProvider` + `FileUserSettingsStorageProvider`: Storage abstraction
+- `ISettingsChangeAware`: Interface for source-generated settings change notification
+- See [AppSettingsHelper/AGENTS.md](./NotNot/AppSettingsHelper/AGENTS.md) for detailed docs
+
+### Note on Mixins/Tags
+- `Tags` / `ITags` remain in **NotNot.Bcl** (not here) because `[Inline<Tags>]` source generator requires same-compilation source
+- See `CrossAssemblyLimitationTests` in NotNot.Mixins.Tests for details
+
+### Diagnostic Attributes (NotNot.Bcl.Diagnostics namespace)
+- `RequireMaybeReturnAttribute`: Marks classes/methods requiring Maybe return pattern
+- `MaybeReturnNotRequiredAttribute`: Excludes from Maybe return pattern enforcement
+- `DiagnosticSeverity` enum: Severity levels for analyzer rules
+- Referenced by string name in `NotNot.Analyzers` Roslyn analyzers
 
 # VIBECACHE
 
@@ -159,8 +183,9 @@ await throttler.EventuallyOnce("api-call", () => CallApiAsync());
 
 ## Dependency Rules
 1. **Allowed**: System.* namespaces, pure .NET libraries
-2. **Forbidden**: Microsoft.AspNetCore.*, Microsoft.Extensions.* (belong in NotNot.Bcl)
-3. **Exception**: Can detect framework types by fully-qualified name strings
+2. **Allowed**: Microsoft.Extensions.Hosting, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.Configuration (for DI infrastructure and AppSettingsHelper)
+3. **Forbidden**: Microsoft.AspNetCore.* (ASP.NET Core web framework belongs in NotNot.Bcl)
+4. **Exception**: Can detect framework types by fully-qualified name strings
 
 ## IResult Handling Strategy
 When Maybe<T> encounters IResult types during deserialization:
@@ -170,18 +195,19 @@ When Maybe<T> encounters IResult types during deserialization:
 
 ## Why This Separation Matters
 
-**NotNot.Bcl.Core** (this package) can be used in:
-- Console applications with minimal dependencies
-- Desktop applications (WPF, WinForms, MAUI)
-- Libraries that cannot reference Microsoft.Extensions.*
-- Embedded or constrained scenarios
+**NotNot.Bcl.Core** (this package) provides:
+- Core patterns (Maybe<T>, pooling, diagnostics, events, concurrency)
+- DI infrastructure (service markers, MsDIContainer, auto-registration)
+- AppSettingsHelper (settings management, JSON diff/merge, storage providers)
+- Mixins/Tags and diagnostic attributes for Roslyn analyzers
+- Dependencies limited to Microsoft.Extensions.Hosting/DI/Configuration (no ASP.NET Core)
 
-**NotNot.Bcl** extends Core for modern environments:
-- Apps using IHostBuilder, IServiceCollection, modern DI
-- Console apps, services, web apps, desktop apps with modern hosting
-- Optional ASP.NET Core utilities when needed
+**NotNot.Bcl** extends Core for web-capable environments:
+- ASP.NET Core framework reference (`Microsoft.AspNetCore.App`)
+- IResult utilities, HttpContext helpers
+- Web-specific patterns and extensions
 
 This separation ensures:
-- Minimal-dependency scenarios can use Core alone
-- Modern apps get full Microsoft.Extensions.* integration
-- Clear architectural boundaries
+- Console apps, desktop apps, and libraries can use Core without ASP.NET Core overhead
+- Web projects get full ASP.NET Core integration via NotNot.Bcl
+- Clear architectural boundary: Core = no web framework, Bcl = web-capable

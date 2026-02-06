@@ -1,16 +1,27 @@
 # VIBEGUIDE
 
 ## Modern Cross-Platform Library Philosophy
-- Extensions for NotNot.Bcl.Core in modern .NET environments
-- Can reference (not necessarily use) Microsoft.Extensions.* and ASP.NET Core helpers
+- Extensions for NotNot.Bcl.Core requiring ASP.NET Core framework reference
 - Cross-platform: works in console apps, services, web apps, desktop apps
-- Centralizes dependencies that require modern hosting/DI infrastructure
+- Hosts SlimGraph and types requiring ASP.NET Core
 
 ## Critical Architectural Boundaries
-- **Microsoft.Extensions.* dependencies GO HERE** - Not in Core
-- **ASP.NET Core utilities** - Optional web-specific patterns (IResult, HttpContext)
-- **Modern DI/Hosting patterns** - IHostBuilder, IServiceCollection extensions
+- **ASP.NET Core framework reference** - This package has `<FrameworkReference Include="Microsoft.AspNetCore.App" />`
+- **ASP.NET Core utilities** - IResult, HttpContext patterns
 - Depends on and extends NotNot.Bcl.Core functionality
+- **Note**: Microsoft.Extensions.Hosting/DI/Configuration are now in Bcl.Core (not here)
+
+## Moved Types (now in NotNot.Bcl.Core)
+The following types have been migrated to NotNot.Bcl.Core for broader reuse:
+- **DI Infrastructure**: `MsDIContainer`, DI service markers, auto-registration extensions
+- **AppSettingsHelper**: `SettingsManager<T>`, `SettingsProxy<T>`, `JsonSettingsUtils`, storage providers
+- **Diagnostic Attributes**: `RequireMaybeReturnAttribute`, `MaybeReturnNotRequiredAttribute`
+
+All types remain available transitively since Bcl references Bcl.Core.
+
+## Retained Types (NOT moved)
+- **Mixins/Tags**: `Tags`, `ITags` — Must stay here because `[Inline<Tags>]` source generator requires same-compilation source (see `CrossAssemblyLimitationTests`)
+- **SlimGraph**: Full node hierarchy framework — deferred from migration
 
 # VIBECACHE
 
@@ -40,8 +51,9 @@
 
 ## Dependency Rules
 1. **Required**: Reference to NotNot.Bcl.Core
-2. **Allowed**: Microsoft.AspNetCore.*, Microsoft.Extensions.* (web)
-3. **Purpose**: All web framework dependencies centralized here
+2. **Allowed**: Microsoft.AspNetCore.* via framework reference
+3. **Purpose**: ASP.NET Core web framework types centralized here
+4. **Note**: Microsoft.Extensions.Hosting/DI/Configuration now live in Bcl.Core
 
 ## Framework Reference
 ```xml
@@ -59,29 +71,27 @@ public static IResult ToIResult<T>(this Maybe<T> maybe) { ... }
 
 ## Why This Separation Exists
 
-### NotNot.Bcl.Core (Pure .NET)
+### NotNot.Bcl.Core (Lightweight, no ASP.NET Core)
 - Used by: Any .NET application, libraries, minimal environments
-- Dependencies: None beyond .NET BCL
-- Focus: Core patterns like Maybe<T>, pooling, diagnostics
+- Dependencies: Microsoft.Extensions.Hosting/DI/Configuration (no ASP.NET Core)
+- Focus: Core patterns (Maybe<T>, pooling, diagnostics), DI infrastructure, AppSettingsHelper, Mixins
 
-### NotNot.Bcl (Modern Cross-Platform)
-- Used by: Console apps, services, web apps, desktop apps with modern .NET hosting
-- Dependencies: Microsoft.Extensions.*, optional ASP.NET Core framework reference
-- Focus: DI integration, hosting extensions, web utilities when needed
+### NotNot.Bcl (ASP.NET Core capable)
+- Used by: Apps that need ASP.NET Core framework reference
+- Dependencies: ASP.NET Core framework reference + Bcl.Core
+- Focus: SlimGraph, web utilities, IResult extensions
 
 This separation ensures:
-- Minimal-dependency projects can use Core alone
-- Modern apps get full Microsoft.Extensions.* integration
-- Web projects get optional ASP.NET Core utilities
-- Clear architectural boundaries
-- Appropriate package sizes for each use case
+- Non-web projects use Core alone (no ASP.NET Core overhead)
+- Web projects get ASP.NET Core integration via NotNot.Bcl
+- Clear boundary: Core = no web framework, Bcl = web-capable
 
 ## Migration Guide
 When adding new functionality, ask:
-1. Does it require Microsoft.Extensions.* or ASP.NET Core types? → Goes in NotNot.Bcl
-2. Is it pure .NET logic with no external dependencies? → Goes in NotNot.Bcl.Core
-3. Does it require desktop OS integration (Process.Start, platform detection)? → Goes in NotNot.Platform.Desktop
-4. Does it bridge hosting/DI with core patterns? → Goes in NotNot.Bcl
+1. Does it require ASP.NET Core types (IResult, HttpContext)? → Goes in NotNot.Bcl
+2. Does it only need Microsoft.Extensions.Hosting/DI/Configuration? → Goes in NotNot.Bcl.Core
+3. Is it pure .NET logic with no external dependencies? → Goes in NotNot.Bcl.Core
+4. Does it require desktop OS integration (Process.Start, platform detection)? → Goes in NotNot.Platform.Desktop
 
 ## Known Limitations
 - IResult types cannot be deserialized due to sealed constructors
