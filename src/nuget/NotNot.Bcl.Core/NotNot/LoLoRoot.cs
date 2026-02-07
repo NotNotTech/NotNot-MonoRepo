@@ -858,7 +858,12 @@ public partial class LoLoRoot
                   builder.ClearProviders();
                   builder.SetMinimumLevel(LogLevel.Trace);
 
-                  builder.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
+                  // ConsoleLoggerProvider spawns a Thread which is unsupported in Blazor WASM.
+                  // Skip console logging entirely when running in the browser.
+                  if (!OperatingSystem.IsBrowser())
+                  {
+                     builder.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
+                  }
                });
                _isOwnedFallbackFactory = true; // We created this, we own it
             }
