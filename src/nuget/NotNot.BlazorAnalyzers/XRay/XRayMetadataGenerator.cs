@@ -202,7 +202,7 @@ internal static partial class XRayMetadata
         var normalized = fullPath.Replace('\\', '/');
 
         // PRIMARY: Find assembly name in path (most reliable)
-        // e.g., ".../NotNot.Cct.WebApp/NotNot/Vow/..." → "NotNot/Vow/..."
+        // e.g., ".../NotNot.Cct.WebApp/NotNot/Cct/..." → "NotNot/Cct/..."
         // Handle both exact match and common naming patterns (with/without dots)
         var assemblyMarkers = new[]
         {

@@ -858,9 +858,14 @@ public partial class LoLoRoot
                   builder.ClearProviders();
                   builder.SetMinimumLevel(LogLevel.Trace);
 
-                  // ConsoleLoggerProvider spawns a Thread which is unsupported in Blazor WASM.
-                  // Skip console logging entirely when running in the browser.
-                  if (!OperatingSystem.IsBrowser())
+                  if (OperatingSystem.IsBrowser())
+                  {
+                     // WASM: ConsoleLoggerProvider spawns Thread → PlatformNotSupportedException.
+                     // DebugLoggerProvider uses System.Diagnostics.Debug.WriteLine which maps to
+                     // browser DevTools console in WASM — no thread spawning.
+                     builder.AddDebug();
+                  }
+                  else
                   {
                      builder.AddConsole(options => { options.FormatterName = "fallback"; }).AddConsoleFormatter<FallbackConsoleFormatter, ConsoleFormatterOptions>();
                   }
