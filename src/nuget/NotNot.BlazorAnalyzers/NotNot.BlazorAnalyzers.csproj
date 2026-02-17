@@ -8,6 +8,10 @@
 		<LangVersion>preview</LangVersion>
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 		<Configurations>Debug;Release;DebugNuget</Configurations>
+		<_SafeConfiguration>$([System.Text.RegularExpressions.Regex]::Replace('$(Configuration)', "[^A-Za-z0-9_.-]", "_"))</_SafeConfiguration>
+		<_ConfigurationHasInvalidChars Condition="'$(_SafeConfiguration)' != '$(Configuration)'">true</_ConfigurationHasInvalidChars>
+		<OutputPath Condition="'$(_ConfigurationHasInvalidChars)' == 'true'">bin\$(_SafeConfiguration)\</OutputPath>
+		<IntermediateOutputPath Condition="'$(_ConfigurationHasInvalidChars)' == 'true'">obj\$(_SafeConfiguration)\</IntermediateOutputPath>
 
 		<!-- Analyzer-specific settings -->
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>

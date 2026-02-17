@@ -9,8 +9,18 @@
         <AdditionalFiles Include="**/*.razor" Exclude="bin/**;obj/**;.vs/**" />
     </ItemGroup>
 
-    <!-- Expose XRayGeneratorEnabled property to analyzer via CompilerVisibleProperty -->
+    <!--
+    CSS Modernization Analyzer
+    Register .css files as AdditionalTexts for CSS rule analysis.
+    Excludes vendor libraries typically found in wwwroot/lib/.
+    -->
+    <ItemGroup>
+        <AdditionalFiles Include="**/*.css" Exclude="bin/**;obj/**;.vs/**;**/wwwroot/lib/**" />
+    </ItemGroup>
+
+    <!-- Expose build properties to analyzers/generators via CompilerVisibleProperty -->
     <ItemGroup>
         <CompilerVisibleProperty Include="XRayGeneratorEnabled" />
+        <CompilerVisibleProperty Include="CssAnalyzerEnabled" />
     </ItemGroup>
 </Project>
