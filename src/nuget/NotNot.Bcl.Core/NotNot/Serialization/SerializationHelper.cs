@@ -160,6 +160,7 @@ public class SerializationHelper
 			new ObjConverter<StackFrame>(value =>
 				$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
 			//new ObjConverter<StackFrame>((value) => $"{value.ToString()}\n"),
+			new ObjConverter<Delegate>(value => $"[delegate: {value.Method?.DeclaringType?.Name}.{value.Method?.Name}]"),
 			// Must be LAST - gracefully truncates deep graphs instead of throwing
 			new DepthTruncatingConverterFactory(maxDepth: 10),
 		},
@@ -233,9 +234,15 @@ public class SerializationHelper
 		}
 		catch (Exception ex)
 		{
+			// Logging serialization must never crash the app — return error info as PoCo
+			__.DebugAssertOnce(ex);
 			__.GetLogger()._EzError(ex, "could not convert to PoCo due to json roundtrip error");
-			//throw new ApplicationException("could not convert to PoCo due to json roundtrip error", ex);
-			throw;
+			return new Dictionary<string, object?>
+			{
+				["__serializationError"] = ex.Message,
+				["__type"] = obj?.GetType().FullName,
+				["__toString"] = obj?.ToString()
+			};
 		}
 	}
 	/// <summary>
@@ -246,12 +253,41 @@ public class SerializationHelper
 	/// <returns></returns>
 	public string ToJsonLog(object obj)
 	{
-		//var roundTrip = ToLogPoCo(obj);
-		return JsonSerializer.Serialize(obj, _logJsonOptions);
+		try
+		{
+			return JsonSerializer.Serialize(obj, _logJsonOptions);
+		}
+		catch (Exception ex)
+		{
+			// Logging serialization must never crash the app — return error info as JSON
+			__.DebugAssertOnce(ex);
+			__.GetLogger()._EzError(ex, "ToJsonLog serialization failed for {Type}", obj?.GetType().FullName);
+			return JsonSerializer.Serialize(new
+			{
+				__serializationError = ex.Message,
+				__type = obj?.GetType().FullName,
+				__toString = obj?.ToString()
+			});
+		}
 	}
 	public JsonDocument ToJsonLogDocument(object obj)
 	{
-		return JsonSerializer.SerializeToDocument(obj, _logJsonOptions);
+		try
+		{
+			return JsonSerializer.SerializeToDocument(obj, _logJsonOptions);
+		}
+		catch (Exception ex)
+		{
+			// Logging serialization must never crash the app — return error info as JsonDocument
+			__.DebugAssertOnce(ex);
+			__.GetLogger()._EzError(ex, "ToJsonLogDocument serialization failed for {Type}", obj?.GetType().FullName);
+			return JsonSerializer.SerializeToDocument(new
+			{
+				__serializationError = ex.Message,
+				__type = obj?.GetType().FullName,
+				__toString = obj?.ToString()
+			});
+		}
 	}
 
 	/// <summary>
@@ -631,7 +667,17 @@ internal class DepthTruncatingConverterFactory : JsonConverterFactory
 
 			// Serialize normally using options without this converter to avoid recursion
 			var tempOptions = CreateOptionsWithoutThisConverter(options);
-			JsonSerializer.Serialize(writer, value, tempOptions);
+			try
+			{
+				JsonSerializer.Serialize(writer, value, tempOptions);
+			}
+			catch (NotSupportedException)
+			{
+				// Type is not serializable (e.g., delegates, function pointers, unregistered complex types).
+				// NotSupportedException fires during converter resolution, BEFORE any writes to the writer,
+				// so the writer is in a clean state and we can safely write a fallback string.
+				writer.WriteStringValue($"[non-serializable: {value.GetType().Name}]");
+			}
 		}
 
 		private static JsonSerializerOptions? _cachedOptionsWithoutConverter;
