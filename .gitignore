@@ -57,6 +57,14 @@ dlldata.c
 # Benchmark Results
 BenchmarkDotNet.Artifacts/
 
+# .net bin folders
+bin/
+bin1/
+bin2/
+bincli*/
+obj/
+.build/
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json

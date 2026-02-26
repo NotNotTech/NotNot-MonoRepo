@@ -110,7 +110,6 @@ public class RoundtripObjConverter<T> : JsonConverter<T>, IDisposable
 	public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
 	{
 		DoWrite(writer, value, options);
-		writer.Dispose();
 	}
 
 	public void Dispose()

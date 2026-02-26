@@ -232,18 +232,31 @@ public class SerializationHelper
 				return deserialized;
 			}
 		}
+
+#pragma warning disable NN_R005 // Logging serialization final safety net — must never crash (greenfield-patterns.md)
 		catch (Exception ex)
 		{
-			// Logging serialization must never crash the app — return error info as PoCo
-			__.DebugAssertOnce(ex);
-			__.GetLogger()._EzError(ex, "could not convert to PoCo due to json roundtrip error");
-			return new Dictionary<string, object?>
+			try
 			{
-				["__serializationError"] = ex.Message,
-				["__type"] = obj?.GetType().FullName,
-				["__toString"] = obj?.ToString()
-			};
+				__.DebugAssertOnce(ex);
+				__.GetLogger()._EzError(ex, "could not convert to PoCo due to json roundtrip error");
+				return new Dictionary<string, object?>
+				{
+					["__serializationError"] = ex.Message,
+					["__type"] = obj?.GetType().FullName,
+					["__toString"] = obj?.ToString()
+				};
+			}
+			catch
+			{
+				// Double-fault: return hardcoded fallback — zero allocations that could throw
+				return new Dictionary<string, object?>
+				{
+					["__serializationError"] = "double-fault in ToLogPoCo"
+				};
+			}
 		}
+#pragma warning restore NN_R005
 	}
 	/// <summary>
 	/// converts input object into a "plain old collection object", then to JSON string.
@@ -257,18 +270,28 @@ public class SerializationHelper
 		{
 			return JsonSerializer.Serialize(obj, _logJsonOptions);
 		}
+
+#pragma warning disable NN_R005 // Logging serialization final safety net — must never crash (greenfield-patterns.md)
 		catch (Exception ex)
 		{
-			// Logging serialization must never crash the app — return error info as JSON
-			__.DebugAssertOnce(ex);
-			__.GetLogger()._EzError(ex, "ToJsonLog serialization failed for {Type}", obj?.GetType().FullName);
-			return JsonSerializer.Serialize(new
+			try
 			{
-				__serializationError = ex.Message,
-				__type = obj?.GetType().FullName,
-				__toString = obj?.ToString()
-			});
+				__.DebugAssertOnce(ex);
+				__.GetLogger()._EzError(ex, "ToJsonLog serialization failed for {Type}", obj?.GetType().FullName);
+				return JsonSerializer.Serialize(new
+				{
+					__serializationError = ex.Message,
+					__type = obj?.GetType().FullName,
+					__toString = obj?.ToString()
+				});
+			}
+			catch
+			{
+				// Double-fault: hardcoded string fallback — zero allocations that could throw
+				return "{\"__serializationError\":\"double-fault in ToJsonLog\"}";
+			}
 		}
+#pragma warning restore NN_R005
 	}
 	public JsonDocument ToJsonLogDocument(object obj)
 	{
@@ -276,18 +299,28 @@ public class SerializationHelper
 		{
 			return JsonSerializer.SerializeToDocument(obj, _logJsonOptions);
 		}
+
+#pragma warning disable NN_R005 // Logging serialization final safety net — must never crash (greenfield-patterns.md)
 		catch (Exception ex)
 		{
-			// Logging serialization must never crash the app — return error info as JsonDocument
-			__.DebugAssertOnce(ex);
-			__.GetLogger()._EzError(ex, "ToJsonLogDocument serialization failed for {Type}", obj?.GetType().FullName);
-			return JsonSerializer.SerializeToDocument(new
+			try
 			{
-				__serializationError = ex.Message,
-				__type = obj?.GetType().FullName,
-				__toString = obj?.ToString()
-			});
+				__.DebugAssertOnce(ex);
+				__.GetLogger()._EzError(ex, "ToJsonLogDocument serialization failed for {Type}", obj?.GetType().FullName);
+				return JsonSerializer.SerializeToDocument(new
+				{
+					__serializationError = ex.Message,
+					__type = obj?.GetType().FullName,
+					__toString = obj?.ToString()
+				});
+			}
+			catch
+			{
+				// Double-fault: minimal pre-serialized fallback
+				return JsonSerializer.SerializeToDocument(new { __serializationError = "double-fault in ToJsonLogDocument" });
+			}
 		}
+#pragma warning restore NN_R005
 	}
 
 	/// <summary>
@@ -644,8 +677,8 @@ internal class DepthTruncatingConverterFactory : JsonConverterFactory
 		public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 		{
 			// For reading, delegate to default behavior
-			// Create temporary options without this converter
-			var tempOptions = CreateOptionsWithoutThisConverter(options);
+			// Create temporary options without this converter (depth irrelevant for reads)
+			var tempOptions = CreateOptionsWithoutThisConverter(options, remainingDepth: 64);
 			return JsonSerializer.Deserialize<T>(ref reader, tempOptions);
 		}
 
@@ -665,48 +698,70 @@ internal class DepthTruncatingConverterFactory : JsonConverterFactory
 				return;
 			}
 
-			// Serialize normally using options without this converter to avoid recursion
-			var tempOptions = CreateOptionsWithoutThisConverter(options);
+			// Buffer-then-copy: serialize to a temp buffer first, then copy to the real writer
+			// on success. This prevents partial writes from corrupting the real writer if a
+			// custom converter throws NotSupportedException after beginning to write.
+			// F6 fix: Carry forward remaining depth budget instead of fixed MaxDepth=64.
+			// The temp writer starts at depth 0, so limit it to the budget remaining from the
+			// original writer's perspective.
+			var remainingDepth = Math.Max(1, _maxDepth - writer.CurrentDepth);
+			var tempOptions = CreateOptionsWithoutThisConverter(options, remainingDepth);
 			try
 			{
-				JsonSerializer.Serialize(writer, value, tempOptions);
+				using var buffer = new System.IO.MemoryStream();
+				using var tempWriter = new Utf8JsonWriter(buffer);
+				JsonSerializer.Serialize(tempWriter, value, tempOptions);
+				tempWriter.Flush();
+
+				// Success — replay buffered JSON to real writer
+				using var doc = JsonDocument.Parse(buffer.ToArray());
+				doc.RootElement.WriteTo(writer);
 			}
 			catch (NotSupportedException)
 			{
 				// Type is not serializable (e.g., delegates, function pointers, unregistered complex types).
-				// NotSupportedException fires during converter resolution, BEFORE any writes to the writer,
-				// so the writer is in a clean state and we can safely write a fallback string.
+				// Temp buffer absorbed any partial writes — real writer is still clean.
 				writer.WriteStringValue($"[non-serializable: {value.GetType().Name}]");
+			}
+			catch (JsonException)
+			{
+				// Depth overflow in buffer path — remaining budget was tight and STJ threw
+				// "maximum depth exceeded" instead of NotSupportedException.
+				// Temp buffer absorbed partial writes — real writer is still clean.
+				writer.WriteStringValue(_truncationMessage);
 			}
 		}
 
-		private static JsonSerializerOptions? _cachedOptionsWithoutConverter;
+		private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<JsonSerializerOptions, JsonSerializerOptions> _baseOptionsCache = new();
 
-		private JsonSerializerOptions CreateOptionsWithoutThisConverter(JsonSerializerOptions options)
+		private static JsonSerializerOptions CreateOptionsWithoutThisConverter(JsonSerializerOptions options, int remainingDepth)
 		{
-			// Cache the options since creating them is expensive
-			// Thread-safety: worst case we create a few extra instances, no correctness issue
-			if (_cachedOptionsWithoutConverter is not null)
+			// Cache base options (converter list stripped) per parent options instance.
+			// MaxDepth is set dynamically per call since remaining depth varies.
+			var baseOptions = _baseOptionsCache.GetValue(options, static opts =>
 			{
-				return _cachedOptionsWithoutConverter;
-			}
+				var newOptions = new JsonSerializerOptions(opts);
 
-			var newOptions = new JsonSerializerOptions(options);
-
-			// Remove DepthTruncatingConverterFactory to avoid infinite recursion
-			for (int i = newOptions.Converters.Count - 1; i >= 0; i--)
-			{
-				if (newOptions.Converters[i] is DepthTruncatingConverterFactory)
+				// Remove DepthTruncatingConverterFactory to avoid infinite recursion
+				for (int i = newOptions.Converters.Count - 1; i >= 0; i--)
 				{
-					newOptions.Converters.RemoveAt(i);
+					if (newOptions.Converters[i] is DepthTruncatingConverterFactory)
+					{
+						newOptions.Converters.RemoveAt(i);
+					}
 				}
-			}
 
-			// Increase MaxDepth on inner options since we're handling truncation ourselves
-			newOptions.MaxDepth = 64;
+				return newOptions;
+			});
 
-			_cachedOptionsWithoutConverter = newOptions;
-			return newOptions;
+			// Clone from cached base and set dynamic MaxDepth for this call.
+			// JsonSerializerOptions becomes read-only after first use, so we must
+			// create a fresh copy to set per-call MaxDepth.
+			var callOptions = new JsonSerializerOptions(baseOptions)
+			{
+				MaxDepth = remainingDepth
+			};
+			return callOptions;
 		}
 	}
 }
