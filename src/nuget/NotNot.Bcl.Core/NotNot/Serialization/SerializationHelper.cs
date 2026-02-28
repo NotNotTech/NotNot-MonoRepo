@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Primitives;
 // using Newtonsoft.Json.Linq; // Removed - replaced with System.Text.Json
@@ -147,6 +149,10 @@ public class SerializationHelper
 	/// </summary>
 	public JsonSerializerOptions _logJsonOptions = new()
 	{
+		TypeInfoResolver = new DefaultJsonTypeInfoResolver
+		{
+			Modifiers = { JsonLogFilterModifier.Apply }
+		},
 		MaxDepth = 64, // High limit - actual truncation handled by DepthTruncatingConverterFactory
 		IncludeFields = true,
 		ReferenceHandler = ReferenceHandler.IgnoreCycles,
@@ -227,7 +233,24 @@ public class SerializationHelper
 			//this process is used because System.Text.Json can better serialize various types that would cause Newtonsoft to throw PlatformNotSupported exceptions
 			//however deserialize to unknown collection is not supported in System.Text.Json so we have to use Newtonsoft to deserialize to Dictionary/Array, using our custom JsonHelper.DeserializeUnknownType() function
 			{
-				var serialized = JsonSerializer.Serialize(obj, _logJsonOptions);
+				string serialized;
+				if (JsonLogFilterModifier.NeedsRecursiveFiltering(obj.GetType()))
+				{
+					var node = JsonSerializer.SerializeToNode(obj, _logJsonOptions);
+					if (node != null)
+					{
+						JsonLogFilterModifier.ApplyRecursiveFilters(node, obj.GetType(), _logJsonOptions);
+						serialized = node.ToJsonString(_logJsonOptions);
+					}
+					else
+					{
+						serialized = "null";
+					}
+				}
+				else
+				{
+					serialized = JsonSerializer.Serialize(obj, _logJsonOptions);
+				}
 				var deserialized = JsonToPoCo(serialized);
 				return deserialized;
 			}
@@ -268,6 +291,15 @@ public class SerializationHelper
 	{
 		try
 		{
+			if (JsonLogFilterModifier.NeedsRecursiveFiltering(obj.GetType()))
+			{
+				var node = JsonSerializer.SerializeToNode(obj, _logJsonOptions);
+				if (node != null)
+				{
+					JsonLogFilterModifier.ApplyRecursiveFilters(node, obj.GetType(), _logJsonOptions);
+					return node.ToJsonString(_logJsonOptions);
+				}
+			}
 			return JsonSerializer.Serialize(obj, _logJsonOptions);
 		}
 
@@ -297,6 +329,15 @@ public class SerializationHelper
 	{
 		try
 		{
+			if (JsonLogFilterModifier.NeedsRecursiveFiltering(obj.GetType()))
+			{
+				var node = JsonSerializer.SerializeToNode(obj, _logJsonOptions);
+				if (node != null)
+				{
+					JsonLogFilterModifier.ApplyRecursiveFilters(node, obj.GetType(), _logJsonOptions);
+					return JsonDocument.Parse(node.ToJsonString(_logJsonOptions));
+				}
+			}
 			return JsonSerializer.SerializeToDocument(obj, _logJsonOptions);
 		}
 
