@@ -21,6 +21,11 @@ public static class JsonLogFilterModifier
 	// ═══════════════════════════════════════════════════════════════════
 	// Layer 3: Caching infrastructure (declared first — used by Layers 1 & 2)
 	// ═══════════════════════════════════════════════════════════════════
+	// SINGLE-OPTIONS CONSTRAINT: _typeMetadataCache and _propTypeMapCache resolve JSON property
+	// names via JsonSerializerOptions.GetTypeInfo(), making their values options-dependent.
+	// All call sites MUST pass the same JsonSerializerOptions instance (_logJsonOptions).
+	// Using these caches with a different options instance will return stale/incorrect results.
+	// _needsRecursiveFilteringCache uses reflection only and is options-independent.
 
 	private static readonly ConcurrentDictionary<Type, bool> _needsRecursiveFilteringCache = new();
 	private static readonly ConcurrentDictionary<Type, JsonLogFilterTypeMetadata> _typeMetadataCache = new();
