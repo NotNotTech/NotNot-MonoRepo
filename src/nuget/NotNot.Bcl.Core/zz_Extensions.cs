@@ -8090,10 +8090,11 @@ public static class zz_Extensions_String
 
 	/// <summary>
 	/// Compiled regex for matching %key% placeholders in template strings.
-	/// Keys must be valid identifiers: start with letter or underscore, followed by letters, digits, or underscores.
+	/// Keys must start with letter or underscore, followed by letters, digits, underscores, or colons.
+	/// Colons enable prefixed keys like <c>%env:VARNAME%</c>.
 	/// </summary>
 	private static readonly Regex _templatePlaceholderPattern = new(
-		@"%([a-zA-Z_][a-zA-Z0-9_]*)%",
+		@"%([a-zA-Z_][a-zA-Z0-9_:]*)%",
 		RegexOptions.Compiled);
 
 	/// <summary>

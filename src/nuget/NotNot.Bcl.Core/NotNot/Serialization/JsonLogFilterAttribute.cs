@@ -28,24 +28,23 @@ public class JsonLogFilterAttribute : Attribute
 	public string? ChildFilterInclude { get; set; }
 
 	/// <summary>
-	/// Number of items to keep from the start of a collection. Default: <see cref="int.MaxValue"/> (no truncation).
-	/// <para>Truncation requires BOTH sides to be set. To show only the first N items, also set
-	/// <see cref="MaxCountEnd"/> to 0. Example: <c>[JsonLogFilter(MaxCountStart = 5, MaxCountEnd = 0)]</c>
-	/// shows the first 5 items only. Setting only one side while the other remains <see cref="int.MaxValue"/>
-	/// effectively means "keep all" and no truncation occurs.</para>
+	/// Number of items to keep from the start of a collection. Default: -1 (unset / no truncation).
+	/// <para>When set (>= 0) and <see cref="MaxCountEnd"/> is not set, MaxCountEnd defaults to 0 (no tail items).
+	/// Example: <c>[JsonLogFilter(MaxCountStart = 5)]</c> shows the first 5 items only.</para>
+	/// <para>When both are set: <c>[JsonLogFilter(MaxCountStart = 5, MaxCountEnd = 10)]</c> shows first 5 + last 10.</para>
+	/// <para>When neither is set: no collection truncation occurs.</para>
 	/// <para>When <c>MaxCountStart + MaxCountEnd >= total</c>, all items are shown (no duplicates, no indicator).</para>
 	/// </summary>
-	public int MaxCountStart { get; set; } = int.MaxValue;
+	public int MaxCountStart { get; set; } = -1;
 
 	/// <summary>
-	/// Number of items to keep from the end of a collection. Default: <see cref="int.MaxValue"/> (no truncation).
-	/// <para>Truncation requires BOTH sides to be set. To show only the last N items, also set
-	/// <see cref="MaxCountStart"/> to 0. Example: <c>[JsonLogFilter(MaxCountStart = 0, MaxCountEnd = 10)]</c>
-	/// shows the last 10 items only.</para>
-	/// <para>When truncation occurs, omitted items are replaced with a <c>"[...N items omitted...]"</c>
-	/// indicator (for string-typed collections only).</para>
+	/// Number of items to keep from the end of a collection. Default: -1 (unset / no truncation).
+	/// <para>When set (>= 0) and <see cref="MaxCountStart"/> is not set, MaxCountStart defaults to 0 (no head items).
+	/// Example: <c>[JsonLogFilter(MaxCountEnd = 10)]</c> shows the last 10 items only.</para>
+	/// <para>When truncation occurs, omitted items are replaced with a
+	/// <c>"...({N} items omitted)..."</c> indicator in the JSON output.</para>
 	/// </summary>
-	public int MaxCountEnd { get; set; } = int.MaxValue;
+	public int MaxCountEnd { get; set; } = -1;
 
 	/// <summary>
 	/// Maximum string length before truncation with "..." suffix. Default: <see cref="int.MaxValue"/> (no truncation).

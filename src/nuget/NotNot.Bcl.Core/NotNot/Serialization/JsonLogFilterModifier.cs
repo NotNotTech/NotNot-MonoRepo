@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 
@@ -30,6 +31,29 @@ public static class JsonLogFilterModifier
 	private static readonly ConcurrentDictionary<Type, bool> _needsRecursiveFilteringCache = new();
 	private static readonly ConcurrentDictionary<Type, JsonLogFilterTypeMetadata> _typeMetadataCache = new();
 	private static readonly ConcurrentDictionary<Type, Dictionary<string, Type>?> _propTypeMapCache = new();
+
+	/// <summary>
+	/// Shared converter instance for non-string collection properties with truncation.
+	/// Serializes by runtime type so that object[] (containing typed items + string indicator)
+	/// produces correct JSON output.
+	/// </summary>
+	private static readonly TruncatedCollectionConverter _truncatedCollectionConverter = new();
+
+	private sealed class TruncatedCollectionConverter : JsonConverter<object>
+	{
+		public override object? Read(ref Utf8JsonReader reader, Type typeToConvert,
+			JsonSerializerOptions options)
+			=> throw new NotSupportedException("Log filter converters are write-only");
+
+		public override void Write(Utf8JsonWriter writer, object value,
+			JsonSerializerOptions options)
+		{
+			if (value is null) { writer.WriteNullValue(); return; }
+			// Serialize by runtime type: handles both original List<T> (no truncation needed)
+			// and object[] (truncated with indicator string inserted)
+			JsonSerializer.Serialize(writer, value, value.GetType(), options);
+		}
+	}
 
 	private sealed class JsonLogFilterTypeMetadata
 	{
@@ -356,10 +380,20 @@ public static class JsonLogFilterModifier
 				}
 			}
 
-			// (d) Collection truncation
-			if (effective.MaxCountStart < int.MaxValue || effective.MaxCountEnd < int.MaxValue)
+			// (d) Collection truncation — sentinel resolution
+			// -1 = not explicitly set. Both -1 = no truncation. One -1 = defaults to 0.
 			{
-				ApplyCollectionTruncation(prop, Math.Max(0, effective.MaxCountStart), Math.Max(0, effective.MaxCountEnd));
+				var maxCountStart = effective.MaxCountStart;
+				var maxCountEnd = effective.MaxCountEnd;
+
+				if (maxCountStart >= 0 || maxCountEnd >= 0)
+				{
+					// At least one side explicitly set — resolve sentinels
+					if (maxCountStart < 0) maxCountStart = 0;
+					if (maxCountEnd < 0) maxCountEnd = 0;
+					ApplyCollectionTruncation(prop, maxCountStart, maxCountEnd);
+				}
+				// else: both negative (unset) — no truncation
 			}
 		}
 
@@ -381,6 +415,8 @@ public static class JsonLogFilterModifier
 		if (propType.IsArray)
 		{
 			var elementType = propType.GetElementType()!;
+			if (elementType != typeof(string))
+				prop.CustomConverter = _truncatedCollectionConverter;
 			prop.Get = (obj) =>
 			{
 				var value = originalGet(obj);
@@ -392,6 +428,8 @@ public static class JsonLogFilterModifier
 		else if (propType.IsGenericType && propType.GetGenericTypeDefinition() == typeof(List<>))
 		{
 			var elementType = propType.GetGenericArguments()[0];
+			if (elementType != typeof(string))
+				prop.CustomConverter = _truncatedCollectionConverter;
 			prop.Get = (obj) =>
 			{
 				var value = originalGet(obj);
@@ -407,55 +445,67 @@ public static class JsonLogFilterModifier
 	private static object TruncateArray(Array arr, Type elementType, int maxStart, int maxEnd)
 	{
 		var total = arr.Length;
-		// Clamp each side against total so int.MaxValue defaults don't prevent truncation
 		maxStart = Math.Min(maxStart, total);
 		maxEnd = Math.Min(maxEnd, total);
 		if (maxStart + maxEnd >= total)
-			return arr; // no truncation needed — show all
+			return arr; // no truncation needed
 
 		var omitted = total - maxStart - maxEnd;
+		var indicator = $"...({omitted} items omitted)...";
 
-		// For string arrays, insert omission indicator
 		if (elementType == typeof(string))
 		{
+			// String arrays: return typed string[] with indicator
 			var result = new string[maxStart + 1 + maxEnd];
 			Array.Copy(arr, 0, result, 0, maxStart);
-			result[maxStart] = $"[...{omitted} items omitted...]";
+			result[maxStart] = indicator;
 			Array.Copy(arr, total - maxEnd, result, maxStart + 1, maxEnd);
 			return result;
 		}
 
-		// For non-string arrays, truncate silently (can't insert indicator of wrong type)
-		var resultLength = maxStart + maxEnd;
-		var resultArr = Array.CreateInstance(elementType, resultLength);
-		Array.Copy(arr, 0, resultArr, 0, maxStart);
-		Array.Copy(arr, total - maxEnd, resultArr, maxStart, maxEnd);
+		// Non-string arrays: return object[] with typed items + string indicator
+		// (CustomConverter on property handles serialization by runtime type)
+		var resultArr = new object[maxStart + 1 + maxEnd];
+		for (var i = 0; i < maxStart; i++)
+			resultArr[i] = arr.GetValue(i)!;
+		resultArr[maxStart] = indicator;
+		for (var i = 0; i < maxEnd; i++)
+			resultArr[maxStart + 1 + i] = arr.GetValue(total - maxEnd + i)!;
 		return resultArr;
 	}
 
 	private static object TruncateList(IList list, Type listType, Type elementType, int maxStart, int maxEnd)
 	{
 		var total = list.Count;
-		// Clamp each side against total so int.MaxValue defaults don't prevent truncation
 		maxStart = Math.Min(maxStart, total);
 		maxEnd = Math.Min(maxEnd, total);
 		if (maxStart + maxEnd >= total)
-			return list; // no truncation needed — show all
+			return list; // no truncation needed
 
 		var omitted = total - maxStart - maxEnd;
+		var indicator = $"...({omitted} items omitted)...";
 
-		// Create new List<T> of the same generic type
-		var newList = (IList)Activator.CreateInstance(listType)!;
-		for (var i = 0; i < maxStart; i++)
-			newList.Add(list[i]);
-
-		// For string lists, insert omission indicator
 		if (elementType == typeof(string))
-			newList.Add($"[...{omitted} items omitted...]");
+		{
+			// String lists: return typed List<string> with indicator
+			var newList = (IList)Activator.CreateInstance(listType)!;
+			for (var i = 0; i < maxStart; i++)
+				newList.Add(list[i]);
+			newList.Add(indicator);
+			for (var i = total - maxEnd; i < total; i++)
+				newList.Add(list[i]);
+			return newList;
+		}
 
-		for (var i = total - maxEnd; i < total; i++)
-			newList.Add(list[i]);
-		return newList;
+		// Non-string lists: return object[] with typed items + string indicator
+		// (CustomConverter on property handles serialization by runtime type)
+		var result = new object[maxStart + 1 + maxEnd];
+		for (var i = 0; i < maxStart; i++)
+			result[i] = list[i]!;
+		result[maxStart] = indicator;
+		for (var i = 0; i < maxEnd; i++)
+			result[maxStart + 1 + i] = list[total - maxEnd + i]!;
+		return result;
 	}
 
 	// ═══════════════════════════════════════════════════════════════════

@@ -6,7 +6,7 @@ namespace NotNot;
 /// </summary>
 /// <remarks>
 /// <para>Resolution order: <see cref="OnResolveKey"/> (if non-null) → <see cref="Values"/> → leave unchanged.</para>
-/// <para>Keys are case-sensitive and must match pattern: [a-zA-Z_][a-zA-Z0-9_]*</para>
+/// <para>Keys are case-sensitive and must match pattern: [a-zA-Z_][a-zA-Z0-9_:]* (colons allowed for prefixed keys like <c>env:VARNAME</c>)</para>
 /// <para>This class is immutable after construction and thread-safe.</para>
 /// </remarks>
 /// <example>
