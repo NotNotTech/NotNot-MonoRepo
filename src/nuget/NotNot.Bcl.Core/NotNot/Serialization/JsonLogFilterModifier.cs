@@ -32,29 +32,6 @@ public static class JsonLogFilterModifier
 	private static readonly ConcurrentDictionary<Type, JsonLogFilterTypeMetadata> _typeMetadataCache = new();
 	private static readonly ConcurrentDictionary<Type, Dictionary<string, Type>?> _propTypeMapCache = new();
 
-	/// <summary>
-	/// Shared converter instance for non-string collection properties with truncation.
-	/// Serializes by runtime type so that object[] (containing typed items + string indicator)
-	/// produces correct JSON output.
-	/// </summary>
-	private static readonly TruncatedCollectionConverter _truncatedCollectionConverter = new();
-
-	private sealed class TruncatedCollectionConverter : JsonConverter<object>
-	{
-		public override object? Read(ref Utf8JsonReader reader, Type typeToConvert,
-			JsonSerializerOptions options)
-			=> throw new NotSupportedException("Log filter converters are write-only");
-
-		public override void Write(Utf8JsonWriter writer, object value,
-			JsonSerializerOptions options)
-		{
-			if (value is null) { writer.WriteNullValue(); return; }
-			// Serialize by runtime type: handles both original List<T> (no truncation needed)
-			// and object[] (truncated with indicator string inserted)
-			JsonSerializer.Serialize(writer, value, value.GetType(), options);
-		}
-	}
-
 	private sealed class JsonLogFilterTypeMetadata
 	{
 		public JsonLogFilterAttribute? TypeAttribute { get; init; }
@@ -415,8 +392,6 @@ public static class JsonLogFilterModifier
 		if (propType.IsArray)
 		{
 			var elementType = propType.GetElementType()!;
-			if (elementType != typeof(string))
-				prop.CustomConverter = _truncatedCollectionConverter;
 			prop.Get = (obj) =>
 			{
 				var value = originalGet(obj);
@@ -428,8 +403,6 @@ public static class JsonLogFilterModifier
 		else if (propType.IsGenericType && propType.GetGenericTypeDefinition() == typeof(List<>))
 		{
 			var elementType = propType.GetGenericArguments()[0];
-			if (elementType != typeof(string))
-				prop.CustomConverter = _truncatedCollectionConverter;
 			prop.Get = (obj) =>
 			{
 				var value = originalGet(obj);
@@ -442,6 +415,12 @@ public static class JsonLogFilterModifier
 		// so we skip truncation for non-concrete collection interfaces
 	}
 
+	/// <summary>
+	/// Truncates an array, returning a same-typed array with head + tail items.
+	/// String arrays include a "...(N items omitted)..." indicator (type-compatible).
+	/// Non-string arrays are truncated without indicator to maintain type homogeneity
+	/// (required for SignalR round-trip deserialization).
+	/// </summary>
 	private static object TruncateArray(Array arr, Type elementType, int maxStart, int maxEnd)
 	{
 		var total = arr.Length;
@@ -451,29 +430,31 @@ public static class JsonLogFilterModifier
 			return arr; // no truncation needed
 
 		var omitted = total - maxStart - maxEnd;
-		var indicator = $"...({omitted} items omitted)...";
 
 		if (elementType == typeof(string))
 		{
-			// String arrays: return typed string[] with indicator
+			// String arrays: return typed string[] with indicator (type-compatible)
 			var result = new string[maxStart + 1 + maxEnd];
 			Array.Copy(arr, 0, result, 0, maxStart);
-			result[maxStart] = indicator;
+			result[maxStart] = $"...({omitted} items omitted)...";
 			Array.Copy(arr, total - maxEnd, result, maxStart + 1, maxEnd);
 			return result;
 		}
 
-		// Non-string arrays: return object[] with typed items + string indicator
-		// (CustomConverter on property handles serialization by runtime type)
-		var resultArr = new object[maxStart + 1 + maxEnd];
-		for (var i = 0; i < maxStart; i++)
-			resultArr[i] = arr.GetValue(i)!;
-		resultArr[maxStart] = indicator;
-		for (var i = 0; i < maxEnd; i++)
-			resultArr[maxStart + 1 + i] = arr.GetValue(total - maxEnd + i)!;
+		// Non-string arrays: return same-typed array WITHOUT indicator
+		// (inserting a string into a typed array would break deserialization)
+		var resultArr = Array.CreateInstance(elementType, maxStart + maxEnd);
+		Array.Copy(arr, 0, resultArr, 0, maxStart);
+		Array.Copy(arr, total - maxEnd, resultArr, maxStart, maxEnd);
 		return resultArr;
 	}
 
+	/// <summary>
+	/// Truncates a list, returning a same-typed list with head + tail items.
+	/// String lists include a "...(N items omitted)..." indicator (type-compatible).
+	/// Non-string lists are truncated without indicator to maintain type homogeneity
+	/// (required for SignalR round-trip deserialization).
+	/// </summary>
 	private static object TruncateList(IList list, Type listType, Type elementType, int maxStart, int maxEnd)
 	{
 		var total = list.Count;
@@ -483,29 +464,21 @@ public static class JsonLogFilterModifier
 			return list; // no truncation needed
 
 		var omitted = total - maxStart - maxEnd;
-		var indicator = $"...({omitted} items omitted)...";
+		var newList = (IList)Activator.CreateInstance(listType)!;
 
-		if (elementType == typeof(string))
-		{
-			// String lists: return typed List<string> with indicator
-			var newList = (IList)Activator.CreateInstance(listType)!;
-			for (var i = 0; i < maxStart; i++)
-				newList.Add(list[i]);
-			newList.Add(indicator);
-			for (var i = total - maxEnd; i < total; i++)
-				newList.Add(list[i]);
-			return newList;
-		}
-
-		// Non-string lists: return object[] with typed items + string indicator
-		// (CustomConverter on property handles serialization by runtime type)
-		var result = new object[maxStart + 1 + maxEnd];
+		// Head items
 		for (var i = 0; i < maxStart; i++)
-			result[i] = list[i]!;
-		result[maxStart] = indicator;
-		for (var i = 0; i < maxEnd; i++)
-			result[maxStart + 1 + i] = list[total - maxEnd + i]!;
-		return result;
+			newList.Add(list[i]);
+
+		// Indicator only for string collections (type-compatible)
+		if (elementType == typeof(string))
+			newList.Add($"...({omitted} items omitted)...");
+
+		// Tail items
+		for (var i = total - maxEnd; i < total; i++)
+			newList.Add(list[i]);
+
+		return newList;
 	}
 
 	// ═══════════════════════════════════════════════════════════════════
