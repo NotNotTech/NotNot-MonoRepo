@@ -64,6 +64,7 @@ bin2/
 bincli*/
 obj/
 .build/
+**/temp/test-out*/
 
 # .NET Core
 project.lock.json
