@@ -39,21 +39,11 @@ internal static class JsonMerger
 				var fileName = pair.Key;
 				var sourceText = pair.Value;
 
+				// SGF logging would be used here if needed: Logger.Information("obtaining settings from {FileName}", fileName);
+
 				using var jsonDoc = JsonDocument.Parse(sourceText.ToString(), _options);
 
-				if (jsonDoc.RootElement.ValueKind != JsonValueKind.Object)
-				{
-					throw new ArgumentException($"JSON file '{fileName}' has root element of kind '{jsonDoc.RootElement.ValueKind}', expected Object. First 200 chars: {sourceText.ToString().Substring(0, Math.Min(200, sourceText.ToString().Length))}");
-				}
-
-				try
-				{
-					MergeJson(mergedObject, jsonDoc.RootElement);
-				}
-				catch (ArgumentException ex)
-				{
-					throw new ArgumentException($"Error merging JSON file '{fileName}': {ex.Message}", ex);
-				}
+				MergeJson(mergedObject, jsonDoc.RootElement);
 		  }
 		  return mergedObject;
 	 }

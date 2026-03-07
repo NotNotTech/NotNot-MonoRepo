@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using NotNot.AppSettingsInternal;
+using SGF;
 
 [assembly: InternalsVisibleTo("NotNot.AppSettings.Tests")]
 
@@ -16,19 +17,16 @@ namespace NotNot;
 /// <summary>
 /// generate settings classes from appsettings.json files.  These will be namespaced as [TargetProjectNamespaceRoot].AppSettings.[ConfigName]
 /// </summary>
-[Generator]
-internal class AppSettingsGen : IIncrementalGenerator
+[IncrementalGenerator]
+internal class AppSettingsGen : IncrementalGenerator
 {
-	private static readonly DiagnosticDescriptor _generatorError = new DiagnosticDescriptor(
-		"NNAS0001",
-		"NotNot.AppSettings source generator error",
-		"NotNot.AppSettings source generator failed: {0}",
-		"SourceGeneration",
-		DiagnosticSeverity.Warning,
-		isEnabledByDefault: true);
-
-	public void Initialize(IncrementalGeneratorInitializationContext context)
+	public AppSettingsGen() : base("AppSettingsGen")
 	{
+	}
+
+	public override void OnInitialize(SgfInitializationContext context)
+	{
+		// SGF handles debugging automatically via SGF_DEBUGGER_LAUNCH environment variable
 
 		/////////////  NEW ADDITIONAL FILES WORKFLOW
 		{
@@ -85,38 +83,29 @@ internal class AppSettingsGen : IIncrementalGenerator
 				combinedProvider,
 				(spc, content) =>
 				{
-					try
+					var projectName = content.Left.Left.Left;
+					var rootNamespace = content.Left.Left.Right;
+					var combinedSourceTexts = content.Left.Right;
+					var genPublic = content.Right;
+
+					string version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+									?? Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyVersionAttribute>()?.Version.ToString()
+									?? Assembly.GetExecutingAssembly().GetName().ToString();
+					if (version?.IndexOf("+") > 0)
 					{
-						var projectName = content.Left.Left.Left;
-						var rootNamespace = content.Left.Left.Right;
-						var combinedSourceTexts = content.Left.Right;
-						var genPublic = content.Right;
-
-						string version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-										?? Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyVersionAttribute>()?.Version.ToString()
-										?? Assembly.GetExecutingAssembly().GetName().ToString();
-						if (version?.IndexOf("+") > 0)
-						{
-							version = version.Substring(0, version.IndexOf("+"));
-						}
-
-						var config = new AppSettingsGenConfig
-						{
-							ProjectName = projectName,
-							RootNamespace = rootNamespace,
-							IsPublic = genPublic,
-							CombinedSourceTexts = combinedSourceTexts,
-							NugetVersion = version,
-						};
-
-						ExecuteGenerator(spc, config);
+						version = version.Substring(0, version.IndexOf("+"));
 					}
-					catch (Exception ex)
+
+					var config = new AppSettingsGenConfig
 					{
-						spc.ReportDiagnostic(Diagnostic.Create(
-							new DiagnosticDescriptor("NNAS0002", "gen crash", "CRASH_V2: {0}", "SG", DiagnosticSeverity.Warning, true),
-							Location.None, ex.Message));
-					}
+						ProjectName = projectName,
+						RootNamespace = rootNamespace,
+						IsPublic = genPublic,
+						CombinedSourceTexts = combinedSourceTexts,
+						NugetVersion = version,
+					};
+
+					ExecuteGenerator(spc, config);
 				});
 		}
 
@@ -139,24 +128,15 @@ internal class AppSettingsGen : IIncrementalGenerator
 		//}
 	}
 
-	public void ExecuteGenerator(SourceProductionContext spc, AppSettingsGenConfig config)
+	public void ExecuteGenerator(SgfSourceProductionContext spc, AppSettingsGenConfig config)
 	{
-		try
-		{
-			var results = GenerateSourceFiles(config);
+		var results = GenerateSourceFiles(config);
 
-			foreach (var result in results)
-			{
-				spc.AddSource(result.Key, result.Value);
-			}
-		}
-		catch (Exception ex)
+		foreach (var result in results)
 		{
-			var msg = $"{ex.GetType().Name}: {ex.Message}";
-			if (ex.InnerException != null)
-				msg += $" [inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}]";
-			spc.ReportDiagnostic(Diagnostic.Create(_generatorError, Location.None, msg));
+			spc.AddSource(result.Key, result.Value);
 		}
+		Logger.Information("Source generation completed successfully with " + results.Count + " files");
 	}
 
 	/// <summary>
@@ -176,9 +156,11 @@ internal class AppSettingsGen : IIncrementalGenerator
 		//}
 		if (config.CombinedSourceTexts.Count == 0)
 		{
-			// No appsettings.json found — not an error, just nothing to generate
+			Logger.Error($"No appSettings.json files were found in your project `{config.ProjectName}`. SourceGen aborted. In Project Properties, Make sure it's BuildAction=C# Analyzer, and copy-to-output=ALWAYS.");
 			return toReturn;
 		}
+
+		Logger.Information("Processing source generation: rootNamespace=" + config.RootNamespace + ", appSettingsJsonSourceFiles.Count=" + config.CombinedSourceTexts.Count);
 
 
 
@@ -808,17 +790,24 @@ namespace {currentNamespace};
 						var childNodes = kvp.Value.Deserialize<List<JsonElement>>(JsonMerger._serializerOptions)!;
 						//get name of node
 						var arrayTypeName = GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config);
-						if (!IsPrimitiveTypeName(arrayTypeName))
+						switch (arrayTypeName)
 						{
-							//squash children into singular object then generate for it
-							var squashedChildren = new Dictionary<string, JsonElement>();
-							foreach (var child in childNodes)
-							{
-								JsonMerger.MergeJson(squashedChildren, child);
-							}
-							GenerateFilesWorker(generatedSourceFiles, squashedChildren, propertyName, propertyNamespace, config);
+							case "string":
+							case "double":
+							case "bool":
+							case "object": //returns object for null/undefined nodes.  (named nodes for other objects)
+										   //no need to recurse
+								break;
+							default:
+								//squash children into singular object then generate for it
+								var squashedChildren = new Dictionary<string, JsonElement>();
+								foreach (var child in childNodes)
+								{
+									JsonMerger.MergeJson(squashedChildren, child);
+								}
+								GenerateFilesWorker(generatedSourceFiles, squashedChildren, propertyName, propertyNamespace, config);
+								break;
 						}
-						// else: primitive array (string[], int[], double[], etc.) — no recursion needed
 
 					}
 					break;
