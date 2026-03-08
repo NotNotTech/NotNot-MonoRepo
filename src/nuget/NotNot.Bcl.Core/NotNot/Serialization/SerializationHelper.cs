@@ -167,6 +167,7 @@ public class SerializationHelper
 				$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
 			//new ObjConverter<StackFrame>((value) => $"{value.ToString()}\n"),
 			new ObjConverter<Delegate>(value => $"[delegate: {value.Method?.DeclaringType?.Name}.{value.Method?.Name}]"),
+			new JsonStringEnumConverter(),
 			// Must be LAST - gracefully truncates deep graphs instead of throwing
 			new DepthTruncatingConverterFactory(maxDepth: 10),
 		},
