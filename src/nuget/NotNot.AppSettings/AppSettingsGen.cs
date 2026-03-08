@@ -448,13 +448,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 				toReturn = "string";
 				break;
 			case JsonValueKind.Number:
-				// Detect whole numbers and emit appropriate type
-				if (elm.TryGetInt32(out _))
-					toReturn = "int";
-				else if (elm.TryGetInt64(out _))
-					toReturn = "long";
-				else
-					toReturn = "double";
+				toReturn = "double";
 				break;
 			case JsonValueKind.True:
 			case JsonValueKind.False:
@@ -499,7 +493,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 	/// </summary>
 	private static bool IsPrimitiveTypeName(string typeName)
 	{
-		return typeName == "string" || typeName == "int" || typeName == "long" || typeName == "double" || typeName == "bool" || typeName == "object";
+		return typeName == "string" || typeName == "double" || typeName == "bool" || typeName == "object";
 	}
 
 	/// <summary>

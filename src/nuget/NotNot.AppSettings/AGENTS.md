@@ -22,6 +22,7 @@
    - Projects using save features must reference `NotNot.Bcl`
 
 ### Key Design Decisions
+- **All JSON Numbers → `double`**: The generator maps ALL JSON numeric values to `double` regardless of whether they are whole numbers. Consumers needing `int`, `long`, etc. must cast explicitly (e.g. `(int)settings.Value`). This avoids type mismatch bugs downstream — JSON has no integer/float distinction, and `double` is the natural C# representation.
 - **Backing Fields**: Generated properties use private backing fields (not auto-properties) to enable change detection
 - **Recursive Callback Propagation**: Nested settings objects propagate change callbacks automatically
 - **Internal by Default**: Generated classes are `internal` unless `<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>` is set

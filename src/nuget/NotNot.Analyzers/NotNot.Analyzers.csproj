@@ -37,12 +37,12 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.0.0-1.25277.114" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Metrics" Version="4.14.0" />
 		<!-- Code Fix Provider dependencies -->
-		<PackageReference Include="System.Composition" Version="10.0.3" PrivateAssets="all" />
+		<PackageReference Include="System.Composition" Version="10.0.0" PrivateAssets="all" />
 	</ItemGroup>
 	
 	<!-- Development-time analyzers (for this project only) -->
 	<ItemGroup>
-		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0" PrivateAssets="all">
+		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.0.0-1.25277.114" PrivateAssets="all">
@@ -56,7 +56,7 @@
 	<!-- Build tools -->
 	<ItemGroup>
 		<PackageReference Include="editorconfig" Version="0.15.0" PrivateAssets="all" />
-		<PackageReference Include="MinVer" Version="7.0.0" PrivateAssets="all">
+		<PackageReference Include="MinVer" Version="6.1.0-beta.1" PrivateAssets="all">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 	</ItemGroup>
