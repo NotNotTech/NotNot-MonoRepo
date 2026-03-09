@@ -448,13 +448,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 				toReturn = "string";
 				break;
 			case JsonValueKind.Number:
-				// Detect whole numbers and emit appropriate type
-				if (elm.TryGetInt32(out _))
-					toReturn = "int";
-				else if (elm.TryGetInt64(out _))
-					toReturn = "long";
-				else
-					toReturn = "double";
+				toReturn = "double";
 				break;
 			case JsonValueKind.True:
 			case JsonValueKind.False:
@@ -499,7 +493,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 	/// </summary>
 	private static bool IsPrimitiveTypeName(string typeName)
 	{
-		return typeName == "string" || typeName == "int" || typeName == "long" || typeName == "double" || typeName == "bool" || typeName == "object";
+		return typeName == "string" || typeName == "double" || typeName == "bool" || typeName == "object";
 	}
 
 	/// <summary>
@@ -538,7 +532,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 		foreach (var kvp in currentNode)
 		{
 			// Skip metadata keys - they're not properties
-			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal))
+			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal) || kvp.Key == "__type")
 				continue;
 
 			var propertyName = kvp.Key._ConvertToAlphanumericCaps();
@@ -546,6 +540,32 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 			var propertyNamespace = $"{currentNamespace}._{currentClassName}";
 			var valueType = GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config);
 			var isArray = kvp.Value.ValueKind == JsonValueKind.Array;
+
+			// Check for __type: "dictionary" convention on JSON objects
+			var isDictionaryType = false;
+			if (kvp.Value.ValueKind == JsonValueKind.Object
+				&& kvp.Value.TryGetProperty("__type", out var typeMetaElm)
+				&& typeMetaElm.GetString() == "dictionary")
+			{
+				// Unify value types of all non-metadata children
+				string? dictValueType = null;
+				foreach (var child in kvp.Value.EnumerateObject())
+				{
+					if (child.Name.StartsWith("__", StringComparison.Ordinal)) continue;
+					var childType = GetSourceTypeName(child.Value, propertyName, propertyNamespace, config);
+					if (dictValueType is null)
+						dictValueType = childType;
+					else if (dictValueType != childType)
+					{
+						dictValueType = "object";
+						break;
+					}
+				}
+				dictValueType ??= "string";
+				valueType = $"System.Collections.Generic.Dictionary<string, {dictValueType}>";
+				isDictionaryType = true;
+			}
+
 			if (isArray)
 			{
 				valueType += "[]";
@@ -555,14 +575,14 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 			fieldBuilder.Append($"   private {valueType}? {fieldName};\n");
 
 			// Check if this is a complex type (object/nested class) that can propagate callbacks
-			var isComplexType = kvp.Value.ValueKind == JsonValueKind.Object;
+			var isComplexType = kvp.Value.ValueKind == JsonValueKind.Object && !isDictionaryType;
 			var isArrayOfComplexType = isArray && !IsPrimitiveTypeName(GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config));
 
 			// Check for min/max metadata for this property
 			metadataLookup.TryGetValue(kvp.Key, out var propMeta);
 			var hasMin = propMeta.min.HasValue;
 			var hasMax = propMeta.max.HasValue;
-			var isNumericType = valueType == "int" || valueType == "long" || valueType == "double";
+			var isNumericType = valueType == "double";
 
 			// Generate property with change detection
 			propertyBuilder.Append($@"
@@ -577,41 +597,17 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 			{
 				if (hasMin && hasMax)
 				{
-					// Clamp to both min and max
-					if (valueType == "int")
-						propertyBuilder.Append($@"
-         var clamped = Math.Max({(int)propMeta.min!}, Math.Min({(int)propMeta.max!}, value ?? {(int)propMeta.min!}));");
-					else if (valueType == "long")
-						propertyBuilder.Append($@"
-         var clamped = Math.Max({(long)propMeta.min!}L, Math.Min({(long)propMeta.max!}L, value ?? {(long)propMeta.min!}L));");
-					else
-						propertyBuilder.Append($@"
+					propertyBuilder.Append($@"
          var clamped = Math.Max({propMeta.min!}, Math.Min({propMeta.max!}, value ?? {propMeta.min!}));");
 				}
 				else if (hasMin)
 				{
-					// Clamp to min only
-					if (valueType == "int")
-						propertyBuilder.Append($@"
-         var clamped = Math.Max({(int)propMeta.min!}, value ?? {(int)propMeta.min!});");
-					else if (valueType == "long")
-						propertyBuilder.Append($@"
-         var clamped = Math.Max({(long)propMeta.min!}L, value ?? {(long)propMeta.min!}L);");
-					else
-						propertyBuilder.Append($@"
+					propertyBuilder.Append($@"
          var clamped = Math.Max({propMeta.min!}, value ?? {propMeta.min!});");
 				}
 				else // hasMax only
 				{
-					// Clamp to max only
-					if (valueType == "int")
-						propertyBuilder.Append($@"
-         var clamped = Math.Min({(int)propMeta.max!}, value ?? 0);");
-					else if (valueType == "long")
-						propertyBuilder.Append($@"
-         var clamped = Math.Min({(long)propMeta.max!}L, value ?? 0L);");
-					else
-						propertyBuilder.Append($@"
+					propertyBuilder.Append($@"
          var clamped = Math.Min({propMeta.max!}, value ?? 0.0);");
 				}
 
@@ -706,13 +702,36 @@ namespace {interfaceNamespace};
 		foreach (var kvp in currentNode)
 		{
 			// Skip metadata keys
-			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal))
+			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal) || kvp.Key == "__type")
 				continue;
 
 			var propName = kvp.Key._ConvertToAlphanumericCaps();
 			var propNamespace = $"{currentNamespace}._{currentClassName}";
 			var propType = GetSourceTypeName(kvp.Value, propName, propNamespace, config);
 			var isArray = kvp.Value.ValueKind == JsonValueKind.Array;
+
+			// Check for __type: "dictionary" convention
+			if (kvp.Value.ValueKind == JsonValueKind.Object
+				&& kvp.Value.TryGetProperty("__type", out var typeMetaElm)
+				&& typeMetaElm.GetString() == "dictionary")
+			{
+				string? dictValueType = null;
+				foreach (var child in kvp.Value.EnumerateObject())
+				{
+					if (child.Name.StartsWith("__", StringComparison.Ordinal)) continue;
+					var childType = GetSourceTypeName(child.Value, propName, propNamespace, config);
+					if (dictValueType is null)
+						dictValueType = childType;
+					else if (dictValueType != childType)
+					{
+						dictValueType = "object";
+						break;
+					}
+				}
+				dictValueType ??= "string";
+				propType = $"System.Collections.Generic.Dictionary<string, {dictValueType}>";
+			}
+
 			if (isArray)
 			{
 				propType += "[]";
@@ -770,7 +789,7 @@ namespace {currentNamespace};
 		foreach (var kvp in currentNode)
 		{
 			// Skip metadata keys - they're not properties
-			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal))
+			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal) || kvp.Key == "__type")
 				continue;
 
 			var propertyNamespace = $"{currentNamespace}._{currentClassName}";
@@ -780,6 +799,9 @@ namespace {currentNamespace};
 			{
 				case JsonValueKind.Object:
 					{
+						// Skip dictionary-typed objects — they emit Dictionary<K,V>, not nested classes
+						if (kvp.Value.TryGetProperty("__type", out var typeElm) && typeElm.GetString() == "dictionary")
+							break;
 						var childNode = kvp.Value.Deserialize<Dictionary<string, JsonElement>>(JsonMerger._serializerOptions)!;
 						GenerateFilesWorker(generatedSourceFiles, childNode, propertyName, propertyNamespace, config);
 					}
