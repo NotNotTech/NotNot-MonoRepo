@@ -3189,10 +3189,14 @@ public static class zz_Extensions_Numeric
 		//}
 	}
 
-	public static int _AsInt(float value)
-	{
-		return float.ConvertToIntegerNative<int>(value);
-	}
+	/// <summary>
+	/// Converts the specified numeric value to a 32-bit signed integer using checked conversion.
+	/// </summary>
+	/// <remarks>If the value is outside the range of Int32, an exception will be thrown. This method uses checked
+	/// conversion to ensure that overflows are detected.</remarks>
+	/// <typeparam name="T">The numeric type of the value to convert. Must implement the INumber<T> interface.</typeparam>
+	/// <param name="value">The numeric value to convert to an integer.</param>
+	/// <returns>A 32-bit signed integer representation of the specified value.</returns>
 	public static int _AsInt<T>(this T value) where T : INumber<T>
 	{
 		return int.CreateChecked(value);
@@ -6960,9 +6964,22 @@ public static class zz_Extensions_String
 	/// <remarks>
 	///    Proposed by Rene Schulte
 	/// </remarks>
-	public static string _SetLength(this string value, int maxLength)
+	public static string _SetMaxLength(this string value, int maxLength, bool avoidEllipsis=false)
 	{
-		return value == null || value.Length <= maxLength ? value : value.Substring(0, maxLength);
+		var useEllipsis = !avoidEllipsis && maxLength > 3;
+		if (value == null || value.Length <= maxLength)
+		{
+			return value;
+		}
+
+		if (useEllipsis is false)
+		{
+			return  value.Substring(0, maxLength);
+		}
+		else
+		{
+			return value.Substring(0, maxLength - 3) + "...";
+		}
 	}
 
 
