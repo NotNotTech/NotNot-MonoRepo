@@ -60,7 +60,9 @@
 	<ItemGroup>
 		<PackageReference Include="Ben.Demystifier" Version="0.4.1" />
 		<PackageReference Include="Blake3" Version="2.0.0" />
-		<PackageReference Include="codeessentials.AspNetCore.Diagnostics.Demystifier" Version="1.1.66" />
+		<!-- codeessentials.AspNetCore.Diagnostics.Demystifier removed: ASP.NET Core middleware
+		     that transitively provided Http.Abstractions v2.3.0, causing MSB3277 in WASM consumers.
+		     Replaced with explicit FrameworkReference below. Ben.Demystifier retained for exception demystification. -->
 		<PackageReference Include="codeessentials.Extensions.Logging.Demystifier" Version="1.1.66" />
 		<PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
 		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.8.2-beta.1">
@@ -97,6 +99,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\NotNot.Analyzers\NotNot.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
+
 
 	<ItemGroup>
 	  <Folder Include="NotNot\Collections\OldBackup\" />

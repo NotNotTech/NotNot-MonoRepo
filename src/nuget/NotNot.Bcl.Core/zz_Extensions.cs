@@ -6983,6 +6983,51 @@ public static class zz_Extensions_String
 	}
 
 
+
+
+
+	/// <summary>
+	/// truncate string if too long, ending with `...` if truncation occurs and maxLength is > 3
+	/// </summary>
+	public static string _SetMaxLengthPostEllipsis(this string value, int maxLength)
+	{
+		var useEllipsis = maxLength > 3;
+		if (value == null || value.Length <= maxLength)
+		{
+			return value;
+		}
+
+		if (useEllipsis is false)
+		{
+			return value.Substring(0, maxLength);
+		}
+		else
+		{
+			return value.Substring(0, maxLength - 3) + "...";
+		}
+	}
+	/// <summary>
+	/// truncate string if too long, preceeding by `...` if truncation occurs and maxLength is > 3
+	/// </summary>
+	public static string _SetMaxLengthPreEllipsis(this string value, int maxLength)
+	{
+		var useEllipsis = maxLength > 3;
+		if (value == null || value.Length <= maxLength)
+		{
+			return value;
+		}
+
+		if (useEllipsis is false)
+		{
+			return value.Substring(0, maxLength);
+		}
+		else
+		{
+			return "..." + value.Substring(value.Length-maxLength+3, maxLength - 3);
+		}
+	}
+
+
 	/// <summary>
 	///    Determines whether the comparison value strig is contained within the input value string
 	/// </summary>
