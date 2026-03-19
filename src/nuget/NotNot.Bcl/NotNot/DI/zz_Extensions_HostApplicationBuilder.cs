@@ -101,7 +101,8 @@ public static class zz_Extensions_HostApplicationBuilder
 					extraLoggerConfig(builder.Configuration, loggerConfiguration);
 				}
 
-			}
+			},
+			writeToProviders: true
 		);
 	}
 	public static LoggerConfiguration AssertOnMsgSinkWithoutBatching(
