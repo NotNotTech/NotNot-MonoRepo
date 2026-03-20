@@ -236,6 +236,91 @@ Strict sibling to NNB010. Detects unknown parameters on components that HAVE `[P
 dotnet_diagnostic.NNB011.severity = none  # Allow non-standard splatted attributes
 ```
 
+### NNB012: Incomplete JS Interop Cancellation Handling
+
+**Severity:** Error
+**Category:** Reliability
+
+Detects catch blocks that handle `JSDisconnectedException` but are missing `TaskCanceledException` or `OperationCanceledException`. When a Blazor Server circuit disconnects, JS interop calls can throw *either* exception depending on timing — handling one without the other leaves a gap that crashes the circuit.
+
+```csharp
+// ❌ Missing TaskCanceledException - NNB012 fires
+try
+{
+    await _module.InvokeVoidAsync("cleanup");
+    await _module.DisposeAsync();
+}
+catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException)
+{
+    // TaskCanceledException escapes when call is in-flight during disconnect!
+}
+
+// ✅ Complete handling
+try
+{
+    await _module.InvokeVoidAsync("cleanup");
+    await _module.DisposeAsync();
+}
+catch (Exception ex) when (ex is JSDisconnectedException or TaskCanceledException or JSException or ObjectDisposedException)
+{
+    // Both disconnect paths covered
+}
+```
+
+**Why two exception types?**
+- `JSDisconnectedException` — thrown when the runtime *knows* the circuit is gone *before* the call
+- `TaskCanceledException` — thrown when a call is *already in-flight* and the `CancellationToken` fires
+
+**Scope:** Any try-catch block (not just `DisposeAsync`, not just Blazor components). If you're catching `JSDisconnectedException`, you should also catch `TaskCanceledException`.
+
+**When NNB012 does NOT fire:**
+- Catch includes `TaskCanceledException` or `OperationCanceledException` (parent class)
+- Blanket `catch (Exception)` or bare `catch` (catches everything)
+- No `JSDisconnectedException` in any catch clause (NNB007's responsibility)
+- All JS interop calls in the try block use `_WaitIgnoreCancel()` (safe wrapper handles both)
+
+### NNB013: Missing JSDisconnectedException in JS Interop Catch
+
+**Severity:** Error
+**Category:** Reliability
+
+The converse of NNB012. Detects try-catch blocks containing JS interop calls that catch `TaskCanceledException`/`OperationCanceledException` but are missing `JSDisconnectedException`.
+
+```csharp
+// ❌ Missing JSDisconnectedException - NNB013 fires
+try
+{
+    await _module.InvokeVoidAsync("setItem", data);
+}
+catch (JSException ex) { Log(ex); }
+catch (OperationCanceledException)
+{
+    // Has cancellation handling, but JSDisconnectedException escapes!
+}
+catch (ObjectDisposedException ex) { Log(ex); }
+
+// ✅ Complete handling
+try
+{
+    await _module.InvokeVoidAsync("setItem", data);
+}
+catch (JSException ex) { Log(ex); }
+catch (OperationCanceledException) { }
+catch (JSDisconnectedException) { }
+catch (ObjectDisposedException ex) { Log(ex); }
+```
+
+**Why a separate rule from NNB012?** NNB013 requires a **JS-interop gate** — it only fires when the try block contains actual JS interop calls (`InvokeAsync`, `InvokeVoidAsync`, etc.). This is necessary because `OperationCanceledException` is commonly caught for non-JS-interop cancellation (e.g., `CancellationToken`, `Task.Delay`). Without the gate, NNB013 would produce false positives on all cancellation handling.
+
+**Relationship to NNB007:** NNB007 checks for missing `JSDisconnectedException` but is scoped to `DisposeAsync` in Blazor components only. NNB013 applies to **any method in any class** — filling the coverage gap for non-disposal JS interop call sites.
+
+**When NNB013 does NOT fire:**
+- Catch includes `JSDisconnectedException` (directly or in `when` filter)
+- No JS interop calls in the try block (JS-interop gate)
+- All JS interop calls use `_WaitIgnoreCancel()` (safe wrapper)
+- Blanket `catch (Exception)` or bare `catch` (catches everything)
+- No cancellation exception in any catch clause (NNB012's direction, not NNB013's)
+
 ### NNB009: Verbose Disposal Exception Catching
 
 **Severity:** Warning
@@ -287,6 +372,8 @@ dotnet_diagnostic.NNB008.severity = error
 dotnet_diagnostic.NNB009.severity = warning
 dotnet_diagnostic.NNB010.severity = error
 dotnet_diagnostic.NNB011.severity = error
+dotnet_diagnostic.NNB012.severity = error
+dotnet_diagnostic.NNB013.severity = error
 ```
 
 ## Why These Rules?
@@ -295,9 +382,13 @@ dotnet_diagnostic.NNB011.severity = error
 
 `DotNetObjectReference<T>` and `IJSObjectReference` hold references that prevent garbage collection. Failing to dispose them leads to memory leaks that accumulate over component lifecycle.
 
-### JSDisconnectedException Crashes
+### Circuit Disconnect Exception Pair
 
-When a Blazor Server circuit disconnects (e.g., user navigates away), JS interop calls throw `JSDisconnectedException`. If not caught in `DisposeAsync`, this can crash the component disposal chain.
+When a Blazor Server circuit disconnects, JS interop calls throw one of **two** exceptions depending on timing:
+- `JSDisconnectedException` — runtime knows the circuit is gone *before* the call
+- `TaskCanceledException` — call is *already in-flight*, `CancellationToken` fires
+
+Handling one without the other leaves a gap. NNB007 ensures `JSDisconnectedException` is caught in `DisposeAsync`. NNB012 ensures `TaskCanceledException` is also caught when `JSDisconnectedException` is. NNB013 ensures the reverse — `JSDisconnectedException` is caught when cancellation is handled for JS interop calls.
 
 ## Related Analyzers
 
