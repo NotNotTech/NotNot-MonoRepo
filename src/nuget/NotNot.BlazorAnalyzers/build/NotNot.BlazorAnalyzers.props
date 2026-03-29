@@ -10,6 +10,14 @@
     </ItemGroup>
 
     <!--
+    Localization Analyzer — Code-behind files
+    Register .razor.cs files as AdditionalTexts for C# string analysis.
+    -->
+    <ItemGroup>
+        <AdditionalFiles Include="**/*.razor.cs" Exclude="bin/**;obj/**;.vs/**" />
+    </ItemGroup>
+
+    <!--
     CSS Modernization Analyzer
     Register .css files as AdditionalTexts for CSS rule analysis.
     Excludes vendor libraries typically found in wwwroot/lib/.
@@ -22,5 +30,7 @@
     <ItemGroup>
         <CompilerVisibleProperty Include="XRayGeneratorEnabled" />
         <CompilerVisibleProperty Include="CssAnalyzerEnabled" />
+        <CompilerVisibleProperty Include="BannedButtonAnalyzerEnabled" />
+        <CompilerVisibleProperty Include="LocalizationAnalyzerEnabled" />
     </ItemGroup>
 </Project>
