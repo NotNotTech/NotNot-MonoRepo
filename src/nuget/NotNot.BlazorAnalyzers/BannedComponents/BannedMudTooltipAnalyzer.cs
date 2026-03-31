@@ -81,11 +81,19 @@ public class BannedMudTooltipAnalyzer : DiagnosticAnalyzer
 		if (!path.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
 			return;
 
+		// Skip the wrapper component itself — NnTooltip.razor legitimately uses MudTooltip internally
+		if (path.EndsWith("NnTooltip.razor", StringComparison.OrdinalIgnoreCase))
+			return;
+
 		var sourceText = file.GetText(context.CancellationToken);
 		if (sourceText == null || sourceText.Length == 0)
 			return;
 
 		var text = sourceText.ToString();
+
+		// Per-file opt-out: @* nnb031:allow-mudtooltip *@ anywhere in file skips analysis
+		if (text.Contains("nnb031:allow-mudtooltip", StringComparison.OrdinalIgnoreCase))
+			return;
 
 		var htmlComments = FindHtmlCommentRanges(text);
 		var razorComments = FindRazorCommentRanges(text);
