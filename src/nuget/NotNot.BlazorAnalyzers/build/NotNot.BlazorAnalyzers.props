@@ -32,6 +32,7 @@
         <CompilerVisibleProperty Include="CssAnalyzerEnabled" />
         <CompilerVisibleProperty Include="BannedButtonAnalyzerEnabled" />
         <CompilerVisibleProperty Include="BannedTooltipAnalyzerEnabled" />
+        <CompilerVisibleProperty Include="BannedSelectAnalyzerEnabled" />
         <CompilerVisibleProperty Include="LocalizationAnalyzerEnabled" />
     </ItemGroup>
 </Project>
