@@ -128,12 +128,25 @@ internal static class RazorElementParser
                     ConditionalDepth = conditionalDepth
                 };
 
-                // NOTE: Previously computed afterTag but used `line` for all regex matches.
-                // Since single-element-per-line is the common case, we continue using `line`.
-                // Multi-element-per-line is a documented limitation (~60% accuracy).
+                // Build the full tag span for multi-line tags.
+                // If the opening tag doesn't close on this line, collect continuation lines.
+                string tagSpan = line;
+                if (!TagClosesOnLine(line, match.Index))
+                {
+                    var sb = new System.Text.StringBuilder(line);
+                    int extraLines = 0;
+                    while (i + extraLines + 1 < lines.Length && extraLines < 15)
+                    {
+                        extraLines++;
+                        sb.Append(' ').Append(lines[i + extraLines].Trim());
+                        if (TagClosesOnLine(sb.ToString(), match.Index))
+                            break;
+                    }
+                    tagSpan = sb.ToString();
+                }
 
                 // Class attribute
-                var classMatch = ClassRegex.Match(line);
+                var classMatch = ClassRegex.Match(tagSpan);
                 if (classMatch.Success)
                 {
                     element.Attributes["Class"] = classMatch.Groups[1].Value;
@@ -142,7 +155,7 @@ internal static class RazorElementParser
                 // MudBlazor attributes with runtime class mapping
                 var mudRuntimeClasses = new List<string>();
 
-                var typoMatch = TypoRegex.Match(line);
+                var typoMatch = TypoRegex.Match(tagSpan);
                 if (typoMatch.Success)
                 {
                     element.Attributes["Typo"] = typoMatch.Groups[1].Value;
@@ -150,7 +163,7 @@ internal static class RazorElementParser
                     if (mapped != null) mudRuntimeClasses.Add(mapped);
                 }
 
-                var colorMatch = ColorRegex.Match(line);
+                var colorMatch = ColorRegex.Match(tagSpan);
                 if (colorMatch.Success)
                 {
                     element.Attributes["Color"] = colorMatch.Groups[1].Value;
@@ -158,7 +171,7 @@ internal static class RazorElementParser
                     if (mapped != null) mudRuntimeClasses.Add(mapped);
                 }
 
-                var variantMatch = VariantRegex.Match(line);
+                var variantMatch = VariantRegex.Match(tagSpan);
                 if (variantMatch.Success)
                 {
                     element.Attributes["Variant"] = variantMatch.Groups[1].Value;
@@ -167,21 +180,21 @@ internal static class RazorElementParser
                 }
 
                 // Text attribute (MudExpansionPanel, MudChip, etc.)
-                var textAttrMatch = TextAttrRegex.Match(line);
+                var textAttrMatch = TextAttrRegex.Match(tagSpan);
                 if (textAttrMatch.Success)
                 {
                     element.Attributes["Text"] = textAttrMatch.Groups[1].Value;
                 }
 
                 // Icon attribute (MudIconButton, MudChip, MudNavLink, etc.)
-                var iconMatch = IconRegex.Match(line);
+                var iconMatch = IconRegex.Match(tagSpan);
                 if (iconMatch.Success)
                 {
                     element.Attributes["Icon"] = iconMatch.Groups[1].Value;
                 }
 
                 // Href attribute (MudNavLink, MudLink, MudButton, etc.)
-                var hrefMatch = HrefRegex.Match(line);
+                var hrefMatch = HrefRegex.Match(tagSpan);
                 if (hrefMatch.Success)
                 {
                     element.Attributes["Href"] = hrefMatch.Groups[1].Value;
@@ -193,7 +206,7 @@ internal static class RazorElementParser
                     element.Attributes["_MudRuntime"] = string.Join(" ", mudRuntimeClasses);
                 }
 
-                // Extract text content (same line only)
+                // Extract text content (same line only — uses original line, not tagSpan)
                 var textMatch = TextRegex.Match(line.Substring(match.Index));
                 if (textMatch.Success)
                 {
@@ -219,6 +232,23 @@ internal static class RazorElementParser
         }
 
         return elements;
+    }
+
+    /// <summary>
+    /// Checks whether the tag that starts at <paramref name="startIndex"/> closes
+    /// (with &gt; or /&gt;) somewhere on this <paramref name="text"/> line,
+    /// ignoring '&gt;' characters inside double-quoted attribute values.
+    /// </summary>
+    private static bool TagClosesOnLine(string text, int startIndex)
+    {
+        bool inQuotes = false;
+        for (int j = startIndex; j < text.Length; j++)
+        {
+            if (text[j] == '"') inQuotes = !inQuotes;
+            if (!inQuotes && text[j] == '>')
+                return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -275,18 +305,14 @@ internal static class RazorElementParser
 
     /// <summary>
     /// Map MudBlazor Variant attribute to runtime CSS class.
-    /// e.g., "Variant.Outlined" → "mud-button-outlined"
     /// </summary>
     private static string? MapVariant(string value)
     {
-        var variantValue = value.StartsWith("Variant.") ? value.Substring(8) : value;
-
-        return variantValue.ToLowerInvariant() switch
-        {
-            "text" => "mud-button-text",
-            "filled" => "mud-button-filled",
-            "outlined" => "mud-button-outlined",
-            _ => null
-        };
+        // Disabled: Variant CSS class mapping is component-type-dependent.
+        // MudButton uses mud-button-text/filled/outlined, but MudSelect, MudTextField,
+        // MudAlert etc. use different class patterns. Emitting button-specific classes
+        // for non-button components causes -20 scoring penalties in XRay JS matching.
+        // The raw Variant value is still stored in element.Attributes["Variant"].
+        return null;
     }
 }
