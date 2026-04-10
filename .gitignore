@@ -406,3 +406,4 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 src/NotNot.GodotDev/out.gdlog
+*.lscache

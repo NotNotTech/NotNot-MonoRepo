@@ -189,6 +189,35 @@ public static class zz_Extensions_IList
 
 		return false;
 	}
+
+	public static void _Shuffle<T>(this IList<T> target, ShuffleType shuffleType = ShuffleType.Random, IComparer<T>? comparer = null, Random? randomInstance = null)
+	{
+		if (target is List<T> list)
+		{
+			list._AsSpan()._Shuffle(shuffleType, comparer, randomInstance);
+			return;
+		}
+
+		if (target.Count <= 1)
+		{
+			return;
+		}
+
+		using var buffer = Mem.Rent<T>(target.Count);
+		var bufferSpan = buffer.GetSpan();
+
+		for (var i = 0; i < target.Count; i++)
+		{
+			bufferSpan[i] = target[i];
+		}
+
+		bufferSpan._Shuffle(shuffleType, comparer, randomInstance);
+
+		for (var i = 0; i < target.Count; i++)
+		{
+			target[i] = bufferSpan[i];
+		}
+	}
 }
 
 public static class zz_Extensions_Exception
@@ -2482,16 +2511,7 @@ public static class zz_Extensions_List
 
 	public static void _Randomize<T>(this IList<T> target)
 	{
-		//lock (_rand)
-		{
-			for (var index = 0; index < target.Count; index++)
-			{
-				var swapIndex = _rand.Value.Next(0, target.Count);
-				var value = target[index];
-				target[index] = target[swapIndex];
-				target[swapIndex] = value;
-			}
-		}
+		target._Shuffle(ShuffleType.Random, randomInstance: _rand.Value);
 	}
 
 	/// <summary>
@@ -2558,6 +2578,11 @@ public static class zz_Extensions_List
 	public static Span<T> _AsSpan<T>(this List<T> list)
 	{
 		return CollectionsMarshal.AsSpan(list);
+	}
+
+	public static void _Shuffle<T>(this List<T> target, ShuffleType shuffleType = ShuffleType.Random, IComparer<T>? comparer = null, Random? randomInstance = null)
+	{
+		target._AsSpan()._Shuffle(shuffleType, comparer, randomInstance);
 	}
 
 	/// <summary>

@@ -8,12 +8,177 @@ using NotNot;
 
 namespace NotNot.Collections.SpanLike;
 
+public enum ShuffleType
+{
+   Random,
+   BalancedDistribution,
+   Sorted,
+   ReverseSorted,
+}
+
 /// <summary>
 /// Extension methods for Span and ReadOnlySpan providing zero-allocation mapping and batching operations.
 /// These methods mirror Mem functionality but operate directly on spans without allocating new memory.
 /// </summary>
 public static class zz_Extensions_Span
 {
+   #region Span<T> Shuffle Methods
+
+   /// <summary>
+   /// Reorders the span in place using the requested shuffle strategy.
+   /// For sort-based strategies, <typeparamref name="T"/> must be comparable or a comparer must be supplied.
+   /// </summary>
+   public static void _Shuffle<T>(this Span<T> source, ShuffleType shuffleType = ShuffleType.Random, IComparer<T>? comparer = null, Random? randomInstance = null)
+   {
+      if (source.Length <= 1)
+      {
+         return;
+      }
+
+      randomInstance ??= Random.Shared;
+
+      switch (shuffleType)
+      {
+         case ShuffleType.Random:
+            ShuffleRandom(source, randomInstance);
+            return;
+         case ShuffleType.BalancedDistribution:
+            ShuffleBalancedDistribution(source, comparer, randomInstance);
+            return;
+         case ShuffleType.Sorted:
+            source.Sort(comparer);
+            return;
+         case ShuffleType.ReverseSorted:
+            source.Sort(comparer);
+            source.Reverse();
+            return;
+         default:
+            throw new ArgumentOutOfRangeException(nameof(shuffleType), shuffleType, "Unknown shuffle type.");
+      }
+   }
+
+   private static void ShuffleRandom<T>(Span<T> source, Random randomInstance)
+   {
+      for (var index = source.Length - 1; index > 0; index--)
+      {
+         var swapIndex = randomInstance.Next(index + 1);
+         (source[index], source[swapIndex]) = (source[swapIndex], source[index]);
+      }
+   }
+
+   private static void ShuffleBalancedDistribution<T>(Span<T> source, IComparer<T>? comparer, Random randomInstance)
+   {
+      comparer ??= Comparer<T>.Default;
+      source.Sort(comparer);
+
+      using var outputOwner = Mem.Rent<T>(source.Length);
+      using var groupNextIndexOwner = Mem.Rent<int>(source.Length);
+      using var groupRemainingOwner = Mem.Rent<int>(source.Length);
+
+      var output = outputOwner.GetSpan();
+      var groupNextIndices = groupNextIndexOwner.GetSpan();
+      var groupRemaining = groupRemainingOwner.GetSpan();
+
+      var groupCount = 0;
+      var groupStart = 0;
+      while (groupStart < source.Length)
+      {
+         var groupEnd = groupStart + 1;
+         while (groupEnd < source.Length && comparer.Compare(source[groupStart], source[groupEnd]) == 0)
+         {
+            groupEnd++;
+         }
+
+         groupNextIndices[groupCount] = groupStart;
+         groupRemaining[groupCount] = groupEnd - groupStart;
+         groupCount++;
+         groupStart = groupEnd;
+      }
+
+      var previousGroup = -1;
+      for (var outputIndex = 0; outputIndex < output.Length; outputIndex++)
+      {
+         var selectedGroup = SelectNextBalancedGroup(groupRemaining.Slice(0, groupCount), previousGroup, randomInstance);
+         output[outputIndex] = source[groupNextIndices[selectedGroup]];
+         groupNextIndices[selectedGroup]++;
+         groupRemaining[selectedGroup]--;
+         previousGroup = selectedGroup;
+      }
+
+      output.CopyTo(source);
+   }
+
+   private static int SelectNextBalancedGroup(ReadOnlySpan<int> remainingCounts, int previousGroup, Random randomInstance)
+   {
+      var hasAlternativeGroup = false;
+      if (previousGroup >= 0)
+      {
+         for (var i = 0; i < remainingCounts.Length; i++)
+         {
+            if (i != previousGroup && remainingCounts[i] > 0)
+            {
+               hasAlternativeGroup = true;
+               break;
+            }
+         }
+      }
+
+      var maxRemaining = 0;
+      var candidateCount = 0;
+
+      for (var i = 0; i < remainingCounts.Length; i++)
+      {
+         var remaining = remainingCounts[i];
+         if (remaining <= 0)
+         {
+            continue;
+         }
+
+         if (hasAlternativeGroup && i == previousGroup)
+         {
+            continue;
+         }
+
+         if (remaining > maxRemaining)
+         {
+            maxRemaining = remaining;
+            candidateCount = 1;
+         }
+         else if (remaining == maxRemaining)
+         {
+            candidateCount++;
+         }
+      }
+
+      __.ThrowIfNot(candidateCount > 0, "Balanced shuffle expected at least one remaining group.");
+
+      var selectedOrdinal = randomInstance.Next(candidateCount);
+      for (var i = 0; i < remainingCounts.Length; i++)
+      {
+         var remaining = remainingCounts[i];
+         if (remaining != maxRemaining)
+         {
+            continue;
+         }
+
+         if (hasAlternativeGroup && i == previousGroup)
+         {
+            continue;
+         }
+
+         if (selectedOrdinal == 0)
+         {
+            return i;
+         }
+
+         selectedOrdinal--;
+      }
+
+      throw new InvalidOperationException("Balanced shuffle failed to select a group.");
+   }
+
+   #endregion
+
    #region Span<T> Map Methods
 
    /// <summary>
