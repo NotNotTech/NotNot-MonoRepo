@@ -9,6 +9,30 @@ Roslyn analyzers and suppressors enforcing workspace design decisions.
 
 ## Analyzers
 
+### NN_A003: Forbid Concrete ApiResponse
+
+Use `IApiResponse<T>` (interface) for transport returns, or `Maybe<T>` for domain/app layer code. `ApiResponse<T>` requires `HttpResponseMessage` and cannot be constructed in Server DI path.
+
+**Severity**: Error
+**Flagged**: Variable, parameter, field, property, or return type using `Refit.ApiResponse<T>`
+**Allowed**: `Refit.IApiResponse<T>`, `Refit.IApiResponse` (interfaces)
+
+### NN_A004: Forbid ApiException Catch
+
+Avoid catching `ApiException` for business outcomes. Mutation interfaces should return `Task<IApiResponse>` for structured non-throwing error handling.
+
+**Severity**: Warning (some legitimate infrastructure uses exist)
+**Flagged**: `catch (ApiException)`, `catch (ValidationApiException)` (derived types too)
+**Allowed**: `catch (Exception)`, `catch (HttpRequestException)`, other non-ApiException types
+
+### NN_A005: Ignored ApiResponse Result
+
+`IApiResponse` result from await must be inspected or explicitly discarded.
+
+**Severity**: Warning
+**Flagged**: `await client.MutateAsync();` (result implicitly discarded)
+**Allowed**: `var result = await ...` (assigned), `_ = await ...` (explicitly discarded), `await Task.Delay(1)` (not IApiResponse)
+
 ### NN_R005: Catch Block Must Rethrow
 
 Catch blocks catching `Exception`, `SystemException`, or bare `catch` must rethrow.
@@ -52,6 +76,9 @@ See `protocols/debugging.md` for diagnostic patterns.
 
 | File | Purpose |
 |------|---------|
+| `Architecture/ForbidConcreteApiResponseAnalyzer.cs` | NN_A003 |
+| `Architecture/ForbidApiExceptionCatchAnalyzer.cs` | NN_A004 |
+| `Architecture/IgnoredApiResponseAnalyzer.cs` | NN_A005 |
 | `Advanced/SuppressionProvider.cs` | All NNS* suppressors |
 | `Reliability/Exceptions/CatchBlockMustRethrowAnalyzer.cs` | NN_R005 |
 | `Reliability/Concurrency/TaskAwaitedOrReturnedAnalyzer.cs` | NN_R001 |
