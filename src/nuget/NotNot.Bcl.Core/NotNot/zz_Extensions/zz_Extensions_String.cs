@@ -599,6 +599,38 @@ public static class zz_Extensions_String
 		return string.IsNullOrEmpty(value);
 	}
 
+	/// <summary>
+	/// Normalizes a markdown-ish text body into a stable canonical form.
+	/// <list type="number">
+	///   <item>Normalizes line endings (<c>\r\n</c>, <c>\r</c>) to <c>\n</c>.</item>
+	///   <item>Right-trims each line (lines containing only whitespace become empty). Leading whitespace is preserved (markdown indentation matters).</item>
+	///   <item>Collapses runs of 3+ consecutive <c>\n</c> down to exactly <c>\n\n</c> (max one blank line between content).</item>
+	///   <item>Strips leading and trailing empty lines. All-whitespace input collapses to <c>""</c>.</item>
+	/// </list>
+	/// Null-in -> null-out. Empty-in -> empty-out.
+	/// </summary>
+	public static string? _TrimMarkdown(this string? value)
+	{
+		if (string.IsNullOrEmpty(value))
+			return value;
+
+		// Step 1: normalize line endings to \n
+		var normalized = value.Replace("\r\n", "\n").Replace("\r", "\n");
+
+		// Step 2: right-trim each line (preserves leading whitespace for markdown indent)
+		var lines = normalized.Split('\n');
+		for (var i = 0; i < lines.Length; i++)
+			lines[i] = lines[i].TrimEnd();
+		var joined = string.Join('\n', lines);
+
+		// Step 3: collapse 3+ consecutive newlines to exactly 2
+		while (joined.Contains("\n\n\n"))
+			joined = joined.Replace("\n\n\n", "\n\n");
+
+		// Step 4: trim leading and trailing empty lines
+		return joined.Trim('\n');
+	}
+
 
 	/// <summary>
 	///    Trims the text to a provided maximum length.
