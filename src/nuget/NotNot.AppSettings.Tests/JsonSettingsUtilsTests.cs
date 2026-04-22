@@ -333,6 +333,65 @@ public class JsonSettingsUtilsTests
         merged.Count.Should().Be(0);
     }
 
+    // --- Phase-5 N3 closure: runtime-path parser-options + non-object-root contracts ---
+
+    [Fact]
+    public async Task MergeStreamsAsync_StreamWithTrailingCommas_ParsesSuccessfully()
+    {
+        // H2 runtime-path evidence: the runtime facade (MergeStreamsAsync) must parse JSON with
+        // trailing commas just like the generator path does. Pins the documentOptions:
+        // JsonMergeCore.DefaultDocumentOptions wiring at JsonSettingsUtils.cs:88 — regression if
+        // someone drops that argument and the stream path silently reverts to strict parsing.
+        var stream = CreateStream("""
+        {
+            "Database": {
+                "ConnectionString": "Server=.;",
+                "Timeout": 30,
+            },
+        }
+        """);
+
+        var merged = await JsonSettingsUtils.MergeStreamsAsync([stream]);
+
+        merged["Database"]!["Timeout"]!.GetValue<int>().Should().Be(30);
+        merged["Database"]!["ConnectionString"]!.GetValue<string>().Should().Be("Server=.;");
+    }
+
+    [Fact]
+    public async Task MergeStreamsAsync_StreamWithComments_ParsesSuccessfully()
+    {
+        // H2 runtime-path evidence (comment-handling axis): // line comments and /* block */
+        // comments common in human-authored appsettings files must parse through the runtime
+        // facade. Symmetric with JsonMergeCoreTests.DefaultDocumentOptions_ParsesJsonWithTrailingCommasAndComments.
+        var stream = CreateStream("""
+        {
+            // top-level comment
+            "Logging": {
+                "Level": "Info" /* trailing block comment */
+            }
+        }
+        """);
+
+        var merged = await JsonSettingsUtils.MergeStreamsAsync([stream]);
+
+        merged["Logging"]!["Level"]!.GetValue<string>().Should().Be("Info");
+    }
+
+    [Fact]
+    public async Task MergeStreamsAsync_NonObjectRootStream_ThrowsJsonException()
+    {
+        // M1 runtime-path evidence: array-root or primitive-root appsettings streams must be
+        // REJECTED at the runtime facade, matching the generator-side MergeAll guard
+        // (JsonMergeCoreTests.MergeAll_NonObjectRoot_ThrowsJsonException). Pins the throw block
+        // at JsonSettingsUtils.cs:99-101 — regression if someone silently drops the guard.
+        var stream = CreateStream("[1,2,3]");
+
+        Func<Task> act = async () => await JsonSettingsUtils.MergeStreamsAsync([stream]);
+
+        await act.Should().ThrowAsync<JsonException>()
+            .WithMessage("*JSON object at the root*");
+    }
+
     #endregion
 
     #region Helper Methods

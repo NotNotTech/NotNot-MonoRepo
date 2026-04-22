@@ -105,4 +105,20 @@
 	  <Folder Include="NotNot\Collections\OldBackup\" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<!-- Shared-source from NotNot.AppSettings (netstandard2.0-compatible merge utility).
+		     Canonical location: ../NotNot.AppSettings/JsonMergeCore.cs.
+		     Compiled into this assembly as internal; generator project compiles the same file natively. -->
+		<Compile Include="..\NotNot.AppSettings\JsonMergeCore.cs" Link="NotNot\AppSettingsHelper\JsonMergeCore.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Expose internals to NotNot.AppSettings.Tests so tests can exercise the shared-source
+		     internal JsonMergeCore directly. The generator project (NotNot.AppSettings) already
+		     declares [InternalsVisibleTo("NotNot.AppSettings.Tests")] in AppSettingsGen.cs, but the
+		     tests resolve JsonMergeCore against NotNot.Bcl.Core's linked copy via the NotNot.Bcl
+		     ProjectReference, so NotNot.Bcl.Core must also expose internals. -->
+		<InternalsVisibleTo Include="NotNot.AppSettings.Tests" />
+	</ItemGroup>
+
 </Project>

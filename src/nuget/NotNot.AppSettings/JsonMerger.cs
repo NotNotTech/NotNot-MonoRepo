@@ -1,4 +1,6 @@
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis.Text;
 using System.Collections.Generic;
@@ -10,12 +12,10 @@ namespace NotNot.AppSettingsInternal;
 /// </summary>
 internal static class JsonMerger
 {
-	 public static JsonDocumentOptions _options = new JsonDocumentOptions
-	 {
-		  AllowTrailingCommas = true,
-		  CommentHandling = JsonCommentHandling.Skip,
-		  MaxDepth = 64,
-	 };
+	 // Delegates to the shared-source JsonMergeCore canonical options so that build-time (here)
+	 // and runtime (JsonSettingsUtils.MergeStreamsAsync in NotNot.Bcl.Core) parse with identical
+	 // lenient settings (AllowTrailingCommas + CommentHandling.Skip). Phase-5 H2 closure.
+	 public static JsonDocumentOptions _options => JsonMergeCore.DefaultDocumentOptions;
 	 public static JsonSerializerOptions _serializerOptions = new JsonSerializerOptions
 	 {
 		  ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip,
@@ -32,20 +32,30 @@ internal static class JsonMerger
 
 	 public static Dictionary<string, JsonElement> MergeJsonFiles(Dictionary<string, SourceText> sourceTexts)
 	 {
-		  var mergedObject = new Dictionary<string, JsonElement>();
+		  // DETERMINISTIC_ORDERING: sort file entries by ordinal path so generator output is stable
+		  // regardless of AdditionalTextsProvider enumeration order (REQ-3 closure, TDD §4.B1).
+		  var sorted = sourceTexts.OrderBy(pair => pair.Key, System.StringComparer.Ordinal).ToList();
 
-		  foreach (var pair in sourceTexts)
+		  // BOUNDARY_CONVERSION: parse each SourceText directly into JsonNode and fold via JsonMergeCore.
+		  // Contract delta vs. prior behavior: arrays are REPLACED (later file wins) instead of concatenated.
+		  // This is the REQ-4-aligned semantics; JsonMerger is `internal static` with zero external callers,
+		  // and file-level array concat was unused by consumers (per VibeConsider C1).
+		  var nodes = new List<JsonNode>();
+		  foreach (var pair in sorted)
 		  {
-				var fileName = pair.Key;
-				var sourceText = pair.Value;
-
-				// SGF logging would be used here if needed: Logger.Information("obtaining settings from {FileName}", fileName);
-
-				using var jsonDoc = JsonDocument.Parse(sourceText.ToString(), _options);
-
-				MergeJson(mergedObject, jsonDoc.RootElement);
+				var node = JsonNode.Parse(pair.Value.ToString(), documentOptions: _options);
+				if (node is not null)
+				{
+					 nodes.Add(node);
+				}
 		  }
-		  return mergedObject;
+
+		  var mergedObject = JsonMergeCore.MergeAll(nodes);
+
+		  // Public signature preserved: downstream GenerateFilesWorker consumes Dictionary<string, JsonElement>.
+		  // Round-trip through JsonSerializer keeps JsonElement semantics (ValueKind, GetProperty, etc.) intact.
+		  var finalJson = mergedObject.ToJsonString();
+		  return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(finalJson, _serializerOptions)!;
 	 }
 
 	 //[Obsolete("uses File.IO to read.  Works but frowned upon for sourcegen.  Switched to SourceText",true)]

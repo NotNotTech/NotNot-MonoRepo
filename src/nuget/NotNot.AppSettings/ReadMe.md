@@ -10,6 +10,7 @@ Includes a simple deserialization helper for when you are using Dependency Injec
 	- [Table of Contents](#table-of-contents)
 	- [Getting Started](#getting-started)
 	- [How it works](#how-it-works)
+	- [Multi-File Merging](#multi-file-merging)
 	- [Example](#example)
 	- [State Management with AppSettingsManager](#state-management-with-appsettingsmanager)
 	- [Storage Providers](#storage-providers)
@@ -46,6 +47,50 @@ During your project's build process, NotNot.AppSettings will parse the  `appsett
 
 After building your project, an `AppSettings` class contains the strongly-typed definitions,
 and an `AppSettingsBinder` helper/loader util will be found under the `{YourProjectRootNamespace}.AppSettingsGen` namespace.
+
+## Multi-File Merging
+
+When multiple `appsettings*.json` files are present, they are merged by a unified JSON merge core (`JsonMergeCore`) that is shared-source between the compile-time source generator and the `NotNot.Bcl.Core` runtime. The same semantics apply at build-time (for schema generation) and at runtime (for `AppSettingsManager<T>.LoadAsync` and the `[Obsolete]` `LoadDirect*` facades).
+
+**Merge semantics (RFC-7396-ish):**
+
+- **Deterministic order**: files sorted by ordinal path ascending; **last path wins** for overlapping keys. No filesystem-dependent ordering.
+- **Objects**: deep-merged recursively. Nested keys from both files are preserved unless explicitly overwritten.
+- **Arrays**: **REPLACED wholesale**, not concatenated. The later file's array fully supersedes the earlier file's array.
+- **`null` literal**: DELETES the key from the merged output (RFC-7396 merge-patch deletion semantics).
+
+**Example:**
+
+`appsettings.json`:
+```json
+{
+  "Db": { "Host": "localhost", "Port": 5432 },
+  "Tags": [ "dev", "local" ]
+}
+```
+
+`appsettings.Production.json`:
+```json
+{
+  "Db": { "Host": "prod.db", "Retries": 3 },
+  "Tags": [ "prod" ],
+  "LegacyKey": null
+}
+```
+
+Merged result:
+```json
+{
+  "Db": { "Host": "prod.db", "Port": 5432, "Retries": 3 },
+  "Tags": [ "prod" ]
+}
+```
+
+Note: `Db` is deep-merged (`Port` preserved, `Host` overwritten, `Retries` added), `Tags` is fully replaced, and `LegacyKey: null` deletes the key entirely.
+
+**`LoadDirect*` is `[Obsolete]`**: the emitted `LoadDirect`, `LoadDirectFromText`, `LoadDirectFromTexts`, and `LoadDirectFromStreams` methods are now `[Obsolete]` facades that route through the same unified merge core. New code should use `AppSettingsManager<T>.LoadAsync()` (see "State Management with AppSettingsManager" below) or the standard `IConfiguration` DI binding.
+
+**Transitive dependency note**: because `LoadDirect*` delegates to `NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync` (which lives in `NotNot.Bcl.Core`), any consumer project that invokes `LoadDirect*` must transitively reference `NotNot.Bcl.Core`. Consumers that use only the DI-constructor path (`new AppSettingsBinder(IConfiguration)`) or `AppSettingsManager<T>` directly are unaffected. This is a deliberate trade-off of unifying compile-time and runtime merge contracts; the `[Obsolete]` attribute steers new consumers toward `AppSettingsManager<T>` anyway.
 
 ## Example
 

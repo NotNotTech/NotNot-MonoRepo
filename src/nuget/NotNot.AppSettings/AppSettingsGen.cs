@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -160,7 +161,11 @@ internal class AppSettingsGen : IncrementalGenerator
 			return toReturn;
 		}
 
-		Logger.Information("Processing source generation: rootNamespace=" + config.RootNamespace + ", appSettingsJsonSourceFiles.Count=" + config.CombinedSourceTexts.Count);
+		// DETERMINISTIC_ORDERING + DIAGNOSTIC_VISIBILITY: emit the sorted file list so build logs show
+		// exactly which appsettings*.json participated and in which merge order (REQ-3 closure, TDD §4.B2).
+		// `fileCount=N` token retained for any grep-based test backward-compat.
+		var sortedFileList = string.Join(", ", config.CombinedSourceTexts.Keys.OrderBy(p => p, System.StringComparer.Ordinal));
+		Logger.Information($"Processing source generation: rootNamespace={config.RootNamespace}, fileCount={config.CombinedSourceTexts.Count}, files=[{sortedFileList}]");
 
 
 
@@ -193,14 +198,16 @@ internal class AppSettingsGen : IncrementalGenerator
 **/
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Memory;
 using System.CodeDom.Compiler;
+using System.Text.Json.Nodes;
 
 namespace {config.StartingNamespace}
 {{
 
 	/// <summary>
-	/// Strongly typed AppSettings.json, recreated every build. 
-	/// <para>You can use this directly, extend it (it's a partial class), 
+	/// Strongly typed AppSettings.json, recreated every build.
+	/// <para>You can use this directly, extend it (it's a partial class),
 	/// or get a populated instance of it via the <see cref=""AppSettingsBinder""/> DI service</para>
 	/// </summary>
 	{config.GenAccessModifier} partial class AppSettings
@@ -228,16 +235,88 @@ namespace {config.StartingNamespace}
 			_config.Bind(AppSettings);
 		}}
 
+		// ============================================================================================
+		// FACADE HELPERS (emitted once per consumer assembly; Phase D of Option C implementation).
+		// LoadDirect* methods are [Obsolete] and route through NotNot.AppSettingsHelper.JsonSettingsUtils
+		// (from NotNot.Bcl.Core) to share deep-merge + null-delete + array-REPLACE semantics with
+		// AppSettingsManager<T>. See TDD §4.D for the unification contract.
+		// ============================================================================================
+
 		/// <summary>
-		/// Manually construct an AppSettings from your appsettings.json files.
+		/// FACADE HELPER: walks a merged JsonNode into a flat colon-delimited dictionary suitable for
+		/// Microsoft.Extensions.Configuration.AddInMemoryCollection. Bridges unified-merge output to
+		/// IConfiguration.Bind (preserves ASP.NET Core binding semantics: env-var substitution,
+		/// enum parsing, nullability, type coercion).
+		/// </summary>
+		private static System.Collections.Generic.Dictionary<string, string?> _FlattenJson(global::System.Text.Json.Nodes.JsonNode? node, string prefix = """")
+		{{
+			var result = new System.Collections.Generic.Dictionary<string, string?>(System.StringComparer.OrdinalIgnoreCase);
+			if (node is not global::System.Text.Json.Nodes.JsonObject obj) return result;
+			foreach (var prop in obj)
+			{{
+				var key = string.IsNullOrEmpty(prefix) ? prop.Key : $""{{prefix}}:{{prop.Key}}"";
+				if (prop.Value is global::System.Text.Json.Nodes.JsonObject nested)
+				{{
+					foreach (var kvp in _FlattenJson(nested, key))
+					{{
+						result[kvp.Key] = kvp.Value;
+					}}
+				}}
+				else if (prop.Value is global::System.Text.Json.Nodes.JsonArray arr)
+				{{
+					// IConfiguration array convention: indexed keys ""Name:0"", ""Name:1"", ...
+					for (int i = 0; i < arr.Count; i++)
+					{{
+						var item = arr[i];
+						var arrKey = $""{{key}}:{{i}}"";
+						if (item is global::System.Text.Json.Nodes.JsonObject itemObj)
+						{{
+							foreach (var kvp in _FlattenJson(itemObj, arrKey))
+							{{
+								result[kvp.Key] = kvp.Value;
+							}}
+						}}
+						else
+						{{
+							result[arrKey] = item?.ToString();
+						}}
+					}}
+				}}
+				else
+				{{
+					result[key] = prop.Value?.ToString();
+				}}
+			}}
+			return result;
+		}}
+
+		/// <summary>
+		/// FACADE HELPER: binds a merged JsonNode to a new AppSettings instance via IConfiguration.Bind.
+		/// </summary>
+		private static AppSettings _BindMergedNode(global::System.Text.Json.Nodes.JsonNode? merged)
+		{{
+			var flat = _FlattenJson(merged);
+			var configBuilder = new ConfigurationBuilder();
+			configBuilder.AddInMemoryCollection(flat);
+			IConfigurationRoot configuration = configBuilder.Build();
+			var binder = new AppSettingsBinder(configuration);
+			return binder.AppSettings;
+		}}
+
+		/// <summary>
+		/// [Obsolete facade] Manually construct an AppSettings from your appsettings.json files.
+		/// Routes through the unified JSON merge core (deep-merge objects, REPLACE arrays,
+		/// null-literal DELETES key per RFC-7396) via <see cref=""LoadDirectFromStreams""/>.
+		/// <para>Prefer <c>NotNot.AppSettingsHelper.AppSettingsManager&lt;T&gt;.LoadAsync()</c> for new code.</para>
 		/// <para>NOTE: This method is provided for non-DI users.  If you use DI, don't use this method.  Instead just register this class as a service.</para>
 		/// </summary>
 		/// <param name=""appSettingsLocation"">folder where to search for appsettings.json.  defaults to current app folder.</param>
 		/// <param name=""appSettingsFileNames"">lets you override the files to load up.  defaults to 'appsettings.json' and 'appsettings.{{DOTNET_ENVIRONMENT}}.json'</param>
 		/// <param name=""throwIfFilesMissing"">default is to silently ignore if any of the .json files are missing.</param>
 		/// <returns>your strongly typed appsettings with values from your .json loaded in</returns>
-		public static AppSettings LoadDirect(string? appSettingsLocation = null,IEnumerable<string>? appSettingsFileNames=null,bool throwIfFilesMissing=false )
-		{{      
+		[System.Obsolete(""Use AppSettingsManager<T>.LoadAsync() for layered settings loading. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
+		public static AppSettings LoadDirect(string? appSettingsLocation = null, IEnumerable<string>? appSettingsFileNames = null, bool throwIfFilesMissing = false)
+		{{
 			//pick what .json files to load
 			if (appSettingsFileNames is null)
 			{{
@@ -245,7 +324,6 @@ namespace {config.StartingNamespace}
 				var env = System.Environment.GetEnvironmentVariable(""DOTNET_ENVIRONMENT"");
 				env ??= System.Environment.GetEnvironmentVariable(""ASPNETCORE_ENVIRONMENT"");
 				env ??= System.Environment.GetEnvironmentVariable(""ENVIRONMENT"");
-				//env ??= ""Development""; //default to ""Development
 				if (env is null)
 				{{
 					appSettingsFileNames = new[] {{ ""appsettings.json"" }};
@@ -256,124 +334,90 @@ namespace {config.StartingNamespace}
 				}}
 			}}
 
-			//build a config from the specified files
-			var builder = new ConfigurationBuilder();
-			if (appSettingsLocation != null)
+			// Resolve file paths to streams and delegate to LoadDirectFromStreams (unified merge core).
+			var streams = new System.Collections.Generic.List<Stream>();
+			try
 			{{
-				builder.SetBasePath(appSettingsLocation);
+				foreach (var fileName in appSettingsFileNames)
+				{{
+					var fullPath = appSettingsLocation != null ? Path.Combine(appSettingsLocation, fileName) : fileName;
+					if (File.Exists(fullPath))
+					{{
+						streams.Add(File.OpenRead(fullPath));
+					}}
+					else if (throwIfFilesMissing)
+					{{
+						throw new FileNotFoundException($""appsettings file not found: {{fullPath}}"", fullPath);
+					}}
+				}}
+				return LoadDirectFromStreams(streams);
 			}}
-			var optional = !throwIfFilesMissing;
-			foreach (var fileName in appSettingsFileNames)
-			{{         
-				builder.AddJsonFile(fileName, optional: optional, reloadOnChange: false); // Add appsettings.json
+			finally
+			{{
+				foreach (var s in streams) s.Dispose();
 			}}
-			IConfigurationRoot configuration = builder.Build();
-
-			//now finally get the appsettings we care about
-			var binder = new AppSettingsBinder(configuration);
-			return binder.AppSettings;
 		}}
 
 		/// <summary>
-		/// helper to create an AppSettings from a string containing your json
+		/// [Obsolete facade] Create an AppSettings from a single string of JSON.
+		/// Delegates to <see cref=""LoadDirectFromTexts""/>, which routes through the unified
+		/// JSON merge core (deep-merge, REPLACE arrays, null-delete per RFC-7396).
+		/// <para>Prefer <c>NotNot.AppSettingsHelper.AppSettingsManager&lt;T&gt;.LoadAsync()</c> for new code.</para>
 		/// </summary>
-		/// <param name=""appSettingsJsonText""></param>
-		/// <returns></returns>
-		[System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadAsync() instead for save-capable settings."")]
+		/// <param name=""appSettingsJsonText"">The JSON text to bind.</param>
+		/// <returns>A strongly-typed AppSettings populated from the JSON text.</returns>
+		[System.Obsolete(""Use AppSettingsManager<T>.LoadAsync() for layered settings loading. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
 		public static AppSettings LoadDirectFromText(string appSettingsJsonText)
 		{{
-		
-
-			//build a config from the specified files
-			var builder = new ConfigurationBuilder();
-
-			var configurationBuilder = new ConfigurationBuilder();
-
-			IConfigurationRoot configuration;
-			using (var stream = new MemoryStream())
-			{{
-				using (var writer = new StreamWriter(stream))
-				{{
-					writer.Write(appSettingsJsonText);
-					writer.Flush();
-					stream.Position = 0;
-					configurationBuilder.AddJsonStream(stream);
-
-
-
-					configuration = configurationBuilder.Build();
-				}}
-			}}
-
-
-			//now finally get the appsettings we care about
-			var binder = new AppSettingsBinder(configuration);
-			return binder.AppSettings;
+			// Single-text overload delegates to multi-text path for unified merge semantics.
+			return LoadDirectFromTexts(appSettingsJsonText);
 		}}
 
 		/// <summary>
-		/// helper to create an AppSettings from strings containing your json
+		/// [Obsolete facade] Create an AppSettings from multiple JSON text sources (merged layered, last-wins).
+		/// Converts each text to a MemoryStream and delegates to <see cref=""LoadDirectFromStreams""/>, which
+		/// routes through the unified JSON merge core (deep-merge objects, REPLACE arrays, null-literal
+		/// DELETES key per RFC-7396).
+		/// <para>Prefer <c>NotNot.AppSettingsHelper.AppSettingsManager&lt;T&gt;.LoadAsync()</c> for new code.</para>
 		/// </summary>
-		/// <param name=""appSettingsJsonText""></param>
-		/// <returns></returns>
-		[System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadAsync() instead for save-capable settings."")]
+		/// <param name=""appSettingsJsonTexts"">JSON text sources, in ascending priority order (last wins).</param>
+		/// <returns>A strongly-typed AppSettings populated from the merged JSON.</returns>
+		[System.Obsolete(""Use AppSettingsManager<T>.LoadAsync() for layered settings loading. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
 		public static AppSettings LoadDirectFromTexts(params string[] appSettingsJsonTexts)
 		{{
-
-			//build a config from the specified files
-			var configurationBuilder = new ConfigurationBuilder();
-
-			IConfigurationRoot RecursiveLoader(Queue<string> textsQueue)
+			// Convert each text to a MemoryStream and delegate to LoadDirectFromStreams (unified merge core).
+			var streams = new System.Collections.Generic.List<Stream>();
+			try
 			{{
-				using var stream = new MemoryStream();
-				using var writer = new StreamWriter(stream);
-
-				if (textsQueue.Count > 0)
+				foreach (var text in appSettingsJsonTexts)
 				{{
-					var appSettingsJsonText = textsQueue.Dequeue();
-					writer.Write(appSettingsJsonText);
-					writer.Flush();
-					stream.Position = 0;
-					configurationBuilder.AddJsonStream(stream);
-
-					return RecursiveLoader(textsQueue);
+					streams.Add(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text ?? string.Empty)));
 				}}
-				else
-				{{
-					return configurationBuilder.Build();
-				}}
+				return LoadDirectFromStreams(streams);
 			}}
-
-
-			var configuration = RecursiveLoader(new Queue<string>(appSettingsJsonTexts));
-
-
-			//now finally get the appsettings we care about
-			var binder = new AppSettingsBinder(configuration);
-			return binder.AppSettings;
+			finally
+			{{
+				foreach (var s in streams) s.Dispose();
+			}}
 		}}
 
-
-		 [System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadAsync() instead for save-capable settings."")]
-		 public static AppSettings LoadDirectFromStreams(List<Stream> appSettingsStreams)
-		 {{
-
-			 //build a config from the specified files
-			 var configurationBuilder = new ConfigurationBuilder();
-
-			 foreach (var stream in appSettingsStreams)
-			 {{
-				 configurationBuilder.AddJsonStream(stream);
-			 }}
-
-			 var configurationRoot = configurationBuilder.Build();
-
-			 //now finally get the appsettings we care about
-			 var binder = new AppSettingsBinder(configurationRoot);
-			 return binder.AppSettings;
-
-
-		 }}
+		/// <summary>
+		/// [Obsolete facade] Create an AppSettings from a list of streams containing your JSON.
+		/// CANONICAL FACADE — all other <c>LoadDirect*</c> overloads route through this method.
+		/// Routes through <c>NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync</c>
+		/// (unified merge core from <c>NotNot.Bcl.Core</c>) for deep-merge objects,
+		/// REPLACE-arrays, and null-literal DELETES key per RFC-7396 (REQ-4, REQ-7).
+		/// <para>Prefer <c>NotNot.AppSettingsHelper.AppSettingsManager&lt;T&gt;.LoadAsync()</c> for new code.</para>
+		/// </summary>
+		/// <param name=""appSettingsStreams"">Streams to merge, in ascending priority order (last wins).</param>
+		/// <returns>A strongly-typed AppSettings populated from the merged streams.</returns>
+		[System.Obsolete(""Use AppSettingsManager<T>.LoadAsync() for layered settings loading. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
+		public static AppSettings LoadDirectFromStreams(List<Stream> appSettingsStreams)
+		{{
+			// Route through unified merge core (JsonSettingsUtils in NotNot.Bcl.Core).
+			var merged = global::NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync(appSettingsStreams).GetAwaiter().GetResult();
+			return _BindMergedNode(merged);
+		}}
 
 	}}
 

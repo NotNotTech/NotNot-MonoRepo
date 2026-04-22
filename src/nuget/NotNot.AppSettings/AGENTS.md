@@ -103,7 +103,7 @@ public string? ConnectionString
 
 ### Basic Setup
 1. Install `NotNot.AppSettings` NuGet package
-2. Add `appsettings.json` to project with `<AdditionalFiles Include="appsettings.json" CopyToOutputDirectory="Always" />`
+2. Add one or more `appsettings*.json` files at the project root. The package's `build/NotNot.AppSettings.props` auto-globs them as `<AdditionalFiles Include="appsettings*.json" />` — no manual declaration required. Set `CopyToOutputDirectory="Always"` on the files themselves if runtime file-read paths (e.g. `LoadDirect`) rely on them being present next to the built binary.
 3. Build project
 4. Use generated `{RootNamespace}.AppSettingsGen.AppSettings` class
 
@@ -163,9 +163,13 @@ See [`../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl/NotNot/Ap
 ## Implementation Notes
 
 ### JSON Merging
-- Multiple `appsettings*.json` files are merged in order
-- Later files override earlier values
-- Objects merge recursively; arrays concatenate
+- Multiple `appsettings*.json` files are merged via a unified JSON merge core (`JsonMergeCore`, shared-source between the generator and the `NotNot.Bcl.Core` runtime).
+  - **Order**: Files are sorted by ordinal path ascending; last path wins for overlapping keys (deterministic — no filesystem-dependent ordering).
+  - **Objects**: Deep-merged recursively (nested keys preserved from both sides unless overwritten).
+  - **Arrays**: REPLACED wholesale (not concatenated) — the later file's array supersedes the earlier file's array. (This is the post-Option-C contract; older docs may mention concatenation.)
+  - **null literals**: A `null` value in a later file DELETES the key from the merged output (RFC-7396 merge-patch semantics).
+  - The merged JSON is the single authoritative input to the source generator.
+- Compile-time merge (generator) and runtime merge (`JsonSettingsUtils.MergeStreamsAsync` / `AppSettingsManager<T>` / `LoadDirect*` facades) share the same `JsonMergeCore` — same semantics, same edge cases.
 
 ### Type Inference
 | JSON Type | C# Type |
