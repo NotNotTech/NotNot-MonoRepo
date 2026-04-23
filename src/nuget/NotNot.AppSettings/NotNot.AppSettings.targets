@@ -4,9 +4,19 @@
 		<PackageReference Update="NotNot.AppSettings" PrivateAssets="All"/>
 	</ItemGroup>
 
+	<PropertyGroup>
+		<_NotNotAppSettingsAutoGlobNormalized>$([System.String]::Copy('$(NotNot_AppSettings_AutoGlob)').ToLowerInvariant())</_NotNotAppSettingsAutoGlobNormalized>
+	</PropertyGroup>
+
+	<ItemGroup Condition="'$(_NotNotAppSettingsAutoGlobNormalized)' == 'true'">
+		<!--required so target project appsettings.json files are included for sourcegen scanning-->
+		<AdditionalFiles Include="appsettings*.json" />
+	</ItemGroup>
+
 	<ItemGroup>
-		<!--allow reading this property from the target project .csproj-->
+		<!--allow reading these properties from the target project .csproj-->
 		<CompilerVisibleProperty Include="NotNot_AppSettings_GenPublic" />
+		<CompilerVisibleProperty Include="NotNot_AppSettings_AutoGlob" />
 	</ItemGroup>
 
 </Project>

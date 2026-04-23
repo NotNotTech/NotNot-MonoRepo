@@ -4,6 +4,11 @@ Automatically create strongly typed C# settings objects from AppSettings.json. U
 
 Includes a simple deserialization helper for when you are using Dependency Injection, or not.
 
+For the full appsettings normalization recipe used by VOW and the example projects, see
+[`docs/appsettings-normalization.md`](../../../../../docs/appsettings-normalization.md). It covers
+host-vs-typed splits, client whitelisting, and review grep patterns for keeping `appsettings.json`
+out of the typed graph.
+
 ## Table of Contents
 
 - [NotNot.AppSettings](#notnotappsettings)

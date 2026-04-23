@@ -23,15 +23,21 @@
 	<ItemGroup>
 		<None Remove="AppSettings.Development.json" />
 		<None Remove="appsettings.json" />
+		<None Remove="appsettings.Sample.json" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<Content Include="AppSettings.Development.json">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</Content>
-		<AdditionalFiles Include="appsettings.json">
+		<Content Include="appsettings.json">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</AdditionalFiles>
+		</Content>
+		<Content Include="appsettings.Sample.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
+		<AdditionalFiles Remove="appsettings.json" />
+		<AdditionalFiles Include="appsettings.Sample.json" />
 	</ItemGroup>
 
 	<ItemGroup>
