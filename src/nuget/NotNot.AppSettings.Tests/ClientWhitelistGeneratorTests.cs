@@ -7,7 +7,6 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
-using System.Xml.Linq;
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -197,37 +196,161 @@ public class ClientWhitelistGeneratorTests
     }
 
     [Fact]
-    public void MsbuildOptOut_DisablesAutoGlob_WhenExplicitAdditionalFilesAreProvided()
+    public void Policy_Keys_Are_CaseInsensitive_Regression()
     {
-        var repoRoot = FindRepoRoot();
-        var propsPath = Path.Combine(repoRoot, "src", "external-repo", "NotNot-MonoRepo", "src", "nuget", "NotNot.AppSettings", "NotNot.AppSettings.props");
-        var targetsPath = Path.Combine(repoRoot, "src", "external-repo", "NotNot-MonoRepo", "src", "nuget", "NotNot.AppSettings", "NotNot.AppSettings.targets");
+        // R1.5 regression: whitelist policy lookups must be case-insensitive.
+        // appsettings.json property names are case-insensitive per .NET IConfiguration (colon-separated
+        // paths flattened by Microsoft.Extensions.Configuration.Json use OrdinalIgnoreCase). A whitelist
+        // authored with "VibeOverwatch:ui" (lowercase segment) must resolve the same policy as the
+        // canonical casing "VibeOverwatch:Ui" used by the JSON structure.
+        //
+        // Structured as paired generator runs: same settings tree + same access map, differing only in
+        // the whitelist key casing. Both runs MUST produce equivalent emitted client surface, proving
+        // policy keys are matched OrdinalIgnoreCase.
 
-        var propsDoc = XDocument.Load(propsPath);
-        var targetsDoc = XDocument.Load(targetsPath);
-        var propsNs = propsDoc.Root!.Name.Namespace;
-        var targetsNs = targetsDoc.Root!.Name.Namespace;
+        const string settingsTree = """
+        {
+          "VibeOverwatch": {
+            "Ui": {
+              "Theme": "dark",
+              "FontScale": 1.2
+            },
+            "ServerSecret": "hidden"
+          },
+          "NotNotAppSettings": {
+            "whitelist": {
+              "VibeOverwatch": "ServerOnly",
+              "__WHITELIST_KEY__": "ClientWriteLocal"
+            }
+          }
+        }
+        """;
 
-        propsDoc.Descendants(propsNs + "NotNot_AppSettings_AutoGlob")
-            .Select(x => x.Value)
-            .Should().ContainSingle("true",
-                "props must default NotNot_AppSettings_AutoGlob to true for existing consumers");
+        var canonicalCasingEmitted = RunGenerator(
+            ("appsettings.json", settingsTree.Replace("__WHITELIST_KEY__", "VibeOverwatch:Ui"))
+        );
 
-        propsDoc.Descendants(propsNs + "AdditionalFiles")
-            .Should().BeEmpty("auto-glob item should live in .targets so consumer csproj properties can opt out before item evaluation");
+        var lowerCasingEmitted = RunGenerator(
+            ("appsettings.json", settingsTree.Replace("__WHITELIST_KEY__", "VibeOverwatch:ui"))
+        );
 
-        var autoGlobItem = targetsDoc.Descendants(targetsNs + "AdditionalFiles")
-            .Single(x => (string?)x.Attribute("Include") == "appsettings*.json");
-        var autoGlobGroupCondition = ((XElement)autoGlobItem.Parent!).Attribute("Condition")!.Value;
+        const string uiNestedKey = "ClientWhitelistGeneratorTestsFixture.AppSettingsGen._ClientAppSettingsTypes._VibeOverwatch.Ui.g.cs";
+        const string vowNestedKey = "ClientWhitelistGeneratorTestsFixture.AppSettingsGen._ClientAppSettingsTypes.VibeOverwatch.g.cs";
 
-        autoGlobGroupCondition.Should().Contain("$(_NotNotAppSettingsAutoGlobNormalized)");
-        autoGlobGroupCondition.Should().Contain("'true'",
-            "targets should only add appsettings*.json when the normalized opt-out property remains true");
+        // Canonical casing: baseline — Ui subtree emitted with ClientWriteLocal attributes, ServerSecret pruned.
+        var canonicalUi = GetGeneratedSource(canonicalCasingEmitted, uiNestedKey);
+        canonicalUi.Should().Contain("[global::NotNot.AppSettings.ClientWriteLocalAttribute]");
+        canonicalUi.Should().Contain("public string? Theme");
+        canonicalUi.Should().Contain("public double? FontScale");
 
-        targetsDoc.Descendants(targetsNs + "CompilerVisibleProperty")
-            .Select(x => (string?)x.Attribute("Include"))
-            .Should().Contain("NotNot_AppSettings_AutoGlob",
-                "the opt-out property should remain compiler-visible for downstream diagnostics/debugging");
+        var canonicalVow = GetGeneratedSource(canonicalCasingEmitted, vowNestedKey);
+        canonicalVow.Should().NotContain("ServerSecret", "ServerOnly keys must be pruned from canonical-casing run");
+
+        // Lowercase-segment casing: MUST produce same surface (same files emitted, same attributes, same pruning).
+        // Pre-fix behavior: Ui subtree would be pruned entirely because the policy dict lookup of
+        // "VibeOverwatch:Ui" against key "VibeOverwatch:ui" would miss under StringComparer.Ordinal.
+        var lowerUi = GetGeneratedSource(lowerCasingEmitted, uiNestedKey);
+        lowerUi.Should().Contain("[global::NotNot.AppSettings.ClientWriteLocalAttribute]",
+            "lowercase whitelist segment must still resolve ClientWriteLocal policy");
+        lowerUi.Should().Contain("public string? Theme");
+        lowerUi.Should().Contain("public double? FontScale");
+
+        var lowerVow = GetGeneratedSource(lowerCasingEmitted, vowNestedKey);
+        lowerVow.Should().NotContain("ServerSecret", "ServerOnly keys must be pruned from lower-casing run");
+    }
+
+    [Fact]
+    public void ExplicitAdditionalFiles_MergedAcrossMultipleAppsettings_ProduceCompilableClientTypes()
+    {
+        // R1.4: end-to-end Roslyn-pipeline verification — provide the generator with multiple
+        // appsettings*.json inputs DIRECTLY (simulating what an MSBuild AutoGlob or an explicit
+        // <AdditionalFiles> list would produce in a real build) and assert that the emitted C#
+        // types compile cleanly into a loadable assembly with the expected client-facing surface.
+        //
+        // Scope clarification (TDD Phase 3 Q1-D 2026-04-23): this test exercises the generator's
+        // Roslyn layer ONLY. It does NOT evaluate MSBuild .props/.targets — the AutoGlob discovery
+        // path is verified manually via Phase 2 Task 4's `dotnet build` on the example project.
+        // The previously-here XML-structure test was a weak proxy for MSBuild behavior and has been
+        // superseded by this real compile-verification.
+        var emitted = RunGenerator(
+            ("appsettings.json", """
+            {
+              "Shared": {
+                "ApiBaseUrl": "https://api.example.com",
+                "ServerSecret": "from-base"
+              },
+              "Telemetry": {
+                "Enabled": true
+              },
+              "NotNotAppSettings": {
+                "whitelist": {
+                  "Shared:ApiBaseUrl": "ClientRead",
+                  "Shared:ServerSecret": "ServerOnly",
+                  "Telemetry": "ClientWriteLocal"
+                }
+              }
+            }
+            """),
+            ("appsettings.Development.json", """
+            {
+              "Shared": {
+                "ApiBaseUrl": "https://dev.example.com"
+              },
+              "DevOnly": {
+                "FeatureFlag": "preview"
+              },
+              "NotNotAppSettings": {
+                "whitelist": {
+                  "DevOnly:FeatureFlag": "ClientWriteServer"
+                }
+              }
+            }
+            """)
+        );
+
+        // Sanity-check the generator produced the expected emitted artifacts before attempting compile.
+        emitted.Should().ContainKey("ClientWhitelistGeneratorTestsFixture.AppSettingsGen.AppSettings.g.cs",
+            "generator must emit the strong-typed root from merged AdditionalFiles input");
+        emitted.Should().ContainKey("ClientWhitelistGeneratorTestsFixture.AppSettingsGen._ClientAppSettings.g.cs",
+            "generator must emit the client-facing root from merged AdditionalFiles input");
+        emitted.Should().ContainKey("NotNot.AppSettings.ClientSettingsAttributes.g.cs",
+            "generator must emit the shared client-attribute definitions");
+
+        // Compile the emitted source set into an in-memory assembly. The CompileGeneratedAssembly
+        // helper invokes CSharpCompilation.Emit and asserts emitResult.Success — any source-level
+        // generator regression that breaks compilation surfaces as a test failure with diagnostics.
+        var loadContext = new AssemblyLoadContext($"ExplicitAdditionalFilesEmit_{Guid.NewGuid():N}", isCollectible: true);
+        var assembly = CompileGeneratedAssembly(emitted, loadContext, includeGeneratorAssemblyReference: false);
+
+        // Assert the strong-typed client surface matches the merged whitelist policy:
+        //  - Shared.ApiBaseUrl: ClientRead   (visible on _ClientAppSettingsTypes.Shared, with ClientReadAttribute)
+        //  - Shared.ServerSecret: ServerOnly (PRUNED from client surface)
+        //  - Telemetry: ClientWriteLocal     (subtree visible, with ClientWriteLocalAttribute)
+        //  - DevOnly.FeatureFlag: ClientWriteServer (visible on _ClientAppSettingsTypes.DevOnly, with ClientWriteServerAttribute)
+        var clientRoot = assembly.GetType("ClientWhitelistGeneratorTestsFixture.AppSettingsGen._ClientAppSettings", throwOnError: true)!;
+
+        var sharedProp = clientRoot.GetProperty("Shared");
+        sharedProp.Should().NotBeNull("Shared subtree contains a ClientRead key, so the wrapper must reach the client surface");
+        var sharedType = sharedProp!.PropertyType.GenericTypeArguments.FirstOrDefault() ?? sharedProp.PropertyType;
+        sharedType.GetProperty("ApiBaseUrl")!.GetCustomAttributes(false)
+            .Select(a => a.GetType().FullName)
+            .Should().Contain("NotNot.AppSettings.ClientReadAttribute");
+        sharedType.GetProperty("ServerSecret").Should().BeNull(
+            "ServerOnly keys must be pruned from the client-facing strong type even when their parent subtree is exposed");
+
+        var telemetryProp = clientRoot.GetProperty("Telemetry");
+        telemetryProp.Should().NotBeNull("Telemetry subtree is whitelisted ClientWriteLocal");
+        telemetryProp!.GetCustomAttributes(false)
+            .Select(a => a.GetType().FullName)
+            .Should().Contain("NotNot.AppSettings.ClientWriteLocalAttribute");
+
+        var devOnlyProp = clientRoot.GetProperty("DevOnly");
+        devOnlyProp.Should().NotBeNull(
+            "DevOnly was introduced solely by appsettings.Development.json — its presence on the client surface proves the generator merged BOTH AdditionalFiles inputs");
+        var devOnlyType = devOnlyProp!.PropertyType.GenericTypeArguments.FirstOrDefault() ?? devOnlyProp.PropertyType;
+        devOnlyType.GetProperty("FeatureFlag")!.GetCustomAttributes(false)
+            .Select(a => a.GetType().FullName)
+            .Should().Contain("NotNot.AppSettings.ClientWriteServerAttribute");
     }
 
     private static Assembly CompileGeneratedAssembly(Dictionary<string, SourceText> emitted, AssemblyLoadContext loadContext, bool includeGeneratorAssemblyReference = true)
@@ -267,22 +390,5 @@ public class ClientWhitelistGeneratorTests
 
         peStream.Position = 0;
         return loadContext.LoadFromStream(peStream);
-    }
-
-    private static string FindRepoRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            var marker = Path.Combine(current.FullName, "src", "external-repo", "NotNot-MonoRepo", "src", "nuget", "NotNot.AppSettings", "NotNot.AppSettings.props");
-            if (File.Exists(marker))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate repository root from test base directory.");
     }
 }

@@ -246,7 +246,7 @@ namespace {config.StartingNamespace}
 		// FACADE HELPERS (emitted once per consumer assembly; Phase D of Option C implementation).
 		// LoadDirect* methods are [Obsolete] and route through NotNot.AppSettingsHelper.JsonSettingsUtils
 		// (from NotNot.Bcl.Core) to share deep-merge + null-delete + array-REPLACE semantics with
-		// AppSettingsManager<T>. See TDD §4.D for the unification contract.
+		// NotNot.Storage.SimpleStorageManager<T>. See TDD §4.D for the unification contract.
 		// ============================================================================================
 
 		/// <summary>
@@ -321,7 +321,7 @@ namespace {config.StartingNamespace}
 		/// <param name=""appSettingsFileNames"">lets you override the files to load up.  defaults to 'appsettings.json' and 'appsettings.{{DOTNET_ENVIRONMENT}}.json'</param>
 		/// <param name=""throwIfFilesMissing"">default is to silently ignore if any of the .json files are missing.</param>
 		/// <returns>your strongly typed appsettings with values from your .json loaded in</returns>
-		[System.Obsolete(""Use AppSettingsManager<T>.LoadAsync() for layered settings loading. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
+		[System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<T> for runtime settings load/save. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
 		public static AppSettings LoadDirect(string? appSettingsLocation = null, IEnumerable<string>? appSettingsFileNames = null, bool throwIfFilesMissing = false)
 		{{
 			//pick what .json files to load
@@ -373,7 +373,7 @@ namespace {config.StartingNamespace}
 		/// </summary>
 		/// <param name=""appSettingsJsonText"">The JSON text to bind.</param>
 		/// <returns>A strongly-typed AppSettings populated from the JSON text.</returns>
-		[System.Obsolete(""Use AppSettingsManager<T>.LoadAsync() for layered settings loading. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
+		[System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<T> for runtime settings load/save. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
 		public static AppSettings LoadDirectFromText(string appSettingsJsonText)
 		{{
 			// Single-text overload delegates to multi-text path for unified merge semantics.
@@ -389,7 +389,7 @@ namespace {config.StartingNamespace}
 		/// </summary>
 		/// <param name=""appSettingsJsonTexts"">JSON text sources, in ascending priority order (last wins).</param>
 		/// <returns>A strongly-typed AppSettings populated from the merged JSON.</returns>
-		[System.Obsolete(""Use AppSettingsManager<T>.LoadAsync() for layered settings loading. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
+		[System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<T> for runtime settings load/save. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
 		public static AppSettings LoadDirectFromTexts(params string[] appSettingsJsonTexts)
 		{{
 			// Convert each text to a MemoryStream and delegate to LoadDirectFromStreams (unified merge core).
@@ -418,7 +418,7 @@ namespace {config.StartingNamespace}
 		/// </summary>
 		/// <param name=""appSettingsStreams"">Streams to merge, in ascending priority order (last wins).</param>
 		/// <returns>A strongly-typed AppSettings populated from the merged streams.</returns>
-		[System.Obsolete(""Use AppSettingsManager<T>.LoadAsync() for layered settings loading. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
+		[System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<T> for runtime settings load/save. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
 		public static AppSettings LoadDirectFromStreams(List<Stream> appSettingsStreams)
 		{{
 			// Route through unified merge core (JsonSettingsUtils in NotNot.Bcl.Core).
@@ -456,7 +456,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
     /// </summary>
     /// <param name=""configuration"">builder.Configuration</param>
     /// <param name=""ignoreCache"">true to recreate the AppSettings even if it's already been created</param>
-    [System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadFromConfiguration() instead for consistent API."")]
+    [System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<AppSettings> with a NotNot.Storage.IStorageAdapter (e.g. FileStorageAdapter) for runtime settings load/save."")]
     internal static {config.StartingNamespace}.AppSettings _AppSettings(this IConfiguration configuration, bool ignoreCache=false)
     {{
         if (ignoreCache == false && _cachedAppSettings is not null)
@@ -551,10 +551,10 @@ public sealed class ClientWriteServerAttribute : Attribute
 				|| !metadataRoot.TryGetProperty("whitelist", out var whitelistNode)
 				|| whitelistNode.ValueKind != JsonValueKind.Object)
 			{
-				return new ClientWhitelistPolicy(new Dictionary<string, ClientSettingAccess>(StringComparer.Ordinal));
+				return new ClientWhitelistPolicy(new Dictionary<string, ClientSettingAccess>(StringComparer.OrdinalIgnoreCase));
 			}
 
-			var policies = new Dictionary<string, ClientSettingAccess>(StringComparer.Ordinal);
+			var policies = new Dictionary<string, ClientSettingAccess>(StringComparer.OrdinalIgnoreCase);
 			foreach (var entry in whitelistNode.EnumerateObject())
 			{
 				if (entry.Value.ValueKind != JsonValueKind.String)
@@ -1021,10 +1021,10 @@ using System.CodeDom.Compiler;
 namespace {interfaceNamespace};
 
 /// <summary>
-/// Interface for {currentClassName}. Use with AppSettingsManager for DispatchProxy-based change detection.
+/// Interface for {currentClassName}. Use with SimpleStorageManager and an IStorageAdapter for change detection.
 /// </summary>
 /// <remarks>
-/// <para>This interface enables the DispatchProxy workflow for settings change detection.</para>
+/// <para>This interface enables the SimpleStorageManager + IStorageAdapter workflow for settings change detection.</para>
 /// <para>Nested properties use concrete types (C# property invariance constraint).</para>
 /// </remarks>
 [CompilerGenerated]

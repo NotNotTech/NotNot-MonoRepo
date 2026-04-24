@@ -96,7 +96,7 @@ public class LoadDirectFacadeTests
     // AppSettingsGen.cs AddBinderShims region). Test asserts substring presence, not exact match,
     // to allow attribute-call formatting variance.
     private const string ObsoleteMessageSubstring =
-        "Use AppSettingsManager<T>.LoadAsync() for layered settings loading. " +
+        "Use NotNot.Storage.SimpleStorageManager<T> for runtime settings load/save. " +
         "LoadDirect* is preserved as a facade over the unified merge core; " +
         "API signatures unchanged. Future versions may remove.";
 

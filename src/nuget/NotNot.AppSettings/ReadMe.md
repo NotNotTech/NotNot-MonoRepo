@@ -408,6 +408,33 @@ This way you can check it into source control and have a backup of the generated
 Without this import, properties like `<NotNot_AppSettings_GenPublic>true</NotNot_AppSettings_GenPublic>` will be ignored.
 - beware when attempting to update nuget packages, it will likely break the Source Generator.  Default to just leaving them as is, unless you want to spend time troubleshooting sourcegen thrown exceptions.
 
+### Consuming as ProjectReference Analyzer
+
+When consuming `NotNot.AppSettings` via raw `ProjectReference` with `OutputItemType="Analyzer"` (instead of a NuGet package reference — typical in monorepos), you **must** explicitly import the generator's `build/*.props` and `*.targets` files. NuGet packaging applies the auto-import convention for you, but raw `OutputItemType="Analyzer"` ProjectReferences do **not** — this is a NuGet vs MSBuild ergonomics asymmetry, not a bug in this generator.
+
+Without the explicit `<Import>` block, `<AdditionalFiles Include="appsettings*.json" />` AutoGlob is inert and the generator sees no input files (silent — no diagnostic).
+
+**Example pattern** (from `src/example/NotNot.AppSettings.Example/NotNot.AppSettings.Example.csproj`):
+
+```xml
+<ItemGroup>
+  <ProjectReference
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+      Include="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.csproj" />
+</ItemGroup>
+
+<!--
+  R1.3 workaround, root cause deferred (analyzer-ProjectReference auto-import is a NuGet-package
+  convention; OutputItemType="Analyzer" ProjectReference does not auto-import the referenced
+  project's build/*.props|*.targets — must be explicit-imported per consumer).
+-->
+<Import Project="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.props" />
+<Import Project="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.targets" />
+```
+
+**Consumers using the NuGet package reference path (`<PackageReference Include="NotNot.AppSettings" />`) do not need this** — NuGet handles the `build/*.props|*.targets` auto-import automatically.
+
 ### Nuget
 
 - current version is set via `MinVer`, which matches the repo git tags.

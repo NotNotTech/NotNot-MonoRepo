@@ -226,6 +226,50 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	}
 
 	/// <summary>
+	/// Resets the in-memory data to the seeded defaults (if supplied via the seeded-defaults constructor)
+	/// or to a fresh <typeparamref name="TData"/> instance otherwise, then flushes to the backing store.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The seeded defaults captured at construction (<c>_initialDataJson</c>) are the source of truth.
+	/// Each call re-deserializes that JSON into a fresh object, guaranteeing no mutation leakage
+	/// between successive resets (the original <c>initialData</c> reference is never retained).
+	/// </para>
+	/// <para>
+	/// For instances constructed without seeded defaults, this is equivalent to
+	/// <c>SetData(new TData())</c> — matches the pre-seeded-defaults behavior.
+	/// </para>
+	/// <para>
+	/// Raises <see cref="OnDataChanged"/> via the internal <see cref="SetData"/> call and flushes
+	/// pending writes synchronously so the backing store reflects defaults on return.
+	/// </para>
+	/// </remarks>
+	/// <param name="ct">Cancellation token.</param>
+	/// <exception cref="InvalidOperationException">Thrown if <see cref="InitializeAsync"/> has not been called.</exception>
+	/// <exception cref="ObjectDisposedException">Thrown if the manager has been disposed.</exception>
+	public async Task ResetToDefaultsAsync(CancellationToken ct = default)
+	{
+		if (!_isInitialized) throw new InvalidOperationException($"SimpleStorageManager<{typeof(TData).Name}> not initialized. Call InitializeAsync() first.");
+		if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
+
+		TData defaults;
+		if (_initialDataJson != null)
+		{
+			// Re-deserialize from the captured snapshot each call — guarantees a fresh object
+			// with no mutation carry-over from previous resets or live Data mutations.
+			defaults = JsonSerializer.Deserialize<TData>(_initialDataJson, _jsonOptions) ?? new TData();
+		}
+		else
+		{
+			// No seeded defaults — original behavior: stamp a blank POCO.
+			defaults = new TData();
+		}
+
+		SetData(defaults);
+		await FlushAsync(ct);
+	}
+
+	/// <summary>
 	/// Notifies the manager that the backing store was changed externally.
 	/// Schedules a debounced reload.
 	/// </summary>
