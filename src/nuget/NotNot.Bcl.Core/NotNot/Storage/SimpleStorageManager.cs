@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using NotNot.AppSettingsHelper;
 using NotNot.Concurrency;
 
@@ -98,10 +99,14 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 		_initialDataJson = JsonSerializer.Serialize(initialData, _jsonOptions);
 	}
 
+	// WhenWritingNull is REQUIRED: ReadCoreAsync uses JsonSettingsUtils.MergeJson which applies
+	// RFC-7396 merge-patch semantics — explicit `null` in stored JSON DELETES the key from defaults.
+	// Emitting spurious nulls for unset reference properties would wipe defaults on reload.
 	private static readonly JsonSerializerOptions DefaultJsonOptions = new()
 	{
 		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
 		WriteIndented = true,
+		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
 	};
 
 	/// <summary>

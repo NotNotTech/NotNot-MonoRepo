@@ -119,6 +119,10 @@
 		     tests resolve JsonMergeCore against NotNot.Bcl.Core's linked copy via the NotNot.Bcl
 		     ProjectReference, so NotNot.Bcl.Core must also expose internals. -->
 		<InternalsVisibleTo Include="NotNot.AppSettings.Tests" />
+		<!-- REQ-7: Expose internal test seam LoLoRoot._SetRuntimeEnvForTests to the VOW
+		     DevLeakGuard host-matrix tests. Replaces reflection on the compiler-generated
+		     <RuntimeEnv>k__BackingField with a supported internal API. -->
+		<InternalsVisibleTo Include="Novaleaf.VibeOverwatch.Tests" />
 	</ItemGroup>
 
 </Project>

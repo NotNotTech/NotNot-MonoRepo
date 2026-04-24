@@ -477,23 +477,36 @@ public partial class LoLoRoot
    {
       get
       {
-         if (field is not null)
+         if (_runtimeEnvBackingField is not null)
          {
-            return field;
+            return _runtimeEnvBackingField;
          }
 
 
-         field = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
-         return field;
+         _runtimeEnvBackingField = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+         return _runtimeEnvBackingField;
       }
       set
       {
-         if (field is not null && field != value)
+         if (_runtimeEnvBackingField is not null && _runtimeEnvBackingField != value)
          {
             throw new LoLoException("RuntimeEnv is already set, cannot set it again.  Use __.RuntimeEnv = \"Development\"; only once, at startup, otherwise let it be set by ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT envvars");
          }
-         field = value;
+         _runtimeEnvBackingField = value;
       }
+   }
+   private string? _runtimeEnvBackingField;
+
+   /// <summary>
+   /// Test-only helper to override <see cref="RuntimeEnv"/> without triggering the
+   /// "already set, cannot set again" guard in the property setter. Eliminates the
+   /// need for tests to reflect on a compiler-generated backing field. NOT for
+   /// production use — the scope-restore contract is the caller's responsibility.
+   /// </summary>
+   /// <param name="value">New value for RuntimeEnv, or null to reset to uncached state.</param>
+   internal void _SetRuntimeEnvForTests(string? value)
+   {
+      _runtimeEnvBackingField = value;
    }
    /// <summary>
    /// returns true if environment contains the string "production", eg: "PreProduction".  false otherwise
