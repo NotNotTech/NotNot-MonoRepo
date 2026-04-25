@@ -9,20 +9,37 @@ For the full appsettings normalization recipe used by VOW and the example projec
 host-vs-typed splits, client whitelisting, and review grep patterns for keeping `appsettings.json`
 out of the typed graph.
 
+## Further Reading
+
+In addition to this ReadMe (the user-facing quick-start and feature reference), two companion
+documents live alongside the package source:
+
+- [**ARCHITECTURE.md**](./ARCHITECTURE.md) — Internal architecture: how the source generator pipeline
+  works, the shared-source `JsonMergeCore` pattern between the build-time generator and the
+  runtime `NotNot.Bcl.Core` library, build-time vs runtime parity, type inference rules, MSBuild
+  integration, and the design decisions log. **Read this if** you want to understand *how* the
+  package works internally — useful for contributors and advanced consumers.
+- [**MIGRATION.md**](./MIGRATION.md) — Practical migration guide for upgrading existing projects:
+  single-file → multi-file, `LoadDirect*` → `AppSettingsManager<T>`, common errors after upgrade
+  (CS0234, CS0618, generator-empty, build-vs-runtime drift), merge behavior reference, and a
+  step-by-step checklist. **Read this if** you have an existing project on an older version and
+  need to know what changes.
+
 ## Table of Contents
 
 - [NotNot.AppSettings](#notnotappsettings)
+	- [Further Reading](#further-reading)
 	- [Table of Contents](#table-of-contents)
 	- [Getting Started](#getting-started)
 	- [How it works](#how-it-works)
 	- [Multi-File Merging](#multi-file-merging)
 	- [Example](#example)
-	- [State Management with AppSettingsManager](#state-management-with-appsettingsmanager)
-	- [Storage Providers](#storage-providers)
-		- [ISettingsStorageProvider](#isettingsstorageprovider)
-		- [FileStorageProvider](#filestorageprovider)
-		- [LocalStorageStorageProvider (Blazor)](#localstoragestorageprovider-blazor)
-		- [Custom Storage Providers](#custom-storage-providers)
+	- [State Management with SimpleStorageManager](#state-management-with-simplestoragemanager)
+	- [Storage Adapters](#storage-adapters)
+		- [IStorageAdapter](#istorageadapter)
+		- [FileStorageAdapter](#filestorageadapter)
+		- [Browser localStorage (Blazor)](#browser-localstorage-blazor)
+		- [Custom Storage Adapters](#custom-storage-adapters)
 	- [Troubleshooting / Tips](#troubleshooting--tips)
 		- [How to access the `AppSettings` class from external code?](#how-to-access-the-appsettings-class-from-external-code)
 		- [How to extend the generated `AppSettings` class?](#how-to-extend-the-generated-appsettings-class)
@@ -93,9 +110,9 @@ Merged result:
 
 Note: `Db` is deep-merged (`Port` preserved, `Host` overwritten, `Retries` added), `Tags` is fully replaced, and `LegacyKey: null` deletes the key entirely.
 
-**`LoadDirect*` is `[Obsolete]`**: the emitted `LoadDirect`, `LoadDirectFromText`, `LoadDirectFromTexts`, and `LoadDirectFromStreams` methods are now `[Obsolete]` facades that route through the same unified merge core. New code should use `AppSettingsManager<T>.LoadAsync()` (see "State Management with AppSettingsManager" below) or the standard `IConfiguration` DI binding.
+**`LoadDirect*` is `[Obsolete]`**: the emitted `LoadDirect`, `LoadDirectFromText`, `LoadDirectFromTexts`, and `LoadDirectFromStreams` methods are now `[Obsolete]` facades that route through the same unified merge core. New code that needs runtime persistence (load + auto-save + reload) should use `NotNot.Storage.SimpleStorageManager<T>` (see "State Management with SimpleStorageManager" below). For read-only binding, the standard `IConfiguration` DI path is the simplest option.
 
-**Transitive dependency note**: because `LoadDirect*` delegates to `NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync` (which lives in `NotNot.Bcl.Core`), any consumer project that invokes `LoadDirect*` must transitively reference `NotNot.Bcl.Core`. Consumers that use only the DI-constructor path (`new AppSettingsBinder(IConfiguration)`) or `AppSettingsManager<T>` directly are unaffected. This is a deliberate trade-off of unifying compile-time and runtime merge contracts; the `[Obsolete]` attribute steers new consumers toward `AppSettingsManager<T>` anyway.
+**Transitive dependency note**: because `LoadDirect*` delegates to `NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync` (which lives in `NotNot.Bcl.Core`), any consumer project that invokes `LoadDirect*` must transitively reference `NotNot.Bcl.Core`. Consumers that use only the DI-constructor path (`new AppSettingsBinder(IConfiguration)`) or `SimpleStorageManager<T>` directly are unaffected. This is a deliberate trade-off of unifying compile-time and runtime merge contracts; the `[Obsolete]` attribute steers new consumers toward the explicit composition (`SimpleStorageManager<AppSettings>` over a `FileStorageAdapter`) anyway.
 
 ## Example
 
@@ -157,150 +174,197 @@ public class Program
 
 ```
 
-## State Management with AppSettingsManager
+## State Management with SimpleStorageManager
 
-For applications requiring **runtime settings persistence**, **auto-save**, and **reset to defaults**, use `AppSettingsManager<T>` from the `NotNot.Bcl` package:
+For applications requiring **runtime settings persistence**, **debounced auto-save**, and **reset to defaults**, compose `NotNot.Storage.SimpleStorageManager<T>` (from `NotNot.Bcl.Core`) over an `IStorageAdapter`. `SimpleStorageManager<T>` is a general-purpose POCO persistence wrapper — it works with any `T : class, new()`, not just `AppSettings`.
+
+### Canonical pattern
 
 ```csharp
-using NotNot.AppSettingsHelper;
+using NotNot.Storage;
+using ExampleApp.AppSettingsGen;
 
-// Load settings
-var manager = new AppSettingsManager<AppSettings>();
-await manager.LoadAsync(default, "appsettings.json", "appsettings.Development.json");
+// 1. Build-time defaults from your appsettings*.json schema (one-shot bind).
+var defaults = AppSettingsBinder.LoadDirect();
 
-// Enable auto-save (changes saved after 500ms debounce)
-manager.EnableAutoSave();
+// 2. Choose where runtime overrides persist (separate from your base appsettings*.json).
+var adapter = new FileStorageAdapter("appsettings.user.json");
+//   Or use a built-in factory:
+//   FileStorageAdapter.OsAppDataLocal("MyApp", "settings.json")
+//   FileStorageAdapter.OsExeDir("settings.json")
+//   FileStorageAdapter.UserHome(".myapp.json")
 
-// Modify settings - automatically persisted to appsettings.user.json
-manager.Settings.Window.X = 100;
-manager.Settings.Window.Y = 200;
+// 3. Construct the manager with seeded defaults — stored JSON deep-merges onto these.
+var manager = new SimpleStorageManager<AppSettings>(adapter, defaults);
 
-// Manual operations
-await manager.SaveAsync();                // Immediate save
-await manager.ReloadAsync();              // Reload from disk
-await manager.ResetToDefaultsAsync();     // Delete user file, reload defaults
+// 4. Initialize (loads existing user file if present).
+await manager.InitializeAsync();
 
-// Cleanup
+// 5. Read settings — Data is the strongly-typed POCO.
+Console.WriteLine(manager.Data.Database.ConnectionString);
+
+// 6. Mutate via Update — triggers debounced auto-save (default 500ms).
+manager.Update(d => { d.Window.X = 100; d.Window.Y = 200; });
+
+// 7. Manual operations.
+await manager.FlushAsync();             // Immediate write (skip debounce).
+await manager.ReloadAsync();            // Discard memory changes, reload from adapter.
+await manager.ResetToDefaultsAsync();   // Restore seeded defaults + flush.
+
+// 8. Subscribe to events (optional).
+manager.OnDataChanged += () => Console.WriteLine("Data changed.");
+manager.OnDataLoaded  += () => Console.WriteLine("Data loaded.");
+manager.OnError       += ex => Console.Error.WriteLine($"Storage error: {ex.Message}");
+
+// 9. Cleanup — flushes pending writes.
 await manager.DisposeAsync();
 ```
 
-**Note:** Requires reference to `NotNot.Bcl` package (`Install-Package NotNot.Bcl`).
+**Note:** Requires reference to `NotNot.Bcl.Core` package. When installed via the `NotNot.AppSettings` NuGet package, `NotNot.Bcl.Core` is resolved transitively.
 
-### Load Workflows
+### Direct mutation is NOT tracked
 
-| Method | Save-Capable | Use Case |
-|--------|--------------|----------|
-| `LoadAsync(ct, params paths)` | Yes | File-based settings with layered merge |
-| `LoadAsync(streams, ct)` | Yes | Stream-based settings |
-| `LoadFromConfigurationAsync(config, basePath, ct)` | Yes | IConfiguration with save support |
-| `LoadFromConfiguration(config)` | No | Read-only mode |
-
-### Auto-Save Configuration
+Direct property assignment bypasses dirty-tracking and auto-save:
 
 ```csharp
-// Custom debounce interval
-manager.EnableAutoSave(TimeSpan.FromSeconds(2));
-
-// Error handling
-manager.OnAutoSaveError = ex => Console.WriteLine($"Auto-save failed: {ex}");
-
-// Disable auto-save (optionally save pending changes)
-await manager.DisableAutoSaveAsync(saveNow: true);
+manager.Data.UI.Theme = "dark";              // ❌ NOT auto-saved (direct mutation).
+manager.Update(d => d.UI.Theme = "dark");    // ✅ Auto-saved.
 ```
 
-### User Settings File
+If you must mutate directly (e.g. binding to a UI control), call `await manager.FlushAsync()` afterward.
 
-Changes are persisted to a separate user file (default: `appsettings.user.json`). Only changed values are stored (diff-based).
+### Save semantics
+
+The manager writes the ENTIRE serialized `Data` POCO to its adapter on save. The base `appsettings*.json` files are **never** modified — runtime overrides land in whatever file the `FileStorageAdapter` points at (e.g. `appsettings.user.json`).
+
+On reload, the manager:
+1. Reads the adapter's stored JSON.
+2. Deep-merges it onto the seeded defaults via `JsonSettingsUtils.MergeJson` (RFC-7396 semantics — same as the build-time merge).
+3. Deserializes the merged result into a fresh `T` instance.
+
+To reset, call `ResetToDefaultsAsync` (or delete the user file manually).
+
+### Auto-save configuration
+
+Customize debounce intervals via `SimpleStorageOptions`:
 
 ```csharp
-manager.UserSettingsPath = "config/user-settings.json";
+var options = new SimpleStorageOptions
+{
+    WriteDebounce = TimeSpan.FromSeconds(2),   // Write debounce window.
+    ReadDebounce = TimeSpan.FromMilliseconds(250),  // External-change reload debounce.
+};
+var manager = new SimpleStorageManager<AppSettings>(adapter, defaults, options);
 ```
 
-### Reset Operations
+### Reset operations
 
 | Method | Behavior |
 |--------|----------|
-| `Clear()` | Reset to base settings in memory (triggers auto-save) |
-| `ResetToDefaultsAsync()` | Delete user file, reload from base files |
-| `ReloadAsync()` | Discard memory changes, reload from disk |
+| `ResetToDefaultsAsync()` | Restore seeded defaults in memory + flush to adapter. |
+| `ReloadAsync()` | Discard memory changes, reload from adapter. |
+| `NotifyExternalChange()` | Schedule a debounced reload (e.g. when an external process modified the file). |
 
 ### Known Limitations
 
-- **Array element mutations**: In-place changes like `items[0] = x` are NOT tracked. Reassign the entire array instead.
-- **Stream-based load**: Cannot distinguish base from user layers for reset operations.
+- **Array element mutations**: In-place changes like `items[0] = x` are NOT tracked unless wrapped in `Update(...)`.
+- **Bypassing `Update`**: Direct mutation of `manager.Data` does not trigger save. Use `Update` or call `FlushAsync` manually.
 
-## Storage Providers
+## Storage Adapters
 
-For platforms without file system access (Blazor, sandboxed environments), use storage providers:
+`IStorageAdapter` is the strategy interface that backs `SimpleStorageManager<T>`. Built-in implementations cover file-based persistence; custom adapters cover Blazor localStorage, cloud, or any other backend.
 
-### ISettingsStorageProvider
+### IStorageAdapter
 
-The `ISettingsStorageProvider` interface abstracts settings persistence:
+The `IStorageAdapter` interface (in `NotNot.Storage`) abstracts settings persistence:
 
 ```csharp
-public interface ISettingsStorageProvider
+public interface IStorageAdapter
 {
     ValueTask<string?> ReadAsync(CancellationToken ct = default);
-    ValueTask WriteAsync(string json, CancellationToken ct = default);
+    ValueTask WriteAsync(string data, CancellationToken ct = default);
     ValueTask DeleteAsync(CancellationToken ct = default);
-    ValueTask<bool> ExistsAsync(CancellationToken ct = default);
 }
 ```
 
-### FileStorageProvider
+A `null` return from `ReadAsync` indicates "no stored data" — `SimpleStorageManager` falls back to seeded defaults (or a fresh `T()` if none seeded).
 
-Built-in file system storage provider for desktop/server apps:
+### FileStorageAdapter
+
+Built-in file system adapter for desktop/server apps. Uses **atomic writes** (temp file + rename) so partial-write crashes don't corrupt the settings file.
 
 ```csharp
-using NotNot.AppSettingsHelper;
+using NotNot.Storage;
 
-// Create storage provider for a specific file
-var storage = new FileStorageProvider("/path/to/settings.json");
+// Direct file path.
+var storage = new FileStorageAdapter("/path/to/settings.json");
 
-// Load settings using the storage provider
-var manager = new AppSettingsManager<AppSettings>();
-await manager.LoadFromStorageAsync(storage);
+// Or factory methods for common locations:
+var os = FileStorageAdapter.OsAppDataLocal("MyApp", "settings.json");
+//   Windows: %LOCALAPPDATA%/MyApp/settings.json
+//   Linux/macOS: ~/.local/share/MyApp/settings.json
 
-// Enable auto-save - changes persisted to the storage provider
-manager.EnableAutoSave();
+var exe = FileStorageAdapter.OsExeDir("settings.json");
+//   Alongside the running executable.
 
-// Modify settings
-manager.Settings.Theme = "dark";
+var home = FileStorageAdapter.UserHome(".myapp.json");
+//   User home directory.
 
-// Cleanup
+var manager = new SimpleStorageManager<AppSettings>(storage, defaults);
+await manager.InitializeAsync();
+manager.Update(d => d.Theme = "dark");   // Persisted via the adapter.
 await manager.DisposeAsync();
 ```
 
 **Features:**
-- Automatic directory creation on first write
-- Graceful handling of locked/inaccessible files
-- Thread-safe for debounced auto-save
+- Atomic write (temp file + rename) — partial-write safe.
+- Automatic directory creation on first write.
+- Graceful handling of missing files (returns `null` from `ReadAsync` instead of throwing).
 
-### LocalStorageStorageProvider (Blazor)
+### Browser localStorage (Blazor)
 
-For Blazor apps, use `LocalStorageStorageProvider` from `NotNot.BlazorComponents`:
+For Blazor WebAssembly, implement `IStorageAdapter` over `IJSRuntime`. NotNot ships a reference implementation in `NotNot.Bcl.Core` (e.g. `BrowserLocalStorageAdapter`); check the runtime package for the current name.
 
 ```csharp
-// In Blazor component or service
-@inject IJSRuntime JSRuntime
+// Pseudocode for a localStorage-backed adapter:
+public sealed class BrowserLocalStorageAdapter : IStorageAdapter, IAsyncDisposable
+{
+    private readonly IJSRuntime _js;
+    private readonly string _key;
 
-var storage = new LocalStorageStorageProvider(JSRuntime, "app-settings");
-var manager = new AppSettingsManager<AppSettings>();
-await manager.LoadFromStorageAsync(storage);
-manager.EnableAutoSave();
+    public BrowserLocalStorageAdapter(IJSRuntime js, string key) { _js = js; _key = key; }
+
+    public async ValueTask<string?> ReadAsync(CancellationToken ct = default)
+        => await _js.InvokeAsync<string?>("localStorage.getItem", ct, _key);
+
+    public async ValueTask WriteAsync(string data, CancellationToken ct = default)
+        => await _js.InvokeVoidAsync("localStorage.setItem", ct, _key, data);
+
+    public async ValueTask DeleteAsync(CancellationToken ct = default)
+        => await _js.InvokeVoidAsync("localStorage.removeItem", ct, _key);
+
+    public ValueTask DisposeAsync() => default;
+}
+
+// Usage:
+var adapter = new BrowserLocalStorageAdapter(JSRuntime, "app-settings");
+var manager = new SimpleStorageManager<AppSettings>(adapter, defaults);
+await manager.InitializeAsync();
 ```
 
-### Custom Storage Providers
+`SimpleStorageManager.DisposeAsync` will invoke `IAsyncDisposable.DisposeAsync` on the adapter if it implements it — useful for adapters that hold JS interop handles.
 
-Implement `ISettingsStorageProvider` for custom backends (cloud, IndexedDB, etc.):
+### Custom Storage Adapters
+
+Implement `IStorageAdapter` for cloud storage, IndexedDB, encrypted file, in-memory test seam, etc. Three methods, no other contract:
 
 ```csharp
-public class IndexedDbStorageProvider : ISettingsStorageProvider
+public class IndexedDbStorageAdapter : IStorageAdapter
 {
     private readonly IJSRuntime _jsRuntime;
     private readonly string _storeName;
 
-    public IndexedDbStorageProvider(IJSRuntime jsRuntime, string storeName)
+    public IndexedDbStorageAdapter(IJSRuntime jsRuntime, string storeName)
     {
         _jsRuntime = jsRuntime;
         _storeName = storeName;
@@ -314,23 +378,18 @@ public class IndexedDbStorageProvider : ISettingsStorageProvider
         }
         catch
         {
-            return null; // Use defaults
+            return null; // null → SimpleStorageManager falls back to seeded defaults.
         }
     }
 
-    public async ValueTask WriteAsync(string json, CancellationToken ct = default)
+    public async ValueTask WriteAsync(string data, CancellationToken ct = default)
     {
-        await _jsRuntime.InvokeVoidAsync("indexedDbSet", ct, _storeName, json);
+        await _jsRuntime.InvokeVoidAsync("indexedDbSet", ct, _storeName, data);
     }
 
     public async ValueTask DeleteAsync(CancellationToken ct = default)
     {
         await _jsRuntime.InvokeVoidAsync("indexedDbDelete", ct, _storeName);
-    }
-
-    public async ValueTask<bool> ExistsAsync(CancellationToken ct = default)
-    {
-        return await _jsRuntime.InvokeAsync<bool>("indexedDbExists", ct, _storeName);
     }
 }
 ```
@@ -456,11 +515,14 @@ A summary from [TldrLegal](https://www.tldrlegal.com/license/mozilla-public-lice
 ## Notable Changes
 
 - **`3.0.0`** :
-	- **NEW**: `AppSettingsManager<T>` for runtime settings persistence, auto-save, and reset operations
-	- **NEW**: `JsonSettingsUtils` for diff-based save (only changed values persisted)
-	- **NEW**: `ISettingsChangeAware` interface for change tracking (source-generated)
-	- Breaking: Generated properties now use backing fields for change detection
-	- Runtime features require `NotNot.Bcl` package reference
+	- **NEW**: `NotNot.Storage.SimpleStorageManager<T>` (in `NotNot.Bcl.Core`) for runtime POCO persistence, debounced auto-save, and reset operations.
+	- **NEW**: `IStorageAdapter` strategy interface + `FileStorageAdapter` (atomic-write file backend). Implement `IStorageAdapter` for browser localStorage, cloud, or custom backends.
+	- **NEW**: `JsonSettingsUtils.MergeJson` for RFC-7396 deep merge (deep-merge objects, REPLACE arrays, null-DELETE keys) used by both build-time and runtime.
+	- **NEW**: `ISettingsChangeAware` interface for change tracking (source-generated).
+	- **NEW**: Multi-file `appsettings*.json` auto-glob via package's `build/*.props` — multiple files merge into a single `_AppSettings` schema (compile-time + runtime use the same merge core).
+	- **DEPRECATED**: `LoadDirect*` overloads on `AppSettingsBinder` are now `[Obsolete]` facades. They still work; new code should use `SimpleStorageManager<T>` for persistence or `IConfiguration` binding for read-only.
+	- Breaking: Generated properties now use backing fields for change detection.
+	- Runtime features require `NotNot.Bcl.Core` package reference (auto-resolved transitively).
 - **`2.0.3`** :
 	- New IConfiguration extension method to make usage easier
 - **`2.0.2`** :

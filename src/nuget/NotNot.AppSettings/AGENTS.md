@@ -17,9 +17,9 @@
    - Runtime functionality lives in separate library (`NotNot.Bcl`)
 
 3. **Generated Code Implements ISettingsChangeAware**
-   - Interface defined in `NotNot.Bcl` runtime library (`NotNot.AppSettingsHelper` namespace)
+   - Interface defined in `NotNot.Bcl.Core` runtime library (`NotNot.AppSettingsHelper` namespace)
    - Enables change tracking for auto-save functionality
-   - Projects using save features must reference `NotNot.Bcl`
+   - Projects using save features must reference `NotNot.Bcl.Core` (auto-resolved transitively when `NotNot.AppSettings` NuGet package is installed)
 
 ### Key Design Decisions
 - **All JSON Numbers → `double`**: The generator maps ALL JSON numeric values to `double` regardless of whether they are whole numbers. Consumers needing `int`, `long`, etc. must cast explicitly (e.g. `(int)settings.Value`). This avoids type mismatch bugs downstream — JSON has no integer/float distinction, and `double` is the natural C# representation.
@@ -122,41 +122,45 @@ var app = builder.Build();
 var settings = app.Services.GetRequiredService<IAppSettingsBinder>().AppSettings;
 ```
 
-#### Full Mode (with Save Support)
+#### Full Mode (with Save Support — `SimpleStorageManager<T>`)
 ```csharp
-// Requires NotNot.Bcl reference
-var manager = new AppSettingsManager<AppSettings>();
-await manager.LoadAsync(default, "appsettings.json");
-manager.EnableAutoSave();
-manager.Settings.Window.X = 100; // Auto-saved after 500ms
+// Requires NotNot.Bcl.Core reference (auto-resolved transitively).
+using NotNot.Storage;
+
+var defaults = AppSettingsBinder.LoadDirect();   // Build-time merged defaults.
+var adapter = new FileStorageAdapter("appsettings.user.json");
+var manager = new SimpleStorageManager<AppSettings>(adapter, defaults);
+await manager.InitializeAsync();
+manager.Update(d => d.Window.X = 100);   // Auto-saved (default 500ms debounce).
 ```
 
-#### Storage Provider Mode
+#### Storage Adapter Mode (custom backends)
 ```csharp
-// For custom storage backends (file, localStorage, cloud, etc.)
-var storage = new FileUserSettingsStorageProvider("/path/to/settings.json");
-var manager = new AppSettingsManager<AppSettings>();
-await manager.RegisterUserStorageAndTryLoad(storage);
-manager.EnableAutoSave();
-manager.Settings.Theme = "dark"; // Auto-saved to storage provider
+// IStorageAdapter has 3 methods: ReadAsync, WriteAsync, DeleteAsync.
+// FileStorageAdapter is built-in. Implement IStorageAdapter for browser localStorage / cloud / IndexedDB / etc.
+var adapter = new FileStorageAdapter("/path/to/settings.json");
+var defaults = AppSettingsBinder.LoadDirect();
+var manager = new SimpleStorageManager<AppSettings>(adapter, defaults);
+await manager.InitializeAsync();
+manager.Update(d => d.Theme = "dark");   // Auto-saved via adapter.
 ```
 
 #### DispatchProxy Mode (using generated interface)
 ```csharp
-// Use generated interface for DispatchProxy-based change detection
+// Use generated interface for DispatchProxy-based change detection.
 // Namespace: {RootNamespace}.AppSettingsGen.Interfaces
 using MyApp.AppSettingsGen.Interfaces;
+using NotNot.Storage;
 
-var storage = new FileUserSettingsStorageProvider("/path/to/settings.json");
-var manager = new AppSettingsManager<IAppSettings>(() => new AppSettings());
-await manager.RegisterUserStorageAndTryLoad(storage);
-manager.EnableAutoSave();
-
-// Access via Proxy - all property setters automatically trigger change detection
-manager.Proxy.Theme = "dark"; // Auto-saved via DispatchProxy interception
+var adapter = new FileStorageAdapter("/path/to/settings.json");
+// Construct via DispatchProxy to intercept property setters on IAppSettings.
+// (Implementation pattern: wrap a SimpleStorageManager<AppSettings> and project
+//  its Data through a DispatchProxy<IAppSettings> that triggers manager.Update on set.)
 ```
 
-See [`../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md) for full storage provider and dual-workflow documentation.
+`SimpleStorageManager<T>` itself is generic over any `T : class, new()` and does not require an interface. The DispatchProxy pattern is an optional layer for scenarios where you want runtime-intercepted property change detection without recompiling the POCO with `ISettingsChangeAware` plumbing.
+
+See [`../NotNot.Bcl.Core/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl.Core/NotNot/AppSettingsHelper/AGENTS.md) for `JsonSettingsUtils` + `ISettingsChangeAware` documentation, and [`../NotNot.Bcl.Core/NotNot/Storage/`](../NotNot.Bcl.Core/NotNot/Storage/) for `SimpleStorageManager<T>` + `IStorageAdapter` + `FileStorageAdapter` source.
 
 ---
 
@@ -169,7 +173,7 @@ See [`../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl/NotNot/Ap
   - **Arrays**: REPLACED wholesale (not concatenated) — the later file's array supersedes the earlier file's array. (This is the post-Option-C contract; older docs may mention concatenation.)
   - **null literals**: A `null` value in a later file DELETES the key from the merged output (RFC-7396 merge-patch semantics).
   - The merged JSON is the single authoritative input to the source generator.
-- Compile-time merge (generator) and runtime merge (`JsonSettingsUtils.MergeStreamsAsync` / `AppSettingsManager<T>` / `LoadDirect*` facades) share the same `JsonMergeCore` — same semantics, same edge cases.
+- Compile-time merge (generator) and runtime merge (`JsonSettingsUtils.MergeStreamsAsync` / `SimpleStorageManager<T>` reload path / `LoadDirect*` facades) share the same `JsonMergeCore` — same semantics, same edge cases.
 
 ### Type Inference
 | JSON Type | C# Type |

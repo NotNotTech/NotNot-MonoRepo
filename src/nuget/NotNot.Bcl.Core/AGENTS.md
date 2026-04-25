@@ -151,13 +151,19 @@ await throttler.EventuallyOnce("api-call", () => CallApiAsync());
 - **Decoration**: `Advanced/_Decoration.cs` for service decoration patterns
 
 ### AppSettingsHelper (NotNot.AppSettingsHelper namespace)
-- Runtime support for AppSettings load/save/auto-save operations
-- `SettingsManager<T>`: Main manager with file-based and storage-provider workflows
-- `SettingsProxy<T>`: DispatchProxy-based change interceptor for POCO settings
-- `JsonSettingsUtils`: Diff/merge utilities for layered JSON settings
-- `IUserSettingsStorageProvider` + `FileUserSettingsStorageProvider`: Storage abstraction
-- `ISettingsChangeAware`: Interface for source-generated settings change notification
-- See [AppSettingsHelper/AGENTS.md](./NotNot/AppSettingsHelper/AGENTS.md) for detailed docs
+- Build-time + runtime utilities co-used by the `NotNot.AppSettings` source generator (shared-source) and runtime persistence consumers.
+- `JsonSettingsUtils`: Diff/merge utilities for layered JSON settings (`MergeJson`, `MergeStreamsAsync`, `Deserialize<T>`). Wraps the shared-source `JsonMergeCore` for runtime callers.
+- `ISettingsChangeAware`: Interface implemented by source-generated settings classes for change-notification callbacks.
+- See [AppSettingsHelper/AGENTS.md](./NotNot/AppSettingsHelper/AGENTS.md) for detailed docs.
+
+### Storage (NotNot.Storage namespace)
+- General-purpose POCO persistence primitives (NOT AppSettings-specific — works with any `T : class, new()`).
+- `SimpleStorageManager<T>`: Generic storage manager with seeded-defaults deep-merge, `Update(Action<T>)` mutation tracking, debounced auto-save (`WriteDebounce`), and external-change reload (`ReadDebounce`). Lifecycle: `InitializeAsync` → `Update`/`Data` → `FlushAsync`/`ReloadAsync`/`ResetToDefaultsAsync` → `DisposeAsync`.
+- `SimpleStorageOptions`: Configuration (debounce intervals, JSON serializer options).
+- `IStorageAdapter`: Strategy interface (`ReadAsync`/`WriteAsync`/`DeleteAsync`) — backs the manager.
+- `FileStorageAdapter`: File-system adapter with atomic write (temp-file + rename). Factory methods: `OsAppDataLocal(appName, fileName)`, `OsExeDir(fileName)`, `UserHome(fileName)`.
+- `EphemeralMemoryStorageAdapter`: In-memory adapter for tests / scratch scenarios.
+- `NoneStorageAdapter`: No-op adapter (read returns null, writes are dropped) for scenarios that want the manager API surface without persistence.
 
 ### Note on Mixins/Tags
 - `Tags` / `ITags` remain in **NotNot.Bcl** (not here) because `[Inline<Tags>]` source generator requires same-compilation source
@@ -198,7 +204,7 @@ When Maybe<T> encounters IResult types during deserialization:
 **NotNot.Bcl.Core** (this package) provides:
 - Core patterns (Maybe<T>, pooling, diagnostics, events, concurrency)
 - DI infrastructure (service markers, MsDIContainer, auto-registration)
-- AppSettingsHelper (settings management, JSON diff/merge, storage providers)
+- AppSettingsHelper (JSON diff/merge utilities + ISettingsChangeAware) + NotNot.Storage (`SimpleStorageManager<T>` + `IStorageAdapter` + adapters)
 - Mixins/Tags and diagnostic attributes for Roslyn analyzers
 - Dependencies limited to Microsoft.Extensions.Hosting/DI/Configuration (no ASP.NET Core)
 

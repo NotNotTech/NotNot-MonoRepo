@@ -35,13 +35,13 @@
 		<!-- System.Text.Json for tests -->
 		<PackageReference Include="System.Text.Json" Version="10.0.0" />
 
-		<!-- Configuration for AppSettingsManager tests -->
+		<!-- Configuration for tests that bind merged JSON via IConfiguration (LoadDirect facade tests). -->
 		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- Reference NotNot.Bcl for AppSettingsManager and utilities -->
+		<!-- Reference NotNot.Bcl for JsonSettingsUtils + SimpleStorageManager + IStorageAdapter and related utilities. -->
 		<ProjectReference Include="..\NotNot.Bcl\NotNot.Bcl.csproj" />
 		<!-- Test-only library reference to the source generator. No OutputItemType="Analyzer" —
 		     we want normal assembly reference semantics for direct unit-testing of internal

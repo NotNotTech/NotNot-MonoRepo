@@ -314,7 +314,7 @@ namespace {config.StartingNamespace}
 		/// [Obsolete facade] Manually construct an AppSettings from your appsettings.json files.
 		/// Routes through the unified JSON merge core (deep-merge objects, REPLACE arrays,
 		/// null-literal DELETES key per RFC-7396) via <see cref=""LoadDirectFromStreams""/>.
-		/// <para>Prefer <c>NotNot.AppSettingsHelper.AppSettingsManager&lt;T&gt;.LoadAsync()</c> for new code.</para>
+		/// <para>Prefer <c>NotNot.Storage.SimpleStorageManager&lt;T&gt;</c> (with an <c>IStorageAdapter</c> such as <c>FileStorageAdapter</c>) for new code that needs runtime load/save.</para>
 		/// <para>NOTE: This method is provided for non-DI users.  If you use DI, don't use this method.  Instead just register this class as a service.</para>
 		/// </summary>
 		/// <param name=""appSettingsLocation"">folder where to search for appsettings.json.  defaults to current app folder.</param>
@@ -369,7 +369,7 @@ namespace {config.StartingNamespace}
 		/// [Obsolete facade] Create an AppSettings from a single string of JSON.
 		/// Delegates to <see cref=""LoadDirectFromTexts""/>, which routes through the unified
 		/// JSON merge core (deep-merge, REPLACE arrays, null-delete per RFC-7396).
-		/// <para>Prefer <c>NotNot.AppSettingsHelper.AppSettingsManager&lt;T&gt;.LoadAsync()</c> for new code.</para>
+		/// <para>Prefer <c>NotNot.Storage.SimpleStorageManager&lt;T&gt;</c> (with an <c>IStorageAdapter</c> such as <c>FileStorageAdapter</c>) for new code that needs runtime load/save.</para>
 		/// </summary>
 		/// <param name=""appSettingsJsonText"">The JSON text to bind.</param>
 		/// <returns>A strongly-typed AppSettings populated from the JSON text.</returns>
@@ -385,7 +385,7 @@ namespace {config.StartingNamespace}
 		/// Converts each text to a MemoryStream and delegates to <see cref=""LoadDirectFromStreams""/>, which
 		/// routes through the unified JSON merge core (deep-merge objects, REPLACE arrays, null-literal
 		/// DELETES key per RFC-7396).
-		/// <para>Prefer <c>NotNot.AppSettingsHelper.AppSettingsManager&lt;T&gt;.LoadAsync()</c> for new code.</para>
+		/// <para>Prefer <c>NotNot.Storage.SimpleStorageManager&lt;T&gt;</c> (with an <c>IStorageAdapter</c> such as <c>FileStorageAdapter</c>) for new code that needs runtime load/save.</para>
 		/// </summary>
 		/// <param name=""appSettingsJsonTexts"">JSON text sources, in ascending priority order (last wins).</param>
 		/// <returns>A strongly-typed AppSettings populated from the merged JSON.</returns>
@@ -414,7 +414,7 @@ namespace {config.StartingNamespace}
 		/// Routes through <c>NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync</c>
 		/// (unified merge core from <c>NotNot.Bcl.Core</c>) for deep-merge objects,
 		/// REPLACE-arrays, and null-literal DELETES key per RFC-7396 (REQ-4, REQ-7).
-		/// <para>Prefer <c>NotNot.AppSettingsHelper.AppSettingsManager&lt;T&gt;.LoadAsync()</c> for new code.</para>
+		/// <para>Prefer <c>NotNot.Storage.SimpleStorageManager&lt;T&gt;</c> (with an <c>IStorageAdapter</c> such as <c>FileStorageAdapter</c>) for new code that needs runtime load/save.</para>
 		/// </summary>
 		/// <param name=""appSettingsStreams"">Streams to merge, in ascending priority order (last wins).</param>
 		/// <returns>A strongly-typed AppSettings populated from the merged streams.</returns>
