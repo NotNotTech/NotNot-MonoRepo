@@ -14,7 +14,7 @@
 
 2. **netstandard2.0 Requirement**: Source generators must target netstandard2.0
    - Cannot use modern .NET APIs directly
-   - Runtime functionality lives in separate library (`NotNot.Bcl`)
+   - Runtime functionality lives in separate library (`NotNot.Bcl.Core`, namespaces `NotNot.AppSettingsHelper` and `NotNot.Storage`)
 
 3. **Generated Code Implements ISettingsChangeAware**
    - Interface defined in `NotNot.Bcl.Core` runtime library (`NotNot.AppSettingsHelper` namespace)
@@ -52,7 +52,8 @@
 - [`ReadMe.md`](./ReadMe.md) - NuGet package documentation
 
 ## Related Topics
-- [`../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl/NotNot/AppSettingsHelper/AGENTS.md) - Runtime manager and utilities (namespace `NotNot.AppSettingsHelper`)
+- [`../NotNot.Bcl.Core/NotNot/AppSettingsHelper/AGENTS.md`](../NotNot.Bcl.Core/NotNot/AppSettingsHelper/AGENTS.md) - Runtime utilities (namespace `NotNot.AppSettingsHelper` — `JsonSettingsUtils`, `ISettingsChangeAware`)
+- [`../NotNot.Bcl.Core/NotNot/Storage/`](../NotNot.Bcl.Core/NotNot/Storage/) - Storage primitives (namespace `NotNot.Storage` — `SimpleStorageManager<T>`, `IStorageAdapter`, `FileStorageAdapter`, `EphemeralMemoryStorageAdapter`, `NoneStorageAdapter`, `SimpleStorageOptions`)
 - [`../NotNot.AppSettings.Tests/`](../NotNot.AppSettings.Tests/) - Test suite (40 tests)
 
 ## Child Topics
@@ -62,9 +63,10 @@ None - this is a leaf package.
 1. **Developer adds NuGet package** → builds project → uses generated `AppSettings` class
 2. **Developer uses DI** → registers `AppSettingsBinder` → injects settings
 3. **Developer uses non-DI** → calls `AppSettingsBinder.LoadDirect()` → gets settings
-4. **Developer enables auto-save** → references `NotNot.Bcl` → uses `AppSettingsManager<T>`
-5. **Developer uses storage provider** → `FileUserSettingsStorageProvider` or custom `IUserSettingsStorageProvider` → `RegisterUserStorageAndTryLoad()`
-6. **Developer uses DispatchProxy workflow** → `AppSettingsManager<IAppSettings>` (generated interface) → access via `.Proxy`
+4. **Developer enables auto-save** → references `NotNot.Bcl.Core` (auto-resolved transitively) → composes `NotNot.Storage.SimpleStorageManager<AppSettings>` over an `IStorageAdapter` → calls `manager.Update(d => ...)` for debounced auto-save
+5. **Developer uses a built-in storage adapter** → `NotNot.Storage.FileStorageAdapter` (atomic file writes — direct path or factories `OsAppDataLocal` / `OsExeDir` / `UserHome`) OR `NotNot.Storage.EphemeralMemoryStorageAdapter` (in-memory, tests/scratch) OR `NotNot.Storage.NoneStorageAdapter` (no-op)
+6. **Developer uses a custom storage adapter** → implements `NotNot.Storage.IStorageAdapter` (3 methods: `ReadAsync` / `WriteAsync` / `DeleteAsync`) for browser localStorage, cloud, IndexedDB, encrypted file, etc.
+7. **Developer uses DispatchProxy workflow** → wraps `SimpleStorageManager<AppSettings>` in a `DispatchProxy<IAppSettings>` (the generated interface from `{RootNamespace}.AppSettingsGen.Interfaces`) that intercepts setters and routes through `manager.Update(...)`. Pattern is implemented per-consumer; `SimpleStorageManager<T>` itself is generic over any `T : class, new()` with no interface requirement.
 
 ## Key Components
 

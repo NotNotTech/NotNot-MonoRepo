@@ -20,15 +20,44 @@ documents live alongside the package source:
   integration, and the design decisions log. **Read this if** you want to understand *how* the
   package works internally — useful for contributors and advanced consumers.
 - [**MIGRATION.md**](./MIGRATION.md) — Practical migration guide for upgrading existing projects:
-  single-file → multi-file, `LoadDirect*` → `AppSettingsManager<T>`, common errors after upgrade
-  (CS0234, CS0618, generator-empty, build-vs-runtime drift), merge behavior reference, and a
-  step-by-step checklist. **Read this if** you have an existing project on an older version and
-  need to know what changes.
+  single-file → multi-file, `LoadDirect*` → `NotNot.Storage.SimpleStorageManager<T>` (from
+  `NotNot.Bcl.Core`), common errors after upgrade (CS0234, CS0618, generator-empty,
+  build-vs-runtime drift), merge behavior reference, and a step-by-step checklist. **Read this if**
+  you have an existing project on an older version and need to know what changes.
+
+## Package & Namespace Map
+
+If you're new and wondering what to install / which `using` directive you need, this table is the at-a-glance answer. The build-time generator and the runtime persistence primitives live in **two separate packages** and **three separate namespaces** — install one NuGet package (`NotNot.AppSettings`) and the runtime package (`NotNot.Bcl.Core`) is resolved transitively.
+
+| Goal | Package (NuGet) | Namespace (`using`) | Key types |
+|---|---|---|---|
+| Source-generate strongly-typed settings from `appsettings*.json` | `NotNot.AppSettings` | `{YourRoot}.AppSettingsGen`<br/>`{YourRoot}.AppSettingsGen.Interfaces` | `AppSettings` (root POCO), `IAppSettings`, `AppSettingsBinder` |
+| Read merged settings via DI (`IConfiguration`-bound) | `NotNot.AppSettings` | `{YourRoot}.AppSettingsGen` | `AppSettingsBinder` (DI ctor), `IAppSettingsBinder`, `IConfiguration._AppSettings()` ext |
+| Read merged settings without DI (`[Obsolete]` facade) | `NotNot.AppSettings` (+ transitive `NotNot.Bcl.Core` for the merge core) | `{YourRoot}.AppSettingsGen` | `AppSettingsBinder.LoadDirect()` and 3 sibling overloads — all `[Obsolete]`, steered toward `SimpleStorageManager<T>` |
+| **Persist runtime settings** (auto-save, reload, reset, atomic writes) | `NotNot.Bcl.Core` (transitive via `NotNot.AppSettings`) | `NotNot.Storage` | `SimpleStorageManager<T>` (lifecycle), `IStorageAdapter` (strategy), `FileStorageAdapter` (built-in), `EphemeralMemoryStorageAdapter` (tests), `NoneStorageAdapter` (no-op), `SimpleStorageOptions` (debounce config) |
+| Layered JSON merge utilities (compose your own pipeline) | `NotNot.Bcl.Core` (transitive) | `NotNot.AppSettingsHelper` | `JsonSettingsUtils.MergeJson`, `JsonSettingsUtils.MergeStreamsAsync`, `JsonSettingsUtils.Deserialize<T>`, `ISettingsChangeAware` (implemented by source-generated POCOs) |
+
+**Install** (typical): `dotnet add package NotNot.AppSettings` — `NotNot.Bcl.Core` resolves automatically.
+
+**Best-practice runtime composition** (`appsettings*.json` defaults + per-user overrides + auto-save):
+```csharp
+using NotNot.Storage;            // SimpleStorageManager, FileStorageAdapter
+using MyApp.AppSettingsGen;      // your generated AppSettings + AppSettingsBinder
+
+var defaults = AppSettingsBinder.LoadDirect();                       // build-time merged defaults
+var adapter  = FileStorageAdapter.OsAppDataLocal("MyApp", "settings.json");
+var manager  = new SimpleStorageManager<AppSettings>(adapter, defaults);
+await manager.InitializeAsync();
+manager.Update(d => d.Theme = "dark");                               // debounced auto-save
+```
+
+See [State Management with SimpleStorageManager](#state-management-with-simplestoragemanager) for the full lifecycle, [Storage Adapters](#storage-adapters) for the adapter strategy interface, and [MIGRATION.md](./MIGRATION.md) if you're upgrading from `LoadDirect*`.
 
 ## Table of Contents
 
 - [NotNot.AppSettings](#notnotappsettings)
 	- [Further Reading](#further-reading)
+	- [Package & Namespace Map](#package--namespace-map)
 	- [Table of Contents](#table-of-contents)
 	- [Getting Started](#getting-started)
 	- [How it works](#how-it-works)
@@ -72,7 +101,7 @@ and an `AppSettingsBinder` helper/loader util will be found under the `{YourProj
 
 ## Multi-File Merging
 
-When multiple `appsettings*.json` files are present, they are merged by a unified JSON merge core (`JsonMergeCore`) that is shared-source between the compile-time source generator and the `NotNot.Bcl.Core` runtime. The same semantics apply at build-time (for schema generation) and at runtime (for `AppSettingsManager<T>.LoadAsync` and the `[Obsolete]` `LoadDirect*` facades).
+When multiple `appsettings*.json` files are present, they are merged by a unified JSON merge core (`JsonMergeCore`) that is shared-source between the compile-time source generator and the `NotNot.Bcl.Core` runtime. The same semantics apply at build-time (for schema generation) and at runtime (for `NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync`, the `NotNot.Storage.SimpleStorageManager<T>` reload path, and the `[Obsolete]` `LoadDirect*` facades).
 
 **Merge semantics (RFC-7396-ish):**
 
@@ -178,11 +207,16 @@ public class Program
 
 For applications requiring **runtime settings persistence**, **debounced auto-save**, and **reset to defaults**, compose `NotNot.Storage.SimpleStorageManager<T>` (from `NotNot.Bcl.Core`) over an `IStorageAdapter`. `SimpleStorageManager<T>` is a general-purpose POCO persistence wrapper — it works with any `T : class, new()`, not just `AppSettings`.
 
+> **Required**:
+> - **Package**: `NotNot.Bcl.Core` (auto-resolved transitively when you install `NotNot.AppSettings` via NuGet — no separate `<PackageReference>` needed for typical consumers)
+> - **Namespace**: `NotNot.Storage` (for `SimpleStorageManager<T>`, `IStorageAdapter`, `FileStorageAdapter`)
+> - **Namespace**: `{YourRoot}.AppSettingsGen` (for the source-generated `AppSettings` POCO + `AppSettingsBinder.LoadDirect()`)
+
 ### Canonical pattern
 
 ```csharp
-using NotNot.Storage;
-using ExampleApp.AppSettingsGen;
+using NotNot.Storage;            // SimpleStorageManager, FileStorageAdapter
+using ExampleApp.AppSettingsGen; // ExampleApp's generated AppSettings + AppSettingsBinder
 
 // 1. Build-time defaults from your appsettings*.json schema (one-shot bind).
 var defaults = AppSettingsBinder.LoadDirect();
@@ -323,10 +357,10 @@ await manager.DisposeAsync();
 
 ### Browser localStorage (Blazor)
 
-For Blazor WebAssembly, implement `IStorageAdapter` over `IJSRuntime`. NotNot ships a reference implementation in `NotNot.Bcl.Core` (e.g. `BrowserLocalStorageAdapter`); check the runtime package for the current name.
+`NotNot.Bcl.Core` does **not** ship a built-in browser localStorage adapter (the package is framework-agnostic and does not reference Blazor / `IJSRuntime`). For Blazor WebAssembly, implement `IStorageAdapter` over `IJSRuntime` yourself — the implementation is small. The example below is a complete reference implementation you can copy into your project.
 
 ```csharp
-// Pseudocode for a localStorage-backed adapter:
+// Reference implementation — copy into your Blazor project (NotNot.Bcl.Core does not ship this).
 public sealed class BrowserLocalStorageAdapter : IStorageAdapter, IAsyncDisposable
 {
     private readonly IJSRuntime _js;

@@ -125,12 +125,15 @@ var settings = AppSettingsBinder.LoadDirectFromText(json);
 
 **After (with SimpleStorageManager — only useful if you want save/reload)**:
 ```csharp
-using NotNot.AppSettingsHelper;
-using NotNot.Storage;
-using MyApp.AppSettingsGen;
+// Required package: NotNot.Bcl.Core (auto-resolved transitively when NotNot.AppSettings is installed)
+using NotNot.Storage;            // SimpleStorageManager, EphemeralMemoryStorageAdapter
+using MyApp.AppSettingsGen;      // your generated AppSettings type
 
-// Build an in-memory adapter (or write a custom IStorageAdapter)
-var adapter = new InMemoryStorageAdapter("""{ "Theme": "dark" }""");
+// EphemeralMemoryStorageAdapter is the built-in in-memory adapter (NotNot.Storage namespace).
+// Seed it with the inline JSON via WriteAsync before InitializeAsync, OR construct an
+// AppSettings instance and pass it as initialData.
+var adapter = new EphemeralMemoryStorageAdapter();
+await adapter.WriteAsync("""{ "Theme": "dark" }""");
 var manager = new SimpleStorageManager<AppSettings>(adapter);
 await manager.InitializeAsync();
 var theme = manager.Data.Theme;
@@ -138,7 +141,7 @@ var theme = manager.Data.Theme;
 
 If you ONLY want a one-shot bind from a string, suppress the `LoadDirectFromText` warning and keep your code — `SimpleStorageManager` is overkill for that case.
 
-> **Note**: `InMemoryStorageAdapter` is not provided out-of-box. Implement the `IStorageAdapter` interface (3 methods: `ReadAsync`, `WriteAsync`, `DeleteAsync`) for in-memory storage if you need it for tests. For runtime, use `FileStorageAdapter`.
+> **Note**: `NotNot.Storage` ships three built-in adapters: `FileStorageAdapter` (production), `EphemeralMemoryStorageAdapter` (tests / scratch), `NoneStorageAdapter` (no-op). All implement `IStorageAdapter` (3 methods: `ReadAsync`, `WriteAsync`, `DeleteAsync`). Implement your own for browser localStorage, cloud, IndexedDB, etc.
 
 #### Case 3: `LoadDirectFromTexts(params string[])` — multiple inline JSONs
 
@@ -186,12 +189,16 @@ await manager.InitializeAsync();
 
 ## Adopting `SimpleStorageManager<T>`
 
-If you want the full lifecycle (load + auto-save + reset), here's the canonical pattern for AppSettings consumers:
+If you want the full lifecycle (load + auto-save + reset), here's the canonical pattern for AppSettings consumers.
+
+> **Required**:
+> - **Package**: `NotNot.Bcl.Core` (auto-resolved transitively when you install `NotNot.AppSettings` via NuGet — no explicit `<PackageReference>` needed for typical consumers)
+> - **Namespace**: `NotNot.Storage` (for `SimpleStorageManager<T>`, `IStorageAdapter`, `FileStorageAdapter`)
+> - **Optional namespace**: `NotNot.AppSettingsHelper` (only if you call `JsonSettingsUtils.MergeJson` / `MergeStreamsAsync` directly — the canonical pattern below does not)
 
 ```csharp
-using NotNot.AppSettingsHelper;
-using NotNot.Storage;
-using MyApp.AppSettingsGen;
+using NotNot.Storage;            // SimpleStorageManager, FileStorageAdapter
+using MyApp.AppSettingsGen;      // your generated AppSettings + AppSettingsBinder
 
 // 1. Get build-time defaults from the source-generated AppSettings
 var defaults = AppSettingsBinder.LoadDirect();   // OR: bind via IConfiguration
