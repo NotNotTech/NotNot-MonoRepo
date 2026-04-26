@@ -60,6 +60,7 @@ See [State Management with SimpleStorageManager](#state-management-with-simplest
 	- [Package & Namespace Map](#package--namespace-map)
 	- [Table of Contents](#table-of-contents)
 	- [Getting Started](#getting-started)
+	- [Recommended Pattern (MSBuild Setup)](#recommended-pattern-msbuild-setup)
 	- [How it works](#how-it-works)
 	- [Multi-File Merging](#multi-file-merging)
 	- [Example](#example)
@@ -91,6 +92,75 @@ See [State Management with SimpleStorageManager](#state-management-with-simplest
 2) **[Install this nuget package `NotNot.AppSettings`](https://www.nuget.org/packages/NotNot.AppSettings)**.
 3) Build your project
 4) Use the generated `AppSettings` class in your code. (See the example section below).
+
+## Recommended Pattern (MSBuild Setup)
+
+For most projects, **no MSBuild configuration is required** — the package's auto-glob picks up `appsettings*.json` files at your project root automatically. This section documents the canonical setup, escape hatches, and naming conventions that prevent silent miss-detection of config files. Read this once before adding multiple settings files or organizing them into subdirectories.
+
+### Default behavior (no configuration needed)
+
+The NuGet package ships `NotNot.AppSettings.targets` (auto-imported via NuGet's `build/` convention), which injects this MSBuild ItemGroup into your project:
+
+```xml
+<ItemGroup Condition="'$(_NotNotAppSettingsAutoGlobNormalized)' == 'true'">
+  <AdditionalFiles Include="appsettings*.json" />
+</ItemGroup>
+```
+
+`NotNot_AppSettings_AutoGlob` is defaulted to `true` by the companion `NotNot.AppSettings.props` file. **You don't need to declare anything** if your `appsettings*.json` files live at the project root.
+
+### Filename naming convention
+
+The source generator applies a regex filter (`[/\\]appsettings\..*json$`, case-insensitive) to incoming `<AdditionalFiles>`. To avoid silent rejection by the generator, name your files with a **dotted suffix** following the standard ASP.NET Core convention:
+
+| ✅ Recognized by the generator | ❌ Silently rejected (matches MSBuild glob but fails generator regex) |
+|---|---|
+| `appsettings.json` | `appsettingsfoo.json` (no dot before suffix) |
+| `appsettings.Production.json` | `appsettings_Production.json` (underscore, not dot) |
+| `appsettings.Feature.json` | `myappsettings.json` (prefix mismatch) |
+| `appsettings.Local.json` | `settings.json` (wrong prefix entirely) |
+
+> **Why the dot matters**: the MSBuild glob `appsettings*.json` is **broader** than the generator's regex `appsettings\..*json$` (the regex requires the dot). A file named `appsettingsfoo.json` would be picked up by MSBuild, handed to the generator as an `AdditionalText`, then silently filtered out — no error, no warning. The dotted convention keeps both layers in sync.
+
+**Cross-platform**: keep filenames **lowercase** (`appsettings*.json`, not `AppSettings*.json`). MSBuild glob expansion follows filesystem casing, which is **case-sensitive on Linux/macOS** but case-insensitive on Windows. The generator's regex is case-insensitive (so it would accept `AppSettings.Production.json` once it arrived), but the MSBuild glob may never match it on Linux. Lowercase eliminates the cross-platform divergence.
+
+### Subdirectory case (recursive glob)
+
+The default `<AdditionalFiles Include="appsettings*.json" />` is **project-root-relative and non-recursive**. Files under `Config/`, `Settings/`, or any other subdirectory are silently missed. To opt into recursive matching, disable the auto-glob and declare your own pattern:
+
+```xml
+<PropertyGroup>
+  <NotNot_AppSettings_AutoGlob>false</NotNot_AppSettings_AutoGlob>
+</PropertyGroup>
+
+<ItemGroup>
+  <AdditionalFiles Include="**\appsettings*.json" />
+</ItemGroup>
+```
+
+`**` is MSBuild's recursive wildcard (matches zero or more path segments). The generator will then receive every matching file under your project root.
+
+### Opt-out (full manual control)
+
+For full control over which files participate in generation:
+
+```xml
+<PropertyGroup>
+  <NotNot_AppSettings_AutoGlob>false</NotNot_AppSettings_AutoGlob>
+</PropertyGroup>
+
+<ItemGroup>
+  <AdditionalFiles Include="appsettings.json" />
+  <AdditionalFiles Include="appsettings.$(Configuration).json" />
+  <AdditionalFiles Include="config\appsettings.Special.json" />
+</ItemGroup>
+```
+
+The opt-out flag (`NotNot_AppSettings_AutoGlob=false`) suppresses the package's gated ItemGroup; your manual declarations then provide the complete file list.
+
+### `<ProjectReference>` consumption (advanced)
+
+If you consume `NotNot.AppSettings` via `<ProjectReference OutputItemType="Analyzer" ReferenceOutputAssembly="false">` (rather than as a NuGet package — typical only for monorepo dogfooding scenarios), MSBuild does **not** auto-import the package's `.props` and `.targets` files. You must `<Import>` them explicitly. See [Local Development](#local-development-reference-csproj-not-nuget) for the full pattern.
 
 ## How it works
 

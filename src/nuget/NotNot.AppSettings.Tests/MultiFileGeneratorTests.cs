@@ -197,11 +197,11 @@ public class MultiFileGeneratorTests
     // --- REQ-2: Wildcard glob (skip-documented — MSBuild-layer, not unit-testable) --
 
     [Fact(Skip = "Wildcard behavior is an MSBuild-layer concern, not a JsonMerger.MergeJsonFiles " +
-        "input-shaping concern. NotNot.AppSettings.props:6 expands `appsettings*.json` into an " +
+        "input-shaping concern. NotNot.AppSettings.targets:11-14 expands `appsettings*.json` into an " +
         "<AdditionalFiles> item list BEFORE the generator ever runs; the generator receives an " +
         "already-materialized dict of AdditionalTextsProvider entries. Verifying glob semantics " +
         "requires an MSBuild integration test (e.g., spinning dotnet build against a sample project) " +
-        "which exceeds Phase C γ unit-test scope. TDD §8 R1 acknowledges this boundary.")]
+        "which is now provided by NotNot.AppSettings.IntegrationTests. TDD §8 R1 acknowledges this boundary.")]
     public void Wildcard_ViaPropsGlob_IncludesMultipleFiles()
     {
         // Intentionally empty — see Skip rationale above.

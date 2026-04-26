@@ -32,7 +32,7 @@ MyProject/
 └── Program.cs
 ```
 
-The package's `.props` auto-glob (`<AdditionalFiles Include="appsettings*.json" />`) picks up both files automatically. The source generator merges them at build time per the [merge semantics](#merge-behavior-reference) and produces a single `_AppSettings` class reflecting the unified shape.
+The package's MSBuild auto-glob — declared as `<AdditionalFiles Include="appsettings*.json" />` in `NotNot.AppSettings.targets:11-14`, gated by the `NotNot_AppSettings_AutoGlob` boolean (defaulted to `true` in `NotNot.AppSettings.props`) — picks up both files automatically. The source generator merges them at build time per the [merge semantics](#merge-behavior-reference) and produces a single `_AppSettings` class reflecting the unified shape.
 
 ### What you DON'T need to do
 

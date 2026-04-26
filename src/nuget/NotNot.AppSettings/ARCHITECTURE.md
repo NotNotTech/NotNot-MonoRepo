@@ -52,12 +52,12 @@ appsettings*.json ───────────────────► <
 
 ### Pipeline Stages
 
-1. **MSBuild auto-glob** ([`build/NotNot.AppSettings.props`](./build/NotNot.AppSettings.props), [`build/NotNot.AppSettings.targets`](./build/NotNot.AppSettings.targets))
+1. **MSBuild auto-glob** ([`NotNot.AppSettings.props`](./NotNot.AppSettings.props), [`NotNot.AppSettings.targets`](./NotNot.AppSettings.targets)) — note: source files live at the project root; NuGet packaging remaps them to `build/` of the consumed `.nupkg` via `<PackagePath="build">` (see csproj `:270-275`)
    - The `.targets` file injects `<AdditionalFiles Include="appsettings*.json" />` into consumer projects when `NotNot_AppSettings_AutoGlob = true` (the default).
    - Consumers can opt out by setting `<NotNot_AppSettings_AutoGlob>false</NotNot_AppSettings_AutoGlob>` and declaring `<AdditionalFiles>` manually.
    - The auto-glob is package-level only — when consuming via raw `<ProjectReference OutputItemType="Analyzer">`, you must explicitly `<Import>` the `.props` and `.targets` files (see ReadMe.md "Consuming as ProjectReference Analyzer" section).
 
-2. **`AdditionalTextsProvider`** ([`AppSettingsGen.cs:67`](./AppSettingsGen.cs))
+2. **`AdditionalTextsProvider`** ([`AppSettingsGen.cs:48-50`](./AppSettingsGen.cs)) — filtered by regex `[/\\]appsettings\..*json$` (case-insensitive)
    - Roslyn provides each `<AdditionalFiles>` entry as a `Microsoft.CodeAnalysis.Text.SourceText` instance.
    - The generator gathers these into a `Dictionary<string, SourceText>` keyed by file path.
 
@@ -182,13 +182,15 @@ If a property is `null` in one file and a typed value in another, the inferred t
 
 ## MSBuild Integration
 
-### `.props` file ([`build/NotNot.AppSettings.props`](./build/NotNot.AppSettings.props))
+### `.props` file ([`NotNot.AppSettings.props`](./NotNot.AppSettings.props))
 
-Auto-imported by NuGet on package install. Sets `<NotNot_AppSettings_AutoGlob>true</NotNot_AppSettings_AutoGlob>` if not already set.
+Auto-imported by NuGet on package install. Sets `<NotNot_AppSettings_AutoGlob>true</NotNot_AppSettings_AutoGlob>` default if not already set. **Contains ONLY the boolean toggle** — no `<AdditionalFiles>` declarations live here.
 
-### `.targets` file ([`build/NotNot.AppSettings.targets`](./build/NotNot.AppSettings.targets))
+### `.targets` file ([`NotNot.AppSettings.targets`](./NotNot.AppSettings.targets))
 
-Injects `<AdditionalFiles Include="appsettings*.json" />` when auto-glob is enabled. Also makes `NotNot_AppSettings_GenPublic` and `NotNot_AppSettings_AutoGlob` visible to the source generator via `<CompilerVisibleProperty>`.
+**Contains the actual `<AdditionalFiles Include="appsettings*.json" />` ItemGroup**, gated by `Condition="'$(_NotNotAppSettingsAutoGlobNormalized)' == 'true'"` so opt-out works. Also makes `NotNot_AppSettings_GenPublic` and `NotNot_AppSettings_AutoGlob` visible to the source generator via `<CompilerVisibleProperty>`.
+
+> **Source vs packaged layout**: Both files live at the **project root** in the source repo (`./NotNot.AppSettings.props`, `./NotNot.AppSettings.targets`). The csproj at `:270-275` repackages them into `build/` of the published `.nupkg` via `<None Update="..." Pack="true" PackagePath="build">`. Consumers see them under `build/` because of NuGet's auto-import convention; contributors find them at the root.
 
 ### Package layout
 

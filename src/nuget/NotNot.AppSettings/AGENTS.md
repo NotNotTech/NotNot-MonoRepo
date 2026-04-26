@@ -105,7 +105,7 @@ public string? ConnectionString
 
 ### Basic Setup
 1. Install `NotNot.AppSettings` NuGet package
-2. Add one or more `appsettings*.json` files at the project root. The package's `build/NotNot.AppSettings.props` auto-globs them as `<AdditionalFiles Include="appsettings*.json" />` — no manual declaration required. Set `CopyToOutputDirectory="Always"` on the files themselves if runtime file-read paths (e.g. `LoadDirect`) rely on them being present next to the built binary.
+2. Add one or more `appsettings*.json` files at the project root. The package's MSBuild auto-glob — declared as `<AdditionalFiles Include="appsettings*.json" />` in `NotNot.AppSettings.targets:11-14`, gated by `NotNot_AppSettings_AutoGlob` (defaulted `true` in `NotNot.AppSettings.props`) — picks them up automatically; no manual declaration required. Set `CopyToOutputDirectory="Always"` on the files themselves if runtime file-read paths (e.g. `LoadDirect`) rely on them being present next to the built binary. (Source files live at the project root; NuGet packages them into `build/` of the consumed `.nupkg`.)
 3. Build project
 4. Use generated `{RootNamespace}.AppSettingsGen.AppSettings` class
 
