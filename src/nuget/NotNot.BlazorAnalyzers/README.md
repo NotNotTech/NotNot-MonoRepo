@@ -23,6 +23,77 @@ Or in your `.csproj`:
 
 ## Analyzer Rules
 
+### NNB022: Direct MudBlazor reference forbidden — use Nn* wrapper
+
+**Severity:** Warning
+**Category:** BannedComponents
+**Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy · `protocols/nndesign.md` ENFORCEMENT section
+
+End-using applications must not reference MudBlazor directly. NNB022 is the build-time enforcement of the NnDesign policy: MudBlazor is the general-purpose primitive layer wrapped internally by `NotNot.BlazorDesign.NnDesign`. Consumer Blazor projects compose UI exclusively from `Nn*` components — the wrappers carry brand defaults, dense margins, opinionated dropdown widths, and any cross-cutting fixes that must apply uniformly. Direct `Mud*` references in consumer code force every call site to repeat brand boilerplate, multiply places where the brand drifts, and create N-1 places where a single bug fix must be repeated.
+
+**Hybrid analyzer with three detection pathways**:
+
+1. **`<Mud*>` markup tags in `.razor` files** — text-scan via AdditionalFiles (e.g. `<MudButton>`, `<MudCard>`, `<MudIconButtonGroup />`). All tags matching `<Mud[A-Z]\w*` fire uniformly — no skip-list.
+2. **`using MudBlazor;` directives + `Mud*` / `IMud*` identifiers in `.razor.cs` code-behind files** — text-scan via AdditionalFiles. Bare `using MudBlazor;` reports independently (presumed feature consumption per partial-class semantics).
+3. **Plain `.cs` files** — Roslyn semantic analysis via `SyntaxNodeAction` on `UsingDirective` and `IdentifierName`. Symbol resolution walks the namespace chain to root; reports when the root namespace equals `MudBlazor`.
+
+```razor
+@* ❌ Direct MudBlazor reference — NNB022 fires *@
+<MudButton Color="Color.Primary">Click</MudButton>
+
+@* ✅ Use the Nn* wrapper from NotNot.BlazorDesign *@
+<NnButton OnClick="HandleClick">Click</NnButton>
+```
+
+```csharp
+// ❌ NNB022 fires on `using MudBlazor;` in plain .cs file
+using MudBlazor;
+public static class StatusFormatHelper
+{
+    public static Color GetStatusColor() => Color.Primary; // also fires on Color refs
+}
+```
+
+**Path-based exception buckets** (analyzer skips diagnostic emission):
+
+| Bucket | Applies to |
+|--------|-----------|
+| NotNot.BlazorDesign internals | Any file under `**/NotNot.BlazorDesign/**` (the wrappers consume MudBlazor internally — that's their job) |
+| NnDesignSamples folder | Any file under `**/NnDesignSamples/**` (sample/demo pages exhibiting both wrappers and primitives) |
+| Root provider wiring | `App.razor`, `Program.cs`, `VowMudLocalizer.cs` (matched by file name) |
+| Dev/test/legacy harness pages | Explicit allow-list: `BlazorTermTestHarness.{Wasm,Server}.razor`, `BlazorTermHarmonizedHarness.{Wasm,Server}.razor`, `BlazorTermDiffTest.razor`, `BlazorTermTabTest.razor`, `BlazorTermTest.razor`, `HarnessDummyTab.razor`, `HarnessTerminalWrapper.razor`, `RichEditExamplePage.razor`, `NnDesignSamplesPage.razor`, `DashboardLegacy.razor`, `TestInputs.razor` |
+
+**Per-file opt-out** (for documented call-site cases — e.g. transitional retentions awaiting a Tier 2 / Tier 3 wrapper):
+
+```razor
+@* nnb022:allow-mudblazor: pending NnMenu wrapper *@
+<MudMenu>
+    <MudMenuItem>One</MudMenuItem>
+</MudMenu>
+```
+
+```csharp
+// nnb022:allow-mudblazor: deliberate adapter extending MudLocalizer API
+using MudBlazor;
+```
+
+The marker can appear anywhere in the file. The text after the second colon is documentation only — the analyzer does not parse it. Code review enforces a non-empty rationale.
+
+**Project-wide kill-switch** (rare; prefer per-file opt-out):
+
+```xml
+<PropertyGroup>
+  <NnDesignPolicyAnalyzerEnabled>false</NnDesignPolicyAnalyzerEnabled>
+</PropertyGroup>
+```
+
+**Severity escalation** — escalate via `.editorconfig` once the migration backlog reaches zero:
+
+```ini
+[*.{razor,cs}]
+dotnet_diagnostic.NNB022.severity = error
+```
+
 ### NNB002: JS Reference Disposal Required
 
 **Severity:** Error
