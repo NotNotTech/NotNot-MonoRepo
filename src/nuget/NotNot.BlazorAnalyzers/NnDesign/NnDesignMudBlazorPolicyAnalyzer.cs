@@ -57,6 +57,14 @@ public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
 		+ "BlazorTermTabTest, BlazorTermTest, HarnessDummyTab, HarnessTerminalWrapper, RichEditExamplePage, "
 		+ "NnDesignSamplesPage, DashboardLegacy, TestInputs). Per-file opt-out for documented call-site "
 		+ "cases: @* nnb022:allow-mudblazor: <reason> *@ (Razor) or // nnb022:allow-mudblazor: <reason> (C#). "
+		+ "Assembly-level opt-out for sibling primitive layers and the NnDesign wrapper layer itself: apply "
+		+ "[assembly: NotNot.BlazorAnalyzers.NnDesign.NnDesignBypass] — the analyzer matches by simple "
+		+ "attribute name, so consumer assemblies may either reference NotNot.BlazorAnalyzers types directly "
+		+ "or declare a local internal copy of NnDesignBypassAttribute with the same name. Use when the "
+		+ "entire assembly is intentionally exempt (e.g., NotNot.BlazorComponents is a sibling primitive "
+		+ "layer alongside MudBlazor — direct MudBlazor consumption is intentional architecture because "
+		+ "the assembly does NOT reference NotNot.BlazorDesign). See NnDesignBypassAttribute XmlDoc for "
+		+ "guidance on choosing among the four exemption mechanisms. "
 		+ "Authority: NotNot.BlazorDesign/AGENTS.md → Consumer Policy; protocols/nndesign.md ENFORCEMENT.";
 
 	/// <summary>NNB022 descriptor — Warning severity, BannedComponents category.</summary>
@@ -145,6 +153,12 @@ public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
 	private static void AnalyzeCompilation(CompilationAnalysisContext context)
 	{
 		if (IsOptedOut(context.Options.AnalyzerConfigOptionsProvider.GlobalOptions))
+			return;
+
+		// Assembly-level opt-out — sibling primitive layers (NotNot.BlazorComponents) and the wrapper
+		// layer itself (NotNot.BlazorDesign) declare [assembly: NnDesignBypass] to exempt the whole
+		// compilation. Matches by simple attribute name; consumer may declare a local internal copy.
+		if (HasNnDesignBypassAssemblyAttribute(context.Compilation))
 			return;
 
 		foreach (var file in context.Options.AdditionalFiles)
@@ -269,6 +283,10 @@ public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
 		if (IsOptedOut(context.Options.AnalyzerConfigOptionsProvider.GlobalOptions))
 			return;
 
+		// Assembly-level opt-out — short-circuits before per-file path filtering.
+		if (HasNnDesignBypassAssemblyAttribute(context.Compilation))
+			return;
+
 		var syntaxTreePath = context.Node.SyntaxTree.FilePath ?? string.Empty;
 
 		// Skip .razor.cs files (text-scan pathway handles them).
@@ -309,6 +327,10 @@ public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
 	private static void AnalyzeIdentifierName(SyntaxNodeAnalysisContext context)
 	{
 		if (IsOptedOut(context.Options.AnalyzerConfigOptionsProvider.GlobalOptions))
+			return;
+
+		// Assembly-level opt-out — short-circuits before per-file path filtering.
+		if (HasNnDesignBypassAssemblyAttribute(context.Compilation))
 			return;
 
 		var syntaxTreePath = context.Node.SyntaxTree.FilePath ?? string.Empty;
@@ -408,6 +430,30 @@ public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
 	{
 		return options.TryGetValue("build_property.NnDesignPolicyAnalyzerEnabled", out var value)
 			&& string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
+	}
+
+	/// <summary>
+	/// Returns true when the compilation's assembly carries an
+	/// <c>[assembly: NnDesignBypass]</c> marker (matched by simple attribute name).
+	/// Match is by <c>AttributeClass.Name</c> only — consumer assemblies may either
+	/// reference <see cref="NnDesignBypassAttribute"/> directly or declare a local
+	/// <c>internal sealed class NnDesignBypassAttribute : Attribute</c> with the same
+	/// name; both are treated equivalently. This avoids forcing the analyzer's types
+	/// to be exposed via <c>ReferenceOutputAssembly="true"</c> on the consumer's
+	/// analyzer-only ProjectReference. Cost: O(N) over assembly attributes (typically N&lt;10).
+	/// </summary>
+	private static bool HasNnDesignBypassAssemblyAttribute(Compilation compilation)
+	{
+		if (compilation?.Assembly is not IAssemblySymbol assembly)
+			return false;
+
+		foreach (var attribute in assembly.GetAttributes())
+		{
+			var name = attribute.AttributeClass?.Name;
+			if (string.Equals(name, nameof(NnDesignBypassAttribute), StringComparison.Ordinal))
+				return true;
+		}
+		return false;
 	}
 
 	private static bool IsMudBlazorNamespace(INamespaceSymbol ns)
