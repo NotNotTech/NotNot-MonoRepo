@@ -66,9 +66,19 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	public event Action? OnDataLoaded;
 
 	/// <summary>
-	/// Raised when an error occurs during background write or read operations.
+	/// Fired when a non-fatal manager-operation exception occurs (e.g. background write/read failures,
+	/// or refresh-time exceptions raised by external consumers via <see cref="RaiseError"/>).
+	/// Subscribers MUST be non-throwing.
 	/// </summary>
 	public event Action<Exception>? OnError;
+
+	/// <summary>
+	/// Raises the <see cref="OnError"/> event with the supplied exception. Available to external types
+	/// (e.g. <see cref="ProjectedSubtreeStorageAdapter"/>) that need to surface manager-related diagnostics
+	/// through the unified observability channel. Subscribers are responsible for non-throwing handling.
+	/// </summary>
+	/// <param name="ex">The non-fatal manager-operation exception to surface to subscribers.</param>
+	public void RaiseError(Exception ex) => OnError?.Invoke(ex);
 
 	/// <summary>
 	/// Creates a new storage manager with the specified adapter and default options.
@@ -310,9 +320,15 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	public void RegisterDisposalAction(Action action)
 	{
 		ArgumentNullException.ThrowIfNull(action);
-		if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
 		lock (_lock)
 		{
+			// Re-check _isDisposed under lock — paired with DisposeAsync's locked
+			// snapshot+clear so a concurrent dispose either (a) observes our action
+			// and invokes it, or (b) throws ObjectDisposedException here. The pre-fix
+			// outside-the-lock check could observe _isDisposed=false, then dispose
+			// snapshots+clears, then this thread Adds to a list that will never be
+			// drained — a silent no-op leak.
+			if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
 			_disposalActions.Add(action);
 		}
 	}
@@ -527,16 +543,21 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
-		if (_isDisposed) return;
-		_isDisposed = true;
-
 		// Invoke registered disposal actions BEFORE the rest of teardown so external
 		// subscriptions (e.g., parent.OnDataChanged unhooks from CreateProjected) detach
 		// while this manager is still coherent. Each action is best-effort — a single
 		// failing cleanup must not block subsequent actions or downstream teardown.
+		//
+		// Locked double-check + locked snapshot+clear + locked _isDisposed=true is paired
+		// with RegisterDisposalAction's locked re-check: a concurrent register either (a)
+		// completes before _isDisposed flips and its action is captured here, or (b)
+		// throws ObjectDisposedException — never silently no-ops by Adding to a list
+		// that has already been snapshotted+cleared.
 		List<Action> actionsToInvoke;
 		lock (_lock)
 		{
+			if (_isDisposed) return;  // double-check inside lock; short-circuit concurrent dispose
+			_isDisposed = true;
 			actionsToInvoke = new List<Action>(_disposalActions);
 			_disposalActions.Clear();
 		}
