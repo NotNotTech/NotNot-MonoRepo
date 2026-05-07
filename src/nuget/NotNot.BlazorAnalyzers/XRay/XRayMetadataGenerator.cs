@@ -202,12 +202,12 @@ internal static partial class XRayMetadata
         var normalized = fullPath.Replace('\\', '/');
 
         // PRIMARY: Find assembly name in path (most reliable)
-        // e.g., ".../NotNot.Cct.WebApp/NotNot/Cct/..." → "NotNot/Cct/..."
+        // e.g., ".../Novaleaf.VibeOverwatch.Server/Novaleaf/VibeOverwatch/..." → "Novaleaf/VibeOverwatch/..."
         // Handle both exact match and common naming patterns (with/without dots)
         var assemblyMarkers = new[]
         {
-            $"/{assemblyName}/",           // Exact: NotNot.Cct.WebApp
-            $"/{assemblyName.Replace(".", "")}/",  // No dots: NotNotCctWebApp
+            $"/{assemblyName}/",           // Exact: Novaleaf.VibeOverwatch.Server
+            $"/{assemblyName.Replace(".", "")}/",  // No dots: NovaleafVibeOverwatchServer
         };
 
         foreach (var marker in assemblyMarkers)

@@ -44,6 +44,13 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	private bool _isInitialized;
 	private bool _isDisposed;
 
+	// Disposal-time cleanup callbacks. Registered by callers (e.g., projection-adapter
+	// factory wiring) that need to unsubscribe from external sources when this manager is
+	// disposed — the canonical use is unhooking parent.OnDataChanged handlers in
+	// CreateProjected so per-scope child managers do not leak handler slots into a
+	// longer-lived parent.
+	private readonly List<Action> _disposalActions = new();
+
 	private Debouncer? _writeDebouncer;
 	private Debouncer? _readDebouncer;
 
@@ -204,6 +211,110 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 		}
 		_writeDebouncer!.Trigger();
 		OnDataChanged?.Invoke();
+	}
+
+	/// <summary>
+	/// Replaces the in-memory data with <paramref name="newData"/> WITHOUT scheduling a write
+	/// to the backing store. Intended for projection-style adapters whose backing store is another
+	/// <see cref="SimpleStorageManager{T}"/>: when the parent manager mutates, the projected child
+	/// must observe the new sub-tree value, but the new value ALREADY came from the persistence
+	/// layer (the parent), so writing it back through the projection adapter would re-enter the
+	/// parent and produce a recursive write storm.
+	/// </summary>
+	/// <param name="newData">The new data object (read out of the upstream source). Must not be null.</param>
+	/// <remarks>
+	/// <para>
+	/// Invariants vs <see cref="SetData"/>:
+	/// <list type="bullet">
+	///   <item><b>Same:</b> guards (null/initialized/disposed), lock acquisition for the assignment, raises <see cref="OnDataChanged"/>.</item>
+	///   <item><b>Different:</b> does NOT increment <c>_dirtyGeneration</c> and does NOT trigger the write debouncer.</item>
+	/// </list>
+	/// The "no dirty mark / no write trigger" combination is the recursive-write-prevention
+	/// guarantee: an upstream change feeds in via this method, raising <see cref="OnDataChanged"/>
+	/// for downstream subscribers without ever asking the adapter to persist (the adapter's
+	/// upstream IS the source of truth).
+	/// </para>
+	/// <para>
+	/// <b>Dirty-race guard:</b> if this manager has a pending local mutation that has not yet
+	/// flushed (<c>_dirtyGeneration &gt; _writtenGeneration</c>), the refresh is SKIPPED and
+	/// <see cref="OnDataChanged"/> is NOT raised. Skipping is self-converging: the pending
+	/// local write will flush upstream, the upstream will re-fire its own change notification,
+	/// and the next <see cref="RefreshFromExternalSource"/> call will see a clean dirty state
+	/// and proceed normally. Without this guard, an in-flight upstream refresh would silently
+	/// overwrite the local mutation AND, because <c>_dirtyGeneration</c> stays elevated, the
+	/// subsequent debounced write would push the externally-supplied data BACK upstream —
+	/// silently losing the local mutation and triggering a recursive
+	/// <see cref="OnDataChanged"/> cascade through the projection adapter.
+	/// </para>
+	/// <para>
+	/// <see cref="OnDataChanged"/> is raised AFTER the lock is released to match the invariant
+	/// established by <see cref="SetData"/>/<see cref="Update"/> (subscribers must not observe
+	/// <c>_lock</c> being held).
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">Thrown if <paramref name="newData"/> is null.</exception>
+	/// <exception cref="InvalidOperationException">Thrown if <see cref="InitializeAsync"/> has not been called.</exception>
+	/// <exception cref="ObjectDisposedException">Thrown if the manager has been disposed.</exception>
+	public void RefreshFromExternalSource(TData newData)
+	{
+		ArgumentNullException.ThrowIfNull(newData);
+		if (!_isInitialized) throw new InvalidOperationException($"SimpleStorageManager<{typeof(TData).Name}> not initialized. Call InitializeAsync() first.");
+		if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
+
+		bool didRefresh = false;
+		lock (_lock)
+		{
+			// Dirty-race guard: skip the refresh when a pending local mutation is in flight.
+			// Self-converging — the local write flushes upstream, upstream re-fires
+			// OnDataChanged, and the NEXT refresh call sees clean dirty state and proceeds.
+			// Without this guard the local mutation would be silently overwritten AND the
+			// dirty mark would re-write the externally-supplied data back upstream
+			// (recursive write storm + silent data loss).
+			if (Volatile.Read(ref _dirtyGeneration) != Volatile.Read(ref _writtenGeneration))
+			{
+				return;
+			}
+			_data = newData;
+			didRefresh = true;
+			// Intentionally NOT incrementing _dirtyGeneration and NOT triggering _writeDebouncer:
+			// newData came FROM the persistence layer (e.g., projection upstream), so writing it
+			// back would recursively call into the same source and produce a write storm.
+		}
+		if (didRefresh)
+		{
+			OnDataChanged?.Invoke();
+		}
+	}
+
+	/// <summary>
+	/// Registers an action to be invoked when this manager is disposed.
+	/// </summary>
+	/// <param name="action">Cleanup callback. Must not be null.</param>
+	/// <remarks>
+	/// <para>
+	/// Used by projection wiring (e.g., <c>ProjectedSubtreeStorageAdapter.CreateProjected</c>)
+	/// to unsubscribe from a parent manager's <see cref="OnDataChanged"/> event when the child
+	/// manager is disposed. Without this hook, a child whose lifetime is shorter than the parent
+	/// (e.g., DI scoped child off a singleton parent) would accumulate dead handler slots in the
+	/// parent's invocation list — an unbounded subscription leak.
+	/// </para>
+	/// <para>
+	/// Each registered action is invoked exactly once during <see cref="DisposeAsync"/>;
+	/// exceptions thrown by an action are swallowed so a single failing cleanup does not block
+	/// disposal of other resources. Actions fire BEFORE debouncer/adapter teardown so any
+	/// unsubscriptions complete while the manager is still in a coherent state.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">Thrown if <paramref name="action"/> is null.</exception>
+	/// <exception cref="ObjectDisposedException">Thrown if the manager has already been disposed.</exception>
+	public void RegisterDisposalAction(Action action)
+	{
+		ArgumentNullException.ThrowIfNull(action);
+		if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
+		lock (_lock)
+		{
+			_disposalActions.Add(action);
+		}
 	}
 
 	/// <summary>
@@ -418,6 +529,26 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	{
 		if (_isDisposed) return;
 		_isDisposed = true;
+
+		// Invoke registered disposal actions BEFORE the rest of teardown so external
+		// subscriptions (e.g., parent.OnDataChanged unhooks from CreateProjected) detach
+		// while this manager is still coherent. Each action is best-effort — a single
+		// failing cleanup must not block subsequent actions or downstream teardown.
+		List<Action> actionsToInvoke;
+		lock (_lock)
+		{
+			actionsToInvoke = new List<Action>(_disposalActions);
+			_disposalActions.Clear();
+		}
+		foreach (var action in actionsToInvoke)
+		{
+			// Disposal actions are best-effort — surface failures via OnError so a single
+			// failing callback does not block other cleanup nor the manager's own teardown.
+#pragma warning disable NN_R005
+			try { action(); }
+			catch (Exception ex) { OnError?.Invoke(ex); }
+#pragma warning restore NN_R005
+		}
 
 		// Dispose debouncers FIRST — prevents new callbacks from firing during flush
 		_writeDebouncer?.Dispose();
