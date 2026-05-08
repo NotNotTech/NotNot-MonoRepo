@@ -181,7 +181,7 @@ public class TestHelper
    }
 }
 
-public class LoLoConfig
+public record LoLoConfig
 {
    /// <summary>
    ///    if set to true, can use the CancellationTokenSource._DebuggableCancelAfter()
@@ -198,4 +198,29 @@ public class LoLoConfig
    ///    periodically yield the thread by calling `await Task.Yield()`.
    /// </summary>
    public bool IsDebuggableTaskFactorySingleThreaded { get; init; } = false;
+
+   /// <summary>
+   ///    When TRUE, all <see cref="LoLoRoot.AssertIfNot"/> / <see cref="LoLoRoot.Assert(Exception, string, string, int)"/>
+   ///    paths skip the underlying <see cref="System.Diagnostics.Debug.Assert(bool, string)"/> AND
+   ///    <see cref="NotNot.Diagnostics.Advanced._Debugger.LaunchOnce"/> calls. Failure is still logged
+   ///    via <see cref="System.Diagnostics.Debug.WriteLine(string?)"/> and <see cref="LoLoRoot.GetLogger()"/>
+   ///    so the assertion event remains observable.
+   ///
+   ///    <para>Required TRUE in WASM Debug builds — otherwise <c>Debug.Assert(false, ...)</c> →
+   ///    <c>DebugProvider.Fail</c> → <c>FailCore</c> → <c>Environment.FailFast</c> kills the WASM tab
+   ///    (verified at iter2 retest 2026-05-07; see VibeDiagnostic 20260508-1130).</para>
+   ///
+   ///    <para>Recommended TRUE in test runners — replaces the legacy reflection workaround on
+   ///    <c>_Debugger._hasLaunched</c> (which only suppressed the desktop "Attach debugger?" modal
+   ///    and was a no-op for the Exception throw on <c>Debug.Assert</c>).</para>
+   ///
+   ///    <para>Default FALSE preserves current desktop-dev abort + debugger-prompt experience.
+   ///    The gate is RUNTIME-ONLY (no `#if DEBUG` wrap): in Release builds, the
+   ///    <c>Debug.Assert(false, ...)</c> body is stripped by <c>[Conditional("DEBUG")]</c>
+   ///    regardless of this flag, but <c>_Debugger.LaunchOnce()</c> is NOT
+   ///    <c>[Conditional]</c> and STILL runs in knob-FALSE Release. Set knob TRUE in
+   ///    Release to also suppress LaunchOnce while preserving Debug.WriteLine + Logger
+   ///    sinks for observability.</para>
+   /// </summary>
+   public bool IsDebugAssertSuppressed { get; init; } = false;
 }
