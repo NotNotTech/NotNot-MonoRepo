@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using NotNot;
 using NotNot.Storage;
 using Xunit;
 
@@ -11,7 +12,8 @@ namespace NotNot.Bcl.Core.Tests;
 /// <summary>
 /// Tests for <see cref="SimpleStorageManager{TData}"/> covering REQ-N1-3 (RegisterDisposalAction
 /// vs DisposeAsync race — locked re-check ensures no silent no-op) and REQ-F5-3-NEW (public
-/// <c>RaiseError</c> raiser method fires <c>OnError</c> subscribers).
+/// <c>RaiseWriteError</c> raiser method emits a <see cref="WriteEventError{TData}"/> on the
+/// <see cref="SimpleStorageManager{TData}.Writes"/> observable).
 /// </summary>
 public class SimpleStorageManagerTests
 {
@@ -91,23 +93,29 @@ public class SimpleStorageManagerTests
         Enumerable.Range(0, 100).Select(i => new object[] { i });
 
     /// <summary>
-    /// REQ-F5-3-NEW: <see cref="SimpleStorageManager{TData}.RaiseError"/> must fire
-    /// <c>OnError</c> subscribers with the supplied exception. Validates the public raiser
-    /// method that <see cref="ProjectedSubtreeStorageAdapter"/> getter ObjectDisposedException
-    /// arm uses to route diagnostic exceptions through the unified observability channel.
+    /// REQ-F5-3-NEW (post-async-contract): <see cref="SimpleStorageManager{TData}.RaiseWriteError"/>
+    /// must emit a <see cref="WriteEventError{TData}"/> on the
+    /// <see cref="SimpleStorageManager{TData}.Writes"/> observable, carrying the supplied exception
+    /// inside the <see cref="NotNot.Problem"/>. Validates the public raiser used by
+    /// <see cref="ProjectedSubtreeStorageAdapter"/>'s getter ObjectDisposedException arm to route
+    /// diagnostic exceptions through the unified observability channel.
     /// </summary>
     [Fact]
-    public void RaiseError_FiresOnErrorSubscribers()
+    public void RaiseWriteError_EmitsWriteEventErrorOnWritesStream()
     {
         var adapter = new EphemeralMemoryStorageAdapter();
         var manager = new SimpleStorageManager<TestData>(adapter);
 
-        Exception? captured = null;
-        manager.OnError += ex => captured = ex;
+        WriteEventError<TestData>? captured = null;
+        using var sub = manager.Writes.Subscribe(new ActionObserver<WriteEvent<TestData>>(evt =>
+        {
+            if (evt is WriteEventError<TestData> err) captured = err;
+        }));
 
         var sentinel = new InvalidCastException("test sentinel");
-        manager.RaiseError(sentinel);
+        manager.RaiseWriteError(sentinel);
 
-        Assert.Same(sentinel, captured);
+        Assert.NotNull(captured);
+        Assert.Contains("test sentinel", captured!.Problem.Detail, StringComparison.Ordinal);
     }
 }

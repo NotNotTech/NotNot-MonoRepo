@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -8,7 +11,7 @@ namespace NotNot.Storage;
 
 /// <summary>
 /// Generic storage manager that serializes/deserializes a POCO to/from a backing <see cref="IStorageAdapter"/>.
-/// Provides debounced auto-save on mutation and debounced reload on external change notification.
+/// Provides debounced auto-save on awaitable mutation and debounced reload on external change notification.
 /// </summary>
 /// <typeparam name="TData">
 /// The data type to persist. Must be a reference type with a parameterless constructor.
@@ -19,11 +22,20 @@ namespace NotNot.Storage;
 /// The manager loads existing data from the adapter (or creates a new <typeparamref name="TData"/> instance if none exists).
 /// </para>
 /// <para>
-/// <b>Mutation tracking:</b> Use <see cref="Update"/> to mutate <see cref="Data"/> with automatic dirty-tracking
-/// (generation counter) and debounced persistence. Direct mutations to <see cref="Data"/> are NOT tracked.
+/// <b>Mutation tracking:</b> Use <see cref="UpdateAsync"/> to mutate <see cref="Data"/> with automatic dirty-tracking
+/// (generation counter), debounced persistence, and an awaitable terminal <see cref="Maybe{T}"/> outcome that
+/// reflects the underlying adapter write result. Direct mutations to <see cref="Data"/> are NOT tracked.
+/// Use <see cref="SetDataAsync"/> to replace the entire instance under the same await contract.
 /// </para>
 /// <para>
-/// <b>Thread safety:</b> <see cref="Update"/> and <see cref="SetData"/> acquire a lock around mutation + dirty flag.
+/// <b>Write lifecycle observation:</b> The <see cref="Writes"/> property exposes an
+/// <see cref="System.IObservable{T}"/> of <see cref="WriteEvent{TData}"/> values: Start (per call),
+/// Success or Error (per coalesced batch). Subscribers MUST be non-throwing AND thread-tolerant
+/// — events may be emitted on the caller's thread (Start) or ThreadPool (Success/Error from the
+/// debounced WriteCoreAsync timer callback).
+/// </para>
+/// <para>
+/// <b>Thread safety:</b> <see cref="UpdateAsync"/> and <see cref="SetDataAsync"/> acquire a lock around mutation + dirty flag.
 /// Serialization in <see cref="WriteCoreAsync"/> also acquires the lock to prevent reading partially-mutated state.
 /// All adapter I/O is serialized via an <c>AsyncLock</c> (<c>_ioGate</c>) to prevent concurrent read/write races.
 /// </para>
@@ -54,8 +66,13 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	private Debouncer? _writeDebouncer;
 	private Debouncer? _readDebouncer;
 
+	// Writes-observable event stream + correlation map between in-flight UpdateAsync calls
+	// and the eventual WriteCoreAsync drain (Phase 1 R1.13).
+	private readonly SimpleObservable<WriteEvent<TData>> _writes = new();
+	private readonly ConcurrentQueue<(Guid writeId, TaskCompletionSource<Maybe<TData>> tcs)> _pendingWrites = new();
+
 	/// <summary>
-	/// Raised after <see cref="Data"/> is mutated via <see cref="Update"/> or <see cref="SetData"/>.
+	/// Raised after <see cref="Data"/> is mutated via <see cref="UpdateAsync"/> or <see cref="SetDataAsync"/>.
 	/// Also raised after <see cref="ReloadAsync"/> completes.
 	/// </summary>
 	public event Action? OnDataChanged;
@@ -66,19 +83,31 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	public event Action? OnDataLoaded;
 
 	/// <summary>
-	/// Fired when a non-fatal manager-operation exception occurs (e.g. background write/read failures,
-	/// or refresh-time exceptions raised by external consumers via <see cref="RaiseError"/>).
-	/// Subscribers MUST be non-throwing.
+	/// Observable stream of write-lifecycle events. Emits <see cref="WriteEventStart{TData}"/> at the
+	/// moment <see cref="UpdateAsync"/>/<see cref="SetDataAsync"/> is invoked, then a single terminal
+	/// <see cref="WriteEventSuccess{TData}"/> or <see cref="WriteEventError{TData}"/> when the
+	/// debounced write completes (success/error apply to ALL writeIds queued in the batch — see
+	/// <see cref="UpdateAsync"/> remarks).
 	/// </summary>
-	public event Action<Exception>? OnError;
+	/// <remarks>
+	/// Subscribers MUST be non-throwing AND thread-tolerant. Start events fire on the caller's thread;
+	/// Success/Error events fire on the ThreadPool (debouncer Timer callback). Read failures from
+	/// <see cref="ReadCoreAsync"/> also surface here as <see cref="WriteEventError{TData}"/> with a
+	/// fresh writeId — read failures are storage-layer events worth surfacing through the same channel.
+	/// </remarks>
+	public IObservable<WriteEvent<TData>> Writes => _writes;
 
 	/// <summary>
-	/// Raises the <see cref="OnError"/> event with the supplied exception. Available to external types
-	/// (e.g. <see cref="ProjectedSubtreeStorageAdapter"/>) that need to surface manager-related diagnostics
-	/// through the unified observability channel. Subscribers are responsible for non-throwing handling.
+	/// Emits a synthetic <see cref="WriteEventError{TData}"/> on the <see cref="Writes"/> stream with the
+	/// supplied exception. Available to external types (e.g. <see cref="ProjectedSubtreeStorageAdapter"/>)
+	/// that need to surface manager-related diagnostics through the unified observability channel.
+	/// Subscribers are responsible for non-throwing handling.
 	/// </summary>
 	/// <param name="ex">The non-fatal manager-operation exception to surface to subscribers.</param>
-	public void RaiseError(Exception ex) => OnError?.Invoke(ex);
+	public void RaiseWriteError(Exception ex)
+	{
+		_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, _data!, Problem.FromEx(ex)));
+	}
 
 	/// <summary>
 	/// Creates a new storage manager with the specified adapter and default options.
@@ -169,7 +198,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 
 	/// <summary>
 	/// The current in-memory data object.
-	/// Direct mutations are NOT tracked. Use <see cref="Update"/> to mutate with automatic persistence.
+	/// Direct mutations are NOT tracked. Use <see cref="UpdateAsync"/> to mutate with automatic persistence.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown if <see cref="InitializeAsync"/> has not been called.</exception>
 	public TData Data
@@ -182,45 +211,105 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	}
 
 	/// <summary>
-	/// Mutates the current data under lock and schedules a debounced write to backing storage.
-	/// The lock ensures serialization in <see cref="WriteCoreAsync"/> cannot read partially-mutated state.
+	/// Mutates the current data under lock, schedules a debounced write to backing storage, and
+	/// awaits the terminal write outcome.
 	/// </summary>
 	/// <param name="mutator">Action that mutates the current <see cref="Data"/> object.</param>
+	/// <param name="ct">
+	/// Cancels the AWAIT for this caller. The underlying debounced write is NOT cancelled; it
+	/// proceeds on its own schedule and other queued callers complete with the actual outcome.
+	/// </param>
+	/// <returns>
+	/// <see cref="Maybe{TData}"/> with <see cref="Maybe{T}.Value"/> = the post-write data snapshot
+	/// on success; <see cref="Maybe{T}.Problem"/> populated from the underlying adapter exception on
+	/// failure (or a synthesized "wait cancelled" Problem if the await was cancelled before the
+	/// debounced write completed).
+	/// </returns>
 	/// <exception cref="InvalidOperationException">Thrown if <see cref="InitializeAsync"/> has not been called.</exception>
 	/// <exception cref="ObjectDisposedException">Thrown if the manager has been disposed.</exception>
-	public void Update(Action<TData> mutator)
+	/// <remarks>
+	/// <b>Coalescing:</b> Multiple <see cref="UpdateAsync"/> calls within the
+	/// <see cref="SimpleStorageOptions.WriteDebounce"/> window coalesce into ONE underlying
+	/// <see cref="IStorageAdapter.WriteAsync"/>. Each caller's Task completes with the same
+	/// terminal outcome (success or failure) once the coalesced write resolves.
+	/// </remarks>
+	public Task<Maybe<TData>> UpdateAsync(Action<TData> mutator, CancellationToken ct = default)
 	{
 		if (!_isInitialized) throw new InvalidOperationException($"SimpleStorageManager<{typeof(TData).Name}> not initialized. Call InitializeAsync() first.");
 		if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
+
+		var writeId = Guid.NewGuid();
+		_writes.OnNext(new WriteEventStart<TData>(writeId, DateTimeOffset.UtcNow, _data!));
 
 		lock (_lock)
 		{
 			Interlocked.Increment(ref _dirtyGeneration);  // Mark dirty FIRST — worst case we write unchanged data
 			mutator(_data!);
 		}
+
+		var tcs = new TaskCompletionSource<Maybe<TData>>(TaskCreationOptions.RunContinuationsAsynchronously);
+		_pendingWrites.Enqueue((writeId, tcs));
 		_writeDebouncer!.Trigger();
 		OnDataChanged?.Invoke();
+
+		return AwaitWithCancellation(tcs.Task, ct);
 	}
 
 	/// <summary>
-	/// Replaces the entire data object under lock and schedules a debounced write to backing storage.
+	/// Replaces the entire data object under lock, schedules a debounced write, and awaits the
+	/// terminal write outcome. Mirrors <see cref="UpdateAsync"/> with full-replacement semantics.
 	/// </summary>
 	/// <param name="newData">The new data object. Must not be null.</param>
+	/// <param name="ct">Cancels the AWAIT for this caller (see <see cref="UpdateAsync"/> semantics).</param>
+	/// <returns>Same shape as <see cref="UpdateAsync"/>.</returns>
+	/// <exception cref="ArgumentNullException">Thrown if <paramref name="newData"/> is null.</exception>
 	/// <exception cref="InvalidOperationException">Thrown if <see cref="InitializeAsync"/> has not been called.</exception>
 	/// <exception cref="ObjectDisposedException">Thrown if the manager has been disposed.</exception>
-	public void SetData(TData newData)
+	public Task<Maybe<TData>> SetDataAsync(TData newData, CancellationToken ct = default)
 	{
 		ArgumentNullException.ThrowIfNull(newData);
 		if (!_isInitialized) throw new InvalidOperationException($"SimpleStorageManager<{typeof(TData).Name}> not initialized. Call InitializeAsync() first.");
 		if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
+
+		var writeId = Guid.NewGuid();
+		_writes.OnNext(new WriteEventStart<TData>(writeId, DateTimeOffset.UtcNow, newData));
 
 		lock (_lock)
 		{
 			_data = newData;
 			Interlocked.Increment(ref _dirtyGeneration);
 		}
+
+		var tcs = new TaskCompletionSource<Maybe<TData>>(TaskCreationOptions.RunContinuationsAsynchronously);
+		_pendingWrites.Enqueue((writeId, tcs));
 		_writeDebouncer!.Trigger();
 		OnDataChanged?.Invoke();
+
+		return AwaitWithCancellation(tcs.Task, ct);
+	}
+
+	private static async Task<Maybe<TData>> AwaitWithCancellation(Task<Maybe<TData>> task, CancellationToken ct)
+	{
+		if (!ct.CanBeCanceled)
+		{
+			return await task.ConfigureAwait(false);
+		}
+
+		var cancelTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var ctReg = ct.Register(static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true), cancelTcs);
+		var completed = await Task.WhenAny(task, cancelTcs.Task).ConfigureAwait(false);
+		if (ReferenceEquals(completed, task))
+		{
+			return await task.ConfigureAwait(false);
+		}
+
+		return Maybe<TData>.Error(new Problem
+		{
+			Status = HttpStatusCode.Gone,
+			Title = "WaitCancelled",
+			Detail = "UpdateAsync wait cancelled — underlying write may still proceed",
+			category = Problem.CategoryNames.Timeout,
+		});
 	}
 
 	/// <summary>
@@ -234,7 +323,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// <param name="newData">The new data object (read out of the upstream source). Must not be null.</param>
 	/// <remarks>
 	/// <para>
-	/// Invariants vs <see cref="SetData"/>:
+	/// Invariants vs <see cref="SetDataAsync"/>:
 	/// <list type="bullet">
 	///   <item><b>Same:</b> guards (null/initialized/disposed), lock acquisition for the assignment, raises <see cref="OnDataChanged"/>.</item>
 	///   <item><b>Different:</b> does NOT increment <c>_dirtyGeneration</c> and does NOT trigger the write debouncer.</item>
@@ -258,7 +347,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// </para>
 	/// <para>
 	/// <see cref="OnDataChanged"/> is raised AFTER the lock is released to match the invariant
-	/// established by <see cref="SetData"/>/<see cref="Update"/> (subscribers must not observe
+	/// established by <see cref="SetDataAsync"/>/<see cref="UpdateAsync"/> (subscribers must not observe
 	/// <c>_lock</c> being held).
 	/// </para>
 	/// </remarks>
@@ -310,7 +399,8 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// </para>
 	/// <para>
 	/// Each registered action is invoked exactly once during <see cref="DisposeAsync"/>;
-	/// exceptions thrown by an action are swallowed so a single failing cleanup does not block
+	/// exceptions thrown by an action are surfaced via <see cref="Writes"/> as
+	/// <see cref="WriteEventError{TData}"/> so a single failing cleanup does not block
 	/// disposal of other resources. Actions fire BEFORE debouncer/adapter teardown so any
 	/// unsubscriptions complete while the manager is still in a coherent state.
 	/// </para>
@@ -369,10 +459,10 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// </para>
 	/// <para>
 	/// For instances constructed without seeded defaults, this is equivalent to
-	/// <c>SetData(new TData())</c> — matches the pre-seeded-defaults behavior.
+	/// <c>SetDataAsync(new TData())</c> — matches the pre-seeded-defaults behavior.
 	/// </para>
 	/// <para>
-	/// Raises <see cref="OnDataChanged"/> via the internal <see cref="SetData"/> call and flushes
+	/// Raises <see cref="OnDataChanged"/> via the internal <see cref="SetDataAsync"/> call and flushes
 	/// pending writes synchronously so the backing store reflects defaults on return.
 	/// </para>
 	/// </remarks>
@@ -397,8 +487,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 			defaults = new TData();
 		}
 
-		SetData(defaults);
-		await FlushAsync(ct);
+		_ = await SetDataAsync(defaults, ct);
 	}
 
 	/// <summary>
@@ -415,17 +504,33 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 
 	/// <summary>
 	/// Serializes current data to JSON under lock and writes to the backing store.
+	/// Drains all pending UpdateAsync TCSes with the terminal Maybe outcome and emits
+	/// <see cref="WriteEventSuccess{TData}"/> or <see cref="WriteEventError{TData}"/>.
 	/// </summary>
 	private async Task WriteCoreAsync(CancellationToken ct = default)
 	{
 		string json;
 		long capturedGeneration;
+		TData snapshot;
 		lock (_lock)
 		{
 			if (Volatile.Read(ref _dirtyGeneration) == Volatile.Read(ref _writtenGeneration)) return;
 			capturedGeneration = _dirtyGeneration;
 			json = JsonSerializer.Serialize(_data, _jsonOptions);
+			snapshot = _data!;
 		}
+
+		// Drain pending TCSes for ALL writeIds queued before this WriteCoreAsync started.
+		// Coalescing semantic: every pending UpdateAsync caller in this batch resolves with the
+		// same Maybe outcome derived from the single underlying adapter call. The coalesced
+		// "first" id is used for the WriteEventSuccess/Error correlation.
+		var batch = new List<(Guid writeId, TaskCompletionSource<Maybe<TData>> tcs)>();
+		while (_pendingWrites.TryDequeue(out var entry))
+		{
+			batch.Add(entry);
+		}
+		var batchWriteId = batch.Count > 0 ? batch[0].writeId : Guid.NewGuid();
+		var stopwatch = Stopwatch.StartNew();
 
 		using (await _ioGate.LockAsync(ct))
 		{
@@ -434,20 +539,41 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 				await _adapter.WriteAsync(json, ct);
 				// Advance _writtenGeneration to what we serialized.
 				// _ioGate serializes writes, so no concurrent writer can race here.
-				// If _dirtyGeneration advanced past capturedGeneration (concurrent Update()),
+				// If _dirtyGeneration advanced past capturedGeneration (concurrent UpdateAsync()),
 				// the gap remains and the next debounced write picks up the newer data.
 				Volatile.Write(ref _writtenGeneration, capturedGeneration);
+				stopwatch.Stop();
+
+				_writes.OnNext(new WriteEventSuccess<TData>(batchWriteId, DateTimeOffset.UtcNow, snapshot, stopwatch.Elapsed));
+				var success = Maybe<TData>.Success(snapshot);
+				foreach (var entry in batch)
+				{
+					entry.tcs.TrySetResult(success);
+				}
 			}
 			catch (OperationCanceledException) when (ct.IsCancellationRequested)
 			{
-				throw;  // Propagate cancellation — not an error
+				stopwatch.Stop();
+				// Cancellation is propagated to the awaiter; drain pending TCSes with cancellation.
+				foreach (var entry in batch)
+				{
+					entry.tcs.TrySetCanceled(ct);
+				}
+				throw;
 			}
-			// Adapter write failures are non-fatal — surface via OnError event, do not crash the app.
+			// Adapter write failures are non-fatal — surface via Writes observable, do not crash the app.
 #pragma warning disable NN_R005
 			catch (Exception ex)
 #pragma warning restore NN_R005
 			{
-				OnError?.Invoke(ex);
+				stopwatch.Stop();
+				var problem = Problem.FromEx(ex);
+				_writes.OnNext(new WriteEventError<TData>(batchWriteId, DateTimeOffset.UtcNow, snapshot, problem));
+				var failure = Maybe<TData>.Error(problem);
+				foreach (var entry in batch)
+				{
+					entry.tcs.TrySetResult(failure);
+				}
 			}
 		}
 	}
@@ -516,7 +642,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 			{
 				throw;  // Propagate cancellation — not an error
 			}
-			// Adapter read failures are non-fatal — surface via OnError event, create default TData.
+			// Adapter read failures are non-fatal — surface via Writes observable, create default TData.
 #pragma warning disable NN_R005
 			catch (Exception ex)
 #pragma warning restore NN_R005
@@ -532,7 +658,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 						_data ??= new TData();
 					}
 				}
-				OnError?.Invoke(ex);
+				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, _data!, Problem.FromEx(ex)));
 			}
 		}
 		OnDataLoaded?.Invoke();
@@ -563,11 +689,14 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 		}
 		foreach (var action in actionsToInvoke)
 		{
-			// Disposal actions are best-effort — surface failures via OnError so a single
+			// Disposal actions are best-effort — surface failures via Writes so a single
 			// failing callback does not block other cleanup nor the manager's own teardown.
 #pragma warning disable NN_R005
 			try { action(); }
-			catch (Exception ex) { OnError?.Invoke(ex); }
+			catch (Exception ex)
+			{
+				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, _data ?? new TData(), Problem.FromEx(ex)));
+			}
 #pragma warning restore NN_R005
 		}
 
@@ -582,12 +711,12 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 			{
 				await WriteCoreAsync();
 			}
-			// Flush failure during disposal is non-fatal — surface via OnError event.
+			// Flush failure during disposal is non-fatal — surface via Writes observable.
 #pragma warning disable NN_R005
 			catch (Exception ex)
 #pragma warning restore NN_R005
 			{
-				OnError?.Invoke(ex);
+				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, _data ?? new TData(), Problem.FromEx(ex)));
 			}
 		}
 
