@@ -349,4 +349,145 @@ public class TestComponentDual
         var path = "/TestProject/Components/TestComponentDual.cs";
         await VerifyAsync(source, path);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // D9-DRIFT — Pattern 1 with post-D9 `Behavior` property (inherited from
+    // NnAsyncBoundComponentBase<TValue>) → REPORT.
+    // Verifies MixinFieldNames now includes "Behavior" so the property-style receiver
+    // (not the pre-D9 `_behavior` field) is detected by Pattern 1's token-level filter.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task Test_Pattern1_PostD9BehaviorPropertyReadsMixinState_Reports()
+    {
+        var source = @"using NotNot.BlazorDesign.NnDesign.AsyncBound;
+
+namespace NotNot.BlazorDesign.NnDesign;
+
+public class TestComponent
+{
+    // D9 shape: protected property named 'Behavior' (in real code, inherited from
+    // NnAsyncBoundComponentBase<TValue>; simplified to a same-class field here for the test).
+    protected NnAsyncBoundBehavior<bool>? Behavior;
+
+    public void OnSyncHandler()
+    {
+        if (Behavior != null && {|#0:Behavior.IsInFlight|})
+        {
+            // Violation: sync method body reads renamed mixin state property.
+        }
+    }
+}
+";
+        var path = "/TestProject/Components/TestComponentD9Pattern1.cs";
+        await VerifyAsync(source, path,
+            ExpectedAtMarker("method 'OnSyncHandler'", "Behavior.IsInFlight"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // D6 — Pattern 2 with post-D9 `Behavior` property + SemanticModel receiver-type check
+    // → REPORT. Verifies the SemanticModel-based receiver verification (which replaced the
+    // pre-D6 name-only `_behavior` token match) correctly detects the renamed receiver
+    // because its TYPE is NnAsyncBoundBehavior<T>, not because of its name.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task Test_Pattern2_PostD9BehaviorReceiverType_Reports()
+    {
+        var source = @"using NotNot.BlazorDesign.NnDesign.AsyncBound;
+
+namespace NotNot.BlazorDesign.NnDesign;
+
+public class TestComponent
+{
+    // D9 shape: 'Behavior' property typed as NnAsyncBoundBehavior<T> — type-check fires.
+    protected NnAsyncBoundBehavior<bool>? Behavior;
+
+    public void OnSyncHandler(bool value)
+    {
+        // D6: receiver is named 'Behavior' (post-D9 rename); pre-D6 token-only match would
+        // have missed this; D6 SemanticModel check on receiver-type catches it.
+        var result = {|#0:Behavior!.NotifyChange(value).GetAwaiter().GetResult()|};
+    }
+}
+";
+        var path = "/TestProject/Components/TestComponentD6Pattern2.cs";
+        await VerifyAsync(source, path,
+            ExpectedAtMarker("method 'OnSyncHandler'",
+                "Behavior.NotifyChange().GetAwaiter().GetResult()"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // D6 false-positive prevention — `Behavior`-named field whose TYPE is unrelated to
+    // NnAsyncBoundBehavior<T> → NO diagnostic. Verifies D6 type-check actually gates the
+    // diagnostic by receiver type, not just by receiver name.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task Test_Pattern2_NonMixinBehaviorField_NotReported()
+    {
+        var source = @"using System.Threading.Tasks;
+
+namespace NotNot.BlazorDesign.NnDesign;
+
+// Unrelated type that coincidentally has a NotifyChange method returning Task — but
+// it is NOT NnAsyncBoundBehavior<T>, so D6's receiver-type check must reject it.
+public class UnrelatedBehavior
+{
+    public Task<int> NotifyChange(int v) => Task.FromResult(v);
+}
+
+public class TestComponent
+{
+    // Receiver named 'Behavior' (in MixinFieldNames for Pattern 1/3 token check),
+    // but typed as UnrelatedBehavior — Pattern 2's D6 SemanticModel check rejects this.
+    private UnrelatedBehavior? Behavior;
+
+    public void OnSyncHandler(int value)
+    {
+        // No diagnostic: D6 type-check sees receiver type = UnrelatedBehavior, not
+        // NnAsyncBoundBehavior<T>. The name 'Behavior' alone is insufficient.
+        var result = Behavior!.NotifyChange(value).GetAwaiter().GetResult();
+    }
+}
+";
+        var path = "/TestProject/Components/TestComponentD6Negative.cs";
+        await VerifyAsync(source, path);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // D5 — Pattern 3 positional-argument detection via SemanticModel parameter resolution.
+    // Lambda passed as a positional argument to a method whose parameter name matches a
+    // sync-callback name. Pre-D5, positional args bypassed Pattern 3 silently.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task Test_Pattern3_PositionalSyncCallbackArgument_Reports()
+    {
+        var source = @"using System;
+using NotNot.BlazorDesign.NnDesign.AsyncBound;
+
+namespace NotNot.BlazorDesign.NnDesign;
+
+public class TestComponent
+{
+    private NnAsyncBoundBehavior<bool>? _behavior;
+
+    // Parameter name 'ValueChanged' matches SyncCallbackNames.
+    public void RegisterCallback(Action<bool> ValueChanged) { }
+
+    public void Wire()
+    {
+        // D5: positional argument — SemanticModel resolves the parameter at index 0,
+        // finds name 'ValueChanged' → in SyncCallbackNames → Pattern 3 fires.
+        // Pre-D5, this call site silently bypassed Pattern 3.
+        RegisterCallback({|#0:v => { var _ = _behavior; }|});
+    }
+}
+";
+        var path = "/TestProject/Components/TestComponentD5Pattern3.cs";
+        await VerifyAsync(source, path,
+            ExpectedAtMarker("method 'Wire'",
+                "sync lambda captures '_behavior'"));
+    }
 }

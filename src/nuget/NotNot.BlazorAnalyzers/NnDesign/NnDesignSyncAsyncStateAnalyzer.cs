@@ -35,29 +35,48 @@ namespace NotNot.BlazorAnalyzers.NnDesign;
 ///   <item>
 ///     <description>
 ///     <b>Pattern 1</b>: sync method body or sync lambda reads
-///     <c>_behavior.IsInFlight</c> / <c>_behavior.InDebounce</c> /
-///     <c>_behavior.SpinnerVisible</c> / <c>_behavior.InlineErrorMessage</c> /
-///     <c>_behavior.LastError</c> (also <c>_singleBehavior.*</c> / <c>_multiBehavior.*</c>
-///     for NnChipSet dual-mixin).
+///     <c>{receiver}.IsInFlight</c> / <c>{receiver}.InDebounce</c> /
+///     <c>{receiver}.SpinnerVisible</c> / <c>{receiver}.InlineErrorMessage</c> /
+///     <c>{receiver}.LastError</c>, where <c>{receiver}</c> matches a name in
+///     <c>MixinFieldNames</c>: <c>_behavior</c> (pre-D9 private field),
+///     <c>_singleBehavior</c>/<c>_multiBehavior</c> (NnChipSet dual-mixin), or
+///     <c>Behavior</c> (post-D9 inherited property from
+///     <c>NnAsyncBoundComponentBase&lt;TValue&gt;</c>).
 ///     </description>
 ///   </item>
 ///   <item>
 ///     <description>
-///     <b>Pattern 2</b>: <c>.GetAwaiter().GetResult()</c> on <c>_behavior.NotifyChange(...)</c>
-///     / <c>_behavior.ExecuteAsync(...)</c> (or single/multi variants).
+///     <b>Pattern 2</b>: <c>.GetAwaiter().GetResult()</c> on
+///     <c>{receiver}.NotifyChange(...)</c> / <c>{receiver}.ExecuteAsync(...)</c>. <b>D6
+///     (2026-05-12)</b>: receiver verification uses <see cref="SemanticModel"/> to check that
+///     the receiver's resolved type's <see cref="ISymbol.OriginalDefinition"/> equals
+///     <c>NnAsyncBoundBehavior&lt;T&gt;</c>, replacing the pre-D6 name-only match. This makes
+///     Pattern 2 robust against renames (e.g. the D9 <c>_behavior</c> → <c>Behavior</c>
+///     refactor) and false-positive-free against unrelated types that happen to have a
+///     <c>NotifyChange</c> method.
 ///     </description>
 ///   </item>
 ///   <item>
 ///     <description>
 ///     <b>Pattern 3</b>: sync lambda passed to <c>ValueChanged</c> / <c>OnInput</c> /
-///     <c>OnClick</c> argument or assigned to a property/field with one of those names AND
-///     captures the <c>_behavior</c> field.
+///     <c>OnClick</c> — either as named-argument, assignment target, attribute argument,
+///     OR positional argument — AND the lambda body captures a mixin receiver (name in
+///     <c>MixinFieldNames</c>). <b>D5 (2026-05-12)</b>: positional-argument detection uses
+///     <see cref="SemanticModel"/> to resolve the enclosing invocation's method symbol and
+///     look up the parameter name at the argument's index, replacing the pre-D5 skip-path.
 ///     </description>
 ///   </item>
 /// </list>
 /// Render-time @markup interpolation (computed property getters, <c>BuildRenderTree</c> in
 /// .razor-generated code) is ALLOWED — those are legitimate render-time reads driven by the
 /// mixin's state-changed callback. Async methods and async lambdas are ALLOWED unconditionally.
+/// </para>
+/// <para>
+/// <b>Per-compilation caching</b>: <see cref="Initialize"/> resolves the open-generic
+/// <c>NnAsyncBoundBehavior&lt;T&gt;</c> symbol once via <see cref="AnalysisContext.RegisterCompilationStartAction"/>
+/// and threads it into Pattern 2. If the type isn't referenced by the compilation, action
+/// registration is skipped entirely (no analysis can legitimately match without the type
+/// in scope).
 /// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -70,12 +89,22 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
 
     private const string NnDesignNamespacePrefix = "NotNot.BlazorDesign";
 
-    /// <summary>Mixin field names recognized by the analyzer (single + dual-mixin variants).</summary>
+    /// <summary>
+    /// Mixin receiver-identifier names recognized by Patterns 1 + 3 (token-level capture detection).
+    /// Includes the pre-D9 private-field names (<c>_behavior</c>, <c>_singleBehavior</c>,
+    /// <c>_multiBehavior</c>) AND the post-D9 inherited property name <c>Behavior</c> from
+    /// <c>NnAsyncBoundComponentBase&lt;TValue&gt;</c>. Pattern 2 no longer relies on this list —
+    /// D6 upgraded Pattern 2 to SemanticModel-based receiver-type verification, which is
+    /// authoritative regardless of receiver name. The list still gates Pattern 1 (member-access
+    /// receiver) and Pattern 3 (lambda-capture) for performance (token check is O(1); semantic
+    /// resolution per MemberAccess would be CPU-expensive on every identifier).
+    /// </summary>
     private static readonly HashSet<string> MixinFieldNames = new(StringComparer.Ordinal)
     {
         "_behavior",
         "_singleBehavior",
         "_multiBehavior",
+        "Behavior",
     };
 
     /// <summary>Mixin state-property names recognized by Pattern 1.</summary>
@@ -130,21 +159,40 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
     public override void Initialize(AnalysisContext context)
     {
         // Skip generated code — .razor compiles to generated C# whose BuildRenderTree method
-        // contains render-time @markup interpolation that DOES legitimately read _behavior.X.
+        // contains render-time @markup interpolation that DOES legitimately read Behavior.X.
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
 
-        // Pattern 1 — sync handler reads mixin state property.
-        context.RegisterSyntaxNodeAction(AnalyzePattern1MemberAccess, SyntaxKind.SimpleMemberAccessExpression);
+        // D6: Resolve NnAsyncBoundBehavior<T> open-generic symbol once per compilation. Pattern 2
+        // requires the symbol for receiver-type verification via SymbolEqualityComparer on
+        // OriginalDefinition. If the type isn't referenced by this compilation, no Pattern can
+        // legitimately match anyway — skip registration entirely.
+        context.RegisterCompilationStartAction(compStart =>
+        {
+            var behaviorType = compStart.Compilation.GetTypeByMetadataName(
+                "NotNot.BlazorDesign.NnDesign.AsyncBound.NnAsyncBoundBehavior`1");
+            if (behaviorType is null)
+                return;
 
-        // Pattern 2 — sync handler blocks on Task via .GetAwaiter().GetResult().
-        context.RegisterSyntaxNodeAction(AnalyzePattern2GetAwaiterGetResult, SyntaxKind.InvocationExpression);
+            // Pattern 1 — sync handler reads mixin state property.
+            compStart.RegisterSyntaxNodeAction(
+                AnalyzePattern1MemberAccess,
+                SyntaxKind.SimpleMemberAccessExpression);
 
-        // Pattern 3 — sync lambda registered as sync-callback captures _behavior.
-        context.RegisterSyntaxNodeAction(AnalyzePattern3SyncLambda,
-            SyntaxKind.SimpleLambdaExpression,
-            SyntaxKind.ParenthesizedLambdaExpression,
-            SyntaxKind.AnonymousMethodExpression);
+            // Pattern 2 — sync handler blocks on Task via .GetAwaiter().GetResult().
+            // D6: Pattern 2 receives `behaviorType` for SemanticModel-based receiver verification.
+            compStart.RegisterSyntaxNodeAction(
+                ctx => AnalyzePattern2GetAwaiterGetResult(ctx, behaviorType),
+                SyntaxKind.InvocationExpression);
+
+            // Pattern 3 — sync lambda registered as sync-callback captures the mixin receiver.
+            // D5: positional-arg detection uses ctx.SemanticModel inside IsRegisteredAsSyncCallback.
+            compStart.RegisterSyntaxNodeAction(
+                AnalyzePattern3SyncLambda,
+                SyntaxKind.SimpleLambdaExpression,
+                SyntaxKind.ParenthesizedLambdaExpression,
+                SyntaxKind.AnonymousMethodExpression);
+        });
     }
 
     // ── Pattern 1 — sync method/lambda reads `_behavior` mixin state ──────────────────────
@@ -187,7 +235,9 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
 
     // ── Pattern 2 — `.GetAwaiter().GetResult()` on mixin async method ─────────────────────
 
-    private static void AnalyzePattern2GetAwaiterGetResult(SyntaxNodeAnalysisContext context)
+    private static void AnalyzePattern2GetAwaiterGetResult(
+        SyntaxNodeAnalysisContext context,
+        INamedTypeSymbol behaviorType)
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
 
@@ -210,21 +260,32 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
             return;
 
         // Walk further: the receiver of GetAwaiter() should be an invocation of a mixin
-        // async method: <mixinField>.NotifyChange(...) or <mixinField>.ExecuteAsync(...).
-        // Receiver of the mixin call MAY be a bare IdentifierName OR a null-forgiving
-        // suppression `<mixinField>!.<method>` (PostfixUnaryExpressionSyntax wrapping the
-        // IdentifierName) — both are unwrapped via TryGetMixinReceiverName.
+        // async method: <receiver>.NotifyChange(...) or <receiver>.ExecuteAsync(...).
         var taskProducer = getAwaiterAccess.Expression;
         if (taskProducer is not InvocationExpressionSyntax mixinCallInvocation)
             return;
         if (mixinCallInvocation.Expression is not MemberAccessExpressionSyntax mixinMemberAccess)
             return;
 
-        var receiverName = TryGetMixinReceiverName(mixinMemberAccess.Expression);
-        if (receiverName is null)
-            return;
         var methodName = mixinMemberAccess.Name.Identifier.ValueText;
         if (!MixinAsyncMethodNames.Contains(methodName))
+            return;
+
+        // D6: SemanticModel-based receiver-type verification.
+        // Resolve the receiver expression's type via SemanticModel and check its
+        // OriginalDefinition against the cached open-generic NnAsyncBoundBehavior<T> symbol.
+        // This is authoritative — the receiver may be a field named `_behavior` (pre-D9), a
+        // property named `Behavior` (post-D9 inherited from NnAsyncBoundComponentBase<TValue>),
+        // a local variable, a parameter, or any other expression that types as
+        // NnAsyncBoundBehavior<closed-generic>. The pre-D9 token-level match by name silently
+        // missed the D9 rename; SymbolEqualityComparer on OriginalDefinition catches any
+        // closed-generic regardless of receiver-syntax shape.
+        var receiverExpr = UnwrapNullForgiving(mixinMemberAccess.Expression);
+        var typeInfo = context.SemanticModel.GetTypeInfo(receiverExpr, context.CancellationToken);
+        var receiverType = typeInfo.Type ?? typeInfo.ConvertedType;
+        if (receiverType is not INamedTypeSymbol namedReceiver)
+            return;
+        if (!SymbolEqualityComparer.Default.Equals(namedReceiver.OriginalDefinition, behaviorType))
             return;
 
         // Namespace-scope filter.
@@ -234,12 +295,13 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
         // For Pattern 2, the very act of blocking on the Task via GetAwaiter().GetResult()
         // defeats the async pipeline regardless of enclosing context. Still, async methods
         // SHOULD use `await` instead — report unconditionally inside NnDesign.
+        var receiverDisplayName = GetReceiverDisplayName(receiverExpr);
         var enclosingDescription = GetEnclosingDescription(invocation);
         context.ReportDiagnostic(Diagnostic.Create(
             Rule,
             invocation.GetLocation(),
             enclosingDescription,
-            $"{receiverName}.{methodName}().GetAwaiter().GetResult()"));
+            $"{receiverDisplayName}.{methodName}().GetAwaiter().GetResult()"));
     }
 
     // ── Pattern 3 — sync lambda registered as sync-callback captures `_behavior` ──────────
@@ -254,8 +316,8 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
 
         // The lambda must be in a position that registers it as a sync callback —
         // ValueChanged / OnInput / OnClick assignment target, named-argument, or
-        // a positional argument to a method whose parameter name matches.
-        if (!IsRegisteredAsSyncCallback(node))
+        // a positional argument to a method whose parameter name matches (D5).
+        if (!IsRegisteredAsSyncCallback(node, context.SemanticModel, context.CancellationToken))
             return;
 
         // The lambda body must contain a reference to a mixin field (Pattern 3 capture).
@@ -407,11 +469,21 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
     /// <summary>
     /// Returns true when the lambda/anonymous-method is registered to a sync-callback name —
     /// either as named-argument <c>ValueChanged: lambda</c>, attribute-syntax-style assignment,
-    /// member-initializer for a property of that name, or positional argument to a parameter
-    /// whose name matches. Heuristic: walk parent chain; check argument context, assignment
-    /// context, and equals-value clause context.
+    /// member-initializer for a property of that name, OR a positional argument whose parameter
+    /// name (resolved via <see cref="SemanticModel"/>) matches a sync-callback name.
     /// </summary>
-    private static bool IsRegisteredAsSyncCallback(SyntaxNode node)
+    /// <remarks>
+    /// D5 (2026-05-12): added positional-argument resolution via SemanticModel parameter lookup.
+    /// Prior to D5, positional callsites silently bypassed Pattern 3 (the deferred-during-Phase-8
+    /// case). Positional resolution walks: <c>ArgumentSyntax</c> → <c>ArgumentListSyntax</c> →
+    /// enclosing invocation / object-creation / constructor-initializer, resolves the target
+    /// <see cref="IMethodSymbol"/>, indexes into <see cref="IMethodSymbol.Parameters"/> at the
+    /// argument's position, and returns the parameter <c>Name</c>.
+    /// </remarks>
+    private static bool IsRegisteredAsSyncCallback(
+        SyntaxNode node,
+        SemanticModel semanticModel,
+        System.Threading.CancellationToken cancellationToken)
     {
         var parent = node.Parent;
 
@@ -433,11 +505,17 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
                 if (SyncCallbackNames.Contains(nameColon.Name.Identifier.ValueText))
                     return true;
             }
-            // Positional argument: skip semantic resolution; this is the conservative path.
-            // (A full semantic check would resolve the parameter from the enclosing invocation —
-            // intentionally deferred per spec: "if pure-syntactic detection is impractical,
-            // use SemanticModel". For Phase 8, named-argument and assignment-target checks
-            // are the high-signal cases; positional in c# is rare for callback registration.)
+            else
+            {
+                // D5: Positional argument — resolve the enclosing invocation's method symbol
+                // via SemanticModel, then look up the parameter at this argument's index.
+                if (TryResolvePositionalParameterName(arg, semanticModel, cancellationToken, out var paramName)
+                    && paramName is not null
+                    && SyncCallbackNames.Contains(paramName))
+                {
+                    return true;
+                }
+            }
         }
 
         // Assignment: `this.ValueChanged = () => { ... };` or `instance.OnClick = lambda`.
@@ -465,13 +543,70 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
+    /// <summary>
+    /// D5 helper — resolves the parameter name corresponding to a positional argument's
+    /// position in the enclosing invocation, object-creation, or constructor-initializer.
+    /// </summary>
+    /// <remarks>
+    /// Returns <c>true</c> AND sets <paramref name="parameterName"/> when:
+    /// (a) the argument's grandparent is an <c>InvocationExpressionSyntax</c>,
+    /// <c>BaseObjectCreationExpressionSyntax</c>, or <c>ConstructorInitializerSyntax</c>,
+    /// (b) <see cref="SemanticModel"/> resolves a single <see cref="IMethodSymbol"/> for that
+    /// call, and (c) the argument's index is in range of the method's parameter list.
+    /// Returns <c>false</c> for params-array overflow positions, ambiguous overload resolution,
+    /// or any case where the parameter cannot be uniquely determined.
+    /// </remarks>
+    private static bool TryResolvePositionalParameterName(
+        ArgumentSyntax arg,
+        SemanticModel semanticModel,
+        System.Threading.CancellationToken cancellationToken,
+        out string? parameterName)
+    {
+        parameterName = null;
+
+        if (arg.Parent is not ArgumentListSyntax argList)
+            return false;
+        var argIndex = argList.Arguments.IndexOf(arg);
+        if (argIndex < 0)
+            return false;
+
+        var targetInfo = argList.Parent switch
+        {
+            InvocationExpressionSyntax invocation => semanticModel.GetSymbolInfo(invocation, cancellationToken),
+            BaseObjectCreationExpressionSyntax objCreation => semanticModel.GetSymbolInfo(objCreation, cancellationToken),
+            ConstructorInitializerSyntax ctorInit => semanticModel.GetSymbolInfo(ctorInit, cancellationToken),
+            _ => default,
+        };
+
+        var targetSymbol = targetInfo.Symbol ?? targetInfo.CandidateSymbols.FirstOrDefault();
+        if (targetSymbol is not IMethodSymbol method)
+            return false;
+
+        if (argIndex >= method.Parameters.Length)
+            return false; // params-array overflow OR ambiguous overload
+
+        parameterName = method.Parameters[argIndex].Name;
+        return true;
+    }
+
     // ── Shared helpers ────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns the mixin field name (e.g. <c>_behavior</c>) when <paramref name="expression"/>
-    /// resolves to a recognized mixin receiver — either a bare <see cref="IdentifierNameSyntax"/>
-    /// or a null-forgiving suppression (<c>_behavior!</c>) wrapping one. Returns null otherwise.
+    /// Returns the mixin receiver name (e.g. <c>_behavior</c> or <c>Behavior</c>) when
+    /// <paramref name="expression"/> resolves to a recognized mixin receiver — either a bare
+    /// <see cref="IdentifierNameSyntax"/> or a null-forgiving suppression (<c>_behavior!</c>)
+    /// wrapping one. Returns null otherwise.
     /// </summary>
+    /// <remarks>
+    /// Used by Pattern 1 (member-access receiver name match). Pattern 2 no longer uses this
+    /// helper — D6 replaced its name-based check with SemanticModel-based receiver-type
+    /// verification (see <c>AnalyzePattern2GetAwaiterGetResult</c>). Pattern 1 retains the
+    /// token-level check for performance: Pattern 1 fires on every
+    /// <c>SimpleMemberAccessExpression</c> in the compilation, and resolving each receiver's
+    /// type via SemanticModel would be CPU-expensive; the name-list filter is a cheap O(1)
+    /// pre-screen that yields high signal because the state-property name list
+    /// (<c>IsInFlight</c>, <c>InDebounce</c>, etc.) is already <c>NnAsyncBoundBehavior</c>-specific.
+    /// </remarks>
     private static string? TryGetMixinReceiverName(ExpressionSyntax expression)
     {
         // Unwrap null-forgiving operator `!` (PostfixUnaryExpression with `!` token).
@@ -488,6 +623,41 @@ public sealed class NnDesignSyncAsyncStateAnalyzer : DiagnosticAnalyzer
                 return name;
         }
         return null;
+    }
+
+    /// <summary>
+    /// D6 helper — strips a trailing null-forgiving operator (<c>!</c>) from an expression,
+    /// returning the inner operand. Pre-D9, the mixin receiver was typically a nullable
+    /// field accessed with <c>_behavior!.Method(...)</c>; post-D9 it's a nullable property
+    /// accessed with <c>Behavior!.Method(...)</c>. Both shapes wrap the actual receiver in a
+    /// <see cref="PostfixUnaryExpressionSyntax"/>; SemanticModel resolution must run on the
+    /// inner operand to get the value's type (not the operator's type).
+    /// </summary>
+    private static ExpressionSyntax UnwrapNullForgiving(ExpressionSyntax expression)
+    {
+        if (expression is PostfixUnaryExpressionSyntax postfix
+            && postfix.OperatorToken.IsKind(SyntaxKind.ExclamationToken))
+        {
+            return postfix.Operand;
+        }
+        return expression;
+    }
+
+    /// <summary>
+    /// D6 helper — extracts a human-readable receiver name for the diagnostic message format.
+    /// For an <see cref="IdentifierNameSyntax"/> receiver (the common case: a field or property
+    /// reference like <c>Behavior</c>), returns the identifier text. For a
+    /// <see cref="MemberAccessExpressionSyntax"/> receiver (e.g. <c>this.Behavior</c>),
+    /// returns the rightmost member name. Fallback uses the expression's textual form.
+    /// </summary>
+    private static string GetReceiverDisplayName(ExpressionSyntax expression)
+    {
+        return expression switch
+        {
+            IdentifierNameSyntax id => id.Identifier.ValueText,
+            MemberAccessExpressionSyntax mae => mae.Name.Identifier.ValueText,
+            _ => expression.ToString(),
+        };
     }
 
     private static bool HasAsyncModifier(SyntaxTokenList modifiers)
