@@ -37,6 +37,10 @@ public static class LinkTextHelpers
 	/// sits on whitespace or out of bounds (cursorPosition &lt; 0 or &gt;= text.Length, or
 	/// the text is null/empty).
 	/// </summary>
+	/// <remarks>
+	/// Package: <c>NotNot.Bcl.Core</c> · Namespace: <c>NotNot.Bcl.Core.EzLinkDetection</c><br/>
+	/// Using directive: <c>using NotNot.Bcl.Core.EzLinkDetection;</c>
+	/// </remarks>
 	public static (string Text, int Start, int Length)? ExtractWhitespaceBoundary(string text, int cursorPosition)
 	{
 		if (string.IsNullOrEmpty(text) || cursorPosition < 0 || cursorPosition >= text.Length)
@@ -67,6 +71,10 @@ public static class LinkTextHelpers
 	/// sits on whitespace or out of bounds (col &lt; 0 or &gt;= line.Length, or the line
 	/// is null/empty).
 	/// </summary>
+	/// <remarks>
+	/// Package: <c>NotNot.Bcl.Core</c> · Namespace: <c>NotNot.Bcl.Core.EzLinkDetection</c><br/>
+	/// Using directive: <c>using NotNot.Bcl.Core.EzLinkDetection;</c>
+	/// </remarks>
 	public static (int Start, int End)? GetSegmentBoundsAt(string line, int col)
 	{
 		if (string.IsNullOrEmpty(line) || col < 0 || col >= line.Length)
@@ -88,6 +96,10 @@ public static class LinkTextHelpers
 	/// <paramref name="line"/>, or <c>null</c> when the line is null, empty, or
 	/// entirely whitespace.
 	/// </summary>
+	/// <remarks>
+	/// Package: <c>NotNot.Bcl.Core</c> · Namespace: <c>NotNot.Bcl.Core.EzLinkDetection</c><br/>
+	/// Using directive: <c>using NotNot.Bcl.Core.EzLinkDetection;</c>
+	/// </remarks>
 	public static (int Start, int End)? GetFirstSegmentBounds(string line)
 	{
 		if (string.IsNullOrEmpty(line)) return null;
@@ -104,6 +116,10 @@ public static class LinkTextHelpers
 	/// <paramref name="line"/>, or <c>null</c> when the line is null, empty, or
 	/// entirely whitespace.
 	/// </summary>
+	/// <remarks>
+	/// Package: <c>NotNot.Bcl.Core</c> · Namespace: <c>NotNot.Bcl.Core.EzLinkDetection</c><br/>
+	/// Using directive: <c>using NotNot.Bcl.Core.EzLinkDetection;</c>
+	/// </remarks>
 	public static (int Start, int End)? GetLastSegmentBounds(string line)
 	{
 		if (string.IsNullOrEmpty(line)) return null;
