@@ -43,6 +43,8 @@ public static class __GcHelper
 		//see https://devblogs.microsoft.com/dotnet/the-updated-getgcmemoryinfo-api-in-net-5-0-and-how-it-can-help-you/
 
 		//get info on different kinds of gc https://docs.microsoft.com/en-us/dotnet/api/system.gckind?f1url=%3FappId%3DDev16IDEF1%26l%3DEN-US%26k%3Dk(System.GCKind);k(DevLang-csharp)%26rd%3Dtrue&view=net-6.0
+		// GC.GetGCMemoryInfo throws PlatformNotSupportedException on Blazor WASM; leave the GCMemoryInfo fields default there (PauseDurations stays empty → _Sum() = 0).
+		if (!OperatingSystem.IsBrowser())
 		{
 			gcDetails.infoEphemeral = GC.GetGCMemoryInfo(GCKind.Ephemeral);
 			gcDetails.infoBackground = GC.GetGCMemoryInfo(GCKind.Background);
@@ -69,9 +71,17 @@ public static class __GcHelper
 			if (cachedString == null)
 			{
 				var counts = $"{currentGcCount} (0={g0Count}/1={g1Count}/2={g2Count})";
-				var pauses =
-					$"{(infoEphemeral.PauseDurations._Sum() + infoBackground.PauseDurations._Sum() + infoFullBlocking.PauseDurations._Sum()).TotalMilliseconds:00.0}ms(EP={infoEphemeral.PauseDurations._Sum().TotalMilliseconds:00}/BG={infoBackground.PauseDurations._Sum().TotalMilliseconds:00}/FB={infoFullBlocking.PauseDurations._Sum().TotalMilliseconds:00})";
-
+				string pauses;
+				// GCMemoryInfo.PauseDurations throws NullReferenceException on Blazor WASM even when the struct is default-initialized (internal storage is null and the getter doesn't guard).
+				if (OperatingSystem.IsBrowser())
+				{
+					pauses = "(unavailable on browser/WASM)";
+				}
+				else
+				{
+					pauses =
+						$"{(infoEphemeral.PauseDurations._Sum() + infoBackground.PauseDurations._Sum() + infoFullBlocking.PauseDurations._Sum()).TotalMilliseconds:00.0}ms(EP={infoEphemeral.PauseDurations._Sum().TotalMilliseconds:00}/BG={infoBackground.PauseDurations._Sum().TotalMilliseconds:00}/FB={infoFullBlocking.PauseDurations._Sum().TotalMilliseconds:00})";
+				}
 				cachedString = $"counts={counts} pause={pauses}";
 			}
 
