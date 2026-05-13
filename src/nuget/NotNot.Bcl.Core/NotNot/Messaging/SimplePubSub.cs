@@ -38,6 +38,7 @@ namespace NotNot.Messaging;
 /// while(queue.TryDequeue(out var message)){ Console.Writeline(message); }  //do work with the message <para />
 /// </code>
 /// </summary>
+[Obsolete("use PubSub instead")]
 public class SimplePubSub
 {
 	/// <summary>
