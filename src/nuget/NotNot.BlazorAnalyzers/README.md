@@ -94,6 +94,165 @@ The marker can appear anywhere in the file. The text after the second colon is d
 dotnet_diagnostic.NNB022.severity = error
 ```
 
+### NN_LDDD_001: Server-Assembly Type Referenced in Shared/Client Code
+
+**Severity:** Warning
+**Category:** LiteDDD.AssemblyFence
+
+Detects when a `.Shared` or `.Client` assembly references a type defined in a `.Server` assembly. The LiteDDD architecture treats `.Server` assemblies as the home of domain logic, database entities, and application services; Shared/Client must communicate via Refit data-service interfaces and DTOs, never via direct type references.
+
+The analyzer hooks a `SyntaxNodeAction` on `IdentifierName`, resolves the symbol via the semantic model, walks to the symbol's containing assembly, and checks whether the assembly identity name ends in `.Server`. Self-references (same compilation) are ignored.
+
+```csharp
+// In Novaleaf.VibeOverwatch.Shared:
+
+// ❌ NN_LDDD_001 fires — type lives in Novaleaf.VibeOverwatch.Server
+using Novaleaf.VibeOverwatch.Server.Features.SessionManagement.AppLogic;
+public class SomeShared { private SessionUseCases _svc; }
+
+// ✅ Inject a Refit interface defined in Shared/Features/*/Contracts/ instead
+public class SomeShared { [Inject] private IVowSessionDataService Svc { get; set; } = null!; }
+```
+
+**Fix:** Move the shared type to `Shared/Features/{Feature}/Contracts/` or define a DTO in Shared. If the type is genuinely server-side, route through a Refit data-service interface marked with `[LdddDataService]`. For sibling primitive libraries that have no notion of LiteDDD layering, apply `[assembly: LdddBypass]`.
+
+### NN_LDDD_002: Server-Namespace Using Directive in Shared/Client Code
+
+**Severity:** Warning
+**Category:** LiteDDD.AssemblyFence
+
+Detects `using` directives that import a server-side namespace into a `.Shared` or `.Client` assembly. Even when no symbol from the namespace is referenced, the import creates a dependency direction that violates the assembly fence.
+
+Hybrid detection across three pathways:
+
+1. **Plain `.cs` files** — Roslyn semantic analysis via `SyntaxNodeAction` on `UsingDirective`. The namespace symbol is resolved semantically, and the analyzer checks whether the namespace contains a `.Server.` mid-segment or ends in `.Server`. A text-pattern fallback applies when the namespace fails to resolve (e.g., when the Server assembly is not referenced by the Shared compilation).
+2. **`.razor.cs` code-behind files** — text-scan via AdditionalFiles using a line-anchored regex on `^\s*@?using\s+([\w\.]+\.Server(?:\.[\w\.]+)?)\s*;?\s*$`.
+3. **`.razor` markup files** — same regex applied to `@using` directives.
+
+```razor
+@* In Novaleaf.VibeOverwatch.Shared/Components/Pages/SomePage.razor *@
+
+@* ❌ NN_LDDD_002 fires *@
+@using Novaleaf.VibeOverwatch.Server.Features.SessionManagement.AppLogic
+
+@* ✅ Import the Shared contracts namespace instead *@
+@using Novaleaf.VibeOverwatch.Features.SessionManagement.Contracts
+```
+
+**Fix:** Remove the import and route through a Shared contracts namespace. If shared types are needed, relocate them to `Shared/Features/{Feature}/Contracts/`. Bypass via `[assembly: LdddBypass]` for sibling primitive libraries.
+
+### NN_LDDD_003: Injected Service Not Marked [LdddDataService]
+
+**Severity:** Warning
+**Category:** LiteDDD.ComponentBoundary
+
+Detects properties marked with `[Inject]` on `ComponentBase`-derived classes when the injected type lacks the `[LdddDataService]` marker AND is not in the framework allow-list. The LiteDDD principle is that the Blazor component layer composes presentation from a narrow set of wire-level Refit data-services plus a curated set of framework infrastructure types.
+
+A `SymbolAction` on `NamedType` iterates members carrying the `[Inject]` attribute (matched by simple-name + namespace `Microsoft.AspNetCore.Components`). For each injected type, the analyzer checks the `[LdddDataService]` marker (simple-name OR fully-qualified-name) and the framework allow-list. The allow-list is matched against `OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)` with the `global::` prefix stripped, so generic types match their open-generic allow-list entries.
+
+**Framework allow-list** (built into the analyzer, evolves via PR):
+
+- `Microsoft.AspNetCore.Components.NavigationManager`
+- `Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider`
+- `Microsoft.Extensions.Logging.ILogger`, `Microsoft.Extensions.Logging.ILogger<T>`
+- `Microsoft.JSInterop.IJSRuntime`
+- `Microsoft.Extensions.Configuration.IConfiguration`
+- `Microsoft.Extensions.Localization.IStringLocalizer`, `Microsoft.Extensions.Localization.IStringLocalizer<T>`
+- `System.Net.Http.IHttpClientFactory`, `System.Net.Http.HttpClient`
+- `MudBlazor.IDialogService`, `MudBlazor.ISnackbar`
+- `Microsoft.AspNetCore.SignalR.Client.HubConnection`
+
+```csharp
+public class MyPage : ComponentBase
+{
+    // ❌ NN_LDDD_003 fires — IMyHelper has no marker and is not in the allow-list
+    [Inject] public IMyHelper Helper { get; set; } = null!;
+
+    // ✅ No diagnostic — IVowSessionDataService is marked [LdddDataService]
+    [Inject] public IVowSessionDataService SessionSvc { get; set; } = null!;
+
+    // ✅ No diagnostic — framework allow-list
+    [Inject] public NavigationManager Nav { get; set; } = null!;
+}
+```
+
+**Fix:** Mark the injected service interface with `[NotNot.Bcl.Diagnostics.LdddDataService]` if it is a Refit data-service contract. Otherwise add the type to the framework allow-list in `LdddInjectAndCallAnalyzer.FrameworkAllowList`. For class-scope suppression, apply `[LdddBypass]` to the component class; for whole-assembly opt-out, apply `[assembly: LdddBypass]`.
+
+### NN_LDDD_004: Entity Framework DbContext Referenced in Shared/Client Code
+
+**Severity:** Warning
+**Category:** LiteDDD.AssemblyFence
+
+Detects fields, properties, or parameters typed as `Microsoft.EntityFrameworkCore.DbContext` (or any subclass) inside a `.Shared` or `.Client` assembly. Persistence concerns live behind the Server boundary — leaking the ORM into the presentation layer violates LiteDDD layering.
+
+A `SymbolAction` on `Field` and `Property` symbols plus a `SyntaxNodeAction` on `Parameter` syntax nodes walks the inheritance chain via `INamedTypeSymbol.BaseType` checking for the fully-qualified type `Microsoft.EntityFrameworkCore.DbContext`. Type-name-only matching is intentionally avoided — custom types named `DbContext` in other namespaces would false-positive.
+
+```csharp
+// In Novaleaf.VibeOverwatch.Shared:
+
+// ❌ NN_LDDD_004 fires
+public class SomeShared
+{
+    private VowDbContext _db;  // VowDbContext : DbContext
+}
+
+// ✅ Route through a Refit data-service interface instead
+public class SomeShared
+{
+    [Inject] private IVowSessionDataService SessionSvc { get; set; } = null!;
+}
+```
+
+**Fix:** Move the DbContext access into the Server project. Expose the needed data via a Refit data-service interface marked with `[LdddDataService]` in `Shared/Features/{Feature}/Contracts/`, and inject the interface from the component. For class-scope suppression, apply `[LdddBypass]` to the containing type.
+
+### NN_LDDD_005: Direct Call to [LdddDomainService] from Blazor Component
+
+**Severity:** Warning
+**Category:** LiteDDD.ComponentBoundary
+
+Detects direct method invocations on a receiver whose type is marked `[LdddDomainService]`, when the call site is inside a `ComponentBase`-derived class. Domain services represent server-side compute that must be invoked via a Refit data-service proxy — calling them directly from a component bypasses the wire boundary.
+
+A `SyntaxNodeAction` on `InvocationExpression` matches calls of the form `receiver.Method(...)` (only explicit member access — implicit `this`-calls and static calls are out of scope for V1). The receiver's type is resolved via the semantic model, walked through the inheritance chain (bounded at 100 levels) checking for `[LdddDomainService]` by simple-name OR fully-qualified-name. The enclosing class must be `ComponentBase`-derived. Property access on a domain-service receiver is intentionally NOT diagnosed — only method invocations are.
+
+```csharp
+public class MyPage : ComponentBase
+{
+    private readonly PathResolver _resolver = new();  // PathResolver carries [LdddDomainService]
+
+    private void Compute()
+    {
+        // ❌ NN_LDDD_005 fires
+        var result = _resolver.Resolve(input);
+    }
+}
+
+// ✅ Inject an IEzLinkDetectionService (Refit, marked [LdddDataService]) and await
+//    a server endpoint that internally calls PathResolver.
+```
+
+**Fix:** Move the domain compute behind a Refit data-service endpoint. Define the call as a method on the appropriate `[LdddDataService]`-marked interface in `Shared/Features/{Feature}/Contracts/`, implement the server-side delegation in `Server/Features/{Feature}/AppLogic/`, and call the proxied interface from the component. For class-scope suppression, apply `[LdddBypass]` to the component class.
+
+### NN_LDDD_* — Bypass Mechanisms and Path Exemptions
+
+The NN_LDDD_* suite shares a layered bypass model:
+
+- **Whole-assembly bypass** — `[assembly: NotNot.Bcl.Diagnostics.LdddBypass]` (or a local internal copy declared as `[assembly: LdddBypass]`) short-circuits all five rules. Used by sibling primitive libraries (e.g., `NotNot.BlazorComponents`, `NotNot.BlazorDesign`) that have no notion of LiteDDD layering.
+- **Type-scope bypass (Wave 2 rules only)** — `[LdddBypass]` on a class or method suppresses `NN_LDDD_003` and `NN_LDDD_005` for that scope. The Wave 1 assembly-fence rules (`NN_LDDD_001`, `NN_LDDD_002`, `NN_LDDD_004`) ignore type-scope `[LdddBypass]` — use the assembly-level form for Wave 1 carve-outs.
+- **Path exemption** — Files under `Pages/Samples/**` are exempt from all five rules. This parallels the NNB022 carve-out: pedagogical sample pages may reference Server-side types and call domain services directly for demonstration purposes.
+
+The attribute markers (`LdddDataServiceAttribute`, `LdddDomainServiceAttribute`, `LdddBypassAttribute`) live in `NotNot.Bcl.Core` under the `NotNot.Bcl.Diagnostics` namespace. The analyzer matches the attributes by simple name as well as fully-qualified name, so consumers may declare local internal copies to avoid taking a runtime reference on the analyzer assembly.
+
+**Severity escalation** — escalate via `.editorconfig` once the LiteDDD migration backlog reaches zero:
+
+```ini
+[*.{razor,cs}]
+dotnet_diagnostic.NN_LDDD_001.severity = error
+dotnet_diagnostic.NN_LDDD_002.severity = error
+dotnet_diagnostic.NN_LDDD_003.severity = error
+dotnet_diagnostic.NN_LDDD_004.severity = error
+dotnet_diagnostic.NN_LDDD_005.severity = error
+```
+
 ### NNB002: JS Reference Disposal Required
 
 **Severity:** Error
@@ -445,6 +604,13 @@ dotnet_diagnostic.NNB010.severity = error
 dotnet_diagnostic.NNB011.severity = error
 dotnet_diagnostic.NNB012.severity = error
 dotnet_diagnostic.NNB013.severity = error
+
+# LiteDDD boundary rules (default: warning)
+dotnet_diagnostic.NN_LDDD_001.severity = warning
+dotnet_diagnostic.NN_LDDD_002.severity = warning
+dotnet_diagnostic.NN_LDDD_003.severity = warning
+dotnet_diagnostic.NN_LDDD_004.severity = warning
+dotnet_diagnostic.NN_LDDD_005.severity = warning
 ```
 
 ## Why These Rules?
