@@ -39,13 +39,14 @@ public unsafe struct PercentileSampler800<T> where T : unmanaged, IComparable<T>
 	public bool IsFilled => _fill >= _targetSampleCount;
 
 	/// <summary>
-	///    maximum samples this instance supports.   must be less than or equal to <see cref="MaxCapacity" />
+	///    maximum samples this instance supports. Must be between 1 and <see cref="MaxCapacity" />.
 	/// </summary>
 	public int TargetSampleCount
 	{
 		get => _targetSampleCount;
 		set
 		{
+			__.ThrowIfNot(value > 0, $"{nameof(TargetSampleCount)} must be greater than zero.");
 			__.GetLogger()._EzErrorThrow(value <= MaxCapacity,
 				$"({value}) is too big.  Samples must be equal to or less than MaxCapacity ({MaxCapacity})");
 			_targetSampleCount = value;
@@ -92,7 +93,7 @@ public unsafe struct PercentileSampler800<T> where T : unmanaged, IComparable<T>
 		fixed (byte* pBuffer = _samples._buffer)
 		{
 			var tBuffer = (T*)pBuffer;
-			return tBuffer[_nextIndex % TargetSampleCount];
+			return tBuffer[lastIndex];
 		}
 	}
 
@@ -180,7 +181,7 @@ public struct Percentiles<T> where T : IComparable<T>
 		sampleCount = len;
 		using var mem = RentedMem<T>.Allocate(len);
 		var sortedSamples = mem.GetSpan();
-      samples.CopyTo(sortedSamples);
+		samples.CopyTo(sortedSamples);
 		sortedSamples.Sort();
 		p0 = sortedSamples[0];
 		p5 = sortedSamples[5 * len / 100];

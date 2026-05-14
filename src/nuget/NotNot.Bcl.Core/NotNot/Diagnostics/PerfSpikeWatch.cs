@@ -115,6 +115,8 @@ public class PerfSpikeWatch
 	public PerfSpikeWatch(string? name = null, double messageWriteSensitivityFactor = 2.0,
 		double messageWriteThreshholdMs = 1.0, int pollSkipFrequency = 100)
 	{
+		__.ThrowIfNot(pollSkipFrequency > 0, $"{nameof(pollSkipFrequency)} must be greater than zero.");
+
 		if (name == null)
 		{
 			name = "";
@@ -199,6 +201,8 @@ public class PerfSpikeWatch
 	public string? Lap([CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0)
 	{
+		__.ThrowIfNot(pollSkipFrequency > 0, $"{nameof(pollSkipFrequency)} must be greater than zero.");
+
 		var elapsed = sw.Elapsed;
 		sw.Restart();
 		sampler.RecordSample(elapsed);
@@ -244,7 +248,7 @@ public class PerfSpikeWatch
 
 
 		}
-		else
+		else if (!sampler.IsFilled)
 		{
 			message += $"No percentiles yet ({_lapCount}/{sampler.TargetSampleCount} samples).";
 		}
