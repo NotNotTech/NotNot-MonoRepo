@@ -90,7 +90,7 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 		+ "Microsoft.Extensions.Localization.IStringLocalizer, "
 		+ "Microsoft.Extensions.Localization.IStringLocalizer<T>, "
 		+ "MudBlazor.IDialogService, System.Net.Http.IHttpClientFactory, "
-		+ "System.Net.Http.HttpClient, MudBlazor.ISnackbar, "
+		+ "System.Net.Http.HttpClient, System.IServiceProvider, MudBlazor.ISnackbar, "
 		+ "Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider, "
 		+ "Microsoft.AspNetCore.SignalR.Client.HubConnection. "
 		+ "Bypass via [assembly: LdddBypass] for whole-assembly opt-out, or [LdddBypass] on the "
@@ -173,6 +173,9 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 		// HTTP
 		"System.Net.Http.IHttpClientFactory",
 		"System.Net.Http.HttpClient",
+
+		// DI service-locator (framework-tier infrastructure; standard Blazor pattern)
+		"System.IServiceProvider",
 
 		// MudBlazor UI infrastructure (sibling primitive layer)
 		"MudBlazor.IDialogService",

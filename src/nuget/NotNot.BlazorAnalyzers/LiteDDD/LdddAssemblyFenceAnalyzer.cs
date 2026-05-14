@@ -425,9 +425,12 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 		if (LdddAnalyzerHelpers.IsExceptedPath(syntaxTreePath))
 			return;
 
-		// Suppress if the containing type has [LdddBypass].
-		if (LdddAnalyzerHelpers.HasLdddBypassAttribute(context.Symbol.ContainingType))
-			return;
+		// Phase 5 CR-3: NN_LDDD_004 honors ONLY assembly-level [LdddBypass] (handled at the
+		// ShouldAnalyzeCompilation gate). Type-level bypass is intentionally NOT honored here
+		// per vibeKnowledge §4c and TDD §3 line 218 — Wave 1 assembly-fence rules are
+		// assembly-scope only. Fields/properties have no method scope to consider. Matches the
+		// stance of NN_LDDD_001 (AnalyzeIdentifierName) and NN_LDDD_002 (AnalyzeUsingDirective)
+		// which similarly never consult HasLdddBypassAttribute(ISymbol).
 
 		var location = declaringSyntax.GetSyntax(context.CancellationToken).GetLocation();
 		var compilationAssemblyName = context.Compilation.Assembly.Identity.Name;
@@ -460,9 +463,15 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 		if (!LdddAnalyzerHelpers.IsEntityFrameworkDbContext(paramType))
 			return;
 
-		// Suppress if the enclosing type has [LdddBypass].
+		// Phase 5 CR-3: honor ONLY method-level [LdddBypass] (NOT type-level — Wave 1 fence is
+		// assembly-scope, with a narrow method-scope carve-out for parameters: a method may
+		// legitimately accept a DbContext for testing or extension shims and opt out with the
+		// attribute on its own declaration). Type-level walk intentionally removed per
+		// vibeKnowledge §4c — was previously masking violations across all methods of a
+		// [LdddBypass]-tagged type, contradicting the documented contract. Inline single-symbol
+		// attribute check (no chain walk) replaces HasLdddBypassAttribute(ISymbol?).
 		var enclosingSymbol = context.SemanticModel.GetEnclosingSymbol(parameter.SpanStart, context.CancellationToken);
-		if (LdddAnalyzerHelpers.HasLdddBypassAttribute(enclosingSymbol))
+		if (enclosingSymbol is IMethodSymbol enclosingMethod && HasLdddBypassAttributeDirect(enclosingMethod))
 			return;
 
 		var paramName = parameter.Identifier.ValueText;
@@ -479,6 +488,30 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 	}
 
 	// ── Helpers ───────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// Phase 5 CR-3 helper — checks ONLY the immediate symbol's <c>[LdddBypass]</c> attributes
+	/// without walking the containment chain. Used by NN_LDDD_004 parameter analysis to honor
+	/// method-scope bypass without leaking the suppression to all methods of the containing
+	/// type (which would contradict the vibeKnowledge §4c contract). Mirrors the matching
+	/// convention of <see cref="LdddAnalyzerHelpers.HasLdddBypassAttribute(IAssemblySymbol)"/>
+	/// (simple-name OR fully-qualified) but applies it once, not iteratively.
+	/// </summary>
+	private static bool HasLdddBypassAttributeDirect(ISymbol symbol)
+	{
+		foreach (var attribute in symbol.GetAttributes())
+		{
+			var attrClass = attribute.AttributeClass;
+			if (attrClass == null)
+				continue;
+
+			if (string.Equals(attrClass.Name, LdddAnalyzerHelpers.LdddBypassAttributeSimpleName, StringComparison.Ordinal))
+				return true;
+			if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.LdddBypassAttributeFullName, StringComparison.Ordinal))
+				return true;
+		}
+		return false;
+	}
 
 	/// <summary>
 	/// Returns true when the namespace symbol's root ends in <c>.Server</c>, OR the namespace's
