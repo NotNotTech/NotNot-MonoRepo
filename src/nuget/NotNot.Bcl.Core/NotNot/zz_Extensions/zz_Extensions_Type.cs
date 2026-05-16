@@ -351,7 +351,7 @@ public static class zz_Extensions_Type
 		}
 
 		ObfuscationAttribute attribute;
-		return memberInfo._TryGetAttribute(out attribute, false);
+		return memberInfo._TryGetAttribute(out attribute, noInherit: true);
 
 		//foreach (var attribute in memberInfo.GetCustomAttributes(false))
 		//{
@@ -384,10 +384,10 @@ public static class zz_Extensions_Type
 	/// <typeparam name="TAttribute"></typeparam>
 	/// <param name="memberInfo"></param>
 	/// <param name="attributeFound"></param>
-	/// <param name="inherit"></param>
+	/// <param name="noInherit">default false (include inherited attributes — mirrors BCL <see cref="MemberInfo.GetCustomAttributes(Type, bool)"/> with semantics inverted). set true to skip the inheritance chain.</param>
 	/// <returns></returns>
 	public static bool _TryGetAttribute<TAttribute>(this MemberInfo memberInfo, [NotNullWhen(true)] out TAttribute? attributeFound,
-		bool inherit = true) where TAttribute : Attribute
+		bool noInherit = false) where TAttribute : Attribute
 	{
 		//var found = memberInfo.GetCustomAttributes(typeof(TAttribute), inherit);
 		//if (found == null || found.Length == 0)
@@ -400,7 +400,7 @@ public static class zz_Extensions_Type
 
 
 		var attributeType = typeof(TAttribute);
-		foreach (var attribute in memberInfo.GetCustomAttributes(attributeType, inherit))
+		foreach (var attribute in memberInfo.GetCustomAttributes(attributeType, !noInherit))
 		{
 			//if (attribute is TAttribute)
 			{
@@ -414,7 +414,7 @@ public static class zz_Extensions_Type
 		{
 			foreach (var interf in type.GetInterfaces())
 			{
-				foreach (var attribute in interf.GetCustomAttributes(attributeType, inherit))
+				foreach (var attribute in interf.GetCustomAttributes(attributeType, !noInherit))
 				{
 					//if (attribute is TAttribute)
 					{

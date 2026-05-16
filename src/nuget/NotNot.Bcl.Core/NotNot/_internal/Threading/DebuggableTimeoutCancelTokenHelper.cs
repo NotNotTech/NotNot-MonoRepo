@@ -17,7 +17,7 @@ public static class DebuggableTimeoutCancelTokenHelper
 {
 	public static void CancelAfter(CancellationTokenSource cts, TimeSpan timeout)
 	{
-		if (__.Config.IsCtsDebuggableCancelTimeoutEnabled is not true)
+		if (__.Config.IsCtsDebuggableCancelTimeoutDisabled is true)
 		{
 			cts.CancelAfter(timeout);
 

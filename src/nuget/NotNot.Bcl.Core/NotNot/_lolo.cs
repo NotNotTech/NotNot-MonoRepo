@@ -184,12 +184,15 @@ public class TestHelper
 public record LoLoConfig
 {
    /// <summary>
-   ///    if set to true, can use the CancellationTokenSource._DebuggableCancelAfter()
-   ///    extension method for timeouts, and pausing in the debugger: won't cause
-   ///    the timeout to be triggered.
-   ///    <para>this is useful for stepping through code without timeouts expiring.</para>
+   ///    if set to true, DISABLES the CancellationTokenSource._DebuggableCancelAfter()
+   ///    extension method's debug-aware logic and falls back to the standard CancelAfter
+   ///    behavior. Default false: debug-aware logic is enabled; pausing in the debugger
+   ///    won't cause the timeout to be triggered.
+   ///    <para>The debug-aware mode is useful for stepping through code without timeouts
+   ///    expiring; set this to true if the debug-aware behavior interferes with your
+   ///    scenario.</para>
    /// </summary>
-   public bool IsCtsDebuggableCancelTimeoutEnabled { get; init; } = true;
+   public bool IsCtsDebuggableCancelTimeoutDisabled { get; init; } = false;
 
    /// <summary>
    ///    Set to true to force all tasks scheduled via `__.Async` to execute on a single thread.

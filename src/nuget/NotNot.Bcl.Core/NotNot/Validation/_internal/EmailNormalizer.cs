@@ -6,29 +6,34 @@ using System.Net.Mail;
 namespace NotNot.Validation._internal;
 
 /// <summary>
-/// Normalizer Settings
+/// Normalizer Settings. All properties default to false (the default is to perform full
+/// normalization); set a property to true to SKIP that normalization step.
 /// </summary>
 public class NormalizerSettings
 {
 	/// <summary>
-	/// Remove "." for applicable domains
+	/// Skip the dot-removal step for applicable domains. Default: false (dots ARE removed
+	/// for applicable domains).
 	/// </summary>
-	public bool RemoveDots { get; set; } = true;
+	public bool SkipDotRemoval { get; set; } = false;
 
 	/// <summary>
-	/// Remove tags (ex: '+' and '-') for applicable domains)
+	/// Skip the tag-removal step (ex: '+' and '-') for applicable domains. Default: false
+	/// (tags ARE removed for applicable domains).
 	/// </summary>
-	public bool RemoveTags { get; set; } = true;
+	public bool SkipTagRemoval { get; set; } = false;
 
 	/// <summary>
-	/// Lowercase
+	/// Preserve the original casing of the user part. Default: false (user part IS
+	/// lowercased).
 	/// </summary>
-	public bool LowerCase { get; set; } = true;
+	public bool PreserveCase { get; set; } = false;
 
 	/// <summary>
-	/// Replace the host with the canonical version (ex: googlemail.com => gmail.com)
+	/// Skip the host-canonicalization step (ex: googlemail.com => gmail.com). Default:
+	/// false (host IS canonicalized).
 	/// </summary>
-	public bool NormalizeHost { get; set; } = true;
+	public bool SkipHostNormalization { get; set; } = false;
 }
 
 /// <summary>
@@ -73,16 +78,16 @@ public static class EmailNormalizer
 		var host = email.Host.ToLower();
 		var user = email.User;
 
-		if (settings.LowerCase)
+		if (!settings.PreserveCase)
 			user = user.ToLowerInvariant();
 
-		if (settings.NormalizeHost && normalizedDomains.TryGetValue(host, out var normalizedHost))
+		if (!settings.SkipHostNormalization && normalizedDomains.TryGetValue(host, out var normalizedHost))
 			host = normalizedHost;
 
-		if (settings.RemoveDots && domainsWithDots.Contains(host))
+		if (!settings.SkipDotRemoval && domainsWithDots.Contains(host))
 			user = user.Replace(".", string.Empty);
 
-		if (settings.RemoveTags && domainTags.TryGetValue(host, out var tag) && user.IndexOf(tag) != -1)
+		if (!settings.SkipTagRemoval && domainTags.TryGetValue(host, out var tag) && user.IndexOf(tag) != -1)
 			user = user.Substring(0, user.IndexOf(tag));
 
 		return new MailAddress(user + "@" + host, email.DisplayName);

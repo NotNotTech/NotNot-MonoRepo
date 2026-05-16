@@ -147,12 +147,12 @@ public static class zz_Extensions_TimeSpan
 	///    implementation of exponential backoff waiting
 	/// </summary>
 	/// <param name="initialValue">value of 0 is ok, next value will be at least 1</param>
-	/// <param name="limit">the maximum time, excluding any random buffering via the <see cref="randomPadding" /> variable</param>
+	/// <param name="limit">the maximum time, excluding any random buffering via the <see cref="omitRandomPadding" /> variable</param>
 	/// <param name="multiplier">default is 2.  exponent used as y variable in power function</param>
-	/// <param name="randomPadding">default is true.  if true, add up to 1 second (randomized) to aid server load balancing</param>
+	/// <param name="omitRandomPadding">default false (random padding applied — up to 1 second added to aid server load balancing). set true to disable padding for deterministic timing.</param>
 	/// <returns></returns>
 	public static TimeSpan _ExponentialBackoff(this TimeSpan initialValue, TimeSpan limit, double multiplier = 2,
-		bool randomPadding = true)
+		bool omitRandomPadding = false)
 	{
 		__.GetLogger()._EzError(initialValue >= TimeSpan.Zero && limit >= TimeSpan.Zero, "input must not be Timespan.Zero");
 
@@ -160,7 +160,7 @@ public static class zz_Extensions_TimeSpan
 		var backoff = initialValue.Multiply(multiplier);
 		backoff = backoff > limit ? limit : backoff;
 
-		if (randomPadding)
+		if (!omitRandomPadding)
 		{
 			backoff += TimeSpan.FromSeconds(_random.NextDouble());
 		}
