@@ -340,3 +340,41 @@ If referencing this project directly (not the nuget package) be sure to add ` Ou
 <ProjectReference Include="..\lib\NotNot.GodotNet.SourceGen\NotNot.GodotNet.SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 ```
 
+## Diagnostic Anchor Reservations
+
+The following anchor IDs are reserved for the DI marker-enforcement analyzer rule family
+(`NotNot.Analyzers/Architecture/DI/DiMarkerEnforcementAnalyzer.cs`). Per-rule documentation
+pages with these anchors are pending — referenced by `HelpLinkUri` on each diagnostic descriptor.
+
+<a id="nn_di_001"></a>
+### NN_DI_001 — DI lifetime mismatch with marker interface
+
+Fires on `Add{L}<T>()` / `TryAdd{L}<T>()` where `T` implements `IDi{L'}Service` with `L != L'`.
+Severity: **Error**. Documentation page pending.
+
+<a id="nn_di_002"></a>
+### NN_DI_002 — Redundant explicit DI registration
+
+Fires on `Add{L}<T>()` where `T` already implements `IDi{L}Service` (matched lifetime — auto-registration
+would handle the same wiring). Severity: **Warning**. Documentation page pending.
+
+<a id="nn_di_003"></a>
+### NN_DI_003 — Passthrough DI factory replaceable with marker interface
+
+Fires on `Add{L}<T>(sp => new T(sp.GetRequiredService<...>(), ...))` when `T` is project-defined and
+does not already implement a marker interface. Severity: **Info**. Documentation page pending.
+
+<a id="nn_di_004"></a>
+### NN_DI_004 — DI service marker conflicts with IHostedService
+
+Fires on a class symbol implementing both a marker interface and
+`Microsoft.Extensions.Hosting.IHostedService`. Severity: **Error**. Documentation page pending.
+
+<a id="nn_di_005"></a>
+### NN_DI_005 — Missing IDi{L}Service marker — class is auto-registration candidate
+
+Fires on `Add{L}<T>()` / `Add{L}<TService, TImpl>()` where the implementation type is project-internal,
+non-abstract, lacks any `IDi{L}Service` marker, and isn't covered by an existing carve-out
+(`TryAdd*`, third-party, interface-bridge factory, `[AutoDiBypass]`). Severity: **Info**.
+Documentation page pending.
+

@@ -4,8 +4,9 @@ namespace NotNot.Bcl.Diagnostics;
 /// Marker that exempts a scope from the <c>NN_DI_*</c> dependency-injection marker-enforcement
 /// analyzer rule family (<c>NN_DI_001</c> lifetime mismatch, <c>NN_DI_002</c> redundant
 /// registration, <c>NN_DI_003</c> passthrough factory, <c>NN_DI_004</c> marker +
-/// <c>IHostedService</c>). Mirrors the <c>LdddBypassAttribute</c> precedent — single bypass
-/// marker that suppresses the entire analyzer rule family within the marked scope.
+/// <c>IHostedService</c>, <c>NN_DI_005</c> missing marker on auto-registration candidate).
+/// Mirrors the <c>LdddBypassAttribute</c> precedent — single bypass marker that suppresses the
+/// entire analyzer rule family within the marked scope.
 /// </summary>
 /// <remarks>
 /// <para>

@@ -7,7 +7,7 @@ namespace NotNot.Analyzers.Architecture.DI;
 
 /// <summary>
 /// Shared helpers for the DI marker-enforcement analyzer family
-/// (<c>NN_DI_001</c> through <c>NN_DI_004</c>). Mirrors the helper-extraction strategy
+/// (<c>NN_DI_001</c> through <c>NN_DI_005</c>). Mirrors the helper-extraction strategy
 /// used by <c>NotNot.BlazorAnalyzers.LiteDDD.LdddAnalyzerHelpers</c> (sibling project).
 /// </summary>
 /// <remarks>
@@ -199,8 +199,9 @@ internal static class DiAnalyzerHelpers
 	/// Returns true when an <c>Add{L}&lt;T&gt;</c> invocation's factory lambda matches the
 	/// passthrough shape: lambda body is exactly a single <c>new T(...)</c> expression whose
 	/// constructor arguments are <em>all</em> <c>sp.GetRequiredService&lt;...&gt;()</c> calls
-	/// (or its <c>GetService</c> sibling). Out-param <paramref name="concreteType"/> is set to
-	/// the constructed type when the match succeeds.
+	/// (or its <c>GetService</c> sibling), AND the constructor has at least one such argument.
+	/// Out-param <paramref name="concreteType"/> is set to the constructed type when the match
+	/// succeeds.
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -211,11 +212,25 @@ internal static class DiAnalyzerHelpers
 	/// expression-bodied-lambda OR a block-bodied lambda containing exactly one <c>return new T(...)</c>.
 	/// </para>
 	/// <para>
-	/// <b>Zero-argument constructors ARE classified as passthrough</b> (Wave 1 M1 review
-	/// disposition). The lambda body <c>new T()</c> is fully replaceable by auto-registration
-	/// on a marker interface — the factory adds zero value over the marker-driven path. Callers
-	/// should treat this as an intentionally-included case, not a false positive; NN_DI_003's
-	/// suggestion ("add IDi{L}Service marker, remove factory") is correct and actionable here.
+	/// <b>Wave 2 design tightening</b>: a passthrough factory MUST bridge at least one
+	/// DI-resolved dependency. Parameterless constructor bodies (<c>sp =&gt; new T()</c>),
+	/// object-initializer bodies (<c>sp =&gt; new T { Prop = x }</c>), and any factory with no
+	/// <c>GetRequiredService</c> arguments are NOT classified as passthrough — they have no DI
+	/// dependency to "pass through". Such factories fall through to NN_DI_005 (Wave 2's
+	/// missing-marker advisory), which correctly handles the broader "non-passthrough, unmarked
+	/// project-internal class" case. Wave 1's M1 review disposition (which included zero-arg
+	/// as passthrough) is REVERSED by this change — zero-arg `new T()` is structurally identical
+	/// to `Add{L}&lt;T&gt;()` (no factory needed), and NN_DI_005 is the more-precise diagnostic
+	/// for "unmarked class registered explicitly".
+	/// </para>
+	/// <para>
+	/// Also rejects object-initializer expressions: <c>new T { Prop = value }</c> sets
+	/// <see cref="IObjectCreationOperation.Initializer"/> to a non-null
+	/// <see cref="IObjectOrCollectionInitializerOperation"/>. The object-initializer carries
+	/// non-DI state (property values from the lambda closure or literals) — replacing with a
+	/// marker interface would silently drop that state, which is a behavior-changing
+	/// suggestion. NN_DI_005 still fires on the unmarked class — the developer reviews and
+	/// decides whether the initializer is essential.
 	/// </para>
 	/// <para>
 	/// The cast-unwrap loop at the start of body-extraction (M3 review fix) allows
@@ -245,6 +260,22 @@ internal static class DiAnalyzerHelpers
 		// cast-unwrap loop in IsServiceProviderGetCall.
 		var returned = UnwrapConversions(ExtractSingleReturnedOperation(lambda));
 		if (returned is not IObjectCreationOperation objectCreation)
+		{
+			return false;
+		}
+
+		// Wave 2 tightening: reject object-initializer bodies (`new T { Prop = x }`). The
+		// initializer carries non-DI state — replacing with a marker would silently drop it.
+		if (objectCreation.Initializer != null)
+		{
+			return false;
+		}
+
+		// Wave 2 tightening: require AT LEAST ONE DI-resolved constructor argument. Parameterless
+		// `new T()` is structurally identical to `Add{L}<T>()` (no factory needed); NN_DI_005 is
+		// the more-precise diagnostic for "unmarked class registered explicitly". Replaces Wave 1
+		// M1 review disposition (which included zero-arg as passthrough).
+		if (objectCreation.Arguments.Length == 0)
 		{
 			return false;
 		}
@@ -297,11 +328,36 @@ internal static class DiAnalyzerHelpers
 
 	/// <summary>
 	/// Returns true when the type's containing assembly matches the third-party-assembly ignore list
-	/// (Microsoft.*, System.*, Azure.*, MudBlazor.*, Serilog.*, netstandard*). Mirrors the
-	/// Scrutor-scan ignore list defined in
-	/// <c>NotNot.Bcl.Core/NotNot/DI/zz_Extensions_IServiceCollection_DI.cs</c>. Used by the analyzer
-	/// to skip enforcement on registrations of third-party types the user didn't author.
+	/// (Microsoft.*, System.*, Azure.*, MudBlazor*, Serilog*, netstandard*, NotNot.*). Used by the
+	/// analyzer to skip enforcement on registrations of third-party types the user didn't author.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>List divergence from runtime scanIgnore</b> (Wave 1 L1 review clarification): the
+	/// runtime Scrutor-scan ignore list in
+	/// <c>NotNot.Bcl.Core/NotNot/DI/zz_Extensions_IServiceCollection_DI.cs</c> currently excludes
+	/// <c>Microsoft.*</c>, <c>netstandard*</c>, <c>Serilog*</c>, <c>System*</c>, <c>Azure*</c>.
+	/// The analyzer's list adds <c>MudBlazor*</c> as defensive — even though the runtime scanIgnore
+	/// doesn't include it, user code rarely owns <c>MudBlazor.*</c> namespace types, so treating
+	/// them as third-party here avoids surface noise where the developer cannot add a marker
+	/// interface anyway. The asymmetry is intentional: the analyzer is allowed to be MORE
+	/// conservative (skip more sites) than the runtime — false-negatives in the analyzer are
+	/// preferable to false-positives that suggest impossible fixes.
+	/// </para>
+	/// <para>
+	/// <b><c>NotNot.*</c> prefix inclusion</b> (Wave 2 audit finding — Program.cs FP-rate
+	/// calibration): the <c>NotNot.*</c> assembly family contains internal-but-pre-marker types
+	/// (e.g. <c>NotNot.Bcl.Core/NotNot/SimpleStorageManager&lt;T&gt;</c>) that PRE-DATE the DI
+	/// marker family. Consumer code registers these via <c>AddSingleton&lt;SimpleStorageManager&lt;T&gt;&gt;()</c>
+	/// at the composition root, but the consuming project doesn't own the type — it cannot add a
+	/// marker interface to a sibling-primitive declared in a different package. Without this
+	/// carve-out, the empirical FP rate for NN_DI_005 against <c>Novaleaf.VibeOverwatch</c>'s
+	/// <c>Program.cs</c> would be 15.4% (4/26 sites); with it, 8.3% (2/24). The <c>NotNot.*</c>
+	/// inclusion treats sibling-primitive types as third-party for the purposes of the DI rule
+	/// family — they may eventually grow markers (durable migration path), but until then the
+	/// analyzer must not suggest impossible fixes.
+	/// </para>
+	/// </remarks>
 	internal static bool IsThirdPartyType(ITypeSymbol? type)
 	{
 		if (type == null)
@@ -320,7 +376,8 @@ internal static class DiAnalyzerHelpers
 			|| assemblyName!.StartsWith("Azure.", StringComparison.Ordinal)
 			|| assemblyName!.StartsWith("MudBlazor", StringComparison.Ordinal)
 			|| assemblyName!.StartsWith("Serilog", StringComparison.Ordinal)
-			|| assemblyName!.StartsWith("netstandard", StringComparison.Ordinal);
+			|| assemblyName!.StartsWith("netstandard", StringComparison.Ordinal)
+			|| assemblyName!.StartsWith("NotNot.", StringComparison.Ordinal);
 	}
 
 	// ── Internal helpers ───────────────────────────────────────────────────
@@ -375,10 +432,32 @@ internal static class DiAnalyzerHelpers
 	/// <see cref="IConversionOperation"/> nodes that Roslyn inserts when a lambda is converted
 	/// to a delegate type.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Lambda extraction filters by parameter type (Wave 1 M2 review fix): only arguments whose
+	/// parameter is <c>Func&lt;IServiceProvider, T&gt;</c> (or <c>Func&lt;IServiceProvider, object&gt;</c>
+	/// / <c>Func&lt;IServiceProvider, object?&gt;</c>) qualify. This prevents binding to a non-factory
+	/// lambda when user-defined extension methods sit in the <c>Microsoft.Extensions.DependencyInjection</c>
+	/// namespace and expose richer overloads (e.g. an <c>Action&lt;HostBuilderContext, IServiceProvider, T&gt;</c>
+	/// parameter alongside a factory delegate).
+	/// </para>
+	/// <para>
+	/// <b>Assumption</b>: the canonical Microsoft <c>Add{L}&lt;T&gt;</c> overloads accept the factory
+	/// as <c>Func&lt;IServiceProvider, TService&gt;</c> (1-arg) or
+	/// <c>Func&lt;IServiceProvider, TImplementation&gt;</c> (2-arg). When the analyzer is invoked
+	/// against a custom DI extension whose factory signature differs, this filter will reject the
+	/// extension's lambda — by design.
+	/// </para>
+	/// </remarks>
 	private static IAnonymousFunctionOperation? ExtractFactoryLambda(IInvocationOperation invocation)
 	{
 		foreach (var arg in invocation.Arguments)
 		{
+			if (!IsFactoryDelegateParameter(arg.Parameter?.Type))
+			{
+				continue;
+			}
+
 			var lambda = UnwrapToLambda(arg.Value);
 			if (lambda != null)
 			{
@@ -386,6 +465,28 @@ internal static class DiAnalyzerHelpers
 			}
 		}
 		return null;
+	}
+
+	/// <summary>
+	/// Returns true when <paramref name="parameterType"/> matches the canonical MS.DI factory
+	/// delegate shape: <c>Func&lt;IServiceProvider, T&gt;</c> for any <c>T</c>. Accepts both
+	/// generic <c>T</c> and the open-erased <c>Func&lt;IServiceProvider, object[?]&gt;</c> form.
+	/// Wave 1 M2 review fix.
+	/// </summary>
+	private static bool IsFactoryDelegateParameter(ITypeSymbol? parameterType)
+	{
+		if (parameterType is not INamedTypeSymbol named
+			|| !named.IsGenericType
+			|| named.TypeArguments.Length != 2
+			|| !string.Equals(named.Name, "Func", StringComparison.Ordinal))
+		{
+			return false;
+		}
+
+		// First type-arg must be IServiceProvider (by FQN, ignoring `global::` prefix).
+		var first = named.TypeArguments[0];
+		var firstFqn = StripGlobalPrefix(first.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+		return string.Equals(firstFqn, "System.IServiceProvider", StringComparison.Ordinal);
 	}
 
 	/// <summary>Unwraps conversion / delegate-creation operations to find a nested anonymous function.</summary>
@@ -420,6 +521,26 @@ internal static class DiAnalyzerHelpers
 	/// statements beyond <c>return X;</c> return null (which disqualifies them from the
 	/// passthrough/interface-bridge fast-path).
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Detection scope is body-level only</b> (Wave 1 M4 review clarification). A body-level
+	/// conditional like <c>sp =&gt; cond ? new A(sp.GetRequiredService&lt;X&gt;()) : new B(...)</c>
+	/// is correctly disqualified — the single-statement returned value is an
+	/// <see cref="IConditionalOperation"/>, not an <see cref="IObjectCreationOperation"/>, so the
+	/// passthrough/interface-bridge pattern-matching fails.
+	/// </para>
+	/// <para>
+	/// <b>Scope-level conditionals are NOT carved out by this helper</b>. A registration site like
+	/// <c>if (env.IsDevelopment()) { sc.AddSingleton&lt;X&gt;(sp =&gt; new X(...)); }</c> will still
+	/// surface the <c>AddSingleton</c> invocation to <c>AnalyzeInvocation</c> exactly as if the
+	/// <c>if</c> wrapper were absent — Roslyn's operation tree positions each invocation independently
+	/// and the analyzer does not walk parent statement nodes. Scope-level <c>if</c>/<c>switch</c>
+	/// gating is intentionally NOT a carve-out: the developer's intent ("register only under
+	/// condition X") doesn't change whether the marker-based path would express the same wiring,
+	/// it changes when the registration is added — orthogonal concern. Use <c>[AutoDiBypass]</c> on
+	/// the type if a scope-gated explicit registration shouldn't trigger the rule family.
+	/// </para>
+	/// </remarks>
 	private static IOperation? ExtractSingleReturnedOperation(IAnonymousFunctionOperation lambda)
 	{
 		var body = lambda.Body;

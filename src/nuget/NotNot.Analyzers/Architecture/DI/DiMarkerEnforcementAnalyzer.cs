@@ -7,8 +7,8 @@ using Microsoft.CodeAnalysis.Operations;
 namespace NotNot.Analyzers.Architecture.DI;
 
 /// <summary>
-/// Wave 1 dependency-injection marker-enforcement analyzer hosting four diagnostic rules
-/// (<c>NN_DI_001</c> through <c>NN_DI_004</c>) for the project's
+/// Dependency-injection marker-enforcement analyzer hosting five diagnostic rules
+/// (<c>NN_DI_001</c> through <c>NN_DI_005</c>) for the project's
 /// <c>IDi{Singleton,Scoped,Transient}Service</c> marker-interface auto-registration convention.
 /// Mirrors the pattern of <c>NotNot.BlazorAnalyzers.LiteDDD.LdddAssemblyFenceAnalyzer</c> —
 /// single analyzer class with regions per rule, shared compilation-start gate, helper extraction
@@ -45,7 +45,20 @@ namespace NotNot.Analyzers.Architecture.DI;
 ///     <c>Microsoft.Extensions.Hosting.IHostedService</c> — the two registration paths conflict
 ///     (marker → auto-register as service; <c>IHostedService</c> → register via
 ///     <c>AddHostedService</c>; both can produce duplicate instances or surprise singleton-vs-scoped
-///     lifetimes).
+///     lifetimes). <b>Third-party-type carve-out unnecessary</b>: <see cref="AnalyzeNamedType"/>
+///     is registered as a <c>SymbolAction</c> over <c>SymbolKind.NamedType</c>, which only fires
+///     on types DECLARED in the current compilation; types imported from referenced assemblies
+///     (third-party, framework) never reach the analyzer here (Wave 1 H3-demoted review finding).
+///   </description></item>
+///   <item><description>
+///     <b>NN_DI_005</b> — Missing marker for project-internal candidate (Info). Fires on
+///     <c>Add{L}&lt;T&gt;()</c> or <c>Add{L}&lt;TService, TImpl&gt;()</c> where the implementation
+///     type is project-internal, NOT a <c>TryAdd*</c> variant, NOT an interface-bridge factory,
+///     NOT third-party, NOT <c>[AutoDiBypass]</c>'d, is a non-abstract class, and lacks any
+///     <c>IDi{L}Service</c> marker. Suggests adding the marker interface and removing the
+///     explicit registration. NN_DI_005 is the inverse of NN_DI_002 and the residual case of
+///     NN_DI_003 (NN_DI_003 handles passthrough-factory shapes; NN_DI_005 handles every other
+///     no-marker registration shape).
 ///   </description></item>
 /// </list>
 /// </para>
@@ -56,13 +69,13 @@ namespace NotNot.Analyzers.Architecture.DI;
 ///     <c>[assembly: AutoDiBypass]</c> — compilation-level short-circuit; no rule fires.
 ///   </description></item>
 ///   <item><description>
-///     <c>[AutoDiBypass]</c> on a class — type-scope bypass; rules NN_DI_001/002/003 (when their
+///     <c>[AutoDiBypass]</c> on a class — type-scope bypass; rules NN_DI_001/002/003/005 (when their
 ///     target type is the bypassed type) and NN_DI_004 (when applied to the analyzed class) skip.
 ///   </description></item>
 /// </list>
 /// </para>
 /// <para>
-/// <b>Wave 1 scope limitation — registered-type-only inspection</b>: All four rules inspect the
+/// <b>Wave 1 scope limitation — registered-type-only inspection</b>: All five rules inspect the
 /// REGISTERED service type's marker (the generic-arg of <c>Add{L}&lt;T&gt;()</c>), NOT the
 /// constructed inner type returned by a factory body. A factory body that constructs a wrong-
 /// lifetime concrete with <c>new ConcreteImpl(...)</c> beneath an interface-typed registration —
@@ -70,10 +83,20 @@ namespace NotNot.Analyzers.Architecture.DI;
 /// <c>SingletonImpl : IDiSingletonService</c> — will NOT fire NN_DI_001 even though the
 /// registration creates wrong-lifetime instances. The interface (<c>IService</c>) carries no
 /// marker, so <c>TryGetExpectedLifetime</c> returns false on the registered type and the rule
-/// short-circuits. Walking factory bodies to inspect the inner concrete is deferred to Wave 2 —
-/// the lock-in test <c>InterfaceBridgeFactory_WithInnerSingletonImpl_DoesNotFireYet_Wave1ScopeLimitation</c>
-/// pins this behavior so a future Wave-2 enhancement that flips the assertion is detectable as a
+/// short-circuits. Walking factory bodies to inspect the inner concrete is deferred to a future
+/// wave — the lock-in test
+/// <c>InterfaceBridgeFactory_WithInnerSingletonImpl_DoesNotFireYet_Wave1ScopeLimitation</c>
+/// pins this behavior so a future enhancement that flips the assertion is detectable as a
 /// behavioral change rather than a silent regression.
+/// </para>
+/// <para>
+/// <b>NN_DI_003 / NN_DI_005 mutual exclusion via control flow</b>: NN_DI_005's predicate is a
+/// superset of NN_DI_003's (both fire on unmarked, non-third-party, non-TryAdd registrations).
+/// NN_DI_003 is the more-specific diagnostic (passthrough factory shape); when it fires, the
+/// developer's actionable suggestion is identical to NN_DI_005's. To prevent double-firing on
+/// the same registration, NN_DI_003's emission block ends with an explicit <c>return;</c> —
+/// control never reaches NN_DI_005's branch when NN_DI_003 has already reported. This is the
+/// canonical pattern (NN_DI_001's lifetime-mismatch block also returns to suppress NN_DI_002/003).
 /// </para>
 /// <para>
 /// <b>Heuristic-tuning decisions for NN_DI_003</b> (Info severity, lowest FP cost — see
@@ -256,11 +279,42 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 		description: DI004_Description,
 		helpLinkUri: DiAnalyzerHelpers.HelpBase + "nn_di_004");
 
+	// ── NN_DI_005 — Missing marker for project-internal candidate ────────────
+
+	/// <summary>Diagnostic ID for missing marker on project-internal auto-registration candidate.</summary>
+	public const string DI005_DiagnosticId = "NN_DI_005";
+
+	private static readonly LocalizableString DI005_Title =
+		"Missing IDi{L}Service marker — class is auto-registration candidate";
+
+	private static readonly LocalizableString DI005_MessageFormat =
+		"Class '{0}' is registered manually as '{1}' but could implement IDi{1}Service for auto-registration";
+
+	private static readonly LocalizableString DI005_Description =
+		"When a project-internal class is registered explicitly via Add{L}<T>() without implementing "
+		+ "the matching IDi{L}Service marker, the analyzer suggests migrating to marker-based "
+		+ "auto-registration. Reduces composition-root surface area and makes the registration "
+		+ "declarative. Apply [AutoDiBypass] if the explicit registration exists for a reason not "
+		+ "captured by this analyzer (e.g. ordered registration with other rules, multiple service "
+		+ "contracts, side effects). The rule severity can be tuned via .editorconfig with "
+		+ "'dotnet_diagnostic.NN_DI_005.severity = {warning|error|silent|none}'.";
+
+	/// <summary>NN_DI_005 descriptor — Info severity (mirrors NN_DI_003 FP-risk-aware shipping profile).</summary>
+	public static readonly DiagnosticDescriptor DI005_Rule = new(
+		DI005_DiagnosticId,
+		DI005_Title,
+		DI005_MessageFormat,
+		DesignCategory,
+		DiagnosticSeverity.Info,
+		isEnabledByDefault: true,
+		description: DI005_Description,
+		helpLinkUri: DiAnalyzerHelpers.HelpBase + "nn_di_005");
+
 	// ── DiagnosticAnalyzer overrides ──────────────────────────────────────────
 
 	/// <inheritdoc/>
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-		ImmutableArray.Create(DI001_Rule, DI002_Rule, DI003_Rule, DI004_Rule);
+		ImmutableArray.Create(DI001_Rule, DI002_Rule, DI003_Rule, DI004_Rule, DI005_Rule);
 
 	/// <inheritdoc/>
 	public override void Initialize(AnalysisContext context)
@@ -301,14 +355,35 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 			return;
 		}
 
-		// Register invocation-level rules (NN_DI_001/002/003).
+		// Register invocation-level rules (NN_DI_001/002/003/005).
 		context.RegisterOperationAction(AnalyzeInvocation, OperationKind.Invocation);
 
 		// Register symbol-level rule (NN_DI_004).
 		context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
 	}
 
-	// ── Invocation-level rules (NN_DI_001 / NN_DI_002 / NN_DI_003) ───────────
+	/// <summary>
+	/// Returns true when <paramref name="type"/> implements ANY of the three
+	/// <c>IDi{Singleton,Scoped,Transient}Service</c> markers. Unlike
+	/// <c>DiAnalyzerHelpers.TryGetExpectedLifetime</c>, this helper returns true for multi-marker
+	/// classes too — the user IS using the marker pattern even when their type carries multiple
+	/// markers. Used by NN_DI_005's "type already uses the pattern" carve-out so that the rule
+	/// stays silent on classes the developer has already opted in (single-marker correct case is
+	/// covered by <c>hasMarker</c>; multi-marker case must be explicitly excluded since
+	/// <c>TryGetExpectedLifetime</c> returns <c>false</c> for it).
+	/// </summary>
+	private static bool TypeImplementsAnyMarker(INamedTypeSymbol? type)
+	{
+		if (type == null)
+		{
+			return false;
+		}
+		return DiAnalyzerHelpers.ImplementsMarkerInterface(type, DiAnalyzerHelpers.DiSingletonServiceFullName)
+			|| DiAnalyzerHelpers.ImplementsMarkerInterface(type, DiAnalyzerHelpers.DiScopedServiceFullName)
+			|| DiAnalyzerHelpers.ImplementsMarkerInterface(type, DiAnalyzerHelpers.DiTransientServiceFullName);
+	}
+
+	// ── Invocation-level rules (NN_DI_001 / NN_DI_002 / NN_DI_003 / NN_DI_005) ─
 
 	private static void AnalyzeInvocation(OperationAnalysisContext context)
 	{
@@ -390,24 +465,93 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 		//     user doesn't own).
 		//   - Concrete type does NOT already implement a marker (would have hit NN_DI_002 above).
 		//   - Not a TryAdd* (deliberate conditional registration).
+		// Perf (Wave 1 M5 review): when concreteType is reference-equal to implType (the common case
+		// for `Add{L}<T>(sp => new T(...))`), reuse the cached `hasMarker` flag instead of issuing a
+		// second `TryGetExpectedLifetime` walk on the same type.
 		if (!isTryAdd
 			&& !hasMarker
 			&& DiAnalyzerHelpers.IsPassthroughFactory(invocation, out var concreteType)
 			&& concreteType != null
 			&& !DiAnalyzerHelpers.HasAutoDiBypassAttribute(concreteType)
 			&& !DiAnalyzerHelpers.IsThirdPartyType(concreteType)
-			&& !DiAnalyzerHelpers.TryGetExpectedLifetime(concreteType, out _, out _))
+			&& !ConcreteTypeHasMarker(concreteType, implType, hasMarker))
 		{
 			context.ReportDiagnostic(Diagnostic.Create(
 				DI003_Rule,
 				invocation.Syntax.GetLocation(),
 				calledLifetime,
 				concreteType.ToDisplayString()));
+			// Return after NN_DI_003 emission — NN_DI_005's predicate is a superset and would
+			// double-fire on the same registration. NN_DI_005 is the residual "missing marker"
+			// case for non-passthrough-factory shapes (see class-header remarks for full rationale).
+			return;
 		}
+
+		// ── NN_DI_005 — Missing marker for project-internal candidate ─────────
+		// Fires when the registration is an Add{L}<T>() / Add{L}<TService, TImpl>() shape with an
+		// unmarked, project-internal, non-abstract class as the implementation. Skip when:
+		//   - TryAdd*: deliberate conditional registration.
+		//   - Third-party: user doesn't own the type, can't add a marker.
+		//   - Interface-bridge factory: deliberate interface→impl bridge using GetRequiredService.
+		//   - Type is abstract / interface / non-class: can't be auto-registered as concrete.
+		//   - Type implements ANY marker (even multi-marker): suggestion "add a marker" is
+		//     meaningless when the class already opts into the pattern; multi-marker ambiguity is
+		//     surfaced by other rules / not by NN_DI_005. The `!TypeImplementsAnyMarker` predicate
+		//     catches the multi-marker case which `!hasMarker` misses (because
+		//     `TryGetExpectedLifetime` returns false on multi-marker — leaving the predicate true).
+		// Mutual exclusion with NN_DI_001/002/003: NN_DI_001 and NN_DI_002 short-circuit via their
+		// own `return;` when fired; NN_DI_003 short-circuits via the `return;` immediately above.
+		// `hasMarker` is the cached result from line ~347 (Wave 1 F2 perf reuse — no recomputation).
+		if (!isTryAdd
+			&& !hasMarker
+			&& !TypeImplementsAnyMarker(implType)
+			&& implType.TypeKind == TypeKind.Class
+			&& !implType.IsAbstract
+			&& !DiAnalyzerHelpers.IsThirdPartyType(implType)
+			&& !DiAnalyzerHelpers.IsInterfaceBridgeFactory(invocation))
+		{
+			context.ReportDiagnostic(Diagnostic.Create(
+				DI005_Rule,
+				invocation.Syntax.GetLocation(),
+				implType.ToDisplayString(),
+				calledLifetime));
+		}
+	}
+
+	/// <summary>
+	/// Determines whether <paramref name="concreteType"/> carries a marker interface, reusing the
+	/// cached <paramref name="implTypeHasMarker"/> result when <paramref name="concreteType"/> is
+	/// semantically equal to <paramref name="implType"/>. Saves one <c>AllInterfaces</c> walk on the
+	/// common <c>Add{L}&lt;T&gt;(sp =&gt; new T(...))</c> shape (Wave 1 M5 review perf fix).
+	/// </summary>
+	private static bool ConcreteTypeHasMarker(
+		INamedTypeSymbol concreteType,
+		INamedTypeSymbol? implType,
+		bool implTypeHasMarker)
+	{
+		if (implType != null && SymbolEqualityComparer.Default.Equals(concreteType, implType))
+		{
+			return implTypeHasMarker;
+		}
+		return DiAnalyzerHelpers.TryGetExpectedLifetime(concreteType, out _, out _);
 	}
 
 	// ── Symbol-level rule (NN_DI_004) ─────────────────────────────────────────
 
+	/// <summary>
+	/// Analyzes a named-type symbol declaration for NN_DI_004 — marker + IHostedService conflict.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Third-party-type carve-out unnecessary</b> (Wave 1 H3-demoted review finding): this method
+	/// is registered via <c>RegisterSymbolAction</c> over <see cref="SymbolKind.NamedType"/>, which
+	/// only fires for types DECLARED in the current compilation. Types imported from referenced
+	/// assemblies (third-party packages, framework libraries) are not surfaced to the symbol-action
+	/// pipeline, so an explicit <c>IsThirdPartyType</c> guard would be dead code. The
+	/// <c>NN_DI_002</c>/<c>NN_DI_003</c>/<c>NN_DI_005</c> branches DO need that guard because they
+	/// fire on invocation operations that can reference third-party types via their generic arguments.
+	/// </para>
+	/// </remarks>
 	private static void AnalyzeNamedType(SymbolAnalysisContext context)
 	{
 		var namedType = (INamedTypeSymbol)context.Symbol;
@@ -470,6 +614,9 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 		lifetime = string.Empty;
 		isTryAdd = false;
 
+		// Wave 1+2 explicitly do not analyze keyed registrations (AddKeyedSingleton/Scoped/Transient
+		// + TryAddKeyed*) — different registration model that the marker-interface convention doesn't
+		// address. May revisit in a future wave.
 		switch (method.Name)
 		{
 			case "AddSingleton": lifetime = "Singleton"; return true;

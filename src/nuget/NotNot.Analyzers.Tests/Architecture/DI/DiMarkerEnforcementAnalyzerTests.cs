@@ -98,6 +98,11 @@ public class DiMarkerEnforcementAnalyzerTests
 			.WithLocation(markup)
 			.WithArguments(implType, markerFqn, lifetime);
 
+	private static DiagnosticResult DI005(string implType, string lifetime, int markup = 0) =>
+		new DiagnosticResult(DiMarkerEnforcementAnalyzer.DI005_DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Info)
+			.WithLocation(markup)
+			.WithArguments(implType, lifetime);
+
 	// ══════════════════════════════════════════════════════════════════════════
 	// NN_DI_001 — Lifetime mismatch with marker interface (Error)
 	// ══════════════════════════════════════════════════════════════════════════
@@ -204,9 +209,15 @@ public class Bootstrap
 		[Fact]
 		public async Task AddTransient_OnUnmarkedType_NoDiagnostic_OutsideEnforcementZone()
 		{
+			// Wave 2 fixture update (Cluster A): `[AutoDiBypass]` added to silence NN_DI_005, which
+			// fires on every unmarked project-internal class in Wave 2. Test intent preserved —
+			// NN_DI_001 (the rule under test in this nested class) must stay silent on an unmarked
+			// type (no marker → no lifetime to mismatch). The bypass attribute documents intent.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
 
+[AutoDiBypass]
 public class Service { }
 
 public class Bootstrap
@@ -245,12 +256,22 @@ public class Bootstrap
 			// A locally-declared interface with the same simple name as the marker but in a
 			// different (non-global) namespace MUST NOT trigger the analyzer — the analyzer
 			// keys off symbol identity / FQN, not the simple string.
+			//
+			// Wave 2 fixture update (Cluster A): `[AutoDiBypass]` added to `SomeOtherLib.Service`
+			// to silence Wave 2's new NN_DI_005 (which fires on every unmarked project-internal
+			// class). The test intent — verifying NN_DI_001 keys off SYMBOL identity, not name
+			// match — is preserved: `Service` carries a shadow `IDiSingletonService` that the
+			// analyzer correctly ignores, and the bypass attribute prevents NN_DI_005 from
+			// surfacing the unrelated "missing marker" advisory on the test fixture.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
 
 namespace SomeOtherLib
 {
     public interface IDiSingletonService { } // SHADOW — different namespace, NOT the real marker.
+
+    [AutoDiBypass]
     public class Service : IDiSingletonService { }
 }
 
@@ -507,6 +528,34 @@ public class Bootstrap
 			await VerifyAsync(source);
 		}
 
+		// ── Keyed-services carve-out (Wave 1 M6 review — out-of-scope by design) ──
+
+		[Fact]
+		public async Task AddKeyedSingleton_OnSingletonMarker_NoDiagnostic_KeyedNotInScope()
+		{
+			// Wave 1 M6 review finding: keyed-service registrations (`AddKeyedSingleton<T>("k")` etc.)
+			// are .NET 8+ DI primitives that share the `Add` prefix but include `Keyed` in the name.
+			// The analyzer's `TryClassifyLifetimeMethod` only matches the non-keyed variants
+			// (`AddSingleton`, `AddScoped`, `AddTransient`, `TryAdd*`). Keyed registrations silently
+			// bypass all five rules — intentional, since the keyed registration model is a different
+			// shape than the marker-interface convention addresses. This test locks the current
+			// boundary so a future refactor that adds `AddKeyed*` to the classifier doesn't silently
+			// flip the FP profile.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service : IDiSingletonService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddKeyedSingleton<Service>(""mykey"");
+    }
+}";
+			await VerifyAsync(source);
+		}
+
 		// ── Bypass / scope-limit cases ──
 
 		[Fact]
@@ -532,9 +581,16 @@ public class Bootstrap
 		[Fact]
 		public async Task UnmarkedType_NoDiagnostic_OutsideEnforcementZone()
 		{
+			// Wave 2 fixture update (Cluster A): `[AutoDiBypass]` added to silence NN_DI_005, which
+			// fires on every unmarked project-internal class in Wave 2. Test intent preserved —
+			// NN_DI_002 (the rule under test in this nested class) must stay silent on an unmarked
+			// type (no marker → not a "redundant explicit" candidate). The bypass attribute
+			// documents intent.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
 
+[AutoDiBypass]
 public class Service { }
 
 public class Bootstrap
@@ -627,10 +683,19 @@ public class Bootstrap
 		[Fact]
 		public async Task PassthroughFactory_NonDILiteralArg_NoDiagnostic_NotPurePassthrough()
 		{
+			// Wave 2 fixture update (Cluster A): `[AutoDiBypass]` added to `Service` to silence
+			// NN_DI_005, which fires on every unmarked project-internal class in Wave 2. Test
+			// intent preserved — NN_DI_003 (the rule under test in this nested class) must stay
+			// silent on a factory with literal-string args (not pure passthrough). The bypass
+			// attribute keeps the "NN_DI_003 silent on non-passthrough body" contract locked
+			// WITHOUT collateral NN_DI_005 firing.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
 
 public class Dep1 : IDiSingletonService { }
+
+[AutoDiBypass]
 public class Service
 {
     public Service(Dep1 a, string name) { }
@@ -646,26 +711,11 @@ public class Bootstrap
 			await VerifyAsync(source);
 		}
 
-		[Fact]
-		public async Task NonPassthroughFactory_MethodCallBody_NoDiagnostic()
-		{
-			var source = @"
-using Microsoft.Extensions.DependencyInjection;
-
-public class Service
-{
-    public static Service Create() => new Service();
-}
-
-public class Bootstrap
-{
-    public static void Configure(IServiceCollection sc)
-    {
-        sc.AddSingleton<Service>(sp => Service.Create());
-    }
-}";
-			await VerifyAsync(source);
-		}
+		// Wave 2 Cluster C: `NonPassthroughFactory_MethodCallBody_NoDiagnostic` (was here) was
+		// DELETED as fully superseded by the new test
+		// `NN_DI_005_MissingMarker.NonPassthroughFactory_MethodCallBody_FiresNN_DI_005` (~line 1314).
+		// The two tests had byte-identical fixtures with opposing assertions; the Wave-2-correct
+		// assertion (NN_DI_005 fires) lives in the new test under the new rule's nested class.
 
 		[Fact]
 		public async Task PassthroughFactory_ThirdPartyConcrete_NoDiagnostic_CannotAddMarker()
@@ -803,18 +853,19 @@ public class Bootstrap
 		}
 
 		[Fact]
-		public async Task PassthroughFactory_NoArgsConstructor_FiresDI003_FullyReplaceableByAutoRegistration()
+		public async Task PassthroughFactory_NoArgsConstructor_FiresNN_DI_005_NotPassthrough()
 		{
-			// Zero-arg `new Service()` IS classified as a passthrough by design (Wave 1 M1
-			// review disposition). The lambda body provides ZERO information that
-			// auto-registration on the marker interface couldn't already supply — adding the
-			// marker is fully equivalent. NN_DI_003 is Info severity and the suggestion
-			// ("add IDi{L}Service marker, remove the factory") is correct and actionable.
+			// Wave 2 design tightening (Cluster B): zero-arg `new Service()` is NO LONGER
+			// classified as a passthrough — `IsPassthroughFactory` requires at least one
+			// DI-resolved constructor argument. Rationale: a parameterless `new T()` body has no
+			// DI dependency to "pass through"; structurally it is identical to `Add{L}<T>()` (no
+			// factory needed). NN_DI_005 (Wave 2 missing-marker advisory) is the more precise
+			// diagnostic for "unmarked project-internal class registered explicitly" — fires here
+			// because `Service` is unmarked, project-internal, and not third-party.
 			//
-			// Helper mechanics: `objectCreation.Arguments.Length == 0` makes the
-			// every-arg-is-GetRequiredService foreach a no-op, IsPassthroughFactory returns
-			// true with concreteType=Service. Concrete is unmarked, not third-party, not
-			// bypassed → NN_DI_003 fires.
+			// Reverses Wave 1 M1 review disposition (which included zero-arg as passthrough). The
+			// Wave 2 NN_DI_005 design covers the broader "unmarked registration" case more
+			// precisely; NN_DI_003 narrows to "factory that bridges DI-resolved deps".
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
 
@@ -827,7 +878,7 @@ public class Bootstrap
         {|#0:sc.AddSingleton<Service>(sp => new Service())|};
     }
 }";
-			await VerifyAsync(source, DI003("Singleton", "Service"));
+			await VerifyAsync(source, DI005("Service", "Singleton"));
 		}
 
 		[Fact]
@@ -941,6 +992,38 @@ public class HostedWorker : IDiSingletonService, IHostedService
 }";
 			await VerifyAsync(source);
 		}
+
+		[Fact]
+		public async Task UserDerivedFromHostedServiceBase_AddsMarker_FiresNN_DI_004()
+		{
+			// Wave 1 H3-demoted review finding: validate the cross-assembly inheritance path.
+			// A user-declared base class implements `IHostedService` (in this test fixture's
+			// compilation); the derived class adds an `IDi*Service` marker. NN_DI_004 must fire
+			// on the derived declaration because `INamedTypeSymbol.AllInterfaces` walks base
+			// types — even if `IHostedService` enters via the base class rather than direct
+			// implementation, the analyzer's `ImplementsInterface` helper resolves it.
+			//
+			// This locks the cross-assembly path: a future refactor that switches the helper
+			// from `AllInterfaces` to `Interfaces` (direct-only) would silently disable NN_DI_004
+			// against derived-from-base-IHostedService user types — this test catches that.
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+public abstract class MyHostedBase : IHostedService
+{
+    public abstract Task StartAsync(CancellationToken ct);
+    public abstract Task StopAsync(CancellationToken ct);
+}
+
+public class {|#0:DerivedWorker|} : MyHostedBase, IDiSingletonService
+{
+    public override Task StartAsync(CancellationToken ct) => Task.CompletedTask;
+    public override Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(source, DI004("DerivedWorker", "IDiSingletonService", "Singleton"));
+		}
 	}
 
 	// ══════════════════════════════════════════════════════════════════════════
@@ -1048,18 +1131,26 @@ public class Bootstrap
 		}
 
 		[Fact]
-		public async Task NoMarkerSymbolsInCompilation_ShortCircuits_NoDiagnostics()
+		public async Task AssemblyBypass_ShortCircuitsAllRules_NoDiagnostics()
 		{
-			// This is a structural test: even with `AddSingleton<X>()` calls present,
-			// if the marker interfaces don't resolve (no reference to NotNot.Bcl.Core),
-			// the compilation-start gate returns before registering operation handlers.
+			// Compilation-start short-circuit test: `[assembly: AutoDiBypass]` causes the analyzer's
+			// `OnCompilationStart` to return BEFORE registering any operation handlers, so all five
+			// rules (NN_DI_001/002/003/004/005) stay silent regardless of registration shape.
 			//
-			// We can't actually REMOVE the NotNot.Bcl.Core reference in this fixture (the test
-			// helper adds it unconditionally), so we instead exercise the equivalent: a source
-			// with no types that implement markers and no DI registrations involving marker-bearing
-			// types — verifies the analyzer is well-behaved on inert compilations.
+			// Wave 2 update (Cluster A test #7 — was `NoMarkerSymbolsInCompilation_ShortCircuits_NoDiagnostics`):
+			// the original test's premise ("no marker symbols in compilation → analyzer silent") was
+			// untestable in practice — the test harness unconditionally adds the `NotNot.Bcl.Core`
+			// reference, so `GetTypeByMetadataName` always resolves the markers. Wave 2's NN_DI_005
+			// fires on every unmarked project-internal class regardless of whether the source
+			// declares any marker-bearing classes — so the original assertion of zero diagnostics on
+			// three `Add*<Service>()` calls became invalid. This rewrite exercises the genuine
+			// short-circuit path (`[assembly: AutoDiBypass]`) which IS what the test name claims to
+			// verify, and keeps the multi-rule-silence assertion intact.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+
+[assembly: AutoDiBypass]
 
 public class Service { }
 
@@ -1073,6 +1164,683 @@ public class Bootstrap
     }
 }";
 			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task BypassOnBaseClass_DerivedNotBypassed_FiresNormally()
+		{
+			// Wave 1 M7 review finding: `[AutoDiBypass]` is declared `Inherited = false`. The
+			// helper `HasAutoDiBypassAttribute(ISymbol)` walks `symbol.GetAttributes()` which
+			// returns ONLY attributes applied directly to that symbol (does NOT walk base types).
+			//
+			// Contract under test: `[AutoDiBypass]` on a base class does NOT propagate to derived
+			// classes. A future maintenance change that switches to `Inherited = true` or walks
+			// `BaseType` in the helper would silently break this contract — this test catches it.
+			//
+			// Fixture: Base has `[AutoDiBypass]`; Derived implements `IDiSingletonService` and is
+			// registered Transient (a lifetime mismatch). NN_DI_001 must fire on the registration
+			// because the bypass is NOT inherited from Base to Derived.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+
+[AutoDiBypass]
+public abstract class Base { }
+
+public class Derived : Base, IDiSingletonService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddTransient<Derived>()|};
+    }
+}";
+			await VerifyAsync(source, DI001("Derived", "Transient", "IDiSingletonService", "Singleton"));
+		}
+
+		[Fact]
+		public async Task BypassedClass_PlusUnmarkedClass_OnlyNN_DI_005_Fires()
+		{
+			// Verifies that class-level [AutoDiBypass] is TYPE-SCOPED, not assembly-scoped. The
+			// bypassed type emits zero diagnostics; the unbypassed unmarked type sitting next to
+			// it in the same source file still fires NN_DI_005. This protects against a refactor
+			// that would accidentally elevate type-level bypass to compilation-level short-circuit.
+			//
+			// Fixture: BypassedService is `[AutoDiBypass]` + unmarked → silent. UnmarkedService is
+			// vanilla + registered Singleton → fires NN_DI_005.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+
+[AutoDiBypass]
+public class BypassedService { }
+
+public class UnmarkedService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<BypassedService>();
+        {|#0:sc.AddSingleton<UnmarkedService>()|};
+    }
+}";
+			await VerifyAsync(source, DI005("UnmarkedService", "Singleton"));
+		}
+	}
+
+	// ══════════════════════════════════════════════════════════════════════════
+	// NN_DI_005 — Missing IDi{L}Service marker — auto-registration candidate (Info)
+	// ══════════════════════════════════════════════════════════════════════════
+
+	public class NN_DI_005_MissingMarker
+	{
+		// ── Positive cases (NN_DI_005 fires) ──────────────────────────────────
+
+		[Fact]
+		public async Task AddSingleton_OnUnmarkedClass_Fires()
+		{
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<Service>()|};
+    }
+}";
+			await VerifyAsync(source, DI005("Service", "Singleton"));
+		}
+
+		[Fact]
+		public async Task AddScoped_OnUnmarkedClass_Fires()
+		{
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddScoped<Service>()|};
+    }
+}";
+			await VerifyAsync(source, DI005("Service", "Scoped"));
+		}
+
+		[Fact]
+		public async Task AddTransient_OnUnmarkedClass_Fires()
+		{
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddTransient<Service>()|};
+    }
+}";
+			await VerifyAsync(source, DI005("Service", "Transient"));
+		}
+
+		[Fact]
+		public async Task TwoArgOverload_AddSingletonInterfaceImpl_Fires_OnImpl()
+		{
+			// DP2 Option α lock-in: `Add{L}<TInterface, TImpl>()` fires NN_DI_005 on `TImpl`.
+			// Developer reviews each site and applies [AutoDiBypass] for intentional 2-arg shapes.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public interface IService { }
+public class ServiceImpl : IService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<IService, ServiceImpl>()|};
+    }
+}";
+			await VerifyAsync(source, DI005("ServiceImpl", "Singleton"));
+		}
+
+		[Fact]
+		public async Task ObjectInitializerFactory_FiresNN_DI_005()
+		{
+			// DP3 lock-in: factory body `new Service { Prop = ... }` has an object initializer.
+			// IsPassthroughFactory returns false (initializer != GetRequiredService arg), so
+			// NN_DI_003 doesn't fire. NN_DI_005's predicate is satisfied — fires once.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service
+{
+    public string? Prop { get; set; }
+}
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<Service>(sp => new Service { Prop = ""value"" })|};
+    }
+}";
+			await VerifyAsync(source, DI005("Service", "Singleton"));
+		}
+
+		[Fact]
+		public async Task NonPassthroughFactory_MethodCallBody_FiresNN_DI_005()
+		{
+			// Factory body `Service.Create()` is a static method invocation — NOT an object-
+			// creation operation. IsPassthroughFactory returns false (it expects
+			// `IObjectCreationOperation`). NN_DI_003 silent. Service is unmarked → NN_DI_005 fires.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service
+{
+    public static Service Create() => new Service();
+}
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<Service>(sp => Service.Create())|};
+    }
+}";
+			await VerifyAsync(source, DI005("Service", "Singleton"));
+		}
+
+		[Fact]
+		public async Task NotNotPrefixedType_NoNN_DI_005()
+		{
+			// Cluster D (Wave 2 audit follow-up): the audit at `.vibeOverwatch/memory/20260516-1141-
+			// AUDIT-di-program-cs-registrations.VibeAudit.md:160` flagged `IsThirdPartyType`'s missing
+			// `NotNot.*` prefix as a mandatory pre-merge change. Without the carve-out, consumer
+			// registrations of sibling-primitive types from `NotNot.Bcl.Core` / other `NotNot.*`
+			// packages (e.g. `AddSingleton<SimpleStorageOptions>()`) fire NN_DI_005 at the consumer
+			// site — but the consumer doesn't own the type and cannot add a marker interface.
+			//
+			// Fixture: register `NotNot.Storage.SimpleStorageOptions` (a real record-class in
+			// `NotNot.Bcl.Core`) directly. The analyzer's `IsThirdPartyType` must recognize the
+			// `NotNot.*` assembly prefix and skip NN_DI_005 enforcement.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using NotNot.Storage;
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<SimpleStorageOptions>();
+    }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task ClosedGeneric_UnmarkedOpenForm_Fires()
+		{
+			// DP6 lock-in (positive): `AddSingleton<MyGeneric<string>>()` where `MyGeneric<T>` has
+			// NO marker. The closed-generic registration of an unmarked open form is a missing-
+			// marker candidate. NN_DI_005 fires.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class MyGeneric<T> { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<MyGeneric<string>>()|};
+    }
+}";
+			await VerifyAsync(source, DI005("MyGeneric<string>", "Singleton"));
+		}
+
+		[Fact]
+		public async Task MultipleUnmarkedRegistrations_EachFires()
+		{
+			// Independent emissions — two consecutive `AddSingleton<Service>()` lines each fire
+			// NN_DI_005 at their own location. Verifies the analyzer doesn't dedupe by
+			// implementation type within a compilation unit.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<Service>()|};
+        {|#1:sc.AddSingleton<Service>()|};
+    }
+}";
+			await VerifyAsync(
+				source,
+				DI005("Service", "Singleton", markup: 0),
+				DI005("Service", "Singleton", markup: 1));
+		}
+
+		// ── Negative cases (NN_DI_005 silent — other rule or carve-out applies) ──
+
+		[Fact]
+		public async Task AddSingleton_OnMarkedClass_NoNN_DI_005_NN_DI_002_Covers()
+		{
+			// hasMarker is true → NN_DI_002 covers the redundancy. NN_DI_005 silent.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service : IDiSingletonService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<Service>()|};
+    }
+}";
+			await VerifyAsync(source, DI002("Service", "IDiSingletonService", "Singleton"));
+		}
+
+		[Fact]
+		public async Task AddTransient_OnMismatchedMarker_NoNN_DI_005_NN_DI_001_Covers()
+		{
+			// hasMarker true, lifetime mismatched → NN_DI_001 covers. NN_DI_005 silent.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service : IDiSingletonService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddTransient<Service>()|};
+    }
+}";
+			await VerifyAsync(source, DI001("Service", "Transient", "IDiSingletonService", "Singleton"));
+		}
+
+		[Fact]
+		public async Task MissingMarker_WithPassthroughFactory_Fires_NN_DI_003_NotNN_DI_005()
+		{
+			// F1 lock-in (mutual exclusion): unmarked `Service` registered with a passthrough
+			// factory body. NN_DI_003 fires; the `return` after NN_DI_003 emission (Group A's F1
+			// fix) prevents NN_DI_005 from double-firing on the same invocation.
+			//
+			// If Group A forgets the `return`, this test FAILS — VerifyAsync rejects any
+			// unexpected NN_DI_005 emission. Direct runtime catch for the F1 bug.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Dep : IDiSingletonService { }
+public class Service
+{
+    public Service(Dep d) { }
+}
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<Service>(sp => new Service(sp.GetRequiredService<Dep>()))|};
+    }
+}";
+			await VerifyAsync(source, DI003("Singleton", "Service"));
+		}
+
+		[Fact]
+		public async Task InterfaceBridgeFactory_UnmarkedConcrete_Silent()
+		{
+			// DP4 lock-in: `IsInterfaceBridgeFactory` returns true for
+			// `sp => sp.GetRequiredService<Service>()`, so the NN_DI_005 predicate skips.
+			// All rules silent on this shape.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<Service>(sp => sp.GetRequiredService<Service>());
+    }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task ThirdPartyTypeRegistration_NoNN_DI_005()
+		{
+			// `StringBuilder` lives in System.* — `IsThirdPartyType` returns true. NN_DI_005's
+			// predicate skips; the user can't add a marker to a type they don't own.
+			var source = @"
+using System.Text;
+using Microsoft.Extensions.DependencyInjection;
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<StringBuilder>();
+    }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task TryAdd_OnUnmarkedClass_NoNN_DI_005()
+		{
+			// TryAdd* is deliberate conditional registration. NN_DI_005's `!isTryAdd` guard
+			// prevents firing — consistent with NN_DI_002/003 TryAdd carve-outs.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+public class Service { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.TryAddSingleton<Service>();
+    }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task AddSingleton_OnAbstractClass_Silent()
+		{
+			// DP5 lock-in: abstract class can't be auto-registered as concrete. NN_DI_005's
+			// `!implType.IsAbstract` predicate skips. Compiler may emit a runtime registration
+			// error elsewhere, but the analyzer correctly doesn't suggest adding a marker to an
+			// abstract type.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public abstract class AbstractBase { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<AbstractBase>();
+    }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task AddSingleton_OnInterface_Silent()
+		{
+			// DP5 lock-in: interface as T (1-arg overload registering an interface directly).
+			// NN_DI_005's `TypeKind == Class` predicate skips. Adding a marker to an interface
+			// is meaningless — the auto-registration scanner looks for non-abstract assignable
+			// concrete types, not interface declarations.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public interface IService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<IService>();
+    }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task OpenGenericRegistration_Silent()
+		{
+			// Non-generic shape (typeof-based registration) is rejected by `TryResolveGenericTypes`
+			// (typeArgs.Length == 0). NN_DI_005 doesn't even enter. This mirrors the existing
+			// NN_DI_003 `NonGenericRegistration_OpenGenericShape_NoDiagnostic` test at the same
+			// boundary.
+			var source = @"
+using System;
+using Microsoft.Extensions.DependencyInjection;
+
+public interface IFoo<T> { }
+public class Foo<T> : IFoo<T> { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton(typeof(IFoo<>), typeof(Foo<>));
+    }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task ClosedGeneric_MarkedOpenForm_Silent()
+		{
+			// DP6 lock-in (negative): closed-generic registration of an open form that DOES
+			// implement `IDiSingletonService` — the marker is inherited via `AllInterfaces`
+			// (`MyGeneric<string>` inherits from `MyGeneric<T>`'s declared interfaces). NN_DI_002
+			// fires for the redundancy. NN_DI_005 silent.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class MyGeneric<T> : IDiSingletonService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<MyGeneric<string>>()|};
+    }
+}";
+			await VerifyAsync(source, DI002("MyGeneric<string>", "IDiSingletonService", "Singleton"));
+		}
+
+		[Fact]
+		public async Task ClosedGeneric_MarkerOnBaseClass_Silent_NN_DI_005()
+		{
+			// F7 review addition: marker is on a NON-generic base class; the derived generic
+			// inherits the marker via `AllInterfaces` (which traverses base types). NN_DI_002
+			// fires for the redundancy. NN_DI_005 silent.
+			//
+			// This locks the base-class inheritance path for marker resolution — separate from
+			// the open-generic inheritance path (`ClosedGeneric_MarkedOpenForm_Silent`).
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class MarkedBase : IDiSingletonService { }
+public class MyGeneric<T> : MarkedBase { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<MyGeneric<string>>()|};
+    }
+}";
+			await VerifyAsync(source, DI002("MyGeneric<string>", "IDiSingletonService", "Singleton"));
+		}
+
+		[Fact]
+		public async Task TwoArgOverload_ImplMarked_Fires_NN_DI_002_NotNN_DI_005()
+		{
+			// DP2 mutual exclusion: `AddSingleton<IService, ServiceImpl>()` where `ServiceImpl`
+			// already carries `IDiSingletonService`. hasMarker true → NN_DI_002 fires.
+			// NN_DI_005 silent (its `!hasMarker` predicate fails).
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public interface IService { }
+public class ServiceImpl : IService, IDiSingletonService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        {|#0:sc.AddSingleton<IService, ServiceImpl>()|};
+    }
+}";
+			await VerifyAsync(source, DI002("ServiceImpl", "IDiSingletonService", "Singleton"));
+		}
+
+		// ── Bypass cases (NN_DI_005 honors [AutoDiBypass]) ────────────────────
+
+		[Fact]
+		public async Task BypassedClass_NoNN_DI_005()
+		{
+			// `[AutoDiBypass]` on a class — NN_DI_005's `!HasAutoDiBypassAttribute(implType)`
+			// predicate skips. Developer's explicit intent to keep the registration silenced.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+
+[AutoDiBypass]
+public class Service { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<Service>();
+    }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task AssemblyBypass_NoNN_DI_005()
+		{
+			// `[assembly: AutoDiBypass]` — compilation-start gate short-circuits BEFORE any
+			// operation handlers run. All five rules silent.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+
+[assembly: AutoDiBypass]
+
+public class Service { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<Service>();
+    }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task BypassedClass_2ArgOverload_NoNN_DI_005()
+		{
+			// `[AutoDiBypass]` on the TImpl side of a 2-arg overload. NN_DI_005's predicate
+			// inspects `implType` (the last type-arg) — bypass takes precedence over the
+			// missing-marker check.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+
+public interface IService { }
+
+[AutoDiBypass]
+public class ServiceImpl : IService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<IService, ServiceImpl>();
+    }
+}";
+			await VerifyAsync(source);
+		}
+	}
+
+	// ══════════════════════════════════════════════════════════════════════════
+	// Reflection-based contract tests (Wave 1 I1 review)
+	// ══════════════════════════════════════════════════════════════════════════
+
+	public class Reflection_InternalConstants
+	{
+		[Fact]
+		public void MarkerInterfaceConstants_MatchActualSymbols()
+		{
+			// Wave 1 I1 review finding: the FQN constants in DiAnalyzerHelpers
+			// (DiSingletonServiceFullName / DiScopedServiceFullName / DiTransientServiceFullName)
+			// MUST match the real symbol display strings from a reference compilation. If a future
+			// refactor moves the markers into a namespace (e.g., `namespace NotNot.DI;`), the
+			// constants would silently mismatch and `compilation.GetTypeByMetadataName(...)` would
+			// return null — the analyzer would silently disable itself on every compilation.
+			//
+			// This test resolves the internal `DiAnalyzerHelpers` type via reflection (the helpers
+			// class is `internal` and the tests project lacks `InternalsVisibleTo`), reads each
+			// constant, and asserts a reference compilation can resolve the matching type by
+			// metadata name.
+			//
+			// Reflection access pattern mirrors the source-generator output verification pattern
+			// from MEMORY.md: load the analyzer assembly via `typeof(DiMarkerEnforcementAnalyzer)`,
+			// resolve the internal helpers class by full name, read the public constants via
+			// `BindingFlags.NonPublic | Static`.
+			var analyzerAssembly = typeof(DiMarkerEnforcementAnalyzer).Assembly;
+			var helpersType = analyzerAssembly.GetType("NotNot.Analyzers.Architecture.DI.DiAnalyzerHelpers");
+			Assert.NotNull(helpersType);
+
+			var singletonField = helpersType!.GetField("DiSingletonServiceFullName",
+				System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+			var scopedField = helpersType.GetField("DiScopedServiceFullName",
+				System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+			var transientField = helpersType.GetField("DiTransientServiceFullName",
+				System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+			Assert.NotNull(singletonField);
+			Assert.NotNull(scopedField);
+			Assert.NotNull(transientField);
+
+			var singletonFqn = (string?)singletonField!.GetValue(null);
+			var scopedFqn = (string?)scopedField!.GetValue(null);
+			var transientFqn = (string?)transientField!.GetValue(null);
+			Assert.False(string.IsNullOrEmpty(singletonFqn));
+			Assert.False(string.IsNullOrEmpty(scopedFqn));
+			Assert.False(string.IsNullOrEmpty(transientFqn));
+
+			// Verify the constants name actual loaded symbols. The markers live in the GLOBAL
+			// namespace (no `namespace` directive in _DIServiceMarkers.cs), so the metadata-name
+			// lookup should resolve when the analyzer's compilation-start gate runs.
+			//
+			// We can't easily build a Roslyn Compilation here without reproducing the entire
+			// VerifyAsync setup. Instead, validate the runtime-assembly side: each constant must
+			// match an actual loaded interface type's name in NotNot.Bcl.Core.
+			var bclAssembly = typeof(IDiSingletonService).Assembly;
+			var singletonType = bclAssembly.GetType(singletonFqn!);
+			var scopedType = bclAssembly.GetType(scopedFqn!);
+			var transientType = bclAssembly.GetType(transientFqn!);
+			Assert.NotNull(singletonType);
+			Assert.NotNull(scopedType);
+			Assert.NotNull(transientType);
+			Assert.Equal(typeof(IDiSingletonService), singletonType);
+			Assert.Equal(typeof(IDiScopedService), scopedType);
+			Assert.Equal(typeof(IDiTransientService), transientType);
+
+			// Wave 2 Cluster E: removed `await Task.CompletedTask;` and `async` keyword. xUnit
+			// `[Fact]` accepts both synchronous (`void`) and asynchronous (`async Task`) methods;
+			// this test is pure reflection and has no asynchronous work, so synchronous is correct
+			// and eliminates the spurious PH_S020 "async method without await" warning.
 		}
 	}
 }
