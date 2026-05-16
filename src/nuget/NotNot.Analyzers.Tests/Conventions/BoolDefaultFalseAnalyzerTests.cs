@@ -316,16 +316,16 @@ public class TestClass
 	}
 
 	[Fact]
-	public async Task PublicGetOnlyProperty_InitializerTrue_NoDiagnostic()
+	public async Task PublicGetOnlyProperty_InitializerTrue_FiresDiagnostic()
 	{
-		// { get; } = true; is readonly-equivalent — no setter, no init, value locked at
-		// construction. Semantic intent matches the rule's goal.
+		// Get-only property still fires. The consumer-facing read surface shows `true` by
+		// default; readonly-equivalent does not exempt, only restricted visibility does.
 		string source = @"
 public class TestClass
 {
-    public bool Flag { get; } = true;
+    public bool Flag { get; } = {|#0:true|};
 }";
-		await VerifyAnalyzerAsync(source);
+		await VerifyAnalyzerAsync(source, Expect(0, "property", "Flag"));
 	}
 
 	[Fact]
@@ -486,39 +486,43 @@ public class TestClass
 	}
 
 	[Fact]
-	public async Task StaticReadonlyField_True_NoDiagnostic()
+	public async Task StaticReadonlyField_True_FiresDiagnostic()
 	{
-		// `static readonly bool X = true` is a value, not a default state — out of scope.
+		// `static readonly` does NOT exempt — readonly is no longer an exemption rule. The
+		// only exemptions for fields are restricted visibility (private/protected/private
+		// protected) or `const` (which is a compile-time value, not a default state).
 		string source = @"
 public class TestClass
 {
-    public static readonly bool Flag = true;
+    public static readonly bool Flag = {|#0:true|};
 }";
-		await VerifyAnalyzerAsync(source);
+		await VerifyAnalyzerAsync(source, Expect(0, "field", "Flag"));
 	}
 
 	[Fact]
-	public async Task PublicReadonlyInstanceField_True_NoDiagnostic()
+	public async Task PublicReadonlyInstanceField_True_FiresDiagnostic()
 	{
-		// Instance readonly field — locked at construction, semantic intent matches rule goal.
-		// Exempt regardless of accessibility.
+		// Readonly does NOT exempt — only restricted visibility does. Public readonly with
+		// default `true` still flags because the consumer-facing read surface shows `true`.
 		string source = @"
 public class TestClass
 {
-    public readonly bool Flag = true;
+    public readonly bool Flag = {|#0:true|};
 }";
-		await VerifyAnalyzerAsync(source);
+		await VerifyAnalyzerAsync(source, Expect(0, "field", "Flag"));
 	}
 
 	[Fact]
-	public async Task InternalReadonlyInstanceField_True_NoDiagnostic()
+	public async Task InternalReadonlyInstanceField_True_FiresDiagnostic()
 	{
+		// `internal readonly` — readonly does not exempt; internal is broad enough that the
+		// consumer-facing concern applies across the assembly.
 		string source = @"
 public class TestClass
 {
-    internal readonly bool Flag = true;
+    internal readonly bool Flag = {|#0:true|};
 }";
-		await VerifyAnalyzerAsync(source);
+		await VerifyAnalyzerAsync(source, Expect(0, "field", "Flag"));
 	}
 
 	[Fact]

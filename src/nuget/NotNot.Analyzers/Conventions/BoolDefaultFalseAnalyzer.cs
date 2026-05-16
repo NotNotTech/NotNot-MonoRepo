@@ -34,20 +34,18 @@ namespace NotNot.Analyzers.Conventions;
 ///     parameters do not support defaults syntactically and are out of scope.
 ///   </description></item>
 ///   <item><description>
-///     <b>Property declarations</b> with an auto-initializer (<c>{ get; set; } = true;</c> or
-///     <c>{ get; init; } = true;</c>). Properties with only a <c>get</c> accessor
-///     (<c>{ get; } = true;</c>) are readonly-equivalent and exempt — the value cannot be
-///     reassigned after construction. <c>private</c>, <c>protected</c>, and
-///     <c>private protected</c> properties are exempt as implementation details (no
-///     external consumer surface). Computed properties without initializers carry no
-///     default state and are out of scope.
+///     <b>Property declarations</b> with an auto-initializer (<c>{ get; set; } = true;</c>,
+///     <c>{ get; init; } = true;</c>, or get-only <c>{ get; } = true;</c>). <c>private</c>,
+///     <c>protected</c>, and <c>private protected</c> properties are exempt as
+///     implementation details (no external consumer surface). Computed properties
+///     (<c>=> ...</c>) without initializers carry no default state and are out of scope.
 ///   </description></item>
 ///   <item><description>
 ///     <b>Field declarations</b> with an initializer (<c>bool _x = true;</c>). Fields tagged
-///     <c>const</c> or <c>readonly</c> (instance or static) are skipped — those declare a
-///     value locked at construction, not a mutable default state. <c>private</c>,
-///     <c>protected</c>, and <c>private protected</c> fields are exempt as implementation
-///     details.
+///     <c>const</c> are skipped — a <c>const</c> is a compile-time value, not a default
+///     state. <c>private</c>, <c>protected</c>, and <c>private protected</c> fields are
+///     exempt as implementation details. <c>readonly</c> does NOT exempt — the consumer-
+///     facing read surface still shows <c>true</c> by default.
 ///   </description></item>
 /// </list>
 /// </para>
@@ -122,10 +120,9 @@ public sealed class BoolDefaultFalseAnalyzer : DiagnosticAnalyzer
 		messageFormat:
 			"Boolean {0} '{1}' defaults to 'true'. Boolean defaults should be 'false' to avoid silent behavioral drift. "
 			+ "Fix options: (1) Rename to express the inverse condition (Skip*, Omit*, Disable*, Suppress*, No*) so default 'false' matches intent. "
-			+ "(2) For fields: mark as 'readonly' to lock the value at construction. For properties: remove both 'set' and 'init' accessors (use '{ get; } = ...' instead). "
-			+ "(3) Private/protected/private-protected fields and properties are exempt automatically — only public, internal, and protected-internal members on the API surface are enforced. "
-			+ "(4) Annotate the member, type, or assembly with [NotNot.Bcl.Diagnostics.CodeStyleBypass] for narrowly documented exceptions. "
-			+ "Note: parameters are enforced unconditionally regardless of method visibility.",
+			+ "(2) Private/protected/private-protected fields and properties are exempt automatically — only public, internal, and protected-internal members on the API surface are enforced. "
+			+ "(3) Annotate the member, type, or assembly with [NotNot.Bcl.Diagnostics.CodeStyleBypass] for narrowly documented exceptions. "
+			+ "Note: parameters are enforced unconditionally regardless of method visibility. 'readonly' does NOT exempt.",
 		category: "CodeStyle",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
@@ -134,11 +131,10 @@ public sealed class BoolDefaultFalseAnalyzer : DiagnosticAnalyzer
 			+ "behavioral drift on consumers who don't know to flip them; default-false is opt-in discoverable. "
 			+ "Name the positive (active) condition so default-false = inactive: SkipValidation not Validate=true; "
 			+ "SkipGitIgnore not RespectGitignore=true. Prefer natural-English negation verbs (Skip*, Omit*, "
-			+ "Disable*, Suppress*, No*) over awkward prefixed antonyms (Dis-, Un-, Non-). For fields, marking "
-			+ "as 'readonly' is an alternative fix; for properties, making them get-only ({ get; }) is an "
-			+ "alternative fix. Private/protected fields and properties are auto-exempt as implementation "
-			+ "details. Annotate scopes that genuinely require default-true with "
-			+ "NotNot.Bcl.Diagnostics.CodeStyleBypassAttribute.",
+			+ "Disable*, Suppress*, No*) over awkward prefixed antonyms (Dis-, Un-, Non-). Private/protected "
+			+ "fields and properties are auto-exempt as implementation details (consumer-facing surface only). "
+			+ "'readonly' does NOT exempt — the read-side default surface remains. Annotate scopes that "
+			+ "genuinely require default-true with NotNot.Bcl.Diagnostics.CodeStyleBypassAttribute.",
 		helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#{DiagnosticId}",
 		customTags: new[] { "CodeStyle", "Conventions", "Naming" }
 	);
@@ -228,10 +224,6 @@ public sealed class BoolDefaultFalseAnalyzer : DiagnosticAnalyzer
 		if (!IsBoolType(prop.Type, context.SemanticModel, context.CancellationToken))
 			return;
 
-		// Readonly-equivalent property (no `set`, no `init`) — value locked at construction, exempt.
-		if (IsReadOnlyEquivalentProperty(prop))
-			return;
-
 		var propSymbol = context.SemanticModel.GetDeclaredSymbol(prop, context.CancellationToken);
 		if (propSymbol is null)
 			return;
@@ -260,11 +252,6 @@ public sealed class BoolDefaultFalseAnalyzer : DiagnosticAnalyzer
 
 		// `const bool X = true` is a declared value, not a default state — skip.
 		if (field.Modifiers.Any(SyntaxKind.ConstKeyword))
-			return;
-
-		// Any `readonly` field (instance or static) is locked at construction — semantic intent
-		// matches the rule's goal of preventing silent default-true mutation. Exempt.
-		if (field.Modifiers.Any(SyntaxKind.ReadOnlyKeyword))
 			return;
 
 		if (!IsBoolType(field.Declaration.Type, context.SemanticModel, context.CancellationToken))
@@ -352,29 +339,6 @@ public sealed class BoolDefaultFalseAnalyzer : DiagnosticAnalyzer
 		return accessibility == Accessibility.Private
 			|| accessibility == Accessibility.Protected
 			|| accessibility == Accessibility.ProtectedAndInternal;
-	}
-
-	/// <summary>
-	/// True iff <paramref name="prop"/> has no <c>set</c> accessor and no <c>init</c>
-	/// accessor — i.e., a get-only property (<c>{ get; }</c>). Such properties cannot be
-	/// reassigned after construction, making the default value effectively locked.
-	/// Properties with <c>{ get; init; }</c> are <b>not</b> exempt (Option A): <c>init</c>
-	/// is still consumer-facing through object-initializer syntax, and the consumer-
-	/// forgets-to-override concern applies.
-	/// </summary>
-	private static bool IsReadOnlyEquivalentProperty(PropertyDeclarationSyntax prop)
-	{
-		if (prop.AccessorList is null)
-			return false;
-		foreach (var accessor in prop.AccessorList.Accessors)
-		{
-			var kind = accessor.Kind();
-			if (kind == SyntaxKind.SetAccessorDeclaration)
-				return false;
-			if (kind == SyntaxKind.InitAccessorDeclaration)
-				return false;
-		}
-		return true;
 	}
 
 	/// <summary>

@@ -29,7 +29,7 @@ public unsafe struct PercentileSampler800<T> where T : unmanaged, IComparable<T>
 
 
 	private int _nextIndex = 0;
-	private readonly bool _isCtored = true;
+	private bool _isCtored = true;
 
 	/// <summary>
 	///    if we have not filled our sample count, don't generate percentiles based on the blanks
