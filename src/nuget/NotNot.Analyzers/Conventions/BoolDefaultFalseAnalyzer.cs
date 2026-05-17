@@ -122,7 +122,8 @@ public sealed class BoolDefaultFalseAnalyzer : DiagnosticAnalyzer
 			+ "Fix options: (1) Rename to express the inverse condition (Skip*, Omit*, Disable*, Suppress*, No*) so default 'false' matches intent. "
 			+ "(2) Private/protected/private-protected fields and properties are exempt automatically — only public, internal, and protected-internal members on the API surface are enforced. "
 			+ "(3) Annotate the member, type, or assembly with [NotNot.Bcl.Diagnostics.CodeStyleBypass] for narrowly documented exceptions. "
-			+ "Note: parameters are enforced unconditionally regardless of method visibility. 'readonly' does NOT exempt.",
+			+ "Note: parameters are enforced unconditionally regardless of method visibility. 'readonly' does NOT exempt. "
+			+ "AGENT_NUDGE: invoking (3) to dodge test/doc/caller refactor cost = CONSUMER_COST_ZERO_WEIGHT_TENET violation (AGENTS.md) — pick (1) full rename, tests adapt to production.",
 		category: "CodeStyle",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
