@@ -253,6 +253,56 @@ dotnet_diagnostic.NN_LDDD_004.severity = error
 dotnet_diagnostic.NN_LDDD_005.severity = error
 ```
 
+### NN_RM_001: Per-page `@rendermode` directive forbidden (Pattern 2 reflection is canonical)
+
+**Severity:** Warning
+**Category:** RenderMode
+**Authority:** Consumer-app render-mode architecture (e.g., `Novaleaf.VibeOverwatch/BlazorArchitecture.vibeKnowledge.md`) — applies whenever a consumer adopts **Pattern 2 reflection** at `App.razor` as the single render-mode declaration site.
+
+Detects `@rendermode` directives in `.razor` files. Pattern 2 reflection at `App.razor` (typically a getter binding `HttpContext.GetEndpoint()?.Metadata.GetMetadata<RenderModeAttribute>()?.Mode` to `<HeadOutlet>` + `<Routes>`) reads per-route render-mode metadata via endpoint reflection. Per-page `@rendermode @(...)` directives re-introduce the layout-tier LCA reconciliation defect documented at [`dotnet/aspnetcore#52768`](https://github.com/dotnet/aspnetcore/issues/52768): stacked WASM directives downgrade to `"type":"auto"` boundary markers, silently breaking JS interop reach (popovers/tooltips/dropdowns).
+
+The analyzer registers a `CompilationAction` that scans `AdditionalFiles` for `.razor` files using the multiline regex `^\s*@rendermode\b` (word-boundary; catches any directive value — canonical `InteractiveWebAssemblyRenderMode` literal, `InteractiveServer`, `InteractiveAuto`, or layout-tier placements). The diagnostic location anchors at the directive's line/column via `SourceText.Lines.GetLinePosition` plus a whitespace-skip-to-`@` step.
+
+```razor
+@page "/some-route"
+
+@* ❌ NN_RM_001 fires — per-page directive re-introduces LCA defect *@
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: true))
+
+@* ❌ NN_RM_001 fires — any directive value triggers the rule *@
+@rendermode InteractiveServer
+
+@* ✅ Override via attribute form — flows through endpoint metadata without LCA risk *@
+@attribute [RenderModeInteractiveServer]
+```
+
+**Path-based exception buckets** (analyzer skips diagnostic emission):
+
+| Bucket | Applies to |
+|--------|-----------|
+| Pages/Samples | Any file path containing `Pages/Samples/` (pedagogical / side-by-side sample pages) |
+| Pages/NnDesignSamples | Any file path containing `Pages/NnDesignSamples/` (NnDesign component demo pages) |
+
+**Bypass mechanism** — whole-assembly opt-out for sibling libraries that don't adopt Pattern 2 reflection:
+
+```csharp
+[assembly: NotNot.BlazorAnalyzers.RenderMode.NnRmBypass]
+```
+
+Apply this to assemblies whose render-mode architecture predates or doesn't use single-declaration-site Pattern 2 reflection. Per-page or per-class bypass is intentionally NOT supported — the consumer assembly either adopts Pattern 2 reflection wholesale or opts out wholesale. This keeps the bypass surface minimal and prevents per-page bypass markers from accumulating as silent contradictions of the architectural invariant.
+
+**Known limitations** (BY-DESIGN trade-offs pinned as tests):
+
+- Text-scan analyzer (per Microsoft.CodeAnalysis `AdditionalFiles` precedent) lacks Razor lexical context, so a `@rendermode` directive inside a Razor block comment (e.g., `@* @rendermode ... *@`) WILL fire the diagnostic. LOW user impact — block-commented directives are vanishingly rare in practice; the trade-off favors text-scan simplicity over a full Razor lexer dependency.
+- Word-boundary regex prevents false positives on identifier-char continuations (e.g., `@rendermodeXyz` does not match), but the analyzer does not validate that post-directive text is well-formed Razor.
+
+**Severity escalation** — escalate via `.editorconfig` once the consumer assembly reaches zero per-page directives:
+
+```ini
+[*.razor]
+dotnet_diagnostic.NN_RM_001.severity = error
+```
+
 ### NNB002: JS Reference Disposal Required
 
 **Severity:** Error
@@ -611,6 +661,9 @@ dotnet_diagnostic.NN_LDDD_002.severity = warning
 dotnet_diagnostic.NN_LDDD_003.severity = warning
 dotnet_diagnostic.NN_LDDD_004.severity = warning
 dotnet_diagnostic.NN_LDDD_005.severity = warning
+
+# Render mode enforcement — Pattern 2 reflection canonicalization (default: warning)
+dotnet_diagnostic.NN_RM_001.severity = warning
 ```
 
 ## Why These Rules?
