@@ -59,6 +59,7 @@ namespace NotNot.BlazorAnalyzers.LiteDDD;
 public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 {
 	private const string Category = "LiteDDD.AssemblyFence";
+	private const string AbmcsCategory = "ABMCS.AssemblyFence";
 
 	private const string HelpBase =
 		"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers#";
@@ -154,6 +155,83 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 		description: LDDD004_Description,
 		helpLinkUri: HelpBase + "nn_lddd_004");
 
+	// ── ABMCS additive aliases — dual-emit pattern ────────────────────────────
+	// Each violation that fires a legacy NN_LDDD_* diagnostic ALSO fires the matching
+	// NN_ABMCS_* diagnostic. Consumers can suppress either ID via .editorconfig
+	// (`dotnet_diagnostic.NN_LDDD_001.severity = none` or `NN_ABMCS_001 = none`); the
+	// legacy IDs remain for backward compatibility with existing external consumers.
+	//
+	// Mapping (per docs/protocols/abmcs-overview.VowHuman.md rename table):
+	//   NN_LDDD_001 + NN_LDDD_002  →  NN_ABMCS_001   (server-asm fence + server-namespace using, consolidated)
+	//   NN_LDDD_004                 →  NN_ABMCS_004   (DbContext in shared/client)
+
+	// ── NN_ABMCS_001 — Server-assembly type referenced in Shared/Client code (also folds in
+	//                   server-namespace using directives previously covered by NN_LDDD_002) ──
+
+	/// <summary>Diagnostic ID for the ABMCS additive alias of NN_LDDD_001 + NN_LDDD_002 (server-assembly fence + server-namespace import).</summary>
+	public const string ABMCS001_DiagnosticId = "NN_ABMCS_001";
+
+	private static readonly LocalizableString ABMCS001_Title =
+		"Server-assembly type or server-namespace import referenced in Shared/Client code";
+
+	private static readonly LocalizableString ABMCS001_MessageFormat =
+		"Server-side type or import '{0}' is referenced from {1} assembly '{2}' "
+		+ "(server source: '{3}'). Shared/Client code must not depend on server assemblies — "
+		+ "route through a Refit [FeatureContract] transport interface or a DTO in Shared. "
+		+ "(NN_ABMCS_001)";
+
+	private static readonly LocalizableString ABMCS001_Description =
+		"ABMCS principle (Agent-Bounded Minimal Contract Slices): the client is a light "
+		+ "presentation layer. Server-assembly types (assemblies whose identity ends in .Server) "
+		+ "and server-namespace using directives represent server-side logic, database entities, "
+		+ "or application-services that must not cross the Server/Shared boundary directly. "
+		+ "Communicate via Refit interfaces marked [FeatureContract] and DTOs in the Shared project. "
+		+ "Apply [assembly: FeatureBypass] for sibling primitive layers or carve-out cases. "
+		+ "This rule is an additive alias for the legacy NN_LDDD_001 + NN_LDDD_002 diagnostics — "
+		+ "violations fire both IDs; suppress either via .editorconfig.";
+
+	/// <summary>NN_ABMCS_001 descriptor — Warning, ABMCS.AssemblyFence category. ADDITIVE ALIAS of NN_LDDD_001 + NN_LDDD_002.</summary>
+	public static readonly DiagnosticDescriptor ABMCS001_Rule = new(
+		ABMCS001_DiagnosticId,
+		ABMCS001_Title,
+		ABMCS001_MessageFormat,
+		AbmcsCategory,
+		DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: ABMCS001_Description,
+		helpLinkUri: HelpBase + "nn_abmcs_001");
+
+	// ── NN_ABMCS_004 — Entity Framework DbContext in Shared/Client code (alias of NN_LDDD_004) ──
+
+	/// <summary>Diagnostic ID for the ABMCS additive alias of NN_LDDD_004 (DbContext in shared/client code).</summary>
+	public const string ABMCS004_DiagnosticId = "NN_ABMCS_004";
+
+	private static readonly LocalizableString ABMCS004_Title =
+		"Entity Framework DbContext referenced in Shared/Client code";
+
+	private static readonly LocalizableString ABMCS004_MessageFormat =
+		"Member '{0}' has Entity Framework DbContext type '{1}' inside {2} assembly '{3}'. "
+		+ "DbContext is a server-side persistence concern — Shared/Client must communicate via "
+		+ "Refit [FeatureContract] interfaces and DTOs, never via direct ORM types. (NN_ABMCS_004)";
+
+	private static readonly LocalizableString ABMCS004_Description =
+		"ABMCS principle: persistence concerns live behind the Server boundary. Even a field, "
+		+ "property, or parameter typed as DbContext (or a subclass) in Shared/Client code leaks "
+		+ "the ORM into the presentation layer. Route data access through Refit transport "
+		+ "interfaces marked [FeatureContract]. Additive alias for the legacy NN_LDDD_004 — both "
+		+ "IDs fire on the same violation; suppress either via .editorconfig.";
+
+	/// <summary>NN_ABMCS_004 descriptor — Warning, ABMCS.AssemblyFence category. ADDITIVE ALIAS of NN_LDDD_004.</summary>
+	public static readonly DiagnosticDescriptor ABMCS004_Rule = new(
+		ABMCS004_DiagnosticId,
+		ABMCS004_Title,
+		ABMCS004_MessageFormat,
+		AbmcsCategory,
+		DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: ABMCS004_Description,
+		helpLinkUri: HelpBase + "nn_abmcs_004");
+
 	// ── NN_LDDD_002 text-scan regex (for .razor / .razor.cs AdditionalFiles) ────
 
 	/// <summary>
@@ -174,7 +252,11 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 
 	/// <inheritdoc/>
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-		ImmutableArray.Create(LDDD001_Rule, LDDD002_Rule, LDDD004_Rule);
+		ImmutableArray.Create(
+			// Legacy LiteDDD rules.
+			LDDD001_Rule, LDDD002_Rule, LDDD004_Rule,
+			// ABMCS additive aliases (dual-emit with their legacy counterparts).
+			ABMCS001_Rule, ABMCS004_Rule);
 
 	/// <inheritdoc/>
 	public override void Initialize(AnalysisContext context)
@@ -266,6 +348,17 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 				$"using {namespacePart}",
 				compilationAssemblyKind,
 				compilationAssemblyName));
+
+			// ABMCS additive alias — NN_ABMCS_001 consolidates server-asm fence AND
+			// server-namespace using under a single rule ID. Dual-emit lets consumers
+			// suppress either ID via .editorconfig.
+			context.ReportDiagnostic(Diagnostic.Create(
+				ABMCS001_Rule,
+				location,
+				$"using {namespacePart}",
+				compilationAssemblyKind,
+				compilationAssemblyName,
+				namespacePart));
 		}
 	}
 
@@ -325,6 +418,17 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 			displayName,
 			compilationAssemblyKind,
 			compilationAssemblyName));
+
+		// ABMCS additive alias — NN_ABMCS_001 consolidates server-asm fence + server-namespace
+		// using directives. Source-namespace arg is the using's target namespace text.
+		var serverSource = node.Name?.ToString() ?? displayName;
+		context.ReportDiagnostic(Diagnostic.Create(
+			ABMCS001_Rule,
+			node.GetLocation(),
+			displayName,
+			compilationAssemblyKind,
+			compilationAssemblyName,
+			serverSource));
 	}
 
 	// ── Semantic pathway — NN_LDDD_001 IdentifierName ─────────────────────────
@@ -386,6 +490,18 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 			containingAssembly.Identity.Name,
 			compilationAssemblyKind,
 			compilationAssemblyName));
+
+		// ABMCS additive alias — NN_ABMCS_001 consolidates the server-assembly type reference
+		// detection alongside the server-namespace using directive detection (the legacy
+		// NN_LDDD_001 + NN_LDDD_002 pair). Same diagnostic location; the format string differs
+		// (server-source arg holds the containing-assembly identity here).
+		context.ReportDiagnostic(Diagnostic.Create(
+			ABMCS001_Rule,
+			node.GetLocation(),
+			displayName,
+			compilationAssemblyKind,
+			compilationAssemblyName,
+			containingAssembly.Identity.Name));
 	}
 
 	// ── Semantic pathway — NN_LDDD_004 fields / properties / parameters ──────
@@ -443,6 +559,15 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 			memberType!.ToDisplayString(),
 			compilationAssemblyKind,
 			compilationAssemblyName));
+
+		// ABMCS additive alias — same detection, new ID.
+		context.ReportDiagnostic(Diagnostic.Create(
+			ABMCS004_Rule,
+			location,
+			$"{memberKind} {memberName}",
+			memberType.ToDisplayString(),
+			compilationAssemblyKind,
+			compilationAssemblyName));
 	}
 
 	private static void AnalyzeParameter(SyntaxNodeAnalysisContext context)
@@ -485,33 +610,30 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 			paramType!.ToDisplayString(),
 			compilationAssemblyKind,
 			compilationAssemblyName));
+
+		// ABMCS additive alias — same detection, new ID.
+		context.ReportDiagnostic(Diagnostic.Create(
+			ABMCS004_Rule,
+			parameter.GetLocation(),
+			$"Parameter {paramName}",
+			paramType.ToDisplayString(),
+			compilationAssemblyKind,
+			compilationAssemblyName));
 	}
 
 	// ── Helpers ───────────────────────────────────────────────────────────────
 
 	/// <summary>
-	/// Phase 5 CR-3 helper — checks ONLY the immediate symbol's <c>[LdddBypass]</c> attributes
-	/// without walking the containment chain. Used by NN_LDDD_004 parameter analysis to honor
-	/// method-scope bypass without leaking the suppression to all methods of the containing
-	/// type (which would contradict the vibeKnowledge §4c contract). Mirrors the matching
-	/// convention of <see cref="LdddAnalyzerHelpers.HasLdddBypassAttribute(IAssemblySymbol)"/>
-	/// (simple-name OR fully-qualified) but applies it once, not iteratively.
+	/// Phase 5 CR-3 helper — checks ONLY the immediate symbol's <c>[LdddBypass]</c> /
+	/// <c>[FeatureBypass]</c> attributes without walking the containment chain. Used by
+	/// NN_LDDD_004 / NN_ABMCS_004 parameter analysis to honor method-scope bypass without
+	/// leaking the suppression to all methods of the containing type (which would contradict
+	/// the vibeKnowledge §4c contract). Delegates to the shared helper
+	/// <see cref="LdddAnalyzerHelpers.HasLdddBypassAttributeDirect(ISymbol)"/> so the
+	/// legacy-or-ABMCS-attribute matching stays in one place.
 	/// </summary>
 	private static bool HasLdddBypassAttributeDirect(ISymbol symbol)
-	{
-		foreach (var attribute in symbol.GetAttributes())
-		{
-			var attrClass = attribute.AttributeClass;
-			if (attrClass == null)
-				continue;
-
-			if (string.Equals(attrClass.Name, LdddAnalyzerHelpers.LdddBypassAttributeSimpleName, StringComparison.Ordinal))
-				return true;
-			if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.LdddBypassAttributeFullName, StringComparison.Ordinal))
-				return true;
-		}
-		return false;
-	}
+		=> LdddAnalyzerHelpers.HasLdddBypassAttributeDirect(symbol);
 
 	/// <summary>
 	/// Returns true when the namespace symbol's root ends in <c>.Server</c>, OR the namespace's

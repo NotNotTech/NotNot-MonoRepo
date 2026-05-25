@@ -242,6 +242,17 @@ namespace Novaleaf.VibeOverwatch.Features.Contracts
 					"Shared",
 					SharedAssemblyName));
 
+		// ABMCS additive alias — NN_ABMCS_001 dual-emits on the same span; message-format args
+		// are (typeName, kind, asmName, serverSource) per ABMCS001_MessageFormat.
+		test.ExpectedDiagnostics.Add(
+			new DiagnosticResult(LdddAssemblyFenceAnalyzer.ABMCS001_Rule)
+				.WithSpan("/0/Test0.cs", 5, 16, 5, 24)
+				.WithArguments(
+					"Novaleaf",
+					"Shared",
+					SharedAssemblyName,
+					ServerAssemblyName));
+
 		await test.RunAsync();
 	}
 
@@ -382,6 +393,18 @@ namespace TestProject.Shared
 					"Shared",
 					SharedAssemblyName));
 
+		// ABMCS additive alias — NN_ABMCS_001 consolidates server-asm fence + server-namespace
+		// using into a single rule ID. Dual-emit asserts both legacy and new IDs fire.
+		// AnalyzeAdditionalFile uses namespacePart for the serverSource arg.
+		test.ExpectedDiagnostics.Add(
+			new DiagnosticResult(LdddAssemblyFenceAnalyzer.ABMCS001_Rule)
+				.WithSpan(razorPath, 1, 1, 1, 48)
+				.WithArguments(
+					"using Novaleaf.VibeOverwatch.Server.Features.X",
+					"Shared",
+					SharedAssemblyName,
+					"Novaleaf.VibeOverwatch.Server.Features.X"));
+
 		await test.RunAsync();
 	}
 
@@ -417,6 +440,17 @@ namespace TestProject.Shared
 					"using Novaleaf.VibeOverwatch.Server.Features.X",
 					"Shared",
 					SharedAssemblyName));
+
+		// ABMCS additive alias — NN_ABMCS_001 dual-emit. ReportLddd002 derives serverSource
+		// from `node.Name.ToString()` which equals the using's namespace text without "using ".
+		test.ExpectedDiagnostics.Add(
+			new DiagnosticResult(LdddAssemblyFenceAnalyzer.ABMCS001_Rule)
+				.WithSpan("/0/Test0.cs", 1, 1, 1, 48)
+				.WithArguments(
+					"using Novaleaf.VibeOverwatch.Server.Features.X",
+					"Shared",
+					SharedAssemblyName,
+					"Novaleaf.VibeOverwatch.Server.Features.X"));
 
 		// Suppress compiler diagnostics for the unresolved namespace — the analyzer's fallback
 		// text-pattern still recognizes the using as server-side.
@@ -522,6 +556,16 @@ namespace TestProject.Shared
 					"Shared",
 					SharedAssemblyName));
 
+		// ABMCS additive alias — NN_ABMCS_004 dual-emit on the same span with the same args.
+		test.ExpectedDiagnostics.Add(
+			new DiagnosticResult(LdddAssemblyFenceAnalyzer.ABMCS004_Rule)
+				.WithSpan("/0/Test0.cs", 7, 30, 7, 41)
+				.WithArguments(
+					"Field _db",
+					"TestProject.Shared.VowDbContext",
+					"Shared",
+					SharedAssemblyName));
+
 		// The unused-private-field analyzer fires CS0169 on `_db`. Allow it.
 		test.CompilerDiagnostics = CompilerDiagnostics.None;
 
@@ -558,6 +602,16 @@ namespace TestProject.Shared
 		// Property declaration spans col 9 ("public" start) → col 54 (end of `= null!;`).
 		test.ExpectedDiagnostics.Add(
 			new DiagnosticResult(LdddAssemblyFenceAnalyzer.LDDD004_Rule)
+				.WithSpan("/0/Test0.cs", 7, 9, 7, 54)
+				.WithArguments(
+					"Property Db",
+					"TestProject.Shared.VowDbContext",
+					"Shared",
+					SharedAssemblyName));
+
+		// ABMCS additive alias — NN_ABMCS_004 dual-emit.
+		test.ExpectedDiagnostics.Add(
+			new DiagnosticResult(LdddAssemblyFenceAnalyzer.ABMCS004_Rule)
 				.WithSpan("/0/Test0.cs", 7, 9, 7, 54)
 				.WithArguments(
 					"Property Db",

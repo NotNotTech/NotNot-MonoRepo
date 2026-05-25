@@ -58,6 +58,7 @@ namespace NotNot.BlazorAnalyzers.LiteDDD;
 public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 {
 	private const string Category = "LiteDDD.ComponentBoundary";
+	private const string AbmcsCategory = "ABMCS.ComponentBoundary";
 
 	private const string HelpBase =
 		"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers#";
@@ -141,6 +142,86 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 		description: LDDD005_Description,
 		helpLinkUri: HelpBase + "nn_lddd_005");
 
+	// ── ABMCS additive aliases — dual-emit pattern ────────────────────────────
+	// Mapping (per docs/protocols/abmcs-overview.VowHuman.md rename table):
+	//   NN_LDDD_003  →  NN_ABMCS_003   (injected service unmarked — same detection)
+	//   NN_LDDD_005  →  NN_ABMCS_002   (direct domain/server-logic call — RENUMBERED for grouping)
+	//
+	// The renumber from _005 → _002 is intentional: under the ABMCS taxonomy the
+	// component-boundary call rule sits adjacent to the server-asm fence rule (NN_ABMCS_001).
+	// Dual-emit lets consumers suppress either ID via .editorconfig independently.
+
+	// ── NN_ABMCS_002 — Direct call to [FeatureServerLogic] from component (alias of NN_LDDD_005) ──
+
+	/// <summary>Diagnostic ID for the ABMCS additive alias of NN_LDDD_005 (direct server-logic call from a component, renumbered).</summary>
+	public const string ABMCS002_DiagnosticId = "NN_ABMCS_002";
+
+	private static readonly LocalizableString ABMCS002_Title =
+		"Direct call to [FeatureServerLogic] from Blazor component";
+
+	private static readonly LocalizableString ABMCS002_MessageFormat =
+		"Method '{0}' on [FeatureServerLogic] type '{1}' is invoked from Blazor component '{2}'. "
+		+ "Server-logic services must be called via a Refit [FeatureContract] transport interface, "
+		+ "not directly from components. (NN_ABMCS_002)";
+
+	private static readonly LocalizableString ABMCS002_Description =
+		"ABMCS principle: server-logic compute lives behind the Server boundary and is invoked "
+		+ "from the client via Refit [FeatureContract] interfaces. A direct instance-method call "
+		+ "on a [FeatureServerLogic]-marked receiver from a ComponentBase-derived class bypasses "
+		+ "the wire boundary and leaks server coupling into the presentation layer. Route the "
+		+ "call through a Refit transport proxy in Shared/Features/*/Contracts/ instead. "
+		+ "Additive alias for the legacy NN_LDDD_005 — both IDs fire on the same violation; "
+		+ "suppress either via .editorconfig.";
+
+	/// <summary>NN_ABMCS_002 descriptor — Warning, ABMCS.ComponentBoundary category. ADDITIVE ALIAS of NN_LDDD_005 (renumbered).</summary>
+	public static readonly DiagnosticDescriptor ABMCS002_Rule = new(
+		ABMCS002_DiagnosticId,
+		ABMCS002_Title,
+		ABMCS002_MessageFormat,
+		AbmcsCategory,
+		DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: ABMCS002_Description,
+		helpLinkUri: HelpBase + "nn_abmcs_002");
+
+	// ── NN_ABMCS_003 — Injected service not [FeatureContract] (alias of NN_LDDD_003) ──
+
+	/// <summary>Diagnostic ID for the ABMCS additive alias of NN_LDDD_003 (injected service not marked [FeatureContract]).</summary>
+	public const string ABMCS003_DiagnosticId = "NN_ABMCS_003";
+
+	private static readonly LocalizableString ABMCS003_Title =
+		"Injected service not marked [FeatureContract]";
+
+	private static readonly LocalizableString ABMCS003_MessageFormat =
+		"Type '{0}' is injected into Blazor component '{1}' but is not marked [FeatureContract]. "
+		+ "Services injected into Blazor components from Shared/Client assemblies must be Refit "
+		+ "transport contracts or framework infrastructure. Mark the service interface with "
+		+ "[FeatureContract] or add the type to the framework allow-list. (NN_ABMCS_003)";
+
+	private static readonly LocalizableString ABMCS003_Description =
+		"ABMCS principle: the Blazor component layer composes presentation from a narrow set of "
+		+ "wire-level Refit transport contracts plus a curated framework allow-list. Injecting an "
+		+ "arbitrary server-logic or helper type into a ComponentBase-derived class blurs the "
+		+ "ABMCS Shared/Client boundary and risks pulling server compute into the page. Mark the "
+		+ "injected interface with [NotNot.Bcl.Diagnostics.FeatureContractAttribute] when it is a "
+		+ "Refit transport contract, or add the type to the framework allow-list curated by this "
+		+ "analyzer (NavigationManager, ILogger, HubConnection, etc — full list documented on "
+		+ "NN_LDDD_003 and in protocols/abmcs-analyzers.VowHuman.md). Bypass via "
+		+ "[assembly: FeatureBypass] for whole-assembly opt-out, or [FeatureBypass] on the "
+		+ "ComponentBase-derived class for type-scope suppression. Additive alias for the legacy "
+		+ "NN_LDDD_003 — both IDs fire on the same violation; suppress either via .editorconfig.";
+
+	/// <summary>NN_ABMCS_003 descriptor — Warning, ABMCS.ComponentBoundary category. ADDITIVE ALIAS of NN_LDDD_003.</summary>
+	public static readonly DiagnosticDescriptor ABMCS003_Rule = new(
+		ABMCS003_DiagnosticId,
+		ABMCS003_Title,
+		ABMCS003_MessageFormat,
+		AbmcsCategory,
+		DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: ABMCS003_Description,
+		helpLinkUri: HelpBase + "nn_abmcs_003");
+
 	// ── Framework allow-list (NN_LDDD_003 — R4) ───────────────────────────────
 
 	/// <summary>
@@ -189,7 +270,11 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 
 	/// <inheritdoc/>
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-		ImmutableArray.Create(LDDD003_Rule, LDDD005_Rule);
+		ImmutableArray.Create(
+			// Legacy LiteDDD rules.
+			LDDD003_Rule, LDDD005_Rule,
+			// ABMCS additive aliases (dual-emit with their legacy counterparts; NN_LDDD_005 renumbers to NN_ABMCS_002).
+			ABMCS002_Rule, ABMCS003_Rule);
 
 	/// <inheritdoc/>
 	public override void Initialize(AnalysisContext context)
@@ -273,6 +358,13 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 				location,
 				injectedType.ToDisplayString(),
 				typeSymbol.Name));
+
+			// ABMCS additive alias — NN_ABMCS_003 matches NN_LDDD_003 detection exactly.
+			context.ReportDiagnostic(Diagnostic.Create(
+				ABMCS003_Rule,
+				location,
+				injectedType.ToDisplayString(),
+				typeSymbol.Name));
 		}
 	}
 
@@ -305,9 +397,18 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 			if (attrClass == null)
 				continue;
 
+			// Legacy [LdddDataService] match (simple-name OR fully-qualified).
 			if (string.Equals(attrClass.Name, LdddAnalyzerHelpers.LdddDataServiceAttributeSimpleName, StringComparison.Ordinal))
 				return true;
 			if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.LdddDataServiceAttributeFullName, StringComparison.Ordinal))
+				return true;
+
+			// ABMCS [FeatureContract] additive alias — same architectural meaning, new vocabulary.
+			// A type marked with either attribute satisfies the per-property check; both names
+			// are interchangeable from the analyzer's perspective.
+			if (string.Equals(attrClass.Name, LdddAnalyzerHelpers.FeatureContractAttributeSimpleName, StringComparison.Ordinal))
+				return true;
+			if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.FeatureContractAttributeFullName, StringComparison.Ordinal))
 				return true;
 		}
 		return false;
@@ -388,6 +489,15 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 			methodName,
 			receiverType.ToDisplayString(),
 			enclosingType.Name));
+
+		// ABMCS additive alias — RENUMBERED from NN_LDDD_005 to NN_ABMCS_002 (intentional, per
+		// ABMCS taxonomy grouping with NN_ABMCS_001). Same detection, new ID.
+		context.ReportDiagnostic(Diagnostic.Create(
+			ABMCS002_Rule,
+			invocation.GetLocation(),
+			methodName,
+			receiverType.ToDisplayString(),
+			enclosingType.Name));
 	}
 
 	/// <summary>
@@ -411,9 +521,18 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 				if (attrClass == null)
 					continue;
 
+				// Legacy [LdddDomainService] match.
 				if (string.Equals(attrClass.Name, LdddAnalyzerHelpers.LdddDomainServiceAttributeSimpleName, StringComparison.Ordinal))
 					return true;
 				if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.LdddDomainServiceAttributeFullName, StringComparison.Ordinal))
+					return true;
+
+				// ABMCS [FeatureServerLogic] additive alias — same architectural meaning, new
+				// vocabulary. A type marked with either attribute trips the per-invocation rule
+				// (NN_LDDD_005 / NN_ABMCS_002).
+				if (string.Equals(attrClass.Name, LdddAnalyzerHelpers.FeatureServerLogicAttributeSimpleName, StringComparison.Ordinal))
+					return true;
+				if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.FeatureServerLogicAttributeFullName, StringComparison.Ordinal))
 					return true;
 			}
 			current = current.BaseType;

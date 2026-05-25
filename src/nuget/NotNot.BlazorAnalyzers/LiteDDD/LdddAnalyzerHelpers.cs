@@ -52,6 +52,31 @@ internal static class LdddAnalyzerHelpers
 	/// <summary>Fully-qualified name of the <c>[LdddDomainService]</c> marker (Wave 2 consumer).</summary>
 	internal const string LdddDomainServiceAttributeFullName = "NotNot.Bcl.Diagnostics.LdddDomainServiceAttribute";
 
+	// ── ABMCS additive aliases (simple-name + fully-qualified-name pairs) ─────
+	// The analyzer family recognizes BOTH legacy [Lddd*] simple-names AND the new ABMCS
+	// [Feature*] simple-names interchangeably — see HasFeatureOrLdddBypassAttribute,
+	// IsFeatureContractOrLdddDataServiceMarked, IsFeatureServerLogicOrLdddDomainServiceMarked
+	// below. The dual-emit pattern in the analyzer rules fires both NN_LDDD_* and NN_ABMCS_*
+	// diagnostics on the same violation so consumers can suppress either ID independently.
+
+	/// <summary>Simple-name of the <c>[FeatureBypass]</c> marker (ABMCS-vocabulary sibling of <c>[LdddBypass]</c>).</summary>
+	internal const string FeatureBypassAttributeSimpleName = "FeatureBypassAttribute";
+
+	/// <summary>Fully-qualified name of the <c>[FeatureBypass]</c> marker.</summary>
+	internal const string FeatureBypassAttributeFullName = "NotNot.Bcl.Diagnostics.FeatureBypassAttribute";
+
+	/// <summary>Simple-name of the <c>[FeatureContract]</c> marker (ABMCS-vocabulary sibling of <c>[LdddDataService]</c>).</summary>
+	internal const string FeatureContractAttributeSimpleName = "FeatureContractAttribute";
+
+	/// <summary>Fully-qualified name of the <c>[FeatureContract]</c> marker.</summary>
+	internal const string FeatureContractAttributeFullName = "NotNot.Bcl.Diagnostics.FeatureContractAttribute";
+
+	/// <summary>Simple-name of the <c>[FeatureServerLogic]</c> marker (ABMCS-vocabulary sibling of <c>[LdddDomainService]</c>).</summary>
+	internal const string FeatureServerLogicAttributeSimpleName = "FeatureServerLogicAttribute";
+
+	/// <summary>Fully-qualified name of the <c>[FeatureServerLogic]</c> marker.</summary>
+	internal const string FeatureServerLogicAttributeFullName = "NotNot.Bcl.Diagnostics.FeatureServerLogicAttribute";
+
 	/// <summary>
 	/// Returns true when the given file path falls under a LiteDDD path-bucket exemption:
 	/// <list type="bullet">
@@ -130,11 +155,18 @@ internal static class LdddAnalyzerHelpers
 
 	/// <summary>
 	/// Returns true when the compilation's assembly carries an <c>[assembly: LdddBypass]</c>
-	/// marker. Matched by <em>simple attribute name</em>
-	/// (<c>AttributeClass.Name == "LdddBypassAttribute"</c>) — consumer assemblies may
-	/// reference the canonical attribute or declare a local internal copy. Cost: O(N) over
-	/// assembly attributes (typically N&lt;10).
+	/// OR <c>[assembly: FeatureBypass]</c> marker. Matched by <em>simple attribute name</em>
+	/// (legacy <c>LdddBypassAttribute</c> OR ABMCS-vocabulary <c>FeatureBypassAttribute</c>) —
+	/// consumer assemblies may reference the canonical attribute or declare a local internal
+	/// copy. Cost: O(N) over assembly attributes (typically N&lt;10).
 	/// </summary>
+	/// <remarks>
+	/// The method name retains the <c>Lddd</c> prefix for source-compat with existing analyzer
+	/// call sites, but matching is dual — both legacy <c>[LdddBypass]</c> AND the new
+	/// <c>[FeatureBypass]</c> alias short-circuit any analyzer rule in the LiteDDD/ABMCS family.
+	/// A single bypass therefore suppresses both <c>NN_LDDD_*</c> and <c>NN_ABMCS_*</c> diagnostics
+	/// (the dual-emit pattern fires both IDs on the same violation).
+	/// </remarks>
 	internal static bool HasLdddBypassAttribute(IAssemblySymbol assembly)
 	{
 		if (assembly == null)
@@ -146,12 +178,17 @@ internal static class LdddAnalyzerHelpers
 			if (attrClass == null)
 				continue;
 
+			// Legacy [LdddBypass] match (simple-name + fully-qualified-name).
 			if (string.Equals(attrClass.Name, LdddBypassAttributeSimpleName, StringComparison.Ordinal))
 				return true;
-
-			// Defensive secondary match against fully-qualified name — covers cases where the
-			// simple name diverges (e.g. ReadOnlyAttribute-style nested-type scenarios).
 			if (string.Equals(attrClass.ToDisplayString(), LdddBypassAttributeFullName, StringComparison.Ordinal))
+				return true;
+
+			// ABMCS [FeatureBypass] additive alias match — same architectural meaning,
+			// new vocabulary. Both attributes have IDENTICAL bypass semantics.
+			if (string.Equals(attrClass.Name, FeatureBypassAttributeSimpleName, StringComparison.Ordinal))
+				return true;
+			if (string.Equals(attrClass.ToDisplayString(), FeatureBypassAttributeFullName, StringComparison.Ordinal))
 				return true;
 		}
 		return false;
@@ -159,11 +196,16 @@ internal static class LdddAnalyzerHelpers
 
 	/// <summary>
 	/// Symbol-scope bypass check — returns true when the type/method carries an
-	/// <c>[LdddBypass]</c> attribute, OR when any containing type up the chain does.
-	/// Used by Wave 2 (NN_LDDD_003/005) for class-level / method-level suppression. Wave 1
-	/// callers should use <see cref="HasLdddBypassAttribute(IAssemblySymbol)"/> for the
-	/// assembly-level short-circuit.
+	/// <c>[LdddBypass]</c> OR <c>[FeatureBypass]</c> attribute, OR when any containing type
+	/// up the chain does. Used by Wave 2 (NN_LDDD_003/005 + NN_ABMCS_002/003) for class-level
+	/// / method-level suppression. Wave 1 callers should use
+	/// <see cref="HasLdddBypassAttribute(IAssemblySymbol)"/> for the assembly-level
+	/// short-circuit.
 	/// </summary>
+	/// <remarks>
+	/// Method name retained for source-compat; matches BOTH legacy and ABMCS bypass attributes
+	/// per the additive-alias dual-emit contract.
+	/// </remarks>
 	internal static bool HasLdddBypassAttribute(ISymbol? symbol)
 	{
 		var current = symbol;
@@ -175,12 +217,45 @@ internal static class LdddAnalyzerHelpers
 				if (attrClass == null)
 					continue;
 
+				// Legacy [LdddBypass] match.
 				if (string.Equals(attrClass.Name, LdddBypassAttributeSimpleName, StringComparison.Ordinal))
 					return true;
 				if (string.Equals(attrClass.ToDisplayString(), LdddBypassAttributeFullName, StringComparison.Ordinal))
 					return true;
+
+				// ABMCS [FeatureBypass] additive alias match.
+				if (string.Equals(attrClass.Name, FeatureBypassAttributeSimpleName, StringComparison.Ordinal))
+					return true;
+				if (string.Equals(attrClass.ToDisplayString(), FeatureBypassAttributeFullName, StringComparison.Ordinal))
+					return true;
 			}
 			current = current.ContainingSymbol;
+		}
+		return false;
+	}
+
+	/// <summary>
+	/// Single-symbol bypass check (no containment-chain walk) — used by sites that must scope
+	/// the bypass to the immediate symbol only (e.g. method-scope NN_LDDD_004 parameter check
+	/// per the Phase 5 CR-3 contract). Matches both legacy <c>[LdddBypass]</c> and ABMCS
+	/// <c>[FeatureBypass]</c>.
+	/// </summary>
+	internal static bool HasLdddBypassAttributeDirect(ISymbol symbol)
+	{
+		foreach (var attribute in symbol.GetAttributes())
+		{
+			var attrClass = attribute.AttributeClass;
+			if (attrClass == null)
+				continue;
+
+			if (string.Equals(attrClass.Name, LdddBypassAttributeSimpleName, StringComparison.Ordinal))
+				return true;
+			if (string.Equals(attrClass.ToDisplayString(), LdddBypassAttributeFullName, StringComparison.Ordinal))
+				return true;
+			if (string.Equals(attrClass.Name, FeatureBypassAttributeSimpleName, StringComparison.Ordinal))
+				return true;
+			if (string.Equals(attrClass.ToDisplayString(), FeatureBypassAttributeFullName, StringComparison.Ordinal))
+				return true;
 		}
 		return false;
 	}

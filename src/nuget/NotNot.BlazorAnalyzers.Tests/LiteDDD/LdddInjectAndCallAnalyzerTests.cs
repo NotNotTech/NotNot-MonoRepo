@@ -191,6 +191,14 @@ namespace TestProject.Shared
 					"TestProject.Shared.IMyDomainService",
 					"MyComponent"));
 
+		// ABMCS additive alias — NN_ABMCS_003 dual-emit, same span, same args.
+		test.ExpectedDiagnostics.Add(
+			new DiagnosticResult(LdddInjectAndCallAnalyzer.ABMCS003_Rule)
+				.WithSpan("/0/Test0.cs", 8, 9, 8, 68)
+				.WithArguments(
+					"TestProject.Shared.IMyDomainService",
+					"MyComponent"));
+
 		await test.RunAsync();
 	}
 
@@ -406,6 +414,16 @@ namespace TestProject.Shared
 					"TestProject.Shared.MyDomainService",
 					"MyComponent"));
 
+		// ABMCS additive alias — NN_ABMCS_002 dual-emit (RENUMBERED from _005 to _002 by
+		// design). Same span, same args.
+		test.ExpectedDiagnostics.Add(
+			new DiagnosticResult(LdddInjectAndCallAnalyzer.ABMCS002_Rule)
+				.WithSpan("/0/Test0.cs", 12, 29, 12, 51)
+				.WithArguments(
+					"Compute",
+					"TestProject.Shared.MyDomainService",
+					"MyComponent"));
+
 		await test.RunAsync();
 	}
 
@@ -511,6 +529,190 @@ namespace TestProject.Shared
 		test.SolutionTransforms.Add(RenameAssembly(SharedAssemblyName));
 
 		// Expect ZERO diagnostics — type-scope [LdddBypass] suppresses the per-class check.
+		await test.RunAsync();
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// ABMCS additive-alias attribute recognition tests
+	// ═══════════════════════════════════════════════════════════════════════════
+	//
+	// These tests verify the analyzer recognizes the NEW ABMCS-vocabulary attributes
+	// ([FeatureContract], [FeatureServerLogic], [FeatureBypass]) with identical semantics to
+	// their legacy [Lddd*] counterparts. The dual-emit pattern means both NN_LDDD_* and
+	// NN_ABMCS_* diagnostics fire on the same violation; these tests focus on the new
+	// attribute names as inputs (not on the dual-emit outputs).
+
+	/// <summary>
+	/// Stub for the canonical <see cref="NotNot.Bcl.Diagnostics.FeatureContractAttribute"/> —
+	/// the ABMCS-vocabulary sibling of <see cref="LdddDataServiceAttribute"/>. Analyzer matches
+	/// by simple name OR fully-qualified name.
+	/// </summary>
+	private const string FeatureContractAttributeStub = @"
+namespace NotNot.Bcl.Diagnostics
+{
+    [System.AttributeUsage(
+        System.AttributeTargets.Class | System.AttributeTargets.Interface,
+        Inherited = true, AllowMultiple = false)]
+    public sealed class FeatureContractAttribute : System.Attribute { }
+}
+";
+
+	/// <summary>
+	/// Stub for the canonical <see cref="NotNot.Bcl.Diagnostics.FeatureServerLogicAttribute"/> —
+	/// the ABMCS-vocabulary sibling of <see cref="LdddDomainServiceAttribute"/>.
+	/// </summary>
+	private const string FeatureServerLogicAttributeStub = @"
+namespace NotNot.Bcl.Diagnostics
+{
+    [System.AttributeUsage(
+        System.AttributeTargets.Class | System.AttributeTargets.Interface,
+        Inherited = true, AllowMultiple = false)]
+    public sealed class FeatureServerLogicAttribute : System.Attribute { }
+}
+";
+
+	/// <summary>
+	/// Stub for the canonical <see cref="NotNot.Bcl.Diagnostics.FeatureBypassAttribute"/> —
+	/// the ABMCS-vocabulary sibling of <see cref="LdddBypassAttribute"/>.
+	/// </summary>
+	private const string FeatureBypassAttributeStub = @"
+namespace NotNot.Bcl.Diagnostics
+{
+    [System.AttributeUsage(
+        System.AttributeTargets.Assembly | System.AttributeTargets.Class
+        | System.AttributeTargets.Struct | System.AttributeTargets.Interface
+        | System.AttributeTargets.Method,
+        AllowMultiple = false, Inherited = false)]
+    public sealed class FeatureBypassAttribute : System.Attribute { }
+}
+";
+
+	/// <summary>
+	/// NEGATIVE — same shape as the NN_LDDD_003 positive test, but the injected interface
+	/// carries the NEW ABMCS-vocabulary <c>[FeatureContract]</c> instead of the legacy
+	/// <c>[LdddDataService]</c>. The analyzer's additive-alias detection in
+	/// <c>IsLdddDataServiceMarked</c> must recognize the new attribute as equivalent — zero
+	/// diagnostics fire.
+	/// </summary>
+	[Fact]
+	public async Task Abmcs_FeatureContract_Marker_SuppressesNN_LDDD_003_And_NN_ABMCS_003()
+	{
+		var consumerSource = @"using Microsoft.AspNetCore.Components;
+using NotNot.Bcl.Diagnostics;
+namespace TestProject.Shared
+{
+    [FeatureContract]
+    public interface IMyDataSvc { void Get(); }
+
+    public class MyComponent : ComponentBase
+    {
+        [Inject] public IMyDataSvc Svc { get; set; } = null!;
+    }
+}
+";
+
+		var test = new CSharpAnalyzerTest<LdddInjectAndCallAnalyzer, DefaultVerifier>
+		{
+			TestCode = consumerSource,
+		};
+		test.TestState.Sources.Add(BlazorComponentsStub);
+		test.TestState.Sources.Add(FeatureContractAttributeStub);
+		test.SolutionTransforms.Add(RenameAssembly(SharedAssemblyName));
+
+		// Expect ZERO diagnostics — [FeatureContract] marker satisfies the per-property check
+		// equivalently to [LdddDataService], so neither NN_LDDD_003 nor NN_ABMCS_003 fires.
+		await test.RunAsync();
+	}
+
+	/// <summary>
+	/// POSITIVE — same shape as the NN_LDDD_005 positive test, but the receiver's class carries
+	/// the NEW ABMCS-vocabulary <c>[FeatureServerLogic]</c> instead of the legacy
+	/// <c>[LdddDomainService]</c>. The analyzer's <c>IsLdddDomainServiceMarked</c> additive-
+	/// alias detection must trip the rule and dual-emit both NN_LDDD_005 + NN_ABMCS_002.
+	/// </summary>
+	[Fact]
+	public async Task Abmcs_FeatureServerLogic_Marker_FiresNN_LDDD_005_And_NN_ABMCS_002()
+	{
+		var consumerSource = @"using Microsoft.AspNetCore.Components;
+using NotNot.Bcl.Diagnostics;
+namespace TestProject.Shared
+{
+    [FeatureServerLogic]
+    public class MyServerLogic { public int Compute(int x) => x + 1; }
+
+    public class MyComponent : ComponentBase
+    {
+        private MyServerLogic _svc = new MyServerLogic();
+
+        public int Run() => _svc.Compute(42);
+    }
+}
+";
+
+		var test = new CSharpAnalyzerTest<LdddInjectAndCallAnalyzer, DefaultVerifier>
+		{
+			TestCode = consumerSource,
+		};
+		test.TestState.Sources.Add(BlazorComponentsStub);
+		test.TestState.Sources.Add(FeatureServerLogicAttributeStub);
+		test.SolutionTransforms.Add(RenameAssembly(SharedAssemblyName));
+
+		// Invocation `_svc.Compute(42)` at line 12 — start col 29 (`        public int Run() => ` = 28 chars), length = `_svc.Compute(42)` = 16 chars → end col 45.
+		test.ExpectedDiagnostics.Add(
+			new DiagnosticResult(LdddInjectAndCallAnalyzer.LDDD005_Rule)
+				.WithSpan("/0/Test0.cs", 12, 29, 12, 45)
+				.WithArguments(
+					"Compute",
+					"TestProject.Shared.MyServerLogic",
+					"MyComponent"));
+
+		// Dual-emit verification — NN_ABMCS_002 fires alongside the legacy ID.
+		test.ExpectedDiagnostics.Add(
+			new DiagnosticResult(LdddInjectAndCallAnalyzer.ABMCS002_Rule)
+				.WithSpan("/0/Test0.cs", 12, 29, 12, 45)
+				.WithArguments(
+					"Compute",
+					"TestProject.Shared.MyServerLogic",
+					"MyComponent"));
+
+		await test.RunAsync();
+	}
+
+	/// <summary>
+	/// BYPASS — same NN_LDDD_003 positive shape, but the consuming assembly carries the NEW
+	/// ABMCS-vocabulary <c>[assembly: FeatureBypass]</c> instead of the legacy
+	/// <c>[assembly: LdddBypass]</c>. The analyzer's
+	/// <see cref="LdddAnalyzerHelpers.HasLdddBypassAttribute(IAssemblySymbol)"/> additive-alias
+	/// detection must short-circuit both rule families.
+	/// </summary>
+	[Fact]
+	public async Task Abmcs_FeatureBypass_Assembly_ShortCircuitsBothRuleFamilies()
+	{
+		var consumerSource = @"using Microsoft.AspNetCore.Components;
+
+[assembly: NotNot.Bcl.Diagnostics.FeatureBypass]
+
+namespace TestProject.Shared
+{
+    public interface IMyDomainService { void Compute(); }
+
+    public class MyComponent : ComponentBase
+    {
+        [Inject] public IMyDomainService Svc { get; set; } = null!;
+    }
+}
+";
+
+		var test = new CSharpAnalyzerTest<LdddInjectAndCallAnalyzer, DefaultVerifier>
+		{
+			TestCode = consumerSource,
+		};
+		test.TestState.Sources.Add(BlazorComponentsStub);
+		test.TestState.Sources.Add(FeatureBypassAttributeStub);
+		test.SolutionTransforms.Add(RenameAssembly(SharedAssemblyName));
+
+		// Expect ZERO diagnostics — [assembly: FeatureBypass] short-circuits both NN_LDDD_003
+		// AND NN_ABMCS_003 (additive-alias matching in HasLdddBypassAttribute).
 		await test.RunAsync();
 	}
 }
