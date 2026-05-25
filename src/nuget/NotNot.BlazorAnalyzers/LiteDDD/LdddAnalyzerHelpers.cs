@@ -52,29 +52,49 @@ internal static class LdddAnalyzerHelpers
 	/// <summary>Fully-qualified name of the <c>[LdddDomainService]</c> marker (Wave 2 consumer).</summary>
 	internal const string LdddDomainServiceAttributeFullName = "NotNot.Bcl.Diagnostics.LdddDomainServiceAttribute";
 
-	// ── ABMCS additive aliases (simple-name + fully-qualified-name pairs) ─────
-	// The analyzer family recognizes BOTH legacy [Lddd*] simple-names AND the new ABMCS
-	// [Feature*] simple-names interchangeably — see HasFeatureOrLdddBypassAttribute,
-	// IsFeatureContractOrLdddDataServiceMarked, IsFeatureServerLogicOrLdddDomainServiceMarked
-	// below. The dual-emit pattern in the analyzer rules fires both NN_LDDD_* and NN_ABMCS_*
-	// diagnostics on the same violation so consumers can suppress either ID independently.
+	// ── Unified [Feature(FeatureRole.X)] attribute (ABMCS vocabulary) ─────────
+	// The analyzer family recognizes: (1) the unified [Feature(FeatureRole.X)] attribute via
+	// simple-name "FeatureAttribute" + ConstructorArguments[0] ordinal, (2) legacy [Lddd*]
+	// simple-names, and (3) the transitional [FeatureContract]/[FeatureServerLogic]/[FeatureBypass]
+	// simple-names (kept for backward compat during incremental migration). The dual-emit pattern
+	// in the analyzer rules fires both NN_LDDD_* and NN_ABMCS_* diagnostics on the same violation
+	// so consumers can suppress either ID independently.
 
-	/// <summary>Simple-name of the <c>[FeatureBypass]</c> marker (ABMCS-vocabulary sibling of <c>[LdddBypass]</c>).</summary>
+	/// <summary>Simple-name of the unified <c>[Feature(FeatureRole.X)]</c> attribute.</summary>
+	internal const string FeatureAttributeSimpleName = "FeatureAttribute";
+
+	/// <summary>Fully-qualified name of the unified <c>[Feature]</c> attribute.</summary>
+	internal const string FeatureAttributeFullName = "NotNot.Bcl.Diagnostics.FeatureAttribute";
+
+	/// <summary>FeatureRole.Contract ordinal — matched via <c>ConstructorArguments[0].Value</c>.</summary>
+	internal const int FeatureRoleContract = 0;
+
+	/// <summary>FeatureRole.ServerLogic ordinal — matched via <c>ConstructorArguments[0].Value</c>.</summary>
+	internal const int FeatureRoleServerLogic = 1;
+
+	/// <summary>FeatureRole.Bypass ordinal — matched via <c>ConstructorArguments[0].Value</c>.</summary>
+	internal const int FeatureRoleBypass = 2;
+
+	// ── Transitional [FeatureContract]/[FeatureServerLogic]/[FeatureBypass] simple-names ──
+	// Kept for backward compat with code that still uses the separate attribute classes
+	// (migration from three separate attrs to the unified [Feature(FeatureRole.X)] is incremental).
+
+	/// <summary>Simple-name of the transitional <c>[FeatureBypass]</c> marker (ABMCS-vocabulary sibling of <c>[LdddBypass]</c>).</summary>
 	internal const string FeatureBypassAttributeSimpleName = "FeatureBypassAttribute";
 
-	/// <summary>Fully-qualified name of the <c>[FeatureBypass]</c> marker.</summary>
+	/// <summary>Fully-qualified name of the transitional <c>[FeatureBypass]</c> marker.</summary>
 	internal const string FeatureBypassAttributeFullName = "NotNot.Bcl.Diagnostics.FeatureBypassAttribute";
 
-	/// <summary>Simple-name of the <c>[FeatureContract]</c> marker (ABMCS-vocabulary sibling of <c>[LdddDataService]</c>).</summary>
+	/// <summary>Simple-name of the transitional <c>[FeatureContract]</c> marker (ABMCS-vocabulary sibling of <c>[LdddDataService]</c>).</summary>
 	internal const string FeatureContractAttributeSimpleName = "FeatureContractAttribute";
 
-	/// <summary>Fully-qualified name of the <c>[FeatureContract]</c> marker.</summary>
+	/// <summary>Fully-qualified name of the transitional <c>[FeatureContract]</c> marker.</summary>
 	internal const string FeatureContractAttributeFullName = "NotNot.Bcl.Diagnostics.FeatureContractAttribute";
 
-	/// <summary>Simple-name of the <c>[FeatureServerLogic]</c> marker (ABMCS-vocabulary sibling of <c>[LdddDomainService]</c>).</summary>
+	/// <summary>Simple-name of the transitional <c>[FeatureServerLogic]</c> marker (ABMCS-vocabulary sibling of <c>[LdddDomainService]</c>).</summary>
 	internal const string FeatureServerLogicAttributeSimpleName = "FeatureServerLogicAttribute";
 
-	/// <summary>Fully-qualified name of the <c>[FeatureServerLogic]</c> marker.</summary>
+	/// <summary>Fully-qualified name of the transitional <c>[FeatureServerLogic]</c> marker.</summary>
 	internal const string FeatureServerLogicAttributeFullName = "NotNot.Bcl.Diagnostics.FeatureServerLogicAttribute";
 
 	/// <summary>
@@ -198,11 +218,15 @@ internal static class LdddAnalyzerHelpers
 			if (string.Equals(attrClass.ToDisplayString(), LdddBypassAttributeFullName, StringComparison.Ordinal))
 				return true;
 
-			// ABMCS [FeatureBypass] additive alias match — same architectural meaning,
-			// new vocabulary. Both attributes have IDENTICAL bypass semantics.
+			// Transitional [FeatureBypass] match — same architectural meaning, ABMCS vocabulary.
 			if (string.Equals(attrClass.Name, FeatureBypassAttributeSimpleName, StringComparison.Ordinal))
 				return true;
 			if (string.Equals(attrClass.ToDisplayString(), FeatureBypassAttributeFullName, StringComparison.Ordinal))
+				return true;
+
+			// Unified [Feature(FeatureRole.Bypass)] match — check attribute name then
+			// constructor argument ordinal.
+			if (IsFeatureAttributeWithRole(attribute, FeatureRoleBypass))
 				return true;
 		}
 		return false;
@@ -237,10 +261,14 @@ internal static class LdddAnalyzerHelpers
 				if (string.Equals(attrClass.ToDisplayString(), LdddBypassAttributeFullName, StringComparison.Ordinal))
 					return true;
 
-				// ABMCS [FeatureBypass] additive alias match.
+				// Transitional [FeatureBypass] match.
 				if (string.Equals(attrClass.Name, FeatureBypassAttributeSimpleName, StringComparison.Ordinal))
 					return true;
 				if (string.Equals(attrClass.ToDisplayString(), FeatureBypassAttributeFullName, StringComparison.Ordinal))
+					return true;
+
+				// Unified [Feature(FeatureRole.Bypass)] match.
+				if (IsFeatureAttributeWithRole(attribute, FeatureRoleBypass))
 					return true;
 			}
 			current = current.ContainingSymbol;
@@ -269,6 +297,10 @@ internal static class LdddAnalyzerHelpers
 			if (string.Equals(attrClass.Name, FeatureBypassAttributeSimpleName, StringComparison.Ordinal))
 				return true;
 			if (string.Equals(attrClass.ToDisplayString(), FeatureBypassAttributeFullName, StringComparison.Ordinal))
+				return true;
+
+			// Unified [Feature(FeatureRole.Bypass)] match.
+			if (IsFeatureAttributeWithRole(attribute, FeatureRoleBypass))
 				return true;
 		}
 		return false;
@@ -306,6 +338,43 @@ internal static class LdddAnalyzerHelpers
 		var name = assembly.Identity.Name;
 		return name.EndsWith(".Shared", StringComparison.Ordinal)
 			|| name.EndsWith(".Client", StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Returns true when the given <see cref="AttributeData"/> represents a
+	/// <c>[Feature(FeatureRole.X)]</c> attribute with the specified role ordinal. Matches by
+	/// simple-name (<c>FeatureAttribute</c>) or fully-qualified-name
+	/// (<c>NotNot.Bcl.Diagnostics.FeatureAttribute</c>), then inspects
+	/// <c>ConstructorArguments[0].Value</c> as an <c>int</c> against the expected ordinal.
+	/// </summary>
+	/// <remarks>
+	/// The analyzer assembly does NOT reference the runtime <c>FeatureRole</c> enum directly —
+	/// the match is purely by ordinal value (0 = Contract, 1 = ServerLogic, 2 = Bypass).
+	/// </remarks>
+	internal static bool IsFeatureAttributeWithRole(AttributeData attribute, int expectedRoleOrdinal)
+	{
+		var attrClass = attribute.AttributeClass;
+		if (attrClass == null)
+			return false;
+
+		// Check attribute name: simple-name or fully-qualified-name.
+		var isFeatureAttr =
+			string.Equals(attrClass.Name, FeatureAttributeSimpleName, StringComparison.Ordinal)
+			|| string.Equals(attrClass.ToDisplayString(), FeatureAttributeFullName, StringComparison.Ordinal);
+
+		if (!isFeatureAttr)
+			return false;
+
+		// Check constructor argument: FeatureRole enum ordinal.
+		if (attribute.ConstructorArguments.Length < 1)
+			return false;
+
+		var arg = attribute.ConstructorArguments[0];
+		if (arg.Kind == TypedConstantKind.Error)
+			return false;
+
+		// Enum constructor arguments are typed constants whose Value is the underlying int.
+		return arg.Value is int roleValue && roleValue == expectedRoleOrdinal;
 	}
 
 	/// <summary>

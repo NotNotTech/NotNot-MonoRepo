@@ -403,12 +403,14 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 			if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.LdddDataServiceAttributeFullName, StringComparison.Ordinal))
 				return true;
 
-			// ABMCS [FeatureContract] additive alias — same architectural meaning, new vocabulary.
-			// A type marked with either attribute satisfies the per-property check; both names
-			// are interchangeable from the analyzer's perspective.
+			// Transitional [FeatureContract] match — same architectural meaning, ABMCS vocabulary.
 			if (string.Equals(attrClass.Name, LdddAnalyzerHelpers.FeatureContractAttributeSimpleName, StringComparison.Ordinal))
 				return true;
 			if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.FeatureContractAttributeFullName, StringComparison.Ordinal))
+				return true;
+
+			// Unified [Feature(FeatureRole.Contract)] match.
+			if (LdddAnalyzerHelpers.IsFeatureAttributeWithRole(attribute, LdddAnalyzerHelpers.FeatureRoleContract))
 				return true;
 		}
 		return false;
@@ -527,12 +529,16 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 				if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.LdddDomainServiceAttributeFullName, StringComparison.Ordinal))
 					return true;
 
-				// ABMCS [FeatureServerLogic] additive alias — same architectural meaning, new
+				// Transitional [FeatureServerLogic] match — same architectural meaning, ABMCS
 				// vocabulary. A type marked with either attribute trips the per-invocation rule
 				// (NN_LDDD_005 / NN_ABMCS_002).
 				if (string.Equals(attrClass.Name, LdddAnalyzerHelpers.FeatureServerLogicAttributeSimpleName, StringComparison.Ordinal))
 					return true;
 				if (string.Equals(attrClass.ToDisplayString(), LdddAnalyzerHelpers.FeatureServerLogicAttributeFullName, StringComparison.Ordinal))
+					return true;
+
+				// Unified [Feature(FeatureRole.ServerLogic)] match.
+				if (LdddAnalyzerHelpers.IsFeatureAttributeWithRole(attribute, LdddAnalyzerHelpers.FeatureRoleServerLogic))
 					return true;
 			}
 			current = current.BaseType;
