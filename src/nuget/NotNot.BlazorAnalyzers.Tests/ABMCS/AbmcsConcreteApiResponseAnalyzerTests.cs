@@ -44,8 +44,8 @@ namespace Refit
 ";
 
 	/// <summary>
-	/// Stub for the canonical bypass attribute. Matched by simple name OR fully-qualified name
-	/// per <c>LdddAnalyzerHelpers.HasLdddBypassAttribute</c>.
+	/// Stub for the canonical legacy bypass attribute. Matched by simple name OR fully-qualified
+	/// name per <c>LdddAnalyzerHelpers.HasLdddBypassAttribute</c>.
 	/// </summary>
 	private const string BypassAttributeStub = @"
 namespace NotNot.Bcl.Diagnostics
@@ -56,6 +56,24 @@ namespace NotNot.Bcl.Diagnostics
         | System.AttributeTargets.Method,
         AllowMultiple = false, Inherited = false)]
     public sealed class LdddBypassAttribute : System.Attribute { }
+}
+";
+
+	/// <summary>
+	/// Stub for the canonical ABMCS-vocabulary bypass attribute
+	/// (<c>NotNot.Bcl.Diagnostics.FeatureBypassAttribute</c>). The dual-attribute matching in
+	/// <c>LdddAnalyzerHelpers.HasLdddBypassAttribute</c> treats <c>[FeatureBypass]</c> as
+	/// equivalent to <c>[LdddBypass]</c> — both short-circuit the rule.
+	/// </summary>
+	private const string FeatureBypassAttributeStub = @"
+namespace NotNot.Bcl.Diagnostics
+{
+    [System.AttributeUsage(
+        System.AttributeTargets.Assembly | System.AttributeTargets.Class
+        | System.AttributeTargets.Struct | System.AttributeTargets.Interface
+        | System.AttributeTargets.Method,
+        AllowMultiple = false, Inherited = false)]
+    public sealed class FeatureBypassAttribute : System.Attribute { }
 }
 ";
 
@@ -207,6 +225,46 @@ namespace TestProject.Shared
 		test.SolutionTransforms.Add(RenameAssembly(SharedAssemblyName));
 
 		// Expect ZERO diagnostics — [assembly: LdddBypass] short-circuits the rule.
+		await test.RunAsync();
+	}
+
+	/// <summary>
+	/// BYPASS — same positive shape with <c>[assembly: FeatureBypass]</c> (ABMCS-vocabulary
+	/// attribute) instead of the legacy <c>[assembly: LdddBypass]</c>. Verifies the additive-alias
+	/// dual-attribute matching in
+	/// <see cref="LdddAnalyzerHelpers.HasLdddBypassAttribute(IAssemblySymbol)"/> recognizes the
+	/// new attribute as equivalent — Peer F1 work-order item 7 ("new bypass tests verify
+	/// [assembly: FeatureBypass] short-circuits both rule families").
+	/// </summary>
+	[Fact]
+	public async Task NN_ABMCS_009_Bypass_AssemblyLevelFeatureBypass_NoDiagnostic()
+	{
+		var consumerSource = @"using Refit;
+using System.Threading.Tasks;
+
+[assembly: NotNot.Bcl.Diagnostics.FeatureBypass]
+
+namespace TestProject.Shared
+{
+    public class OrderDto { public string Id { get; set; } = """"; }
+
+    public interface IOrderDataService
+    {
+        Task<ApiResponse<OrderDto>> GetAsync(string id);
+    }
+}
+";
+
+		var test = new CSharpAnalyzerTest<AbmcsConcreteApiResponseAnalyzer, DefaultVerifier>
+		{
+			TestCode = consumerSource,
+		};
+		test.TestState.Sources.Add(RefitApiResponseStub);
+		test.TestState.Sources.Add(FeatureBypassAttributeStub);
+		test.SolutionTransforms.Add(RenameAssembly(SharedAssemblyName));
+
+		// Expect ZERO diagnostics — [assembly: FeatureBypass] short-circuits the rule via the
+		// dual-attribute simple-name match in HasLdddBypassAttribute.
 		await test.RunAsync();
 	}
 }

@@ -109,16 +109,30 @@ internal static class LdddAnalyzerHelpers
 	/// <summary>
 	/// Cheap structural pre-filter copied from
 	/// <see cref="NnDesign.NnDesignMudBlazorPolicyAnalyzer.IsLikelyTypeOrNamespaceReference"/> —
-	/// filters the millions of <c>IdentifierName</c> events that fire on every local-variable
-	/// read down to type/namespace-position events worth a <c>SemanticModel.GetSymbolInfo</c>
-	/// resolution.
+	/// filters the millions of <c>IdentifierName</c> / <c>GenericName</c> events that fire on every
+	/// local-variable read down to type/namespace-position events worth a
+	/// <c>SemanticModel.GetSymbolInfo</c> resolution.
 	/// </summary>
 	/// <remarks>
+	/// <para>
+	/// Accepts <see cref="SimpleNameSyntax"/> so both <see cref="IdentifierNameSyntax"/> (plain
+	/// identifiers like <c>OrderDto</c>) and <see cref="GenericNameSyntax"/> (constructed generics
+	/// like <c>ApiResponse&lt;OrderDto&gt;</c>) flow through the same filter. Analyzers that
+	/// target generic-form types (e.g. <c>NN_ABMCS_009</c> matching <c>Refit.ApiResponse&lt;T&gt;</c>)
+	/// must register BOTH <see cref="SyntaxKind.IdentifierName"/> AND
+	/// <see cref="SyntaxKind.GenericName"/> — Roslyn does not fire the IdentifierName event for the
+	/// bare identifier portion of a <see cref="GenericNameSyntax"/>; the generic name is its own
+	/// distinct node kind. Analyzers that only need plain-identifier detection (e.g. namespace
+	/// fence checks via the leftmost segment of a qualified name) can continue to register on
+	/// <see cref="SyntaxKind.IdentifierName"/> alone.
+	/// </para>
+	/// <para>
 	/// Skips inner positions of compound names (the OUTERMOST identifier is the reported anchor).
 	/// Returns true for type-syntax positions: type-args, object-creation type, cast/typeof,
 	/// method/property return types, field/variable/parameter types, using directives.
+	/// </para>
 	/// </remarks>
-	internal static bool IsLikelyTypeOrNamespaceReference(IdentifierNameSyntax node)
+	internal static bool IsLikelyTypeOrNamespaceReference(SimpleNameSyntax node)
 	{
 		var parent = node.Parent;
 

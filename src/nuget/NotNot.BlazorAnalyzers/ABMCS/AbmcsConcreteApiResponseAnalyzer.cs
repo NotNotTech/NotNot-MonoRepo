@@ -20,9 +20,13 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// <list type="bullet">
 ///   <item>
 ///     <description>
-///     Fires on <see cref="SyntaxKind.IdentifierName"/> events when the resolved symbol's type
+///     Fires on <see cref="SyntaxKind.IdentifierName"/> AND <see cref="SyntaxKind.GenericName"/>
+///     events (both are <see cref="SimpleNameSyntax"/> subtypes) when the resolved symbol's type
 ///     full-name is <c>Refit.ApiResponse</c> (open-generic; constructed forms like
-///     <c>Refit.ApiResponse&lt;OrderDto&gt;</c> match via <see cref="ITypeSymbol.OriginalDefinition"/>).
+///     <c>Refit.ApiResponse&lt;OrderDto&gt;</c> are <see cref="GenericNameSyntax"/> nodes and
+///     match via <see cref="ITypeSymbol.OriginalDefinition"/>). Registering on both kinds is
+///     required because Roslyn does NOT fire <c>IdentifierName</c> for the identifier portion of
+///     a constructed generic — the generic name is a distinct node kind.
 ///     </description>
 ///   </item>
 ///   <item>
@@ -112,7 +116,13 @@ public sealed class AbmcsConcreteApiResponseAnalyzer : DiagnosticAnalyzer
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 
-		context.RegisterSyntaxNodeAction(AnalyzeIdentifierName, SyntaxKind.IdentifierName);
+		// Register on BOTH SyntaxKind.IdentifierName (plain identifiers like
+		// `Refit.ApiResponse` used as an unbound open-generic-typeof) AND SyntaxKind.GenericName
+		// (constructed-generic forms like `ApiResponse<OrderDto>` — the canonical real-world
+		// target). Roslyn fires distinct events for each kind; a single registration on
+		// IdentifierName misses the GenericName case entirely (the failure mode the analyzer was
+		// previously exhibiting — see fix iter 1 root cause).
+		context.RegisterSyntaxNodeAction(AnalyzeSimpleName, SyntaxKind.IdentifierName, SyntaxKind.GenericName);
 	}
 
 	private static bool ShouldAnalyzeCompilation(Compilation compilation)
@@ -130,7 +140,7 @@ public sealed class AbmcsConcreteApiResponseAnalyzer : DiagnosticAnalyzer
 		return LdddAnalyzerHelpers.IsSharedOrClientAssembly(assembly);
 	}
 
-	private static void AnalyzeIdentifierName(SyntaxNodeAnalysisContext context)
+	private static void AnalyzeSimpleName(SyntaxNodeAnalysisContext context)
 	{
 		if (!ShouldAnalyzeCompilation(context.Compilation))
 			return;
@@ -139,10 +149,14 @@ public sealed class AbmcsConcreteApiResponseAnalyzer : DiagnosticAnalyzer
 		if (LdddAnalyzerHelpers.IsExceptedPath(syntaxTreePath))
 			return;
 
-		var node = (IdentifierNameSyntax)context.Node;
+		// Handler is registered for SyntaxKind.IdentifierName AND SyntaxKind.GenericName — both
+		// derive from SimpleNameSyntax. The semantic resolution + symbol-matching logic below is
+		// agnostic to which concrete kind fired the event.
+		var node = (SimpleNameSyntax)context.Node;
 
 		// Cheap structural pre-filter — only fire on type-syntax positions (mirrors
-		// NN_LDDD_001's optimization).
+		// NN_LDDD_001's optimization). Helper accepts SimpleNameSyntax so both identifier-name
+		// and generic-name nodes flow through the same filter.
 		if (!LdddAnalyzerHelpers.IsLikelyTypeOrNamespaceReference(node))
 			return;
 
@@ -185,9 +199,15 @@ public sealed class AbmcsConcreteApiResponseAnalyzer : DiagnosticAnalyzer
 		// Extract the type-argument display name for the diagnostic message ("{0}" arg).
 		var typeArgDisplay = ExtractTypeArgumentDisplay(typeSymbol);
 
+		// Diagnostic location = JUST the identifier token (not the full `ApiResponse<OrderDto>`
+		// span). For IdentifierNameSyntax, node.GetLocation() and node.Identifier.GetLocation()
+		// are equivalent; for GenericNameSyntax, node.GetLocation() spans the entire generic
+		// including `<TypeArgs>` while node.Identifier.GetLocation() spans only `ApiResponse`.
+		// The narrower span is the user-friendly anchor (matches how Roslyn highlights the
+		// offending type name in IDE squiggles).
 		context.ReportDiagnostic(Diagnostic.Create(
 			ABMCS009_Rule,
-			node.GetLocation(),
+			node.Identifier.GetLocation(),
 			typeArgDisplay));
 	}
 
