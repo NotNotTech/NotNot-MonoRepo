@@ -639,6 +639,85 @@ public async ValueTask DisposeAsync()
 - v1 scope: `DisposeAsync` methods in Blazor components only
 - Code fix not yet implemented (coming in v2)
 
+<a id="nnb041"></a>
+### NNB041: ReplaceUrlStateAsync requires adjacent component-state mutation
+
+**Severity:** Warning
+**Category:** Navigation
+
+Detects `NavigationManagerExtensions.ReplaceUrlStateAsync(...)` invocations inside Blazor component methods when no synchronous UI-state mutation precedes the call within the same method body. `ReplaceUrlStateAsync` writes the browser URL via `history.pushState`/`replaceState` through JS interop — unlike `NavigationManager.NavigateTo`, it does NOT drive a Blazor router navigation. `[SupplyParameterFromQuery]`-bound parameters retain their previous value and `OnParametersSetAsync` does not fire. Any component event handler calling this helper must have already updated its own UI state synchronously before the call.
+
+This analyzer turns the documented xml-doc contract at `NavigationManagerExtensions.cs:103-117` into a compile-time invariant. The regression class was introduced at commit `407350ad` — 2 of 14 migrated URL updates had no adjacent state mutation and silently relied on the eliminated re-binding cascade, producing a no-op click with zero error signal.
+
+```csharp
+public class VowDashboard : ComponentBase
+{
+    private object? _selectedSession;
+    private NavigationManager _nav = null!;
+
+    // ❌ NNB041 fires — no preceding state mutation
+    private async Task HandleSessionClick(string sessionId)
+    {
+        await _nav.ReplaceUrlStateAsync("/session/" + sessionId);
+    }
+
+    // ✅ Mode (a): assign the backing state field before the URL update
+    private async Task HandleSessionClickFixed(object session)
+    {
+        _selectedSession = session;
+        await _nav.ReplaceUrlStateAsync("/session/" + session);
+    }
+
+    // ✅ Mode (b): call a helper that bundles state + URL atomically
+    private async Task HandleActivate(object session)
+    {
+        ActivateSessionAndUpdateUrl(session);
+        await _nav.ReplaceUrlStateAsync("/session/123");
+    }
+
+    // ✅ Mode (c): cleanup — set _selectedSession = null before URL update
+    private async Task HandleCloseSession()
+    {
+        _selectedSession = null;
+        await _nav.ReplaceUrlStateAsync("/");
+    }
+
+    private void ActivateSessionAndUpdateUrl(object s) { _selectedSession = s; }
+}
+```
+
+**Compliance modes** (any of these preceding the call in the same method body satisfies the contract):
+
+| Mode | Pattern | Example |
+|------|---------|---------|
+| (a) | `_selectedSession = <non-null>;` | Assign the backing state field |
+| (b) | Call to `ActivateSession*` / `SelectSession*` / `OpenTerminalTab*` / `EnsureSessionVisibleInSidebar*` | Use a bundled helper |
+| (c) | `_selectedSession = null;` or `SelectSession(null)` | Cleanup/close flow |
+
+**Path-based exception buckets** (analyzer skips diagnostic emission):
+
+| Bucket | Applies to |
+|--------|-----------|
+| Pages/Samples | Any file path containing `/Pages/Samples/` |
+| Pages/NnDesignSamples | Any file path containing `/Pages/NnDesignSamples/` |
+
+**Suppression** — for the rare genuinely-URL-only update:
+
+```csharp
+#pragma warning disable NNB041 // Documented reason: URL-only update, no state dependency
+await _nav.ReplaceUrlStateAsync("/settings");
+#pragma warning restore NNB041
+```
+
+Or project/folder-wide via `.editorconfig`:
+
+```ini
+[*.cs]
+dotnet_diagnostic.NNB041.severity = none
+```
+
+No dedicated bypass attribute is provided — `#pragma` / `.editorconfig` is the escape mechanism. This is intentional: NNB041 is a per-call-site correctness rule, and a whole-assembly opt-out would defeat the invariant it enforces.
+
 ## Configuration
 
 Configure rules via `.editorconfig`:
@@ -664,6 +743,9 @@ dotnet_diagnostic.NN_LDDD_005.severity = warning
 
 # Render mode enforcement — Pattern 2 reflection canonicalization (default: warning)
 dotnet_diagnostic.NN_RM_001.severity = warning
+
+# Navigation contract enforcement (default: warning)
+dotnet_diagnostic.NNB041.severity = warning
 ```
 
 ## Why These Rules?
