@@ -94,7 +94,7 @@ public static class zz_Extensions_HttpContent
 			// Re-throw our custom exceptions
 			throw;
 		}
-#pragma warning disable NN_R005 // Re-throws via __.Throw() after building error message
+#pragma warning disable NN_R005, NN_R006 // Re-throws via __.Throw() after building error message
 		catch (Exception ex)
 		{
 			// Catch any other unexpected exceptions
@@ -110,7 +110,7 @@ public static class zz_Extensions_HttpContent
 
 			__.Throw($"Content not Maybe<{typeof(T).Name}> - Unexpected error: {ex.Message}. Content is: {contentText}");
 		}
-#pragma warning restore NN_R005
+#pragma warning restore NN_R005, NN_R006
 
 		// This should never be reached due to the throws above, but satisfies compiler
 		throw new InvalidOperationException("Unreachable code");
@@ -163,7 +163,7 @@ public static class zz_Extensions_HttpContent
 			// Re-throw our custom exceptions
 			throw;
 		}
-#pragma warning disable NN_R005 // Re-throws via __.Throw() after building error message
+#pragma warning disable NN_R005, NN_R006 // Re-throws via __.Throw() after building error message
 		catch (Exception ex)
 		{
 			// Catch any other unexpected exceptions
@@ -179,7 +179,7 @@ public static class zz_Extensions_HttpContent
 
 			__.Throw($"Content not `Maybe` - Unexpected error: {ex.Message}. Content is: {contentText}");
 		}
-#pragma warning restore NN_R005
+#pragma warning restore NN_R005, NN_R006
 
 		// This should never be reached due to the throws above, but satisfies compiler
 		throw new InvalidOperationException("Unreachable code");

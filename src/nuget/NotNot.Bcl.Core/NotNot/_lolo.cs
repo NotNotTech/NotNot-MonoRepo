@@ -177,6 +177,7 @@ public class TestHelper
       catch (InvalidOperationException)
       {
          // Test output helper may be disposed - safe to ignore
+         return;
       }
    }
 }

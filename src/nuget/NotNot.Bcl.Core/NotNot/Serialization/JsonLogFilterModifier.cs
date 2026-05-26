@@ -144,9 +144,9 @@ public static class JsonLogFilterModifier
 						}
 					}
 				}
-#pragma warning disable NN_R005 // GetTypeInfo can throw for types with custom converters
+#pragma warning disable NN_R005, NN_R006 // GetTypeInfo can throw for types with custom converters
 				catch { }
-#pragma warning restore NN_R005
+#pragma warning restore NN_R005, NN_R006
 			}
 
 			foreach (var prop in t.GetProperties(BindingFlags.Public | BindingFlags.Instance))
@@ -270,12 +270,12 @@ public static class JsonLogFilterModifier
 					return map;
 				}
 			}
-#pragma warning disable NN_R005 // GetTypeInfo can throw for types with custom converters — fall back gracefully to untyped DOM walk
+#pragma warning disable NN_R005, NN_R006 // GetTypeInfo can throw for types with custom converters — fall back gracefully to untyped DOM walk
 			catch
 			{
 				// GetTypeInfo can throw for types with custom converters — fall back to no type info
 			}
-#pragma warning restore NN_R005
+#pragma warning restore NN_R005, NN_R006
 			return null;
 		});
 	}

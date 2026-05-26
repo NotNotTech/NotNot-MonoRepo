@@ -76,6 +76,7 @@ internal static class DedicatedThreads
 					}
 					catch (InvalidOperationException)
 					{
+						continue;
 					}
 				}
 			}

@@ -101,11 +101,11 @@ public static partial class zz_Extensions_Task
 		{
 			await task;
 		}
-#pragma warning disable ERP022, RCS1075, NN_R005 // Method designed to swallow all exceptions
+#pragma warning disable ERP022, RCS1075, NN_R005, NN_R006 // Method designed to swallow all exceptions
 		catch (Exception)
 		{
 		}
-#pragma warning restore ERP022, RCS1075, NN_R005
+#pragma warning restore ERP022, RCS1075, NN_R005, NN_R006
 	}
 
 	[Obsolete("don't eat errors silently.  use task._ToMaybe() instead, or propagate the exception.", true)]
@@ -115,12 +115,12 @@ public static partial class zz_Extensions_Task
 		{
 			return await task;
 		}
-#pragma warning disable ERP022, RCS1075, NN_R005 // Method designed to swallow all exceptions
+#pragma warning disable ERP022, RCS1075, NN_R005, NN_R006 // Method designed to swallow all exceptions
 		catch (Exception)
 		{
 			return default;
 		}
-#pragma warning restore ERP022, RCS1075, NN_R005
+#pragma warning restore ERP022, RCS1075, NN_R005, NN_R006
 	}
 
 	/// <summary>
@@ -134,11 +134,11 @@ public static partial class zz_Extensions_Task
 		{
 			await task;
 		}
-#pragma warning disable ERP022, RCS1075, NN_R005 // Method designed to swallow all exceptions
+#pragma warning disable ERP022, RCS1075, NN_R005, NN_R006 // Method designed to swallow all exceptions
 		catch (Exception)
 		{
 		}
-#pragma warning restore ERP022, RCS1075, NN_R005
+#pragma warning restore ERP022, RCS1075, NN_R005, NN_R006
 	}
 
 
@@ -155,12 +155,12 @@ public static partial class zz_Extensions_Task
 		{
 			return await task;
 		}
-#pragma warning disable ERP022, RCS1075, NN_R005 // Method designed to swallow all exceptions
+#pragma warning disable ERP022, RCS1075, NN_R005, NN_R006 // Method designed to swallow all exceptions
 		catch (Exception)
 		{
 			return default;
 		}
-#pragma warning restore ERP022, RCS1075, NN_R005
+#pragma warning restore ERP022, RCS1075, NN_R005, NN_R006
 	}
 
 
@@ -179,6 +179,7 @@ public static partial class zz_Extensions_Task
 		}
 		catch (OperationCanceledException)
 		{
+			return;
 		}
 	}
 
@@ -215,6 +216,7 @@ public static partial class zz_Extensions_Task
 		}
 		catch (OperationCanceledException)
 		{
+			return;
 		}
 	}
 
@@ -697,12 +699,12 @@ public static partial class zz_Extensions_Task
 		{
 			_SyncWait(task, timeout);
 		}
-#pragma warning disable NN_R005 // Method designed to swallow all exceptions
+#pragma warning disable NN_R005, NN_R006 // Method designed to swallow all exceptions
 		catch (Exception)
 		{
 			// Method contract: swallow all exceptions
 		}
-#pragma warning restore NN_R005
+#pragma warning restore NN_R005, NN_R006
 
 
 	}
