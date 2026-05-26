@@ -39,7 +39,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 ///   </item>
 ///   <item>
 ///     <description>
-///     Short-circuits on assembly-level <c>[FeatureBypass]</c> / <c>[LdddBypass]</c> via
+///     Short-circuits on assembly-level <c>[Feature(FeatureRole.Bypass)]</c> / <c>[LdddBypass]</c> via
 ///     <see cref="LdddAnalyzerHelpers.HasLdddBypassAttribute(IAssemblySymbol)"/>.
 ///     </description>
 ///   </item>
@@ -91,8 +91,8 @@ public sealed class AbmcsConcreteApiResponseAnalyzer : DiagnosticAnalyzer
 		+ "The interface is the abstraction Refit's generated proxies produce AND the form "
 		+ "controller mappings accept — coupling consumers to the concrete class makes testing "
 		+ "harder (no straightforward fake) and signals slipped envelope discipline. "
-		+ "Bypass via [assembly: FeatureBypass] for sample/playground assemblies, or "
-		+ "[FeatureBypass] on the class/method for narrow carve-outs (e.g. internal helper that "
+		+ "Bypass via [assembly: Feature(FeatureRole.Bypass)] for sample/playground assemblies, or "
+		+ "[Feature(FeatureRole.Bypass)] on the class/method for narrow carve-outs (e.g. internal helper that "
 		+ "must materialize the concrete class).";
 
 	/// <summary>NN_ABMCS_009 descriptor — Warning, ABMCS.Transport category.</summary>
@@ -190,7 +190,7 @@ public sealed class AbmcsConcreteApiResponseAnalyzer : DiagnosticAnalyzer
 		if (!matched)
 			return;
 
-		// Honor symbol-level [FeatureBypass] / [LdddBypass] on the enclosing declaration
+		// Honor symbol-level [Feature(FeatureRole.Bypass)] / [LdddBypass] on the enclosing declaration
 		// (class, interface, or method) so the type-scope override hatches still work.
 		var enclosingSymbol = context.SemanticModel.GetEnclosingSymbol(node.SpanStart, context.CancellationToken);
 		if (LdddAnalyzerHelpers.HasLdddBypassAttribute(enclosingSymbol))

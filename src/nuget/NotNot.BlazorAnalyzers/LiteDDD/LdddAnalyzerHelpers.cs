@@ -188,18 +188,20 @@ internal static class LdddAnalyzerHelpers
 	}
 
 	/// <summary>
-	/// Returns true when the compilation's assembly carries an <c>[assembly: LdddBypass]</c>
-	/// OR <c>[assembly: FeatureBypass]</c> marker. Matched by <em>simple attribute name</em>
-	/// (legacy <c>LdddBypassAttribute</c> OR ABMCS-vocabulary <c>FeatureBypassAttribute</c>) —
+	/// Returns true when the compilation's assembly carries an <c>[assembly: Feature(FeatureRole.Bypass)]</c>,
+	/// <c>[assembly: LdddBypass]</c>, or the transitional <c>[assembly: FeatureBypass]</c> marker.
+	/// Matched by <em>simple attribute name</em> (unified <c>FeatureAttribute</c> with role ordinal,
+	/// legacy <c>LdddBypassAttribute</c>, or transitional <c>FeatureBypassAttribute</c>) —
 	/// consumer assemblies may reference the canonical attribute or declare a local internal
 	/// copy. Cost: O(N) over assembly attributes (typically N&lt;10).
 	/// </summary>
 	/// <remarks>
 	/// The method name retains the <c>Lddd</c> prefix for source-compat with existing analyzer
-	/// call sites, but matching is dual — both legacy <c>[LdddBypass]</c> AND the new
-	/// <c>[FeatureBypass]</c> alias short-circuit any analyzer rule in the LiteDDD/ABMCS family.
-	/// A single bypass therefore suppresses both <c>NN_LDDD_*</c> and <c>NN_ABMCS_*</c> diagnostics
-	/// (the dual-emit pattern fires both IDs on the same violation).
+	/// call sites, but matching is triple — unified <c>[Feature(FeatureRole.Bypass)]</c>,
+	/// legacy <c>[LdddBypass]</c>, AND transitional <c>[FeatureBypass]</c> all short-circuit any
+	/// analyzer rule in the LiteDDD/ABMCS family. A single bypass therefore suppresses both
+	/// <c>NN_LDDD_*</c> and <c>NN_ABMCS_*</c> diagnostics (the dual-emit pattern fires both IDs
+	/// on the same violation).
 	/// </remarks>
 	internal static bool HasLdddBypassAttribute(IAssemblySymbol assembly)
 	{
@@ -233,16 +235,18 @@ internal static class LdddAnalyzerHelpers
 	}
 
 	/// <summary>
-	/// Symbol-scope bypass check — returns true when the type/method carries an
-	/// <c>[LdddBypass]</c> OR <c>[FeatureBypass]</c> attribute, OR when any containing type
-	/// up the chain does. Used by Wave 2 (NN_LDDD_003/005 + NN_ABMCS_002/003) for class-level
-	/// / method-level suppression. Wave 1 callers should use
+	/// Symbol-scope bypass check — returns true when the type/method carries a
+	/// <c>[Feature(FeatureRole.Bypass)]</c>, <c>[LdddBypass]</c>, or the transitional
+	/// <c>[FeatureBypass]</c> attribute, OR when any containing type up the chain does.
+	/// Used by Wave 2 (NN_LDDD_003/005 + NN_ABMCS_002/003) for class-level / method-level
+	/// suppression. Wave 1 callers should use
 	/// <see cref="HasLdddBypassAttribute(IAssemblySymbol)"/> for the assembly-level
 	/// short-circuit.
 	/// </summary>
 	/// <remarks>
-	/// Method name retained for source-compat; matches BOTH legacy and ABMCS bypass attributes
-	/// per the additive-alias dual-emit contract.
+	/// Method name retained for source-compat; matches unified <c>[Feature(FeatureRole.Bypass)]</c>,
+	/// legacy <c>[LdddBypass]</c>, and transitional <c>[FeatureBypass]</c> per the additive-alias
+	/// dual-emit contract.
 	/// </remarks>
 	internal static bool HasLdddBypassAttribute(ISymbol? symbol)
 	{
@@ -279,8 +283,8 @@ internal static class LdddAnalyzerHelpers
 	/// <summary>
 	/// Single-symbol bypass check (no containment-chain walk) — used by sites that must scope
 	/// the bypass to the immediate symbol only (e.g. method-scope NN_LDDD_004 parameter check
-	/// per the Phase 5 CR-3 contract). Matches both legacy <c>[LdddBypass]</c> and ABMCS
-	/// <c>[FeatureBypass]</c>.
+	/// per the Phase 5 CR-3 contract). Matches unified <c>[Feature(FeatureRole.Bypass)]</c>,
+	/// legacy <c>[LdddBypass]</c>, and transitional <c>[FeatureBypass]</c>.
 	/// </summary>
 	internal static bool HasLdddBypassAttributeDirect(ISymbol symbol)
 	{

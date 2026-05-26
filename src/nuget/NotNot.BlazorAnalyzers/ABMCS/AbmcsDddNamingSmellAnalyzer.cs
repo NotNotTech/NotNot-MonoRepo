@@ -20,7 +20,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// </para>
 /// <para>
 /// <b>Planned detection</b>: <see cref="SymbolKind.NamedType"/> action; check name suffix
-/// against the forbidden list; honor <c>[FeatureBypass]</c> on the type per the documented
+/// against the forbidden list; honor <c>[Feature(FeatureRole.Bypass)]</c> on the type per the documented
 /// carve-out path (rename OR mark + document in feature's <c>AGENTS.md</c>).
 /// </para>
 /// <para>
@@ -41,10 +41,10 @@ public sealed class AbmcsDddNamingSmellAnalyzer : DiagnosticAnalyzer
 	public const string ABMCS008_DiagnosticId = "NN_ABMCS_008";
 
 	private static readonly LocalizableString ABMCS008_Title =
-		"DDD-vocabulary naming smell — rename or apply [FeatureBypass] with documented rationale";
+		"DDD-vocabulary naming smell — rename or apply [Feature(FeatureRole.Bypass)] with documented rationale";
 
 	private static readonly LocalizableString ABMCS008_MessageFormat =
-		"Type '{0}' ends with DDD-pattern suffix '{1}'. Either rename or mark [FeatureBypass] "
+		"Type '{0}' ends with DDD-pattern suffix '{1}'. Either rename or mark [Feature(FeatureRole.Bypass)] "
 		+ "with rationale recorded in the feature's AGENTS.md. (NN_ABMCS_008)";
 
 	private static readonly LocalizableString ABMCS008_Description =
@@ -54,7 +54,7 @@ public sealed class AbmcsDddNamingSmellAnalyzer : DiagnosticAnalyzer
 		+ "types that do not conform to the corresponding DDD pattern misleads readers about "
 		+ "the surrounding code's intent. Roslyn detects the name suffix only; conformance to "
 		+ "the corresponding DDD pattern is not verifiable at the analyzer level — the fix is "
-		+ "either to rename OR to mark [FeatureBypass] with a recorded rationale.";
+		+ "either to rename OR to mark [Feature(FeatureRole.Bypass)] with a recorded rationale.";
 
 	/// <summary>NN_ABMCS_008 descriptor — Warning, ABMCS.Naming category.</summary>
 	public static readonly DiagnosticDescriptor ABMCS008_Rule = new(
@@ -79,6 +79,6 @@ public sealed class AbmcsDddNamingSmellAnalyzer : DiagnosticAnalyzer
 
 		// TODO (Loop 4): SymbolKind.NamedType action — check name suffix against the forbidden
 		// list { Repository, Aggregate, ValueObject, DomainService, Factory }; honor
-		// [FeatureBypass] on the type. Skeleton produces zero diagnostics today.
+		// [Feature(FeatureRole.Bypass)] on the type. Skeleton produces zero diagnostics today.
 	}
 }

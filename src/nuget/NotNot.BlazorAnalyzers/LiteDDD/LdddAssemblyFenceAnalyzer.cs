@@ -177,7 +177,7 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 	private static readonly LocalizableString ABMCS001_MessageFormat =
 		"Server-side type or import '{0}' is referenced from {1} assembly '{2}' "
 		+ "(server source: '{3}'). Shared/Client code must not depend on server assemblies — "
-		+ "route through a Refit [FeatureContract] transport interface or a DTO in Shared. "
+		+ "route through a Refit [Feature(FeatureRole.Contract)] transport interface or a DTO in Shared. "
 		+ "(NN_ABMCS_001)";
 
 	private static readonly LocalizableString ABMCS001_Description =
@@ -185,8 +185,8 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 		+ "presentation layer. Server-assembly types (assemblies whose identity ends in .Server) "
 		+ "and server-namespace using directives represent server-side logic, database entities, "
 		+ "or application-services that must not cross the Server/Shared boundary directly. "
-		+ "Communicate via Refit interfaces marked [FeatureContract] and DTOs in the Shared project. "
-		+ "Apply [assembly: FeatureBypass] for sibling primitive layers or carve-out cases. "
+		+ "Communicate via Refit interfaces marked [Feature(FeatureRole.Contract)] and DTOs in the Shared project. "
+		+ "Apply [assembly: Feature(FeatureRole.Bypass)] for sibling primitive layers or carve-out cases. "
 		+ "This rule is an additive alias for the legacy NN_LDDD_001 + NN_LDDD_002 diagnostics — "
 		+ "violations fire both IDs; suppress either via .editorconfig.";
 
@@ -212,13 +212,13 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 	private static readonly LocalizableString ABMCS004_MessageFormat =
 		"Member '{0}' has Entity Framework DbContext type '{1}' inside {2} assembly '{3}'. "
 		+ "DbContext is a server-side persistence concern — Shared/Client must communicate via "
-		+ "Refit [FeatureContract] interfaces and DTOs, never via direct ORM types. (NN_ABMCS_004)";
+		+ "Refit [Feature(FeatureRole.Contract)] interfaces and DTOs, never via direct ORM types. (NN_ABMCS_004)";
 
 	private static readonly LocalizableString ABMCS004_Description =
 		"ABMCS principle: persistence concerns live behind the Server boundary. Even a field, "
 		+ "property, or parameter typed as DbContext (or a subclass) in Shared/Client code leaks "
 		+ "the ORM into the presentation layer. Route data access through Refit transport "
-		+ "interfaces marked [FeatureContract]. Additive alias for the legacy NN_LDDD_004 — both "
+		+ "interfaces marked [Feature(FeatureRole.Contract)]. Additive alias for the legacy NN_LDDD_004 — both "
 		+ "IDs fire on the same violation; suppress either via .editorconfig.";
 
 	/// <summary>NN_ABMCS_004 descriptor — Warning, ABMCS.AssemblyFence category. ADDITIVE ALIAS of NN_LDDD_004.</summary>
@@ -625,7 +625,7 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 
 	/// <summary>
 	/// Phase 5 CR-3 helper — checks ONLY the immediate symbol's <c>[LdddBypass]</c> /
-	/// <c>[FeatureBypass]</c> attributes without walking the containment chain. Used by
+	/// <c>[Feature(FeatureRole.Bypass)]</c> attributes without walking the containment chain. Used by
 	/// NN_LDDD_004 / NN_ABMCS_004 parameter analysis to honor method-scope bypass without
 	/// leaking the suppression to all methods of the containing type (which would contradict
 	/// the vibeKnowledge §4c contract). Delegates to the shared helper

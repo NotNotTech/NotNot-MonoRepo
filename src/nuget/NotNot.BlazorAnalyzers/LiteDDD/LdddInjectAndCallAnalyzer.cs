@@ -151,23 +151,23 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 	// component-boundary call rule sits adjacent to the server-asm fence rule (NN_ABMCS_001).
 	// Dual-emit lets consumers suppress either ID via .editorconfig independently.
 
-	// ── NN_ABMCS_002 — Direct call to [FeatureServerLogic] from component (alias of NN_LDDD_005) ──
+	// ── NN_ABMCS_002 — Direct call to [Feature(FeatureRole.ServerLogic)] from component (alias of NN_LDDD_005) ──
 
 	/// <summary>Diagnostic ID for the ABMCS additive alias of NN_LDDD_005 (direct server-logic call from a component, renumbered).</summary>
 	public const string ABMCS002_DiagnosticId = "NN_ABMCS_002";
 
 	private static readonly LocalizableString ABMCS002_Title =
-		"Direct call to [FeatureServerLogic] from Blazor component";
+		"Direct call to [Feature(FeatureRole.ServerLogic)] from Blazor component";
 
 	private static readonly LocalizableString ABMCS002_MessageFormat =
-		"Method '{0}' on [FeatureServerLogic] type '{1}' is invoked from Blazor component '{2}'. "
-		+ "Server-logic services must be called via a Refit [FeatureContract] transport interface, "
+		"Method '{0}' on [Feature(FeatureRole.ServerLogic)] type '{1}' is invoked from Blazor component '{2}'. "
+		+ "Server-logic services must be called via a Refit [Feature(FeatureRole.Contract)] transport interface, "
 		+ "not directly from components. (NN_ABMCS_002)";
 
 	private static readonly LocalizableString ABMCS002_Description =
 		"ABMCS principle: server-logic compute lives behind the Server boundary and is invoked "
-		+ "from the client via Refit [FeatureContract] interfaces. A direct instance-method call "
-		+ "on a [FeatureServerLogic]-marked receiver from a ComponentBase-derived class bypasses "
+		+ "from the client via Refit [Feature(FeatureRole.Contract)] interfaces. A direct instance-method call "
+		+ "on a [Feature(FeatureRole.ServerLogic)]-marked receiver from a ComponentBase-derived class bypasses "
 		+ "the wire boundary and leaks server coupling into the presentation layer. Route the "
 		+ "call through a Refit transport proxy in Shared/Features/*/Contracts/ instead. "
 		+ "Additive alias for the legacy NN_LDDD_005 — both IDs fire on the same violation; "
@@ -184,30 +184,30 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 		description: ABMCS002_Description,
 		helpLinkUri: HelpBase + "nn_abmcs_002");
 
-	// ── NN_ABMCS_003 — Injected service not [FeatureContract] (alias of NN_LDDD_003) ──
+	// ── NN_ABMCS_003 — Injected service not [Feature(FeatureRole.Contract)] (alias of NN_LDDD_003) ──
 
-	/// <summary>Diagnostic ID for the ABMCS additive alias of NN_LDDD_003 (injected service not marked [FeatureContract]).</summary>
+	/// <summary>Diagnostic ID for the ABMCS additive alias of NN_LDDD_003 (injected service not marked [Feature(FeatureRole.Contract)]).</summary>
 	public const string ABMCS003_DiagnosticId = "NN_ABMCS_003";
 
 	private static readonly LocalizableString ABMCS003_Title =
-		"Injected service not marked [FeatureContract]";
+		"Injected service not marked [Feature(FeatureRole.Contract)]";
 
 	private static readonly LocalizableString ABMCS003_MessageFormat =
-		"Type '{0}' is injected into Blazor component '{1}' but is not marked [FeatureContract]. "
+		"Type '{0}' is injected into Blazor component '{1}' but is not marked [Feature(FeatureRole.Contract)]. "
 		+ "Services injected into Blazor components from Shared/Client assemblies must be Refit "
 		+ "transport contracts or framework infrastructure. Mark the service interface with "
-		+ "[FeatureContract] or add the type to the framework allow-list. (NN_ABMCS_003)";
+		+ "[Feature(FeatureRole.Contract)] or add the type to the framework allow-list. (NN_ABMCS_003)";
 
 	private static readonly LocalizableString ABMCS003_Description =
 		"ABMCS principle: the Blazor component layer composes presentation from a narrow set of "
 		+ "wire-level Refit transport contracts plus a curated framework allow-list. Injecting an "
 		+ "arbitrary server-logic or helper type into a ComponentBase-derived class blurs the "
 		+ "ABMCS Shared/Client boundary and risks pulling server compute into the page. Mark the "
-		+ "injected interface with [NotNot.Bcl.Diagnostics.FeatureContractAttribute] when it is a "
+		+ "injected interface with [Feature(FeatureRole.Contract)] when it is a "
 		+ "Refit transport contract, or add the type to the framework allow-list curated by this "
 		+ "analyzer (NavigationManager, ILogger, HubConnection, etc — full list documented on "
 		+ "NN_LDDD_003 and in protocols/abmcs-analyzers.VowHuman.md). Bypass via "
-		+ "[assembly: FeatureBypass] for whole-assembly opt-out, or [FeatureBypass] on the "
+		+ "[assembly: Feature(FeatureRole.Bypass)] for whole-assembly opt-out, or [Feature(FeatureRole.Bypass)] on the "
 		+ "ComponentBase-derived class for type-scope suppression. Additive alias for the legacy "
 		+ "NN_LDDD_003 — both IDs fire on the same violation; suppress either via .editorconfig.";
 
