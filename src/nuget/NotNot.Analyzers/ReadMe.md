@@ -206,26 +206,28 @@ catch (Exception ex) { throw; }
 
 Detects catch blocks with zero statements that silently swallow exceptions — any exception type. Complementary to NN_R005 which targets general exception types without rethrow.
 
+**Concurrency note**: Pre-checks (`File.Exists()`, `dict.ContainsKey()`) have TOCTOU races in concurrent scenarios. Atomic operations (`FileMode.CreateNew`, `ConcurrentDictionary.TryAdd`, DB unique constraints) legitimately need try/catch. The catch block is justified — but it still must not be empty.
+
 ```csharp
-// ❌ Problematic
+// ❌ Problematic — empty catch silently swallows
 catch (IOException)
 {
-    // File already exists — skip
+    // File already exists (cross-process race) — skip
 }
 
-// ✅ Option 1: Avoid exceptions for control flow
-if (File.Exists(path)) return;  // Check first
+// ✅ Option 1: Avoid exceptions (non-concurrent only — TOCTOU race if concurrent)
+if (File.Exists(path)) return;
 
-// ✅ Option 2: Debug assertion for unexpected
+// ✅ Option 2: Debug assertion (good for atomic race-condition catches)
 catch (IOException ex)
 {
-    __.DebugAssertOnce(ex);
+    __.DebugAssertOnce(ex);  // Visible in DEBUG, logged once, graceful in RELEASE
 }
 
-// ✅ Option 3: Logging for expected
+// ✅ Option 3: Logging (good for expected concurrent conflicts)
 catch (IOException ex)
 {
-    _logger.LogWarning(ex, "File conflict during write");
+    _logger.LogDebug(ex, "Atomic write conflict — file already exists");
 }
 ```
 

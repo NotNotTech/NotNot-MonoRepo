@@ -69,10 +69,12 @@ Catch blocks with zero statements silently swallow exceptions. Any exception typ
 - `return fallback;` - explicit control flow
 
 **Preferred Fix** (in order):
-1. Avoid exceptions for control flow (e.g., `File.Exists()` check before `try`)
+1. Avoid exceptions for control flow — but pre-checks (`File.Exists()`, `dict.ContainsKey()`) have TOCTOU races in concurrent scenarios. Atomic operations (`FileMode.CreateNew`, `ConcurrentDictionary.TryAdd`, DB unique constraints) legitimately need try/catch for race handling.
 2. `__.DebugAssertOnce(ex)` for unexpected exceptions
-3. Logging for expected-but-notable exceptions
-4. `#pragma disable` if truly needed
+3. Logging for expected-but-notable exceptions (e.g., `_logger.LogDebug(ex, "race-condition conflict")` for atomic-op catches)
+4. `#pragma disable` only if truly needed
+
+**Key principle**: Even legitimate race-condition catches must not be empty — observability requires at minimum a DebugAssert or log statement.
 
 ### NN_C003: Boolean Default False
 

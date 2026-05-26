@@ -24,9 +24,16 @@ namespace NotNot.Analyzers.Reliability.Exceptions;
 ///
 /// ALLOWED (has statements):
 /// - catch (IOException) { __.DebugAssertOnce(ex); } - debug assertion
-/// - catch (IOException ex) { Log(ex); } - logging
+/// - catch (IOException ex) { _logger.LogDebug(ex, "..."); } - logging
 /// - catch (Exception ex) { throw; } - rethrow
 /// - catch (IOException) { return fallback; } - explicit control flow
+///
+/// CONCURRENCY NOTE:
+/// Pre-checks (File.Exists, dict.ContainsKey) have TOCTOU races in concurrent
+/// scenarios. Atomic operations (FileMode.CreateNew, ConcurrentDictionary.TryAdd,
+/// DB unique constraints) that throw on conflict are the correct concurrent pattern.
+/// The catch block is legitimate — but it still must not be empty. At minimum use
+/// __.DebugAssertOnce(ex) or logging to maintain observability.
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class EmptyCatchBlockAnalyzer : DiagnosticAnalyzer
@@ -36,15 +43,21 @@ public class EmptyCatchBlockAnalyzer : DiagnosticAnalyzer
     private static readonly LocalizableString Title = "Empty catch block silently swallows exception";
     private static readonly LocalizableString MessageFormat =
         "Empty catch block silently swallows '{0}'. "
-        + "Prefer: (1) avoid exceptions for control flow, "
+        + "Prefer: (1) avoid exceptions for control flow — but pre-checks have TOCTOU races in concurrent code; "
+        + "atomic ops (FileMode.CreateNew, TryAdd) may need try/catch, "
         + "(2) __.DebugAssertOnce(ex) for unexpected, "
-        + "(3) logging for expected. Suppress only if truly needed.";
+        + "(3) logging for expected. Even race-condition catches need handling, not empty bodies.";
     private static readonly LocalizableString Description =
         "Catch blocks with zero statements silently swallow exceptions, hiding bugs and failures. "
-        + "Options: (1) Restructure to avoid exceptions for control flow (e.g., check File.Exists() first), "
-        + "(2) Add __.DebugAssertOnce(ex) for unexpected exceptions with graceful degradation, "
-        + "(3) Add logging for expected-but-notable exceptions, "
-        + "(4) Suppress with #pragma if the empty catch is truly the intended behavior.";
+        + "Options: (1) Restructure to avoid exceptions for control flow — but note that pre-checks "
+        + "(File.Exists, dict.ContainsKey) have TOCTOU races in concurrent scenarios; atomic operations "
+        + "(FileMode.CreateNew, ConcurrentDictionary.TryAdd, DB unique constraints) legitimately use "
+        + "try/catch for race handling, (2) Add __.DebugAssertOnce(ex) for unexpected exceptions with "
+        + "graceful degradation, (3) Add logging for expected-but-notable exceptions (e.g., "
+        + "_logger.LogDebug(ex, \"race-condition conflict\") for atomic-op catches), "
+        + "(4) Suppress with #pragma only if the empty catch is truly the intended behavior. "
+        + "Even legitimate race-condition catches must not be empty — observability requires at minimum "
+        + "a DebugAssert or log statement.";
     private const string Category = "Reliability";
 
     private static readonly DiagnosticDescriptor Rule = new(
