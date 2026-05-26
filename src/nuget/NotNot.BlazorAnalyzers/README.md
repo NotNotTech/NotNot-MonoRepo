@@ -23,6 +23,7 @@ Or in your `.csproj`:
 
 ## Analyzer Rules
 
+<a id="nnb022"></a>
 ### NNB022: Direct MudBlazor reference forbidden — use Nn* wrapper
 
 **Severity:** Warning
@@ -94,6 +95,7 @@ The marker can appear anywhere in the file. The text after the second colon is d
 dotnet_diagnostic.NNB022.severity = error
 ```
 
+<a id="nn_lddd_001"></a>
 ### NN_LDDD_001: Server-Assembly Type Referenced in Shared/Client Code
 
 **Severity:** Warning
@@ -116,6 +118,7 @@ public class SomeShared { [Inject] private IVowSessionDataService Svc { get; set
 
 **Fix:** Move the shared type to `Shared/Features/{Feature}/Contracts/` or define a DTO in Shared. If the type is genuinely server-side, route through a Refit data-service interface marked with `[LdddDataService]`. For sibling primitive libraries that have no notion of LiteDDD layering, apply `[assembly: LdddBypass]`.
 
+<a id="nn_lddd_002"></a>
 ### NN_LDDD_002: Server-Namespace Using Directive in Shared/Client Code
 
 **Severity:** Warning
@@ -141,6 +144,7 @@ Hybrid detection across three pathways:
 
 **Fix:** Remove the import and route through a Shared contracts namespace. If shared types are needed, relocate them to `Shared/Features/{Feature}/Contracts/`. Bypass via `[assembly: LdddBypass]` for sibling primitive libraries.
 
+<a id="nn_lddd_003"></a>
 ### NN_LDDD_003: Injected Service Not Marked [LdddDataService]
 
 **Severity:** Warning
@@ -178,6 +182,7 @@ public class MyPage : ComponentBase
 
 **Fix:** Mark the injected service interface with `[NotNot.Bcl.Diagnostics.LdddDataService]` if it is a Refit data-service contract. Otherwise add the type to the framework allow-list in `LdddInjectAndCallAnalyzer.FrameworkAllowList`. For class-scope suppression, apply `[LdddBypass]` to the component class; for whole-assembly opt-out, apply `[assembly: LdddBypass]`.
 
+<a id="nn_lddd_004"></a>
 ### NN_LDDD_004: Entity Framework DbContext Referenced in Shared/Client Code
 
 **Severity:** Warning
@@ -205,6 +210,7 @@ public class SomeShared
 
 **Fix:** Move the DbContext access into the Server project. Expose the needed data via a Refit data-service interface marked with `[LdddDataService]` in `Shared/Features/{Feature}/Contracts/`, and inject the interface from the component. For class-scope suppression, apply `[LdddBypass]` to the containing type.
 
+<a id="nn_lddd_005"></a>
 ### NN_LDDD_005: Direct Call to [LdddDomainService] from Blazor Component
 
 **Severity:** Warning
@@ -253,6 +259,7 @@ dotnet_diagnostic.NN_LDDD_004.severity = error
 dotnet_diagnostic.NN_LDDD_005.severity = error
 ```
 
+<a id="nn_rm_001"></a>
 ### NN_RM_001: Per-page `@rendermode` directive forbidden (Pattern 2 reflection is canonical)
 
 **Severity:** Warning
@@ -303,6 +310,7 @@ Apply this to assemblies whose render-mode architecture predates or doesn't use 
 dotnet_diagnostic.NN_RM_001.severity = error
 ```
 
+<a id="nnb002"></a>
 ### NNB002: JS Reference Disposal Required
 
 **Severity:** Error
@@ -345,6 +353,7 @@ Detects `DotNetObjectReference<T>` or `IJSObjectReference` fields in Blazor comp
 }
 ```
 
+<a id="nnb007"></a>
 ### NNB007: JSDisconnectedException Not Caught
 
 **Severity:** Warning
@@ -402,6 +411,7 @@ The analyzer recognizes these safe wrapper extension methods (from NotNot.Bcl.Co
 
 These provide a concise alternative to verbose try-catch blocks.
 
+<a id="nnb008"></a>
 ### NNB008: JsonException from JS Interop - Fix JavaScript Instead
 
 **Severity:** Error
@@ -435,6 +445,7 @@ catch (JsonException)
 - Skips try blocks also containing `System.Text.Json` API calls (e.g., `JsonSerializer.Deserialize`) to avoid false positives
 - Applies to all classes, not just Blazor components (JsonException masking is an anti-pattern everywhere)
 
+<a id="nnb010"></a>
 ### NNB010: Unknown Component Parameter
 
 **Severity:** Error
@@ -483,6 +494,7 @@ dotnet_diagnostic.NNB010.severity = none  # Disable entirely
 # Or use #pragma warning disable NNB010 for specific cases
 ```
 
+<a id="nnb011"></a>
 ### NNB011: Unknown Parameter on Splatted Component (Strict Mode)
 
 **Severity:** Error
@@ -516,6 +528,7 @@ Strict sibling to NNB010. Detects unknown parameters on components that HAVE `[P
 dotnet_diagnostic.NNB011.severity = none  # Allow non-standard splatted attributes
 ```
 
+<a id="nnb012"></a>
 ### NNB012: Incomplete JS Interop Cancellation Handling
 
 **Severity:** Error
@@ -559,6 +572,7 @@ catch (Exception ex) when (ex is JSDisconnectedException or TaskCanceledExceptio
 - No `JSDisconnectedException` in any catch clause (NNB007's responsibility)
 - All JS interop calls in the try block use `_WaitIgnoreCancel()` (safe wrapper handles both)
 
+<a id="nnb013"></a>
 ### NNB013: Missing JSDisconnectedException in JS Interop Catch
 
 **Severity:** Error
@@ -601,6 +615,7 @@ catch (ObjectDisposedException ex) { Log(ex); }
 - Blanket `catch (Exception)` or bare `catch` (catches everything)
 - No cancellation exception in any catch clause (NNB012's direction, not NNB013's)
 
+<a id="nnb009"></a>
 ### NNB009: Verbose Disposal Exception Catching
 
 **Severity:** Warning
