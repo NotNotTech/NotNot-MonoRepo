@@ -11,7 +11,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// <summary>
 /// ABMCS — <c>NN_ABMCS_009</c>: concrete <c>Refit.ApiResponse&lt;T&gt;</c> referenced at the
 /// transport boundary. The canonical form per
-/// <c>docs/protocols/abmcs-error-handling.VowHuman.md</c> is the interface
+/// <c>docs/protocols/abmcs-architecture.VowAgent.md §12.1b</c> is the interface
 /// <c>Refit.IApiResponse&lt;T&gt;</c>, NOT the concrete <c>ApiResponse&lt;T&gt;</c> class.
 /// </summary>
 /// <remarks>
@@ -51,7 +51,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// <c>ApiResponse&lt;T&gt;</c> class couples consumers to a specific implementation, makes
 /// testing harder (no straightforward fake), and signals to readers that the transport-tier
 /// envelope discipline has slipped. See
-/// <c>docs/protocols/abmcs-error-handling.VowHuman.md</c> "What NOT to use" section.
+/// <c>docs/protocols/abmcs-architecture.VowAgent.md §12.5</c> "What NOT to use" section.
 /// </para>
 /// <para>
 /// <b>Severity</b>: <see cref="DiagnosticSeverity.Warning"/>.
@@ -86,7 +86,7 @@ public sealed class AbmcsConcreteApiResponseAnalyzer : DiagnosticAnalyzer
 		+ "(NN_ABMCS_009)";
 
 	private static readonly LocalizableString ABMCS009_Description =
-		"ABMCS principle (per protocols/abmcs-error-handling.VowHuman.md): transport-tier "
+		"ABMCS principle (per docs/protocols/abmcs-architecture.VowAgent.md §12.6): transport-tier "
 		+ "contracts return Refit.IApiResponse<T>, not the concrete Refit.ApiResponse<T> class. "
 		+ "The interface is the abstraction Refit's generated proxies produce AND the form "
 		+ "controller mappings accept — coupling consumers to the concrete class makes testing "

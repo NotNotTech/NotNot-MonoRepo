@@ -143,7 +143,7 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 		helpLinkUri: HelpBase + "nn_lddd_005");
 
 	// ── ABMCS additive aliases — dual-emit pattern ────────────────────────────
-	// Mapping (per docs/protocols/abmcs-overview.VowHuman.md rename table):
+	// Mapping (per docs/protocols/abmcs-architecture.VowAgent.md §1.4 rename table):
 	//   NN_LDDD_003  →  NN_ABMCS_003   (injected service unmarked — same detection)
 	//   NN_LDDD_005  →  NN_ABMCS_002   (direct domain/server-logic call — RENUMBERED for grouping)
 	//
@@ -206,7 +206,7 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 		+ "injected interface with [Feature(FeatureRole.Contract)] when it is a "
 		+ "Refit transport contract, or add the type to the framework allow-list curated by this "
 		+ "analyzer (NavigationManager, ILogger, HubConnection, etc — full list documented on "
-		+ "NN_LDDD_003 and in protocols/abmcs-analyzers.VowHuman.md). Bypass via "
+		+ "NN_LDDD_003 and in docs/protocols/abmcs-architecture.VowAgent.md §11.4). Bypass via "
 		+ "[assembly: Feature(FeatureRole.Bypass)] for whole-assembly opt-out, or [Feature(FeatureRole.Bypass)] on the "
 		+ "ComponentBase-derived class for type-scope suppression. Additive alias for the legacy "
 		+ "NN_LDDD_003 — both IDs fire on the same violation; suppress either via .editorconfig.";

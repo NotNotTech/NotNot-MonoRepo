@@ -9,7 +9,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// ABMCS — <c>NN_ABMCS_007</c> (SKELETON, full impl deferred to parent-repo Loop 4):
 /// Per-file LoC threshold (AMB-12 user-locked: per-file threshold, default 800 LoC). Aims to
 /// prompt sub-feature promotion review when a single file grows past the navigation-burden
-/// threshold. See <c>docs/protocols/abmcs-analyzers.VowHuman.md</c> NN_ABMCS_007 section.
+/// threshold. See <c>docs/protocols/abmcs-architecture.VowAgent.md §11.2</c> NN_ABMCS_007 section.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -47,7 +47,7 @@ public sealed class AbmcsFeatureSizeAnalyzer : DiagnosticAnalyzer
 		+ "(NN_ABMCS_007)";
 
 	private static readonly LocalizableString ABMCS007_Description =
-		"ABMCS principle (per protocols/abmcs-analyzers.VowHuman.md): per-file LoC threshold is "
+		"ABMCS principle (per docs/protocols/abmcs-architecture.VowAgent.md §11.5): per-file LoC threshold is "
 		+ "a smell indicator tied to navigation burden, not a hard limit. The default (800) is "
 		+ "configurable per project via .editorconfig + analyzer options. The intent is to "
 		+ "prompt sub-feature promotion review, not block the build.";

@@ -8,7 +8,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// <summary>
 /// ABMCS — <c>NN_ABMCS_005</c> (SKELETON, full impl deferred to parent-repo Loop 4):
 /// Per-page <c>@rendermode</c> directive — Blazor-specific. See
-/// <c>docs/protocols/abmcs-project-topology.VowHuman.md</c> for the rationale (page-level
+/// <c>docs/protocols/abmcs-architecture.VowAgent.md §5.2.1</c> for the rationale (page-level
 /// rendermode declarations couple presentation to render strategy in a way that fights
 /// InteractiveWebAssembly's whole-app discipline).
 /// </summary>
@@ -45,7 +45,7 @@ public sealed class AbmcsPerPageRenderModeAnalyzer : DiagnosticAnalyzer
 		+ "(NN_ABMCS_005)";
 
 	private static readonly LocalizableString ABMCS005_Description =
-		"ABMCS principle (per protocols/abmcs-project-topology.VowHuman.md): page-level "
+		"ABMCS principle (per docs/protocols/abmcs-architecture.VowAgent.md §5.2.1): page-level "
 		+ "@rendermode declarations couple presentation to render strategy and fight "
 		+ "InteractiveWebAssembly's whole-app discipline. Declare rendermode at the App or "
 		+ "Routes level instead.";

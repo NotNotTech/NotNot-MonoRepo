@@ -161,7 +161,7 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 	// (`dotnet_diagnostic.NN_LDDD_001.severity = none` or `NN_ABMCS_001 = none`); the
 	// legacy IDs remain for backward compatibility with existing external consumers.
 	//
-	// Mapping (per docs/protocols/abmcs-overview.VowHuman.md rename table):
+	// Mapping (per docs/protocols/abmcs-architecture.VowAgent.md §1.4 rename table):
 	//   NN_LDDD_001 + NN_LDDD_002  →  NN_ABMCS_001   (server-asm fence + server-namespace using, consolidated)
 	//   NN_LDDD_004                 →  NN_ABMCS_004   (DbContext in shared/client)
 

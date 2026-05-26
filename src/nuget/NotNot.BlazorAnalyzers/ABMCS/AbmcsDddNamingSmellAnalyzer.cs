@@ -10,7 +10,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// DDD-vocabulary naming smell. Fires when a type name ends with <c>Repository</c>,
 /// <c>Aggregate</c>, <c>ValueObject</c>, <c>DomainService</c>, or <c>Factory</c> — the rule
 /// catches the careless name, NOT the DDD conformance of the type. See
-/// <c>docs/protocols/abmcs-analyzers.VowHuman.md</c> NN_ABMCS_008 section + AGENTS.md tenet
+/// <c>docs/protocols/abmcs-architecture.VowAgent.md §11.2</c> NN_ABMCS_008 section + AGENTS.md tenet
 /// "do not borrow DDD pattern names for non-DDD types".
 /// </summary>
 /// <remarks>
@@ -24,7 +24,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// carve-out path (rename OR mark + document in feature's <c>AGENTS.md</c>).
 /// </para>
 /// <para>
-/// <b>Design constraint</b> (from protocols/abmcs-analyzers.VowHuman.md): resist building
+/// <b>Design constraint</b> (from docs/protocols/abmcs-architecture.VowAgent.md §17.7): resist building
 /// "structural DDD conformance" logic into this analyzer. The value is in catching the
 /// careless name; adjudicating DDD doctrine is out of scope.
 /// </para>
@@ -48,8 +48,8 @@ public sealed class AbmcsDddNamingSmellAnalyzer : DiagnosticAnalyzer
 		+ "with rationale recorded in the feature's AGENTS.md. (NN_ABMCS_008)";
 
 	private static readonly LocalizableString ABMCS008_Description =
-		"ABMCS principle (per protocols/abmcs-analyzers.VowHuman.md + protocols/"
-		+ "abmcs-overview.VowHuman.md): DDD pattern names (Repository, Aggregate, ValueObject, "
+		"ABMCS principle (per docs/protocols/abmcs-architecture.VowAgent.md §17.7): "
+		+ "DDD pattern names (Repository, Aggregate, ValueObject, "
 		+ "DomainService, Factory) carry strong architectural connotations. Borrowing them for "
 		+ "types that do not conform to the corresponding DDD pattern misleads readers about "
 		+ "the surrounding code's intent. Roslyn detects the name suffix only; conformance to "

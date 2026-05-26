@@ -11,7 +11,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// <c>Maybe</c>, <c>Maybe&lt;T&gt;</c>, <c>Result&lt;T&gt;</c>, <c>Task&lt;Maybe&gt;</c>,
 /// <c>Task&lt;Maybe&lt;T&gt;&gt;</c>, <c>Task&lt;Result&lt;T&gt;&gt;</c>, or
 /// <c>ValueTask&lt;...&gt;</c> variants. Infrastructure exceptions remain unwrapped per
-/// <c>docs/protocols/abmcs-error-handling.VowHuman.md</c>.
+/// <c>docs/protocols/abmcs-architecture.VowAgent.md §12.2</c>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -54,7 +54,7 @@ public sealed class AbmcsThrowInMaybeMethodAnalyzer : DiagnosticAnalyzer
 		+ "(NN_ABMCS_010)";
 
 	private static readonly LocalizableString ABMCS010_Description =
-		"ABMCS principle (per protocols/abmcs-error-handling.VowHuman.md): business outcomes "
+		"ABMCS principle (per docs/protocols/abmcs-architecture.VowAgent.md §12.2): business outcomes "
 		+ "are structured results, not exceptions. A method declared to return Maybe<T> / "
 		+ "Result<T> (or their Task/ValueTask variants) that throws for a business outcome "
 		+ "produces two failure modes: callers who should handle the structured failure "

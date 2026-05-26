@@ -9,7 +9,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// ABMCS — <c>NN_ABMCS_006</c> (SKELETON, full impl deferred to parent-repo Loop 4):
 /// Cross-feature internal access. Code in <c>Features/A/</c> references types in
 /// <c>Features/B/</c> outside of <c>B</c>'s <c>Contracts/</c> folder. See
-/// <c>docs/protocols/abmcs-feature-layout.VowHuman.md</c> for the feature-isolation rationale.
+/// <c>docs/protocols/abmcs-architecture.VowAgent.md §1.5</c> for the feature-isolation rationale.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -25,7 +25,7 @@ namespace NotNot.BlazorAnalyzers.ABMCS;
 /// per AMB-10 user-locked decision).
 /// </para>
 /// <para>
-/// <b>Known limitations</b> (documented in protocols/abmcs-analyzers.VowHuman.md):
+/// <b>Known limitations</b> (documented in docs/protocols/abmcs-architecture.VowAgent.md §11.5):
 /// projects deviating from the <c>Features/{Name}/</c> convention silently produce zero
 /// diagnostics; in-memory compilations with empty/synthetic <see cref="SyntaxTree.FilePath"/>
 /// also produce zero diagnostics.
@@ -50,7 +50,7 @@ public sealed class AbmcsCrossFeatureIsolationAnalyzer : DiagnosticAnalyzer
 		+ "Cross-feature access must go through the Contracts/ folder. (NN_ABMCS_006)";
 
 	private static readonly LocalizableString ABMCS006_Description =
-		"ABMCS principle (per protocols/abmcs-feature-layout.VowHuman.md): each feature owns "
+		"ABMCS principle (per docs/protocols/abmcs-architecture.VowAgent.md §1.5): each feature owns "
 		+ "its internal types; cross-feature access flows through the feature's Contracts/ "
 		+ "folder. Direct references to internal types break the isolation that makes refactor "
 		+ "and feature ownership tractable.";
