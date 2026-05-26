@@ -185,6 +185,49 @@ Ensures destructors (finalizers) wrap their logic in try/catch blocks to prevent
 - `__RethrowUnlessAppShutdownOrRelease()` balances safety and debuggability
 - Critical for resource management and application stability
 
+### NN_R005: Catch block must rethrow general exception
+**Severity:** Error  
+**Category:** Reliability
+
+Catch blocks catching `Exception`, `SystemException`, or bare `catch` must rethrow. Specific exception types can be swallowed.
+
+```csharp
+// ❌ Problematic
+catch (Exception ex) { Log(ex); }  // Logs but doesn't rethrow
+
+// ✅ Fixed
+catch (Exception ex) { __.DebugAssertOnce(ex); return fallback; }
+catch (Exception ex) { throw; }
+```
+
+### NN_R006: Empty catch block silently swallows exception
+**Severity:** Error  
+**Category:** Reliability
+
+Detects catch blocks with zero statements that silently swallow exceptions — any exception type. Complementary to NN_R005 which targets general exception types without rethrow.
+
+```csharp
+// ❌ Problematic
+catch (IOException)
+{
+    // File already exists — skip
+}
+
+// ✅ Option 1: Avoid exceptions for control flow
+if (File.Exists(path)) return;  // Check first
+
+// ✅ Option 2: Debug assertion for unexpected
+catch (IOException ex)
+{
+    __.DebugAssertOnce(ex);
+}
+
+// ✅ Option 3: Logging for expected
+catch (IOException ex)
+{
+    _logger.LogWarning(ex, "File conflict during write");
+}
+```
 
 ## ⚙️ Configuration
 
@@ -198,6 +241,8 @@ dotnet_diagnostic.NN_R002.severity = error
 dotnet_diagnostic.NN_C001.severity = error
 dotnet_diagnostic.NN_C002.severity = error
 dotnet_diagnostic.NOTNOT001.severity = error
+dotnet_diagnostic.NN_R005.severity = error
+dotnet_diagnostic.NN_R006.severity = error
 
 # Disable specific rules
 dotnet_diagnostic.NN_R003.severity = none

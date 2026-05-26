@@ -56,6 +56,24 @@ catch (Exception ex)
 
 See `protocols/debugging.md` for diagnostic patterns.
 
+### NN_R006: Empty Catch Block
+
+Catch blocks with zero statements silently swallow exceptions. Any exception type.
+
+**Severity**: Error
+**Flagged**: `catch { }`, `catch (IOException) { }`, `catch (Ex) { // comment }`, `catch (Ex ex) when (cond) { }`
+**Allowed** (has >=1 statement):
+- `__.DebugAssertOnce(ex)` - debug assertion with graceful degradation
+- `Log(ex)` - logging for expected exceptions
+- `throw;` or `throw new Wrapped(ex);` - rethrow
+- `return fallback;` - explicit control flow
+
+**Preferred Fix** (in order):
+1. Avoid exceptions for control flow (e.g., `File.Exists()` check before `try`)
+2. `__.DebugAssertOnce(ex)` for unexpected exceptions
+3. Logging for expected-but-notable exceptions
+4. `#pragma disable` if truly needed
+
 ### NN_C003: Boolean Default False
 
 Enforces the `BOOLEAN_DEFAULT_FALSE` convention — boolean parameters, properties, and fields must default to `false`, not `true`. Default-true booleans silently flip behavior on consumers who don't know to opt out; default-false forces explicit opt-in and keeps the read surface unsurprising.
@@ -106,6 +124,7 @@ Enforces the `BOOLEAN_DEFAULT_FALSE` convention — boolean parameters, properti
 | `Architecture/IgnoredApiResponseAnalyzer.cs` | NN_A005 |
 | `Advanced/SuppressionProvider.cs` | All NNS* suppressors |
 | `Reliability/Exceptions/CatchBlockMustRethrowAnalyzer.cs` | NN_R005 |
+| `Reliability/Exceptions/EmptyCatchBlockAnalyzer.cs` | NN_R006 |
 | `Reliability/Concurrency/TaskAwaitedOrReturnedAnalyzer.cs` | NN_R001 |
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
 
