@@ -31,6 +31,24 @@ public static class LinkTextHelpers
 	}
 
 	/// <summary>
+	/// Folds the single Unicode horizontal-ellipsis character <c>…</c> (U+2026) into the
+	/// three-character ASCII run <c>...</c>. Pure text normalization: changes only character
+	/// indices/length downstream, never link classification. Run BEFORE link detection so the
+	/// ellipsis-bearing segment survives the InferredPath char-class (which admits ASCII <c>.</c>
+	/// but not <c>…</c>). Returns the input unchanged when no U+2026 is present.
+	/// </summary>
+	/// <remarks>
+	/// Package: <c>NotNot.Bcl.Core</c> · Namespace: <c>NotNot.Bcl.Core.EzLinkDetection</c><br/>
+	/// Using directive: <c>using NotNot.Bcl.Core.EzLinkDetection;</c>
+	/// </remarks>
+	public static string NormalizeEllipsis(string text)
+	{
+		if (string.IsNullOrEmpty(text) || !text.Contains('…'))
+			return text;
+		return text.Replace("…", "...");
+	}
+
+	/// <summary>
 	/// Extracts the whitespace-bounded segment containing <paramref name="cursorPosition"/>.
 	/// Walks back to whitespace/start, walks forward to whitespace/end, and returns the
 	/// substring plus its start index plus its length. Returns <c>null</c> when the cursor
