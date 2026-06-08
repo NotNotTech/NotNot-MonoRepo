@@ -32,5 +32,6 @@
         <CompilerVisibleProperty Include="CssAnalyzerEnabled" />
         <CompilerVisibleProperty Include="LocalizationAnalyzerEnabled" />
         <CompilerVisibleProperty Include="NnDesignPolicyAnalyzerEnabled" />
+        <CompilerVisibleProperty Include="KeyConventionAnalyzerEnabled" />
     </ItemGroup>
 </Project>
