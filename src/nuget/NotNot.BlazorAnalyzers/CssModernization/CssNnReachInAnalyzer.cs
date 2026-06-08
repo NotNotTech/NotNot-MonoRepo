@@ -38,7 +38,7 @@ namespace NotNot.BlazorAnalyzers.CssModernization;
 /// own <c>nn-design.css</c> / <c>NotNot.BlazorDesign</c> internals; <c>Pages/Samples/**</c> and
 /// <c>NnDesignSamples/**</c>; samples CSS; global theme CSS), a per-file opt-out comment
 /// (<c>nnb_css008:allow-reachin: &lt;reason&gt;</c>), and the shared <c>CssAnalyzerEnabled=false</c>
-/// build-property kill-switch. Severity = Warning (flipped to Error in a later atomic phase).
+/// build-property kill-switch. Severity = Error (escalated from Warning once the consumer tree was verified reach-in-clean).
 /// </para>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -56,9 +56,11 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     private const string OptOutMarker = "nnb_css008:allow-reachin";
 
     /// <summary>
-    /// NNB_CSS008 descriptor. Severity = Warning at this phase (concurrent-build safety — a reach-in
-    /// must not break other agents' builds at HEAD). Flipped to Error in a later atomic phase once the
-    /// tree is verified clean.
+    /// NNB_CSS008 descriptor. Severity = Error — a consumer reach-in into NnDesign internals is a
+    /// build-breaking contract violation. Escalated from Warning once the consumer tree was verified
+    /// reach-in-clean (zero NNB_CSS008 at HEAD), so the gate enforces zero-regression rather than
+    /// merely advising. Kill-switch for legitimate suppression: per-file nnb_css008:allow-reachin
+    /// comment, or the CssAnalyzerEnabled=false build property.
     /// </summary>
     public static readonly DiagnosticDescriptor RuleNoNnReachIn = new(
         DiagnosticId,
@@ -67,7 +69,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
             + "gated on a published NnDesign state like html.nn-chord-revealed) or use the wrapper's "
             + "public parameter/component (e.g. NnContentSection.MaxHeight / NoHeaderBorder, "
             + "NnContentSectionGroup) instead of reaching into '.nn-*' internals. (NNB_CSS008)",
-        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "An NnDesign wrapper's internal '.nn-*' classes are private implementation detail. "
             + "A consumer that restyles one (the rightmost/subject selector being an '.nn-*' class — "
             + "with or without ::deep) couples to NnDesign's private DOM and breaks when that DOM "

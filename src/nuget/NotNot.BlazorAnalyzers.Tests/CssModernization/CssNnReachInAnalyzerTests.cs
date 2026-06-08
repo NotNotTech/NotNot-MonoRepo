@@ -46,7 +46,7 @@ public class CssNnReachInAnalyzerTests
     private static DiagnosticResult Diagnostic(
         string nnClassName, string filePath, int line, int column, int endLine, int endColumn)
     {
-        return new DiagnosticResult(CssNnReachInAnalyzer.DiagnosticId, DiagnosticSeverity.Warning)
+        return new DiagnosticResult(CssNnReachInAnalyzer.DiagnosticId, DiagnosticSeverity.Error)
             .WithSpan(filePath, line, column, endLine, endColumn)
             .WithArguments(nnClassName);
     }
@@ -146,7 +146,7 @@ public class CssNnReachInAnalyzerTests
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // (g) Build-property kill-switch (CssAnalyzerEnabled=false) suppresses the warning.
+    // (g) Build-property kill-switch (CssAnalyzerEnabled=false) suppresses the diagnostic.
     // ═══════════════════════════════════════════════════════════════════════
 
     [Fact]
