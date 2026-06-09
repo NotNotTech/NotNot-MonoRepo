@@ -13,7 +13,7 @@ namespace NotNot.BlazorAnalyzers.XRay;
 /// <remarks>
 /// The generated XRayMetadata.g.cs contains:
 /// - Static JSON string with element-to-line mappings
-/// - Module Initializer that registers metadata with XRayRegistry on assembly load
+/// - Module Initializer that registers metadata with NotNot.Diagnostics.SourceMetadataRegistry on assembly load
 /// </remarks>
 [Generator(LanguageNames.CSharp)]
 public class XRayMetadataGenerator : IIncrementalGenerator
@@ -177,7 +177,7 @@ internal static partial class XRayMetadata
         sb.AppendLine("    [System.Runtime.CompilerServices.ModuleInitializer]");
         sb.AppendLine("    internal static void Register()");
         sb.AppendLine("    {");
-        sb.AppendLine($"        NotNot.BlazorComponents.XRay.XRayRegistry.Register(\"{EscapeJson(assemblyName)}\", Json);");
+        sb.AppendLine($"        NotNot.Diagnostics.SourceMetadataRegistry.Register(\"{EscapeJson(assemblyName)}\", Json);");
         sb.AppendLine("    }");
         sb.AppendLine("}");
 
