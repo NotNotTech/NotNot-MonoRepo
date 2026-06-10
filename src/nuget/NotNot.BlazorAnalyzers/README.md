@@ -733,6 +733,119 @@ dotnet_diagnostic.NNB041.severity = none
 
 No dedicated bypass attribute is provided — `#pragma` / `.editorconfig` is the escape mechanism. This is intentional: NNB041 is a per-call-site correctness rule, and a whole-assembly opt-out would defeat the invariant it enforces.
 
+<a id="nnb043"></a>
+### NNB043: Raw Tier-B appearance param exposed on an Nn* component (policy table)
+
+**Severity:** Error
+**Category:** NnDesign
+**Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy (Tier A/B) · `NnDesignLayoutContract.VowSpec` SPEC-001..003
+
+The producer-side enforcer of the NnDesign manifesto's Tier-B/appearance-channel discipline ("enforced or it doesn't exist"). A raw appearance-laundering passthrough param (`string *Style` / `*Class`) exposed on an `Nn*` component is the entropy channel a consumer would use to bypass the prescriptive "ONE TRUE WAY" contract. NNB043 flags such params on the design system's OWN components.
+
+**Scans the PRODUCER (no producer-path exemption).** Unlike NNB022 / NNB_CSS008 (which exempt `**/NotNot.BlazorDesign/**` because they police *consumer* usage), NNB043 deliberately analyzes the `NotNot.BlazorDesign` assembly's own `Nn*`-component parameter declarations — the manifesto demands the rule flag the design system's own raw appearance params. The producer references this analyzer via `<ProjectReference … OutputItemType="Analyzer" ReferenceOutputAssembly="false" />`, so NNB043 fires during the producer build.
+
+**Symbol-based + explicit deny/allow policy table** (NOT a string/regex heuristic): fires on `SymbolKind.NamedType`, iterates each type's public `[Parameter]`-marked properties, and matches by resolved **type** (`string`) + **name** shape (ends in `Style`/`Class`). A matched param FIRES unless its `(component, param)` pair is a documented **Tier-A allow-row**. The detector list is extensible to future non-string Tier-B rows (`Variant` / `Margin` / `Elevation`) as contracts formalize — NNB043 is the single Tier-B-exposure owner, not a one-off "no strings" rule.
+
+```csharp
+// ❌ NNB043 fires — raw string appearance passthrough on an Nn* component
+public class NnWidget : NnComponentBase
+{
+    [Parameter] public string? BodyStyle { get; set; }   // appearance laundering via Style=
+    [Parameter] public string? BodyClass { get; set; }   // …and via Class=
+}
+
+// ✅ No diagnostic — semantic param replaces the raw passthrough
+public class NnWidget : NnComponentBase
+{
+    [Parameter] public NnDensity Density { get; set; }       // semantic density axis
+    [Parameter] public NnBodyLayout BodyLayout { get; set; } // structural body-layout token
+}
+```
+
+**Tier-A allow-rows** (documented brand-permitted-variation channels — never flagged; seeded per `NnDesignLayoutContract.VowSpec`):
+
+| Component | Param(s) | Rationale (VowSpec) |
+|-----------|----------|---------------------|
+| `NnComponentBase` | `Style`, `Class` | SPEC-003 — base root-element escape hatch, inherited by every wrapper |
+| `NnDialog` | `TitleClass`, `ContentClass`, `ActionsClass` | SPEC-002 — per-region class hooks for genuinely-unbounded dialog layout |
+| `NnAppBar` | `ToolBarClass` | SPEC-002 — structural inner-toolbar class the base `Class` cannot reach |
+
+The allow-rows are class-only channels — their raw `*Style` twins are NOT exposed; any OTHER public `string`-typed `*Style`/`*Class` param on an `Nn*` component is a DENY.
+
+**Per-symbol opt-out** (documented genuine brand-permitted-variation pending a policy-table allow-row):
+
+```csharp
+/// <summary>nnb043:allow-tierb: pending Tier-A classification for the new region hook</summary>
+[Parameter] public string? RegionClass { get; set; }
+```
+
+**Project-wide kill-switch** (rare):
+
+```xml
+<PropertyGroup>
+  <NnDesignTierBExposureAnalyzerEnabled>false</NnDesignTierBExposureAnalyzerEnabled>
+</PropertyGroup>
+```
+
+**Default severity is Error** — the producer is verified appearance-laundering-clean (fires ZERO on the real producer), so any NEW raw Tier-B exposure breaks the build. To soften locally (rare), override via `.editorconfig`:
+
+```ini
+[*.{razor,cs}]
+dotnet_diagnostic.NNB043.severity = warning
+```
+
+<a id="nnb_css009"></a>
+### NNB_CSS009: Do not reach into MudBlazor internal `.mud-*` classes
+
+**Severity:** Warning
+**Category:** CssModernization
+**Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy · `NnDesignLayoutContract.VowSpec` SPEC-008
+
+Sibling of [NNB_CSS008](#NNB_CSS008) (which guards the `.nn-*` namespace). MudBlazor is the primitive layer wrapped internally by NnDesign; its `.mud-*` classes are private implementation detail two layers down from the consumer. A consumer that restyles one (e.g. `::deep .mud-tab { min-width:80px }` or a bare `.mud-tabs-header { min-height:unset }`) couples to MudBlazor's private DOM through the NnDesign wrapper and breaks when either layer's DOM changes. The sanctioned alternative is the NnDesign wrapper's published contract (declarative-`NnTabs` trigger-sizing default + `FillPanels` / per-panel `data-nn-fill`, `NnContentSection` params).
+
+**Same text-scan host + react-to/reach-into discriminator as NNB_CSS008**: the styled SUBJECT is the rightmost compound selector. A `.mud-*` class in subject position is a reach-in (warns). The same `.mud-*` as an ancestor / state gate on a non-mud subject is "react-to" (sanctioned).
+
+```css
+/* ❌ NNB_CSS009 fires — subject is a .mud-* class */
+::deep .mud-tab { min-width: 80px; }
+.mud-tabs-header { min-height: unset; }
+
+/* ✅ react-to: .mud-* as ancestor/state gate on a non-mud subject — NO warning */
+.mud-tabs-active .vow-panel { display: block; }
+
+/* ✅ own element — NO warning */
+.vow-metatabs-content { overflow: auto; }
+```
+
+**Allow-list: EMPTY** — unlike `.nn-*` (which publishes `.nn-chord-revealed` + `.nns-*` as a public contract), MudBlazor exposes no public `.mud-*` styling contract to the consumer. Every non-exempt `.mud-*` subject is a reach-in.
+
+**Path-based exception buckets** (analyzer skips diagnostic emission):
+
+| Bucket | Applies to |
+|--------|-----------|
+| NnDesign producer / wrapper internals | Any file under `**/NotNot.BlazorDesign/**` (the wrapper legitimately restyles `.mud-*` — that's its job) |
+| Samples | `**/NnDesignSamples/**`, `**/Pages/Samples/**` |
+| Samples / global theme CSS | `nn-design-samples.css`, `app.css` (file-name allow-list) |
+
+**Per-file opt-out**: `/* nnb_css009:allow-reachin: <reason> */`. **Kill-switch** (shared with the CSS suite): `<CssAnalyzerEnabled>false</CssAnalyzerEnabled>`.
+
+**Severity escalation** — escalate via `.editorconfig` once the consumer tree is verified `.mud-*`-reach-in-clean:
+
+```ini
+[*.css]
+dotnet_diagnostic.NNB_CSS009.severity = error
+```
+
+## Analyzer ID Registry (tested guard)
+
+The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s. This registry is the single source; the per-ID sections above point at it. A registry test (`AnalyzerIdRegistryTests`) asserts every ID below resolves to exactly one analyzer's `SupportedDiagnostics` descriptor (and the reverse — no implemented descriptor is unregistered), so prose IDs cannot drift from code (the failure mode that left "Planned: NNB022" stale while NNB022 was live).
+
+| ID | Analyzer type | Severity | Scan target |
+|----|---------------|----------|-------------|
+| NNB043 | `NnDesignTierBExposureAnalyzer` | Error | Producer `Nn*` component params |
+| NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nn-*` reach-in) |
+| NNB_CSS009 | `CssMudReachInAnalyzer` | Warning | Consumer scoped CSS (`.mud-*` reach-in) |
+
 ## Configuration
 
 Configure rules via `.editorconfig`:
