@@ -39,8 +39,8 @@ namespace NotNot.BlazorAnalyzers.CssModernization;
 /// own <c>NotNot.BlazorDesign</c> internals, which legitimately restyle <c>.mud-*</c> internals as the
 /// wrapper's job; <c>Pages/Samples/**</c> and <c>NnDesignSamples/**</c>; samples CSS; global theme CSS),
 /// a per-file opt-out comment (<c>nnb_css009:allow-reachin: &lt;reason&gt;</c>), and the shared
-/// <c>CssAnalyzerEnabled=false</c> build-property kill-switch. Severity = Warning (escalates to Error in
-/// Phase 2b once the consumer tree is verified <c>.mud-*</c>-reach-in-clean).
+/// <c>CssAnalyzerEnabled=false</c> build-property kill-switch. Severity = Error (the consumer tree is
+/// verified <c>.mud-*</c>-reach-in-clean, so a new reach-in breaks the build).
 /// </para>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -58,11 +58,10 @@ public sealed class CssMudReachInAnalyzer : DiagnosticAnalyzer
     private const string OptOutMarker = "nnb_css009:allow-reachin";
 
     /// <summary>
-    /// NNB_CSS009 descriptor. Severity = Warning — surfaces the reach-in gap without breaking the build
-    /// during the conformity migration. Phase 2b escalates to Error via .editorconfig once the consumer
-    /// tree is verified <c>.mud-*</c>-reach-in-clean (mirrors the NNB_CSS008 Warning→Error path).
-    /// Kill-switch for legitimate suppression: per-file nnb_css009:allow-reachin comment, or the
-    /// CssAnalyzerEnabled=false build property.
+    /// NNB_CSS009 descriptor. Severity = Error — the consumer tree is verified <c>.mud-*</c>-reach-in-clean
+    /// (fires ZERO across the consumer CSS), so any NEW reach-in breaks the build (mirrors the NNB_CSS008
+    /// Error path). Kill-switch for legitimate suppression: per-file nnb_css009:allow-reachin comment, or the
+    /// CssAnalyzerEnabled=false build property; soften locally via dotnet_diagnostic.NNB_CSS009.severity.
     /// </summary>
     public static readonly DiagnosticDescriptor RuleNoMudReachIn = new(
         DiagnosticId,
@@ -72,7 +71,7 @@ public sealed class CssMudReachInAnalyzer : DiagnosticAnalyzer
             + "wrapper's published contract (e.g. NnTabs trigger-sizing default / FillPanels / per-panel "
             + "data-nn-fill, NnContentSection params) or style your OWN element instead of reaching into "
             + "'.mud-*' internals. If no wrapper contract covers the need, file an NnDesign-gap. (NNB_CSS009)",
-        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "MudBlazor '.mud-*' classes are the private DOM of the primitive layer that NnDesign "
             + "wraps. A consumer that restyles one (the rightmost/subject selector being a '.mud-*' class — "
             + "with or without ::deep) couples to MudBlazor's private DOM TWO layers down and breaks when "

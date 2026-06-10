@@ -35,7 +35,7 @@ public class CssMudReachInAnalyzerTests
     private static DiagnosticResult Diagnostic(
         string mudClassName, string filePath, int line, int column, int endLine, int endColumn)
     {
-        return new DiagnosticResult(CssMudReachInAnalyzer.DiagnosticId, DiagnosticSeverity.Warning)
+        return new DiagnosticResult(CssMudReachInAnalyzer.DiagnosticId, DiagnosticSeverity.Error)
             .WithSpan(filePath, line, column, endLine, endColumn)
             .WithArguments(mudClassName);
     }

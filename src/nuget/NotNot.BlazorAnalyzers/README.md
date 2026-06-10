@@ -797,7 +797,7 @@ dotnet_diagnostic.NNB043.severity = warning
 <a id="nnb_css009"></a>
 ### NNB_CSS009: Do not reach into MudBlazor internal `.mud-*` classes
 
-**Severity:** Warning
+**Severity:** Error
 **Category:** CssModernization
 **Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy · `NnDesignLayoutContract.VowSpec` SPEC-008
 
@@ -829,11 +829,11 @@ Sibling of [NNB_CSS008](#NNB_CSS008) (which guards the `.nn-*` namespace). MudBl
 
 **Per-file opt-out**: `/* nnb_css009:allow-reachin: <reason> */`. **Kill-switch** (shared with the CSS suite): `<CssAnalyzerEnabled>false</CssAnalyzerEnabled>`.
 
-**Severity escalation** — escalate via `.editorconfig` once the consumer tree is verified `.mud-*`-reach-in-clean:
+**Default severity is Error** — the consumer tree is verified `.mud-*`-reach-in-clean (fires ZERO across the consumer CSS), so any NEW reach-in breaks the build. To soften locally (rare), override via `.editorconfig`:
 
 ```ini
 [*.css]
-dotnet_diagnostic.NNB_CSS009.severity = error
+dotnet_diagnostic.NNB_CSS009.severity = warning
 ```
 
 ## Analyzer ID Registry (tested guard)
@@ -844,7 +844,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 |----|---------------|----------|-------------|
 | NNB043 | `NnDesignTierBExposureAnalyzer` | Error | Producer `Nn*` component params |
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nn-*` reach-in) |
-| NNB_CSS009 | `CssMudReachInAnalyzer` | Warning | Consumer scoped CSS (`.mud-*` reach-in) |
+| NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 
 ## Configuration
 

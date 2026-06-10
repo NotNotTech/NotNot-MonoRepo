@@ -26,7 +26,7 @@ public class AnalyzerIdRegistryTests
     public static readonly (string Id, DiagnosticSeverity Severity)[] RegisteredManifestoIds =
     {
         ("NNB043", DiagnosticSeverity.Error),
-        ("NNB_CSS009", DiagnosticSeverity.Warning),
+        ("NNB_CSS009", DiagnosticSeverity.Error),
     };
 
     /// <summary>
@@ -82,7 +82,7 @@ public class AnalyzerIdRegistryTests
 
         Assert.Equal("NNB_CSS009", CssMudReachInAnalyzer.DiagnosticId);
         Assert.Equal("NNB_CSS009", CssMudReachInAnalyzer.RuleNoMudReachIn.Id);
-        Assert.Equal(DiagnosticSeverity.Warning, CssMudReachInAnalyzer.RuleNoMudReachIn.DefaultSeverity);
+        Assert.Equal(DiagnosticSeverity.Error, CssMudReachInAnalyzer.RuleNoMudReachIn.DefaultSeverity);
     }
 
     [Fact]
