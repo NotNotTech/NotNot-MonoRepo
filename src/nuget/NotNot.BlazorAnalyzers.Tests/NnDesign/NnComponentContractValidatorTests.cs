@@ -13,8 +13,8 @@ namespace NotNot.BlazorAnalyzers.Tests.NnDesign;
 /// THE F5 CLOSURE for Phase-3.3 5B (component-contract schema-as-data). A schema describes what SHOULD be;
 /// it does NOT by itself prove the live components match it. This suite is the DIFF/VALIDATION PASS:
 /// <list type="number">
-///   <item><see cref="Schema_IsInSync_With_Live_Producer"/> reads the REAL schema + the REAL 3 layout-stable
-///         <c>.razor</c> files + the REAL <c>nn-design.css</c> off disk and asserts ZERO drift.</item>
+///   <item><see cref="Schema_IsInSync_With_Live_Producer"/> reads the REAL schema + every schema-declared
+///         <c>.razor</c> file + the REAL <c>nn-design.css</c> off disk and asserts ZERO drift.</item>
 ///   <item>The <c>Drift_*</c> facts INJECT deliberate drift (a fake live Tier-A param; a removed schema
 ///         entry; a removed live slot; an unsupported <c>data-nn-fill</c> mode) and assert the pass CATCHES
 ///         it. "The schema exists" / "it compiles" is NOT the proof — the drift-catch is.</item>
@@ -84,13 +84,13 @@ public class NnComponentContractValidatorTests
     // ── Sanity: the parse actually populated (guards a vacuous green) ─────────
 
     [Fact]
-    public void Schema_Parses_The_Three_LayoutStable_Components()
+    public void Schema_Parses_And_Includes_The_LayoutStable_Trio()
     {
         var (schema, _, cssModes) = LoadRealInputs();
 
-        schema.Select(b => b.Component).Should().BeEquivalentTo(
+        schema.Select(b => b.Component).Should().Contain(
             new[] { "NnContentSection", "NnTabs", "NnTabPanel" },
-            "this 5B increment covers exactly the three layout-stable components");
+            "the foundational layout-stable trio must stay schematized (anti-vacuous-green guard); the curated schema also covers additional components, so this is a Contain superset check, not an exact-set lock");
 
         // The CSS scan must find the real hooks (else the mode-support check would be vacuously satisfiable).
         cssModes.Should().Contain("container");
