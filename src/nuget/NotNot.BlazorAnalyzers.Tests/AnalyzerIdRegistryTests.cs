@@ -29,6 +29,7 @@ public class AnalyzerIdRegistryTests
         ("NNB043", DiagnosticSeverity.Error),
         ("NNB044", DiagnosticSeverity.Error),
         ("NNB_CSS009", DiagnosticSeverity.Error),
+        ("NNB_CSS010", DiagnosticSeverity.Error),
     };
 
     /// <summary>
@@ -93,6 +94,11 @@ public class AnalyzerIdRegistryTests
         Assert.Equal("NNB_CSS009", CssMudReachInAnalyzer.DiagnosticId);
         Assert.Equal("NNB_CSS009", CssMudReachInAnalyzer.RuleNoMudReachIn.Id);
         Assert.Equal(DiagnosticSeverity.Error, CssMudReachInAnalyzer.RuleNoMudReachIn.DefaultSeverity);
+
+        // NNB_CSS010 lives in the multi-rule CssModernizationAnalyzer host (no DiagnosticId const —
+        // host owns NNB_CSS001-007 + 010); assert the descriptor identity directly.
+        Assert.Equal("NNB_CSS010", CssModernizationAnalyzer.RuleNoViewportUnits.Id);
+        Assert.Equal(DiagnosticSeverity.Error, CssModernizationAnalyzer.RuleNoViewportUnits.DefaultSeverity);
     }
 
     [Fact]

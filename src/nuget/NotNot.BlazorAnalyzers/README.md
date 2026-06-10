@@ -882,6 +882,65 @@ Sibling of [NNB_CSS008](#NNB_CSS008) (which guards the `.nn-*` namespace). MudBl
 dotnet_diagnostic.NNB_CSS009.severity = warning
 ```
 
+<a id="NNB_CSS010"></a><a id="nnb_css010"></a>
+### NNB_CSS010: Avoid viewport-relative units in consumer code
+
+**Severity:** Error
+**Category:** CssModernization
+**Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy · NnDesign layout contract
+
+Viewport-relative units (`vh` `vw` `vmin` `vmax` and the dynamic variants `dvh` `svh` `lvh` `dvw` `svw` `lvw`) size against the WINDOW, not the space the layout granted. Inside the app shell — which reserves navbar + statusbar chrome — a viewport-sized box overflows the pane clip line: content paints "under the status bar" and is silently clipped. Fires property-agnostically (height / min-height / max-height / width / margin / inset / …) on any declaration value in CSS (global + `.razor.css`) and any quoted attribute value in `.razor` markup — the unit in a bounded context is the smell, not a specific property.
+
+**Real incidents (2026-06-10, runtime-proven)**:
+- `UserInputsPanel.razor` had `MaxHeight="60vh"` on an `NnContentSection` — the section painted 100% below the pane clip line. Fix: `Fill="true"` (tier 1).
+- `DebugSessionInfoPage.razor.css` had `height:100vh` on the page-host class — 64px overflow under shell chrome. Fix: `height:100%` (tier 2, counterfactual-proven).
+
+```css
+/* ❌ NNB_CSS010 fires — viewport units in consumer CSS (global or .razor.css) */
+.vow-host { height: 100vh; }
+.x { min-height: 60vh; }
+
+/* ✅ container-bounded sizing — NO warning */
+.vow-host { height: 100%; }
+.x { max-height: calc(100% - 8px); }
+```
+
+```razor
+@* ❌ NNB_CSS010 fires — static viewport unit in a quoted attribute value *@
+<NnContentSection MaxHeight="60vh">…</NnContentSection>
+
+@* ✅ dynamic value (Razor expression in the attribute value) — legitimately computed, NO warning *@
+<div style="height:@(h)vh">…</div>
+
+@* ✅ prose/doc text outside an attribute value — NO warning *@
+<p>Use <code>"50vw"</code> only for viewport-owned surfaces.</p>
+```
+
+**Fix tiers (cheapest-correct-first)**:
+1. Section inside an `NnContentSectionGroup` that should take the remaining height → `Fill="true"`.
+2. Box filling a bounded parent → `height:100%` or `data-nn-fill="container"`.
+3. Genuine viewport-owned surface (portal dialog/overlay, standalone page outside the shell) → keep the unit and add a per-file `nnb_css010:allow-viewport-unit` comment stating why. Viewport-anchored portals are CORRECTLY viewport-relative — they get the allow-comment, not silence.
+4. Only if truly intended → `dotnet_diagnostic.NNB_CSS010.severity` in `.editorconfig`.
+
+**Dual-emit with [NNB044](#nnb044)**: a static `style="height:60vh"` literal fires BOTH NNB044 (static-literal inline style — unit-agnostic pattern, razor-compiled surface) and NNB_CSS010 (viewport unit — value-unit rule, css files + razor attribute text). Two genuinely co-present smells; migrating the inline style to a semantic param resolves both.
+
+**Path-based exception buckets** (conform to [NNB_CSS009](#nnb_css009)'s set; analyzer skips diagnostic emission):
+
+| Bucket | Applies to |
+|--------|-----------|
+| NnDesign producer / wrapper internals | Any file under `**/NotNot.BlazorDesign/**` (owns the sanctioned viewport sizing: `nn-app-shell` 100vh, `.nn-popup` 90vw/85vh, `data-nn-fill="viewport"`) |
+| Samples | `**/NnDesignSamples/**`, `**/Pages/Samples/**` |
+| Samples / global theme CSS | `nn-design-samples.css`, `app.css` (file-name allow-list) |
+
+**Per-file opt-out**: `/* nnb_css010:allow-viewport-unit: <reason> */` (any comment form — the marker is matched anywhere in the file). **Kill-switch** (shared with the CSS suite): `<CssAnalyzerEnabled>false</CssAnalyzerEnabled>`.
+
+**Default severity is Error** — project convention for layout-contract rules (NNB_CSS006/008/009 precedent): a new viewport unit in consumer bounded context is the exact regression class behind the two incidents above. To soften locally (rare), override via `.editorconfig`:
+
+```ini
+[*.{css,razor}]
+dotnet_diagnostic.NNB_CSS010.severity = warning
+```
+
 ## Analyzer ID Registry (tested guard)
 
 The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s. This registry is the single source; the per-ID sections above point at it. A registry test (`AnalyzerIdRegistryTests`) asserts every ID below resolves to exactly one analyzer's `SupportedDiagnostics` descriptor (and the reverse — no implemented descriptor is unregistered), so prose IDs cannot drift from code (the failure mode that left "Planned: NNB022" stale while NNB022 was live).
@@ -893,6 +952,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB044 | `NnDesignInlineStyleAnalyzer` | Error | Consumer `.razor` static-literal inline `style=` |
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nn-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
+| NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
 
 ## Configuration
 
