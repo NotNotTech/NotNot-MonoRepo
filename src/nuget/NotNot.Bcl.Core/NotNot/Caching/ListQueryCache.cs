@@ -15,6 +15,14 @@ public class ListQueryCache<TItem, TKey> where TKey : notnull
 	private readonly SemaphoreSlim _lock = new(1, 1);
 
 	private List<TItem> _items = [];
+
+	/// <summary>
+	/// Key→item index over <see cref="_items"/>. Rebuilt wholesale on full refresh and
+	/// copy-on-write updated on single-item refresh, then reference-swapped — readers
+	/// (<see cref="GetById"/>/<see cref="TryGetById"/>) never observe a partially-built
+	/// dictionary. Gives consumers O(1) keyed lookup instead of O(N) Items scans.
+	/// </summary>
+	private Dictionary<TKey, TItem> _index = new();
 	private long _refreshSequence;
 
 	/// <summary>
@@ -65,6 +73,7 @@ public class ListQueryCache<TItem, TKey> where TKey : notnull
 			{
 				if (seq < Interlocked.Read(ref _refreshSequence)) return; // stale
 				_items = fresh;
+				_index = BuildIndex(fresh);
 			}
 			finally { _lock.Release(); }
 			OnChanged?.Invoke();
@@ -91,9 +100,41 @@ public class ListQueryCache<TItem, TKey> where TKey : notnull
 				_items[idx] = item;
 			else
 				_items.Add(item);
+			// Copy-on-write index update — lock-free readers see old-or-new, never torn.
+			_index = new Dictionary<TKey, TItem>(_index) { [key] = item };
 		}
 		finally { _lock.Release(); }
 		OnChanged?.Invoke();
+	}
+
+	/// <summary>
+	/// O(1) keyed lookup into the cached list. Returns the item with the given key, or
+	/// <c>default</c> when absent. Lock-free read against the reference-swapped index —
+	/// same consistency semantics as reading <see cref="Items"/>.
+	/// </summary>
+	public TItem? GetById(TKey key)
+		=> _index.TryGetValue(key, out var item) ? item : default;
+
+	/// <summary>
+	/// O(1) keyed lookup into the cached list. See <see cref="GetById"/>.
+	/// </summary>
+	public bool TryGetById(TKey key, out TItem? item)
+	{
+		if (_index.TryGetValue(key, out var found))
+		{
+			item = found;
+			return true;
+		}
+		item = default;
+		return false;
+	}
+
+	private Dictionary<TKey, TItem> BuildIndex(List<TItem> items)
+	{
+		var index = new Dictionary<TKey, TItem>(items.Count);
+		foreach (var item in items)
+			index[_keySelector(item)] = item; // last-wins on duplicate keys — same item the keyed fetchOne path would have written last
+		return index;
 	}
 
 	/// <summary>
