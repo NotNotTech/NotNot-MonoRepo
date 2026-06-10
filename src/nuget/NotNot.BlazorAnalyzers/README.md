@@ -795,6 +795,51 @@ The allow-rows are class-only channels — their raw `*Style` twins are NOT expo
 dotnet_diagnostic.NNB043.severity = warning
 ```
 
+<a id="nnb044"></a>
+### NNB044: Static-literal inline `style=` in consumer markup (value-shape allowlist)
+
+**Severity:** Warning
+**Category:** NnDesign
+**Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy · Appendix A NNB044
+
+The consumer-side counterpart to [NNB043](#nnb043) (producer-side Tier-B exposure). A STATIC-LITERAL inline `style=` / `Style=` attribute in consumer `.razor` markup is "appearance laundered through a literal" — the hard-coded padding / display / layout that the NnDesign semantic params (`Density` / `BodyLayout`) are meant to absorb. NNB044 reveals (and eventually enforces) the Slice-3 migration scope: each fire is a static-literal inline style to migrate to a semantic param or a scoped CSS class.
+
+**Value-shape allowlist (the core discriminator).** Inline style fires ONLY when its value is a STATIC LITERAL — no Razor expression. A DYNAMIC value (any `@`-bound / interpolated / expression value) is ALLOWED: a sparkline height, a computed color, a per-row width are legitimately dynamic and cannot be a static semantic param. The allowlist keys on the VALUE shape, not the attribute name.
+
+```razor
+@* ❌ NNB044 fires — static-literal inline style (appearance laundered through a literal) *@
+<div style="padding: 4px 8px">…</div>
+<div style="display:flex">…</div>
+
+@* ✅ dynamic value — @-bound / interpolated / expression → legitimately computed, NO warning *@
+<div style="@_panelStyle">…</div>
+<div style="background:@color">…</div>
+<div style="height:@(h)px">…</div>
+<div style=@_expr>…</div>
+
+@* ✅ semantic param replaces the static literal (the migration target) *@
+<NnContentSection Density="Compact">…</NnContentSection>
+```
+
+**Scan target:** `.razor` markup only (not `.razor.cs` / `.cs` / `.css`). Skips matches inside HTML (`<!-- -->`) and Razor (`@* *@`) comments. A longer attribute ending in `style` (e.g. a `BodyStyle=` component param) does NOT match — the leading-boundary guard isolates the standalone `style` attribute (the `BodyStyle` producer param is [NNB043](#nnb043)'s concern).
+
+**Path-based exception buckets** (analyzer skips diagnostic emission):
+
+| Bucket | Applies to |
+|--------|-----------|
+| NnDesign producer / wrapper internals | Any file under `**/NotNot.BlazorDesign/**` |
+| Samples | `**/NnDesignSamples/**`, `**/Pages/Samples/**` |
+| Root-bootstrap + dev/test harness | `App.razor`, `BlazorTermTest*.razor`, `BlazorTermHarmonizedHarness.*`, `HarnessDummyTab.razor`, `HarnessTerminalWrapper.razor`, `RichEditExamplePage.razor`, `NnDesignSamplesPage.razor`, `DashboardLegacy.razor`, `TestInputs.razor` (file-name allow-list) |
+
+**Per-file opt-out**: `@* nnb044:allow-inline-style: <reason> *@`. **Assembly opt-out**: `[assembly: NotNot.BlazorAnalyzers.NnDesign.NnDesignBypass]`. **Kill-switch** (shared with the NnDesign policy suite): `<NnDesignPolicyAnalyzerEnabled>false</NnDesignPolicyAnalyzerEnabled>`.
+
+**Default severity is Warning** — the static-literal conformity sweep (Slice-3) is not yet done, so the consumer tree still carries the static-literal bulk; an Error would break the build. Warning surfaces the gap honestly. Ratchets to Error after the conformity slice clears the consumer surface (Appendix A target: Warning → Error). To soften locally, override via `.editorconfig`:
+
+```ini
+[*.razor]
+dotnet_diagnostic.NNB044.severity = suggestion
+```
+
 <a id="nnb_css009"></a>
 ### NNB_CSS009: Do not reach into MudBlazor internal `.mud-*` classes
 
@@ -845,6 +890,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 |----|---------------|----------|-------------|
 | NNB022 | `NnDesignMudBlazorPolicyAnalyzer` | Error | Consumer `Mud*` markup / usings / identifiers |
 | NNB043 | `NnDesignTierBExposureAnalyzer` | Error | Producer `Nn*` component params |
+| NNB044 | `NnDesignInlineStyleAnalyzer` | Warning | Consumer `.razor` static-literal inline `style=` |
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nn-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 

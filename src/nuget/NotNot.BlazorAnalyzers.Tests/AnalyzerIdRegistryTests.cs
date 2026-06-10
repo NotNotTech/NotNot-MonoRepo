@@ -27,6 +27,7 @@ public class AnalyzerIdRegistryTests
     {
         ("NNB022", DiagnosticSeverity.Error),
         ("NNB043", DiagnosticSeverity.Error),
+        ("NNB044", DiagnosticSeverity.Warning),
         ("NNB_CSS009", DiagnosticSeverity.Error),
     };
 
@@ -84,6 +85,10 @@ public class AnalyzerIdRegistryTests
         Assert.Equal("NNB043", NnDesignTierBExposureAnalyzer.DiagnosticId);
         Assert.Equal("NNB043", NnDesignTierBExposureAnalyzer.Rule.Id);
         Assert.Equal(DiagnosticSeverity.Error, NnDesignTierBExposureAnalyzer.Rule.DefaultSeverity);
+
+        Assert.Equal("NNB044", NnDesignInlineStyleAnalyzer.DiagnosticId);
+        Assert.Equal("NNB044", NnDesignInlineStyleAnalyzer.Rule.Id);
+        Assert.Equal(DiagnosticSeverity.Warning, NnDesignInlineStyleAnalyzer.Rule.DefaultSeverity);
 
         Assert.Equal("NNB_CSS009", CssMudReachInAnalyzer.DiagnosticId);
         Assert.Equal("NNB_CSS009", CssMudReachInAnalyzer.RuleNoMudReachIn.Id);
