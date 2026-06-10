@@ -25,6 +25,7 @@ public class AnalyzerIdRegistryTests
     /// </summary>
     public static readonly (string Id, DiagnosticSeverity Severity)[] RegisteredManifestoIds =
     {
+        ("NNB022", DiagnosticSeverity.Error),
         ("NNB043", DiagnosticSeverity.Error),
         ("NNB_CSS009", DiagnosticSeverity.Error),
     };
@@ -76,6 +77,10 @@ public class AnalyzerIdRegistryTests
     {
         // Direct descriptor-identity assertion (independent of reflection) so a rename of either analyzer
         // type still fails loudly here against the documented public ID constants.
+        Assert.Equal("NNB022", NnDesignMudBlazorPolicyAnalyzer.DiagnosticId);
+        Assert.Equal("NNB022", NnDesignMudBlazorPolicyAnalyzer.Rule.Id);
+        Assert.Equal(DiagnosticSeverity.Error, NnDesignMudBlazorPolicyAnalyzer.Rule.DefaultSeverity);
+
         Assert.Equal("NNB043", NnDesignTierBExposureAnalyzer.DiagnosticId);
         Assert.Equal("NNB043", NnDesignTierBExposureAnalyzer.Rule.Id);
         Assert.Equal(DiagnosticSeverity.Error, NnDesignTierBExposureAnalyzer.Rule.DefaultSeverity);

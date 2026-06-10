@@ -24,7 +24,8 @@ namespace NotNot.BlazorAnalyzers.NnDesign;
 ///         identifier references whose containing namespace starts with <c>MudBlazor</c>.</item>
 /// </list>
 /// Both pathways share the <see cref="IsExceptedPath"/> helper for path-bucket exemptions and
-/// honor the per-file <c>nnb022:allow-mudblazor</c> opt-out marker. Severity = Warning.
+/// honor the per-file <c>nnb022:allow-mudblazor</c> opt-out marker. Severity = Error (the consumer is
+/// verified <c>Mud*</c>-clean modulo the enumerated carve-outs, so any new direct reference breaks the build).
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
@@ -52,7 +53,8 @@ public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
 		+ "in consumer code force every call site to repeat brand boilerplate, multiply places where the "
 		+ "brand drifts, and create N-1 places where a single bug fix must be repeated. "
 		+ "Exceptions (path-based allow-list): NotNot.BlazorDesign internals; root provider wiring "
-		+ "(App.razor, Program.cs, VowMudLocalizer.cs); NnDesignSamples/** pages; explicit dev/test/legacy "
+		+ "(App.razor, Program.cs, VowMudLocalizer.cs); NnDesignSamples/** pages; Pages/Samples/** "
+		+ "consumer sample/demo pages; explicit dev/test/legacy "
 		+ "harness pages (BlazorTermTestHarness, BlazorTermHarmonizedHarness, BlazorTermDiffTest, "
 		+ "BlazorTermTabTest, BlazorTermTest, HarnessDummyTab, HarnessTerminalWrapper, RichEditExamplePage, "
 		+ "NnDesignSamplesPage, DashboardLegacy, TestInputs). Per-file opt-out for documented call-site "
@@ -67,13 +69,13 @@ public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
 		+ "guidance on choosing among the four exemption mechanisms. "
 		+ "Authority: NotNot.BlazorDesign/AGENTS.md → Consumer Policy; protocols/nndesign.md ENFORCEMENT.";
 
-	/// <summary>NNB022 descriptor — Warning severity, BannedComponents category.</summary>
+	/// <summary>NNB022 descriptor — Error severity, BannedComponents category.</summary>
 	public static readonly DiagnosticDescriptor Rule = new(
 		DiagnosticId,
 		Title,
 		MessageFormat,
 		Category,
-		DiagnosticSeverity.Warning,
+		DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
 		description: Description,
 		helpLinkUri: HelpBase + "nnb022");  // lowercase anchor — GitHub slugifies (SME M3)
@@ -406,6 +408,10 @@ public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
 		if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0)
 			return true;
 		if (p.IndexOf("/NnDesignSamples/", StringComparison.OrdinalIgnoreCase) >= 0)
+			return true;
+		// Consumer sample/demo pages under Pages/Samples/** — pedagogical / side-by-side surface that
+		// MAY reference Mud* primitives directly (same carve-out the NN_RM_001 / NN_ABMCS_* suites apply).
+		if (p.IndexOf("/Pages/Samples/", StringComparison.OrdinalIgnoreCase) >= 0)
 			return true;
 
 		// File-name allow-list

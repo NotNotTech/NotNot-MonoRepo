@@ -144,7 +144,7 @@ build_property.NnDesignPolicyAnalyzerEnabled = false
 
 	private static DiagnosticResult Diagnostic(string typeName, string filePath, int line, int column, int endLine, int endColumn)
 	{
-		return new DiagnosticResult(NnDesignMudBlazorPolicyAnalyzer.DiagnosticId, DiagnosticSeverity.Warning)
+		return new DiagnosticResult(NnDesignMudBlazorPolicyAnalyzer.DiagnosticId, DiagnosticSeverity.Error)
 			.WithSpan(filePath, line, column, endLine, endColumn)
 			.WithArguments(typeName);
 	}
@@ -228,6 +228,21 @@ public static class StatusFormatHelper
 		var razor = @"<MudButton Text=""Sample"" />
 <MudCard><MudText>Side-by-side demo</MudText></MudCard>";
 		var path = "/TestProject/Components/Pages/NnDesignSamples/SampleFoo.razor";
+		await VerifyRazorAsync(razor, path);
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// T3b — Pages/Samples/** consumer sample-page folder exception
+	// ═══════════════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task T3b_PagesSamplesPath_NoNNB022()
+	{
+		var razor = @"<MudContainer MaxWidth=""MaxWidth.False"">
+    <MudText Typo=""Typo.h5"">Harness</MudText>
+    <MudPaper Elevation=""1""><MudText>row</MudText></MudPaper>
+</MudContainer>";
+		var path = "/TestProject/Components/Pages/Samples/BlazorTerm/BlazorTermHarness.razor";
 		await VerifyRazorAsync(razor, path);
 	}
 

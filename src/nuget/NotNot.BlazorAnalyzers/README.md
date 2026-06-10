@@ -26,7 +26,7 @@ Or in your `.csproj`:
 <a id="nnb022"></a>
 ### NNB022: Direct MudBlazor reference forbidden — use Nn* wrapper
 
-**Severity:** Warning
+**Severity:** Error
 **Category:** BannedComponents
 **Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy · `protocols/nndesign.md` ENFORCEMENT section
 
@@ -61,6 +61,7 @@ public static class StatusFormatHelper
 |--------|-----------|
 | NotNot.BlazorDesign internals | Any file under `**/NotNot.BlazorDesign/**` (the wrappers consume MudBlazor internally — that's their job) |
 | NnDesignSamples folder | Any file under `**/NnDesignSamples/**` (sample/demo pages exhibiting both wrappers and primitives) |
+| Pages/Samples folder | Any file under `**/Pages/Samples/**` (consumer sample/demo + dev-harness pages; same carve-out the NN_RM_001 / NN_ABMCS_* suites apply) |
 | Root provider wiring | `App.razor`, `Program.cs`, `VowMudLocalizer.cs` (matched by file name) |
 | Dev/test/legacy harness pages | Explicit allow-list: `BlazorTermTestHarness.{Wasm,Server}.razor`, `BlazorTermHarmonizedHarness.{Wasm,Server}.razor`, `BlazorTermDiffTest.razor`, `BlazorTermTabTest.razor`, `BlazorTermTest.razor`, `HarnessDummyTab.razor`, `HarnessTerminalWrapper.razor`, `RichEditExamplePage.razor`, `NnDesignSamplesPage.razor`, `DashboardLegacy.razor`, `TestInputs.razor` |
 
@@ -88,11 +89,11 @@ The marker can appear anywhere in the file. The text after the second colon is d
 </PropertyGroup>
 ```
 
-**Severity escalation** — escalate via `.editorconfig` once the migration backlog reaches zero:
+**Default severity is Error** — the consumer (VOW) is verified `Mud*`-clean modulo the enumerated carve-outs, so any new direct `Mud*` reference in non-exempt consumer code breaks the build. To soften locally (rare), override via `.editorconfig`:
 
 ```ini
 [*.{razor,cs}]
-dotnet_diagnostic.NNB022.severity = error
+dotnet_diagnostic.NNB022.severity = warning
 ```
 
 <a id="nn_lddd_001"></a>
@@ -842,6 +843,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 
 | ID | Analyzer type | Severity | Scan target |
 |----|---------------|----------|-------------|
+| NNB022 | `NnDesignMudBlazorPolicyAnalyzer` | Error | Consumer `Mud*` markup / usings / identifiers |
 | NNB043 | `NnDesignTierBExposureAnalyzer` | Error | Producer `Nn*` component params |
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nn-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
