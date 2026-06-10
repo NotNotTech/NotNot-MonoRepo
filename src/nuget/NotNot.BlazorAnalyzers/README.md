@@ -798,11 +798,11 @@ dotnet_diagnostic.NNB043.severity = warning
 <a id="nnb044"></a>
 ### NNB044: Static-literal inline `style=` in consumer markup (value-shape allowlist)
 
-**Severity:** Warning
+**Severity:** Error
 **Category:** NnDesign
 **Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy · Appendix A NNB044
 
-The consumer-side counterpart to [NNB043](#nnb043) (producer-side Tier-B exposure). A STATIC-LITERAL inline `style=` / `Style=` attribute in consumer `.razor` markup is "appearance laundered through a literal" — the hard-coded padding / display / layout that the NnDesign semantic params (`Density` / `BodyLayout`) are meant to absorb. NNB044 reveals (and eventually enforces) the Slice-3 migration scope: each fire is a static-literal inline style to migrate to a semantic param or a scoped CSS class.
+The consumer-side counterpart to [NNB043](#nnb043) (producer-side Tier-B exposure). A STATIC-LITERAL inline `style=` / `Style=` attribute in consumer `.razor` markup is "appearance laundered through a literal" — the hard-coded padding / display / layout that the NnDesign semantic params (`Density` / `BodyLayout`) are meant to absorb. NNB044 enforces the Slice-3 migration scope: each fire is a static-literal inline style to migrate to a semantic param or a scoped CSS class.
 
 **Value-shape allowlist (the core discriminator).** Inline style fires ONLY when its value is a STATIC LITERAL — no Razor expression. A DYNAMIC value (any `@`-bound / interpolated / expression value) is ALLOWED: a sparkline height, a computed color, a per-row width are legitimately dynamic and cannot be a static semantic param. The allowlist keys on the VALUE shape, not the attribute name.
 
@@ -833,11 +833,11 @@ The consumer-side counterpart to [NNB043](#nnb043) (producer-side Tier-B exposur
 
 **Per-file opt-out**: `@* nnb044:allow-inline-style: <reason> *@`. **Assembly opt-out**: `[assembly: NotNot.BlazorAnalyzers.NnDesign.NnDesignBypass]`. **Kill-switch** (shared with the NnDesign policy suite): `<NnDesignPolicyAnalyzerEnabled>false</NnDesignPolicyAnalyzerEnabled>`.
 
-**Default severity is Warning** — the static-literal conformity sweep (Slice-3) is not yet done, so the consumer tree still carries the static-literal bulk; an Error would break the build. Warning surfaces the gap honestly. Ratchets to Error after the conformity slice clears the consumer surface (Appendix A target: Warning → Error). To soften locally, override via `.editorconfig`:
+**Default severity is Error** — the Slice-3 static-literal conformity sweep cleared the consumer surface (fires ZERO across the consumer markup), so any NEW static-literal inline style breaks the build. To soften locally (rare), override via `.editorconfig`:
 
 ```ini
 [*.razor]
-dotnet_diagnostic.NNB044.severity = suggestion
+dotnet_diagnostic.NNB044.severity = warning
 ```
 
 <a id="nnb_css009"></a>
@@ -890,7 +890,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 |----|---------------|----------|-------------|
 | NNB022 | `NnDesignMudBlazorPolicyAnalyzer` | Error | Consumer `Mud*` markup / usings / identifiers |
 | NNB043 | `NnDesignTierBExposureAnalyzer` | Error | Producer `Nn*` component params |
-| NNB044 | `NnDesignInlineStyleAnalyzer` | Warning | Consumer `.razor` static-literal inline `style=` |
+| NNB044 | `NnDesignInlineStyleAnalyzer` | Error | Consumer `.razor` static-literal inline `style=` |
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nn-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 

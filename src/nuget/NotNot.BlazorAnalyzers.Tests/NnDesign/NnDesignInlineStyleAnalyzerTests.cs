@@ -9,7 +9,7 @@ namespace NotNot.BlazorAnalyzers.Tests.NnDesign;
 /// Tests for <see cref="NnDesignInlineStyleAnalyzer"/> (NNB044) — static-literal inline <c>style=</c>
 /// attributes in consumer <c>.razor</c> markup.
 /// <para>
-/// Discriminating fixtures exercise the VALUE-SHAPE allowlist: a STATIC literal value FIRES (Warning); a
+/// Discriminating fixtures exercise the VALUE-SHAPE allowlist: a STATIC literal value FIRES (Error); a
 /// DYNAMIC <c>@</c>-bound value is CLEAN; the exempt path buckets, the per-file opt-out marker, and the
 /// build-property kill-switch all suppress.
 /// </para>
@@ -35,7 +35,7 @@ public class NnDesignInlineStyleAnalyzerTests
 	private static DiagnosticResult Diagnostic(
 		string displayValue, string filePath, int line, int column, int endLine, int endColumn)
 	{
-		return new DiagnosticResult(NnDesignInlineStyleAnalyzer.DiagnosticId, DiagnosticSeverity.Warning)
+		return new DiagnosticResult(NnDesignInlineStyleAnalyzer.DiagnosticId, DiagnosticSeverity.Error)
 			.WithSpan(filePath, line, column, endLine, endColumn)
 			.WithArguments(displayValue);
 	}
@@ -44,7 +44,7 @@ public class NnDesignInlineStyleAnalyzerTests
 		"/TestProject/Components/Sessions/VowSessionMetaPanel.razor";
 
 	// ═══════════════════════════════════════════════════════════════════════
-	// FIRE: a static-literal inline style → Warning.
+	// FIRE: a static-literal inline style → Error.
 	// ═══════════════════════════════════════════════════════════════════════
 
 	[Fact]
@@ -169,6 +169,16 @@ public class NnDesignInlineStyleAnalyzerTests
 	{
 		var razor = @"<div style=""display:flex"">x</div>";
 		var path = "/TestProject/Components/Pages/Samples/StyleDemo.razor";
+		await VerifyRazorAsync(razor, path);
+	}
+
+	[Fact]
+	public async Task PathExempt_SampleProjectConvention_NoWarning()
+	{
+		// A sample project whose exemption signal is its PROJECT NAME ending in ".Samples"
+		// (NotNot.BlazorComponents.Samples), with pages NOT under a /Pages/Samples/ segment.
+		var razor = @"<div style=""display:flex"">x</div>";
+		var path = "/private-proj/NotNot.BlazorComponents.Samples/Components/Pages/RailwayTest.razor";
 		await VerifyRazorAsync(razor, path);
 	}
 

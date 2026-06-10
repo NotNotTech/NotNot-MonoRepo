@@ -87,17 +87,18 @@ public sealed class NnDesignInlineStyleAnalyzer : DiagnosticAnalyzer
 		+ "root-bootstrap + dev-harness file allow-list. Per-file opt-out: @* nnb044:allow-inline-style: "
 		+ "<reason> *@. Assembly opt-out: [assembly: NotNot.BlazorAnalyzers.NnDesign.NnDesignBypass]. "
 		+ "Kill-switch: <NnDesignPolicyAnalyzerEnabled>false</NnDesignPolicyAnalyzerEnabled>. Severity = "
-		+ "Warning (the static-literal conformity sweep is not yet done; the consumer still carries the bulk, "
-		+ "so an Error would break the build) — ratchets to Error after the conformity slice clears the "
-		+ "consumer surface. Authority: NotNot.BlazorDesign/AGENTS.md -> Consumer Policy; Appendix A NNB044.";
+		+ "Error — the Slice-3 static-literal conformity sweep cleared the consumer surface (fires ZERO "
+		+ "across the consumer markup), so any NEW static-literal inline style breaks the build. Soften "
+		+ "locally via dotnet_diagnostic.NNB044.severity. Authority: NotNot.BlazorDesign/AGENTS.md -> "
+		+ "Consumer Policy; Appendix A NNB044.";
 
-	/// <summary>NNB044 descriptor — Warning severity, NnDesign category.</summary>
+	/// <summary>NNB044 descriptor — Error severity, NnDesign category.</summary>
 	public static readonly DiagnosticDescriptor Rule = new(
 		DiagnosticId,
 		Title,
 		MessageFormat,
 		Category,
-		DiagnosticSeverity.Warning,
+		DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
 		description: Description,
 		helpLinkUri: HelpBase + "nnb044");  // lowercase anchor — GitHub slugifies
@@ -283,6 +284,11 @@ public sealed class NnDesignInlineStyleAnalyzer : DiagnosticAnalyzer
 		if (p.IndexOf("/NnDesignSamples/", StringComparison.OrdinalIgnoreCase) >= 0)
 			return true;
 		if (p.IndexOf("/Pages/Samples/", StringComparison.OrdinalIgnoreCase) >= 0)
+			return true;
+		// Sample-project convention — any project directory whose name ends in ".Samples" (e.g.
+		// NotNot.BlazorComponents.Samples). The trailing slash anchors the match to a directory
+		// segment, so a sibling like ".Samples.Tests/" does NOT match.
+		if (p.IndexOf(".Samples/", StringComparison.OrdinalIgnoreCase) >= 0)
 			return true;
 
 		var fileName = Path.GetFileName(p);
