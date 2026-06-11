@@ -53,8 +53,12 @@
 			<_BclCoreDepVersion Condition="'$(MinVerVersionOverride)' != ''">$(MinVerVersionOverride)</_BclCoreDepVersion>
 			<_BclCoreDepVersion Condition="'$(MinVerVersionOverride)' == '' And '$(PackageVersion)' != ''">$(PackageVersion)</_BclCoreDepVersion>
 			<_BclCoreDepVersion Condition="'$(_BclCoreDepVersion)' == ''">$(Version)</_BclCoreDepVersion>
-			<_NupkgPath>$(PackageOutputAbsolutePath)$(PackageId).$(PackageVersion).nupkg</_NupkgPath>
-			<_NupkgPathAlt>$(OutputPath)$(PackageId).$(PackageVersion).nupkg</_NupkgPathAlt>
+			<!-- EnsureTrailingSlash: PackageOutputPath overrides (e.g. CommonSettings.targets Release
+			     redirect) may lack a trailing slash; raw concatenation then produces a garbage path
+			     ("...\NotNot.AppSettingsNotNot.AppSettings.x.y.z.nupkg") while Pack itself writes via
+			     Path.Combine — false-negative Error on every Release build. -->
+			<_NupkgPath>$([MSBuild]::EnsureTrailingSlash('$(PackageOutputAbsolutePath)'))$(PackageId).$(PackageVersion).nupkg</_NupkgPath>
+			<_NupkgPathAlt>$([MSBuild]::EnsureTrailingSlash('$(OutputPath)'))$(PackageId).$(PackageVersion).nupkg</_NupkgPathAlt>
 		</PropertyGroup>
 		<ItemGroup>
 			<_CandidateNupkg Include="$(_NupkgPath)" Condition="Exists('$(_NupkgPath)')" />
