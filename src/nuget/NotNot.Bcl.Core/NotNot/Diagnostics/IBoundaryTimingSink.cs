@@ -14,10 +14,13 @@ namespace NotNot.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The host registers a concrete implementation in DI; a consumer obtains it via
-/// <c>[Inject] IBoundaryTimingSink? Sink</c> (NULLABLE — the sink resolves to null on the server / during
-/// prerender / in any host that does not register one, so every consumer null-guards). A
-/// <see cref="BoundaryTimingScope"/> constructed against a null sink is a no-op (no stopwatch, no record).
+/// The interface ALWAYS resolves: a consumer obtains it via <c>[Inject] IBoundaryTimingSink Sink</c>
+/// (Blazor <c>[Inject]</c> is never optional) and receives either the host-registered concrete sink or
+/// the library-default <see cref="NullBoundaryTimingSink"/> — component libraries
+/// <c>TryAddSingleton</c> the null-object inside their <c>Add{Library}Services()</c> extension. A host
+/// that wants real boundary timing overrides that default through standard MS.DI composition: register
+/// the concrete sink BEFORE calling the library's <c>Add{Library}Services()</c> (the <c>TryAdd</c> then
+/// no-ops) — ordinary DI registration is the whole contract.
 /// </para>
 /// <para>
 /// The Off-queryable gate (<see cref="ShouldRecord"/>) lets a caller decide whether to even start a
