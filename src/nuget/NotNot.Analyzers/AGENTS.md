@@ -111,6 +111,7 @@ Forbids a code-side default on a `NotNot.AppSettings`-generated settings option 
 - `settings.X ?? throw …` — the PERMITTED required-no-default pattern (fail loud)
 - Left operand that is not a settings option (a local, or a member of a non-`[GeneratedCode("NotNot.AppSettings")]` type)
 - Computed right operand — a method call (`?? Compute()`) or a property read (`?? Environment.ProcessorCount`) that cannot live in static JSON
+- Empty / whitespace-only string literal (`?? ""`, `?? "   "`) or `System.String.Empty` (`?? string.Empty`) — null-NORMALIZATION (coalescing null to a blank string), not a configuration default; exempt. A non-empty string literal (`?? "vs-running"`) is still a code-side default and fires.
 - `?? null` / `?? default` (not a default value)
 - Coalesce expressions inside generated `*.g.cs` files (skipped via `ConfigureGeneratedCodeAnalysis(None)`)
 

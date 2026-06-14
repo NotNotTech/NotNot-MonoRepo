@@ -172,9 +172,77 @@ public class Consumer
 		await VerifyAsync(consumer, Expect(0, "Name"));
 	}
 
+	[Fact]
+	public async Task NonEmptyStringLiteralDefault_FiresAtOperator()
+	{
+		// A non-empty string literal is a genuine code-side default → still fires.
+		string consumer = @"
+public class Consumer
+{
+    private Gen.VowSessions s = new Gen.VowSessions();
+    public void M()
+    {
+        var name = s.Name {|#0:??|} ""vs-running"";
+        _ = name;
+    }
+}";
+		await VerifyAsync(consumer, Expect(0, "Name"));
+	}
+
 	#endregion
 
 	#region Negative — silent (zero false positives)
+
+	[Fact]
+	public async Task EmptyStringLiteralRight_IsNullNormalization_NoDiagnostic()
+	{
+		// `?? ""` coalesces null to a blank string (null-NORMALIZATION), not a config default → silent.
+		string consumer = @"
+public class Consumer
+{
+    private Gen.VowSessions s = new Gen.VowSessions();
+    public void M()
+    {
+        var name = s.Name ?? """";
+        _ = name;
+    }
+}";
+		await VerifyAsync(consumer);
+	}
+
+	[Fact]
+	public async Task WhitespaceStringLiteralRight_IsNullNormalization_NoDiagnostic()
+	{
+		// `?? "   "` is whitespace-only → null-NORMALIZATION, not a config default → silent.
+		string consumer = @"
+public class Consumer
+{
+    private Gen.VowSessions s = new Gen.VowSessions();
+    public void M()
+    {
+        var name = s.Name ?? ""   "";
+        _ = name;
+    }
+}";
+		await VerifyAsync(consumer);
+	}
+
+	[Fact]
+	public async Task StringEmptyFieldRight_IsNullNormalization_NoDiagnostic()
+	{
+		// `?? string.Empty` is the field form of `?? ""` → null-NORMALIZATION, not a config default → silent.
+		string consumer = @"
+public class Consumer
+{
+    private Gen.VowSessions s = new Gen.VowSessions();
+    public void M()
+    {
+        var name = s.Name ?? string.Empty;
+        _ = name;
+    }
+}";
+		await VerifyAsync(consumer);
+	}
 
 	[Fact]
 	public async Task ThrowExpression_IsPermittedRequiredPattern_NoDiagnostic()

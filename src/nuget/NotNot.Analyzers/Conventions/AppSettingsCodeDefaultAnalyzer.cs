@@ -54,6 +54,11 @@ namespace NotNot.Analyzers.Conventions;
 ///     (<c>?? Environment.ProcessorCount</c>) — these cannot live in static JSON.
 ///   </description></item>
 ///   <item><description>
+///     a right operand that is an empty / whitespace-only string literal (<c>?? ""</c>, <c>?? "   "</c>) or
+///     <c>System.String.Empty</c> (<c>?? string.Empty</c>) — these are null-NORMALIZATION (coalescing null to a
+///     blank string), not a configuration default that belongs in the JSON.
+///   </description></item>
+///   <item><description>
 ///     a coalesce expression INSIDE generated code (e.g. the <c>*.g.cs</c> settings files themselves) —
 ///     skipped via <see cref="GeneratedCodeAnalysisFlags.None"/>.
 ///   </description></item>
@@ -203,10 +208,12 @@ public sealed class AppSettingsCodeDefaultAnalyzer : DiagnosticAnalyzer
 	}
 
 	/// <summary>
-	/// True iff <paramref name="right"/> is a default-VALUE shape: a numeric / string / bool / char literal
-	/// (optionally a leading unary <c>-</c>/<c>+</c> on a numeric literal), or a reference to a <c>const</c>
-	/// or <c>static readonly</c> field. Method invocations, property reads, <c>throw</c> expressions, and
-	/// <c>null</c>/<c>default</c> literals are NOT default-value shapes.
+	/// True iff <paramref name="right"/> is a default-VALUE shape: a NON-EMPTY string literal, a numeric / bool /
+	/// char literal (optionally a leading unary <c>-</c>/<c>+</c> on a numeric literal), or a reference to a
+	/// <c>const</c> or <c>static readonly</c> field. Method invocations, property reads, <c>throw</c> expressions,
+	/// and <c>null</c>/<c>default</c> literals are NOT default-value shapes. An empty / whitespace-only string
+	/// literal (<c>?? ""</c>, <c>?? "   "</c>) and <c>System.String.Empty</c> (<c>?? string.Empty</c>) are
+	/// null-NORMALIZATION, not configuration defaults — also NOT default-value shapes.
 	/// </summary>
 	private static bool IsDefaultValueShape(ExpressionSyntax right, SemanticModel model, CancellationToken ct)
 	{
@@ -224,7 +231,10 @@ public sealed class AppSettingsCodeDefaultAnalyzer : DiagnosticAnalyzer
 			return literal.Kind() switch
 			{
 				SyntaxKind.NumericLiteralExpression => true,
-				SyntaxKind.StringLiteralExpression => true,
+				// An empty / whitespace-only string literal (`?? ""`, `?? "   "`) is null-NORMALIZATION, not a
+				// configuration default — exempt. A non-empty literal (`?? "vs-running"`) is still a code-side
+				// default that belongs in the JSON.
+				SyntaxKind.StringLiteralExpression => !string.IsNullOrWhiteSpace(literal.Token.ValueText),
 				SyntaxKind.CharacterLiteralExpression => true,
 				SyntaxKind.TrueLiteralExpression => true,
 				SyntaxKind.FalseLiteralExpression => true,
@@ -234,7 +244,15 @@ public sealed class AppSettingsCodeDefaultAnalyzer : DiagnosticAnalyzer
 
 		// A const or static-readonly field used as a canonical default (e.g. PtyRegistryOptions.DefaultMaxOpenPty).
 		var symbol = model.GetSymbolInfo(right, ct).Symbol;
-		return symbol is IFieldSymbol field && (field.IsConst || (field.IsStatic && field.IsReadOnly));
+		if (symbol is not IFieldSymbol field || !(field.IsConst || (field.IsStatic && field.IsReadOnly)))
+			return false;
+
+		// `System.String.Empty` is the field form of `?? ""` — null-NORMALIZATION, not a configuration default
+		// — exempt (mirrors the empty-string-literal carve-out above).
+		if (field is { Name: "Empty", ContainingType.SpecialType: SpecialType.System_String })
+			return false;
+
+		return true;
 	}
 
 	/// <summary>
