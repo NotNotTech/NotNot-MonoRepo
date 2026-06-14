@@ -106,11 +106,11 @@ Enforces the `BOOLEAN_DEFAULT_FALSE` convention — boolean parameters, properti
 Forbids a code-side default on a `NotNot.AppSettings`-generated settings option — i.e. `{settingsOption} ?? {literal|const}`. The generator makes `appsettings*.json` the single source of truth for defaults (every generated property is nullable `T?`); a code-side `?? <default>` is a second, drifting copy of a default that already lives in the JSON AND it silently masks a missing/null config value that should fail loud at startup.
 
 **Severity**: Error
-**Flagged** (at the `??` operator): `{member} ?? {default}` where the member's containing type carries `[System.CodeDom.Compiler.GeneratedCode("NotNot.AppSettings", ...)]` AND the right operand is a default-VALUE shape — a numeric / string / bool / char literal (optionally a leading unary `-`/`+` on a numeric literal), or a `const` / `static readonly` field reference. Casts, parentheses, and conditional-access (`settings.Sessions?.MaxOpenPty`) on the left operand are stripped before resolving the member.
+**Flagged** (at the `??`/`??=` operator): `{member} ?? {default}` or `{member} ??= {default}` where the member's containing type carries `[System.CodeDom.Compiler.GeneratedCode("NotNot.AppSettings", ...)]` AND the right operand is a default-VALUE shape — a numeric / string / bool / char literal (optionally a leading unary `-`/`+` on a numeric literal), a `const` field, or a `static readonly` field whose initializer is itself a compile-time constant. Casts, parentheses, and conditional-access (`settings.Sessions?.MaxOpenPty`) on the left operand are stripped before resolving the member.
 **Allowed**:
 - `settings.X ?? throw …` — the PERMITTED required-no-default pattern (fail loud)
 - Left operand that is not a settings option (a local, or a member of a non-`[GeneratedCode("NotNot.AppSettings")]` type)
-- Computed right operand — a method call (`?? Compute()`) or a property read (`?? Environment.ProcessorCount`) that cannot live in static JSON
+- Computed right operand — a method call (`?? Compute()`), a property read (`?? Environment.ProcessorCount`), or a `static readonly` field with a computed initializer — none can live in static JSON
 - Empty / whitespace-only string literal (`?? ""`, `?? "   "`) or `System.String.Empty` (`?? string.Empty`) — null-NORMALIZATION (coalescing null to a blank string), not a configuration default; exempt. A non-empty string literal (`?? "vs-running"`) is still a code-side default and fires.
 - `?? null` / `?? default` (not a default value)
 - Coalesce expressions inside generated `*.g.cs` files (skipped via `ConfigureGeneratedCodeAnalysis(None)`)

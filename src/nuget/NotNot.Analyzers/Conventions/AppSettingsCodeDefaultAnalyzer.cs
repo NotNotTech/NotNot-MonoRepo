@@ -24,7 +24,7 @@ namespace NotNot.Analyzers.Conventions;
 /// fail-quiet.
 /// </para>
 /// <para>
-/// <b>Detection</b>: fires on a coalesce expression <c>a ?? b</c> where
+/// <b>Detection</b>: fires on a coalesce expression <c>a ?? b</c> or a coalesce assignment <c>a ??= b</c> where
 /// <list type="number">
 ///   <item><description>
 ///     the LEFT operand (after stripping casts / parentheses / conditional-access) resolves to a
@@ -34,8 +34,9 @@ namespace NotNot.Analyzers.Conventions;
 ///   </description></item>
 ///   <item><description>
 ///     the RIGHT operand is a DEFAULT-VALUE shape: a numeric / string / bool / char literal (optionally
-///     a leading unary <c>-</c>/<c>+</c> on a numeric literal), or a reference to a <c>const</c> /
-///     <c>static readonly</c> field (e.g. <c>SomeType.DefaultMaxOpenPty</c>).
+///     a leading unary <c>-</c>/<c>+</c> on a numeric literal), or a reference to a <c>const</c> field (or a
+///     <c>static readonly</c> field whose initializer is itself a compile-time constant, e.g.
+///     <c>SomeType.DefaultMaxOpenPty</c>).
 ///   </description></item>
 /// </list>
 /// </para>
@@ -50,8 +51,9 @@ namespace NotNot.Analyzers.Conventions;
 ///     <c>[GeneratedCode("NotNot.AppSettings")]</c> marker).
 ///   </description></item>
 ///   <item><description>
-///     a right operand that is computed: a method invocation (<c>?? Compute()</c>) or a property read
-///     (<c>?? Environment.ProcessorCount</c>) — these cannot live in static JSON.
+///     a right operand that is computed: a method invocation (<c>?? Compute()</c>), a property read
+///     (<c>?? Environment.ProcessorCount</c>), or a <c>static readonly</c> field with a computed initializer
+///     — these cannot live in static JSON.
 ///   </description></item>
 ///   <item><description>
 ///     a right operand that is an empty / whitespace-only string literal (<c>?? ""</c>, <c>?? "   "</c>) or
@@ -130,27 +132,44 @@ public sealed class AppSettingsCodeDefaultAnalyzer : DiagnosticAnalyzer
 		// type, a separate concern from whether the ANALYZED file is generated.)
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 
-		context.RegisterSyntaxNodeAction(AnalyzeCoalesce, SyntaxKind.CoalesceExpression);
+		context.RegisterSyntaxNodeAction(AnalyzeCoalesce, SyntaxKind.CoalesceExpression, SyntaxKind.CoalesceAssignmentExpression);
 	}
 
 	private static void AnalyzeCoalesce(SyntaxNodeAnalysisContext context)
 	{
 		using var _ = AnalyzerPerformanceTracker.StartTracking(DiagnosticId, "AnalyzeCoalesce");
 
-		var coalesce = (BinaryExpressionSyntax)context.Node;
+		// A coalesce expression (??) and a coalesce assignment (??=) share the Left/Right/OperatorToken shape.
+		ExpressionSyntax left, right;
+		SyntaxToken operatorToken;
+		switch (context.Node)
+		{
+			case BinaryExpressionSyntax binary: // settings.X ?? default
+				left = binary.Left;
+				right = binary.Right;
+				operatorToken = binary.OperatorToken;
+				break;
+			case AssignmentExpressionSyntax assignment: // settings.X ??= default
+				left = assignment.Left;
+				right = assignment.Right;
+				operatorToken = assignment.OperatorToken;
+				break;
+			default:
+				return;
+		}
 
 		// Right operand must be a default-VALUE shape (literal or const / static-readonly field).
 		// throw-expressions, method calls, and property reads are computed → out of scope.
-		if (!IsDefaultValueShape(coalesce.Right, context.SemanticModel, context.CancellationToken))
+		if (!IsDefaultValueShape(right, context.SemanticModel, context.CancellationToken))
 			return;
 
 		// Left operand must resolve to a settings option (member of a [GeneratedCode("NotNot.AppSettings")]
 		// type). Anything else → not a settings default → silent.
-		var memberName = TryGetAppSettingsOptionName(coalesce.Left, context.SemanticModel, context.CancellationToken);
+		var memberName = TryGetAppSettingsOptionName(left, context.SemanticModel, context.CancellationToken);
 		if (memberName is null)
 			return;
 
-		var diagnostic = Diagnostic.Create(Rule, coalesce.OperatorToken.GetLocation(), memberName);
+		var diagnostic = Diagnostic.Create(Rule, operatorToken.GetLocation(), memberName);
 		context.ReportDiagnostic(diagnostic);
 	}
 
@@ -210,7 +229,8 @@ public sealed class AppSettingsCodeDefaultAnalyzer : DiagnosticAnalyzer
 	/// <summary>
 	/// True iff <paramref name="right"/> is a default-VALUE shape: a NON-EMPTY string literal, a numeric / bool /
 	/// char literal (optionally a leading unary <c>-</c>/<c>+</c> on a numeric literal), or a reference to a
-	/// <c>const</c> or <c>static readonly</c> field. Method invocations, property reads, <c>throw</c> expressions,
+	/// <c>const</c> field (or a <c>static readonly</c> field with a compile-time-constant initializer). Method
+	/// invocations, property reads, computed <c>static readonly</c> fields, <c>throw</c> expressions,
 	/// and <c>null</c>/<c>default</c> literals are NOT default-value shapes. An empty / whitespace-only string
 	/// literal (<c>?? ""</c>, <c>?? "   "</c>) and <c>System.String.Empty</c> (<c>?? string.Empty</c>) are
 	/// null-NORMALIZATION, not configuration defaults — also NOT default-value shapes.
@@ -244,7 +264,7 @@ public sealed class AppSettingsCodeDefaultAnalyzer : DiagnosticAnalyzer
 
 		// A const or static-readonly field used as a canonical default (e.g. PtyRegistryOptions.DefaultMaxOpenPty).
 		var symbol = model.GetSymbolInfo(right, ct).Symbol;
-		if (symbol is not IFieldSymbol field || !(field.IsConst || (field.IsStatic && field.IsReadOnly)))
+		if (symbol is not IFieldSymbol field)
 			return false;
 
 		// `System.String.Empty` is the field form of `?? ""` — null-NORMALIZATION, not a configuration default
@@ -252,7 +272,39 @@ public sealed class AppSettingsCodeDefaultAnalyzer : DiagnosticAnalyzer
 		if (field is { Name: "Empty", ContainingType.SpecialType: SpecialType.System_String })
 			return false;
 
-		return true;
+		// `const` is always a compile-time, relocatable default → fires.
+		if (field.IsConst)
+			return true;
+
+		// A `static readonly` field fires ONLY when its initializer is itself a compile-time constant (e.g.
+		// `static readonly int DefaultX = 30`) — that value is relocatable to the JSON. A COMPUTED static-readonly
+		// (`= Environment.ProcessorCount`, a static-ctor assignment, or a metadata field with no visible
+		// initializer) cannot live in static JSON — mirroring the inline `?? Compute()` exemption — so it stays
+		// silent (no Error-severity false positive on a non-relocatable value).
+		if (field.IsStatic && field.IsReadOnly)
+			return HasConstantInitializer(field, model, ct);
+
+		return false;
+	}
+
+	/// <summary>
+	/// True iff the <c>static readonly</c> <paramref name="field"/> has a SOURCE field-initializer whose value
+	/// is a compile-time constant (a literal or <c>const</c> reference). A computed initializer, a static-ctor
+	/// assignment (no field-initializer), or a metadata field with no visible source returns <c>false</c> —
+	/// conservatively exempt so an Error-severity diagnostic never fires on a non-relocatable computed default.
+	/// </summary>
+	private static bool HasConstantInitializer(IFieldSymbol field, SemanticModel model, CancellationToken ct)
+	{
+		foreach (var syntaxRef in field.DeclaringSyntaxReferences)
+		{
+			if (syntaxRef.GetSyntax(ct) is VariableDeclaratorSyntax { Initializer.Value: { } initializer })
+			{
+				var initializerModel = model.Compilation.GetSemanticModel(initializer.SyntaxTree);
+				return initializerModel.GetConstantValue(initializer, ct).HasValue;
+			}
+		}
+
+		return false;
 	}
 
 	/// <summary>

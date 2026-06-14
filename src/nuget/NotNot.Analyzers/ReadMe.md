@@ -242,21 +242,23 @@ Forbids a code-side default on a `NotNot.AppSettings`-generated settings option 
 // ❌ Flagged (fires at the ?? operator) — settings.* is a [GeneratedCode("NotNot.AppSettings")] option
 var mruCapacity   = (int?)settings.ProjectionMruCapacity ?? 4;          // numeric literal
 var idleTtl       = (double?)settings.ProjectionIdleTtlMinutes ?? 10.0; // double literal
-var maxOpen       = (int?)settings.Sessions?.MaxOpenPty ?? Options.DefaultMaxOpenPty; // const/static-readonly field
+var maxOpen       = (int?)settings.Sessions?.MaxOpenPty ?? Options.DefaultMaxOpenPty; // const (or constant-init static-readonly) field
 var name          = settings.Name ?? "vs-running";                     // non-empty string literal
+settings.ProjectionMruCapacity ??= 4;                                  // ??= coalesce-assignment also writes a default
 
 // ✅ Allowed
 var required      = (int?)settings.ProjectionMruCapacity ?? throw new InvalidOperationException("required"); // fail loud
 var computed      = (int?)settings.ProjectionMruCapacity ?? Environment.ProcessorCount; // computed — can't live in JSON
+var computedField = (int?)settings.ProjectionMruCapacity ?? Options.ComputedDefault;    // static-readonly w/ computed initializer — out of scope
 var fromFactory   = (int?)settings.ProjectionMruCapacity ?? Compute();  // method call — out of scope
 var normalized    = settings.Name ?? "";                               // empty/whitespace string — null-normalization
 var normalized2   = settings.Name ?? string.Empty;                     // string.Empty — null-normalization
 var local         = someLocal ?? 4;                                    // not a settings option
 ```
 
-**Flagged**: `{member} ?? {default}` where the member's containing type carries `[System.CodeDom.Compiler.GeneratedCode("NotNot.AppSettings", ...)]` AND the right operand is a default-VALUE shape (a NON-EMPTY string literal, a numeric/bool/char literal — optionally a leading unary `-`/`+` on a numeric literal — or a `const`/`static readonly` field reference). Casts, parentheses, and conditional-access on the left operand are stripped before resolving the member.
+**Flagged**: `{member} ?? {default}` **or** `{member} ??= {default}` where the member's containing type carries `[System.CodeDom.Compiler.GeneratedCode("NotNot.AppSettings", ...)]` AND the right operand is a default-VALUE shape (a NON-EMPTY string literal, a numeric/bool/char literal — optionally a leading unary `-`/`+` on a numeric literal — a `const` field, or a `static readonly` field whose initializer is itself a compile-time constant). Casts, parentheses, and conditional-access on the left operand are stripped before resolving the member.
 
-**Allowed**: `?? throw` (the permitted required-no-default pattern); a non-settings left operand; a computed right operand (method call or property read such as `Environment.ProcessorCount`); an empty/whitespace-only string literal (`?? ""`, `?? "   "`) or `System.String.Empty` (`?? string.Empty`) — null-normalization, not a config default; `?? null` / `?? default`; and coalesce expressions inside generated `*.g.cs` files.
+**Allowed**: `?? throw` (the permitted required-no-default pattern); a non-settings left operand; a computed right operand (a method call, a property read such as `Environment.ProcessorCount`, or a `static readonly` field with a computed initializer — none can live in static JSON); an empty/whitespace-only string literal (`?? ""`, `?? "   "`) or `System.String.Empty` (`?? string.Empty`) — null-normalization, not a config default; `?? null` / `?? default`; and coalesce expressions inside generated `*.g.cs` files.
 
 **Preferred fix** (in order):
 1. Set the default in `appsettings*.json` and read the typed property directly (remove the `?? default`).

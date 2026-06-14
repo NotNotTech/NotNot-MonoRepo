@@ -56,6 +56,7 @@ public static class Defaults
 {
     public const int MaxOpenPty = 30;
     public static readonly int StaticFallback = 7;
+    public static readonly int ComputedFallback = System.Environment.ProcessorCount;
 }
 
 public class NotSettings
@@ -187,6 +188,22 @@ public class Consumer
     }
 }";
 		await VerifyAsync(consumer, Expect(0, "Name"));
+	}
+
+	[Fact]
+	public async Task CoalesceAssignmentLiteralDefault_FiresAtOperator()
+	{
+		// `settings.X ??= default` writes a code-side default into the option — same smell as `?? default`.
+		string consumer = @"
+public class Consumer
+{
+    private Gen.VowSessions s = new Gen.VowSessions();
+    public void M()
+    {
+        s.ProjectionMruCapacity {|#0:??=|} 4;
+    }
+}";
+		await VerifyAsync(consumer, Expect(0, "ProjectionMruCapacity"));
 	}
 
 	#endregion
@@ -364,6 +381,24 @@ namespace GenConsumerNs
             var v = (int?)s.ProjectionMruCapacity ?? 4;
             _ = v;
         }
+    }
+}";
+		await VerifyAsync(consumer);
+	}
+
+	[Fact]
+	public async Task ComputedStaticReadonlyFieldRight_NoDiagnostic()
+	{
+		// A `static readonly` field initialized from a COMPUTED expression cannot live in static JSON
+		// (like an inline `?? Environment.ProcessorCount`) → exempt, no Error-severity false positive.
+		string consumer = @"
+public class Consumer
+{
+    private Gen.VowSessions s = new Gen.VowSessions();
+    public void M()
+    {
+        var v = (int?)s.ProjectionMruCapacity ?? Defaults.ComputedFallback;
+        _ = v;
     }
 }";
 		await VerifyAsync(consumer);
