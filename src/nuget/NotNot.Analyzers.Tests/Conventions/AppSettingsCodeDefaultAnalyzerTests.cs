@@ -57,6 +57,8 @@ public static class Defaults
     public const int MaxOpenPty = 30;
     public static readonly int StaticFallback = 7;
     public static readonly int ComputedFallback = System.Environment.ProcessorCount;
+    public static readonly int CtorAssigned;
+    static Defaults() { CtorAssigned = System.Environment.ProcessorCount; }
 }
 
 public class NotSettings
@@ -398,6 +400,24 @@ public class Consumer
     public void M()
     {
         var v = (int?)s.ProjectionMruCapacity ?? Defaults.ComputedFallback;
+        _ = v;
+    }
+}";
+		await VerifyAsync(consumer);
+	}
+
+	[Fact]
+	public async Task StaticCtorAssignedReadonlyFieldRight_NoDiagnostic()
+	{
+		// A `static readonly` field with NO field-initializer (assigned in a static constructor) has no
+		// visible compile-time-constant initializer → exempt (HasConstantInitializer falls through to false).
+		string consumer = @"
+public class Consumer
+{
+    private Gen.VowSessions s = new Gen.VowSessions();
+    public void M()
+    {
+        var v = (int?)s.ProjectionMruCapacity ?? Defaults.CtorAssigned;
         _ = v;
     }
 }";
