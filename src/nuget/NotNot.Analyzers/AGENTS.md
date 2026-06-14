@@ -123,6 +123,28 @@ Forbids a code-side default on a `NotNot.AppSettings`-generated settings option 
 
 Complementary to NN_C003 (BoolDefaultFalse): disjoint axis — C003 = bool param default-false at DECLARATION; C004 = no code-side default substitution at CONSUMPTION. Never co-fire.
 
+### NN_C005: No ServerOnly AppSettings Read From Client-Reachable Code
+
+Forbids reading a `NotNot.AppSettings`-generated **ServerOnly** key from a `.Shared`/`.Client` (WASM-client-reachable) compilation. The generator prunes ServerOnly keys from the client snapshot (`_ClientAppSettings`), so the read is `null` on the client at runtime — and with `.Require()` throws at bootstrap (the NN_C004 reachability failure class). Read-reachability companion to NN_C004's write-default rule; orthogonal axes, gap-free.
+
+**Severity**: Error
+**Flagged** (at the accessed-member identifier): `{settings}.{Key}` (or `{settings}?.{Key}`) where the member's containing type is a `NotNot.AppSettings`-generated FULL-tree type (`[GeneratedCode("NotNot.AppSettings", ...)]`, in the `.AppSettingsGen` `AppSettings` tree — NOT the `_ClientAppSettings` mirror) AND the corresponding path is ABSENT from the generated `_ClientAppSettings` mirror (⇒ ServerOnly), AND the current assembly name ends with `.Shared` or `.Client`.
+**Allowed**:
+- Read of a client-whitelisted key (present in `_ClientAppSettings` — `ClientRead`/`ClientWriteLocal`/`ClientWriteServer`)
+- The same read from a `.Server` assembly (ServerOnly reads are legal server-side)
+- Read of a member on a non-`[GeneratedCode("NotNot.AppSettings")]` type
+- Read of the `_ClientAppSettings` mirror itself (already pruned ⇒ safe)
+- `nameof({settings}.{Key})` (no runtime dereference)
+- Member access inside generated `*.g.cs` files (skipped via `ConfigureGeneratedCodeAnalysis(None)`)
+- Compilations whose `_ClientAppSettings` mirror is not present (conservative — cannot prove ServerOnly)
+
+**Preferred Fix Options** (the fix is a DECISION, not a reflex):
+1. If the client genuinely needs the value, whitelist it as `ClientRead` (or `ClientWriteLocal`/`ClientWriteServer`) under `NotNotAppSettings:whitelist` in `appsettings*.json`.
+2. If it is server-only/secret, move the read to a `.Server`-side type. **Do NOT whitelist server-only/secret config** — that exposes it to the client.
+3. `#pragma warning disable NN_C005` / `.editorconfig` severity override only if the code path provably never runs on the client.
+
+Complementary to NN_C004 (AppSettingsCodeDefault) on a disjoint axis: C004 = write-side `?? default` ban at CONSUMPTION; C005 = read-side ServerOnly-reachability ban. Never co-fire.
+
 ## Suppressors (CA2000)
 
 | ID | Pattern | Why Suppressed |
@@ -152,6 +174,7 @@ Complementary to NN_C003 (BoolDefaultFalse): disjoint axis — C003 = bool param
 | `Reliability/Concurrency/TaskAwaitedOrReturnedAnalyzer.cs` | NN_R001 |
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
 | `Conventions/AppSettingsCodeDefaultAnalyzer.cs` | NN_C004 |
+| `Conventions/NnAppSettingsServerOnlyReadAnalyzer.cs` | NN_C005 |
 
 ## Adding New Suppressors
 
