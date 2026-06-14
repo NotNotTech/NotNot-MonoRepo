@@ -231,6 +231,39 @@ catch (IOException ex)
 }
 ```
 
+<a id="NN_C004"></a>
+### NN_C004: No code-side default for AppSettings options
+**Severity:** Error
+**Category:** CodeStyle
+
+Forbids a code-side default on a `NotNot.AppSettings`-generated settings option — i.e. `{settingsOption} ?? {literal/const}`. The generator makes `appsettings*.json` the **single source of truth** for settings defaults (every generated property is nullable `T?`). A code-side `?? <default>` is a *second, drifting copy* of a default that already lives in the JSON, and it **silently masks a missing/null config value** that should fail loud at startup rather than limp on a hardcoded fallback. Keep one default location (the JSON) and prefer fail-loud over fail-quiet.
+
+```csharp
+// ❌ Flagged (fires at the ?? operator) — settings.* is a [GeneratedCode("NotNot.AppSettings")] option
+var mruCapacity   = (int?)settings.ProjectionMruCapacity ?? 4;          // numeric literal
+var idleTtl       = (double?)settings.ProjectionIdleTtlMinutes ?? 10.0; // double literal
+var maxOpen       = (int?)settings.Sessions?.MaxOpenPty ?? Options.DefaultMaxOpenPty; // const/static-readonly field
+var name          = settings.Name ?? "fallback";                       // string literal
+
+// ✅ Allowed
+var required      = (int?)settings.ProjectionMruCapacity ?? throw new InvalidOperationException("required"); // fail loud
+var computed      = (int?)settings.ProjectionMruCapacity ?? Environment.ProcessorCount; // computed — can't live in JSON
+var fromFactory   = (int?)settings.ProjectionMruCapacity ?? Compute();  // method call — out of scope
+var local         = someLocal ?? 4;                                    // not a settings option
+```
+
+**Flagged**: `{member} ?? {default}` where the member's containing type carries `[System.CodeDom.Compiler.GeneratedCode("NotNot.AppSettings", ...)]` AND the right operand is a default-VALUE shape (numeric/string/bool/char literal — optionally a leading unary `-`/`+` on a numeric literal — or a `const`/`static readonly` field reference). Casts, parentheses, and conditional-access on the left operand are stripped before resolving the member.
+
+**Allowed**: `?? throw` (the permitted required-no-default pattern); a non-settings left operand; a computed right operand (method call or property read such as `Environment.ProcessorCount`); `?? null` / `?? default`; and coalesce expressions inside generated `*.g.cs` files.
+
+**Preferred fix** (in order):
+1. Set the default in `appsettings*.json` and read the typed property directly (remove the `?? default`).
+2. If REQUIRED with no sensible default, fail loud with `?? throw`.
+3. If genuinely optional, branch on null as a real state.
+4. `#pragma warning disable NN_C004` / `.editorconfig` severity override only when a code-side default is genuinely intended.
+
+Complementary to NN_C003 (BoolDefaultFalse) on a disjoint axis: C003 = bool param default-false at *declaration*; C004 = no code-side default substitution at *consumption*. They never co-fire.
+
 ## ⚙️ Configuration
 
 Configure rules using `.editorconfig`:
@@ -245,6 +278,7 @@ dotnet_diagnostic.NN_C002.severity = error
 dotnet_diagnostic.NOTNOT001.severity = error
 dotnet_diagnostic.NN_R005.severity = error
 dotnet_diagnostic.NN_R006.severity = error
+dotnet_diagnostic.NN_C004.severity = error
 
 # Disable specific rules
 dotnet_diagnostic.NN_R003.severity = none

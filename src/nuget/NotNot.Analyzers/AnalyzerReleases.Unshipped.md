@@ -15,3 +15,4 @@ NN_C001 | Naming | Error | RefVarNamingAnalyzer, [Documentation](https://github.
 NN_C002 | Naming | Error | RefPrefixMustBeRefAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_C002)
 NN_CULTURE_BANNED | NotNot_Architecture | Error | NnCultureBannedAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_CULTURE_BANNED)
 NN_R006 | Reliability | Error | EmptyCatchBlockAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_R006)
+NN_C004 | CodeStyle | Error | AppSettingsCodeDefaultAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_C004)

@@ -101,6 +101,27 @@ Enforces the `BOOLEAN_DEFAULT_FALSE` convention — boolean parameters, properti
 2. Apply `[CodeStyleBypass]` at member scope with a comment justifying why default-true is genuinely correct here.
 3. Reduce visibility to `private`/`protected` if the member doesn't need to be part of the public surface.
 
+### NN_C004: No Code-Side Default for AppSettings Options
+
+Forbids a code-side default on a `NotNot.AppSettings`-generated settings option — i.e. `{settingsOption} ?? {literal|const}`. The generator makes `appsettings*.json` the single source of truth for defaults (every generated property is nullable `T?`); a code-side `?? <default>` is a second, drifting copy of a default that already lives in the JSON AND it silently masks a missing/null config value that should fail loud at startup.
+
+**Severity**: Error
+**Flagged** (at the `??` operator): `{member} ?? {default}` where the member's containing type carries `[System.CodeDom.Compiler.GeneratedCode("NotNot.AppSettings", ...)]` AND the right operand is a default-VALUE shape — a numeric / string / bool / char literal (optionally a leading unary `-`/`+` on a numeric literal), or a `const` / `static readonly` field reference. Casts, parentheses, and conditional-access (`settings.Sessions?.MaxOpenPty`) on the left operand are stripped before resolving the member.
+**Allowed**:
+- `settings.X ?? throw …` — the PERMITTED required-no-default pattern (fail loud)
+- Left operand that is not a settings option (a local, or a member of a non-`[GeneratedCode("NotNot.AppSettings")]` type)
+- Computed right operand — a method call (`?? Compute()`) or a property read (`?? Environment.ProcessorCount`) that cannot live in static JSON
+- `?? null` / `?? default` (not a default value)
+- Coalesce expressions inside generated `*.g.cs` files (skipped via `ConfigureGeneratedCodeAnalysis(None)`)
+
+**Preferred Fix Options** (in order):
+1. Set the default in `appsettings*.json` and read the typed property directly (remove the `?? default`).
+2. If the value is REQUIRED with no sensible default, fail loud with `?? throw` instead of a silent fallback.
+3. If genuinely optional, branch on null as a real state.
+4. `#pragma warning disable NN_C004` / `.editorconfig` severity override only when a code-side default is genuinely intended.
+
+Complementary to NN_C003 (BoolDefaultFalse): disjoint axis — C003 = bool param default-false at DECLARATION; C004 = no code-side default substitution at CONSUMPTION. Never co-fire.
+
 ## Suppressors (CA2000)
 
 | ID | Pattern | Why Suppressed |
@@ -129,6 +150,7 @@ Enforces the `BOOLEAN_DEFAULT_FALSE` convention — boolean parameters, properti
 | `Reliability/Exceptions/EmptyCatchBlockAnalyzer.cs` | NN_R006 |
 | `Reliability/Concurrency/TaskAwaitedOrReturnedAnalyzer.cs` | NN_R001 |
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
+| `Conventions/AppSettingsCodeDefaultAnalyzer.cs` | NN_C004 |
 
 ## Adding New Suppressors
 
