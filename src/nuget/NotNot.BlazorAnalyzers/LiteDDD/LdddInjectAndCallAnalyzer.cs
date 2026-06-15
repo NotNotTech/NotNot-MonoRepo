@@ -226,10 +226,13 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 
 	/// <summary>
 	/// Curated framework-type allow-list for <c>NN_LDDD_003</c>. Names are fully-qualified
-	/// (no <c>global::</c> prefix); generic types use the unconstructed display form
-	/// (e.g. <c>Microsoft.Extensions.Logging.ILogger&lt;T&gt;</c>). Match is done against
-	/// <see cref="ITypeSymbol.OriginalDefinition"/> with
-	/// <see cref="SymbolDisplayFormat.FullyQualifiedFormat"/> (global prefix stripped). The
+	/// (no <c>global::</c> prefix); generic types use the UNBOUND arity-only form
+	/// (e.g. <c>Microsoft.Extensions.Logging.ILogger&lt;&gt;</c>) so matching is agnostic to the
+	/// declared type-parameter name (the BCL declares <c>ILogger&lt;TCategoryName&gt;</c>, not
+	/// <c>&lt;T&gt;</c>). Non-generics match <see cref="ITypeSymbol.OriginalDefinition"/> via
+	/// <see cref="SymbolDisplayFormat.FullyQualifiedFormat"/>; generics match
+	/// <see cref="INamedTypeSymbol.ConstructUnboundGenericType"/> rendered the same way (global
+	/// prefix stripped — see <see cref="IsFrameworkAllowed"/>). The
 	/// list is intentionally narrow — new entries are PR-able as conventions evolve. See the
 	/// XML doc on <see cref="LDDD003_Rule"/> for the rationale per entry.
 	/// </summary>
@@ -241,7 +244,7 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 
 		// Logging
 		"Microsoft.Extensions.Logging.ILogger",
-		"Microsoft.Extensions.Logging.ILogger<T>",
+		"Microsoft.Extensions.Logging.ILogger<>",
 
 		// JS interop
 		"Microsoft.JSInterop.IJSRuntime",
@@ -249,7 +252,7 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 		// Configuration + Localization
 		"Microsoft.Extensions.Configuration.IConfiguration",
 		"Microsoft.Extensions.Localization.IStringLocalizer",
-		"Microsoft.Extensions.Localization.IStringLocalizer<T>",
+		"Microsoft.Extensions.Localization.IStringLocalizer<>",
 
 		// HTTP
 		"System.Net.Http.IHttpClientFactory",
@@ -257,6 +260,7 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 
 		// DI service-locator (framework-tier infrastructure; standard Blazor pattern)
 		"System.IServiceProvider",
+		"Microsoft.Extensions.DependencyInjection.IServiceScopeFactory",
 
 		// MudBlazor UI infrastructure (sibling primitive layer)
 		"MudBlazor.IDialogService",
@@ -264,6 +268,27 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 
 		// SignalR (HubConnection per VibeTDD §3 Group e-Wave2 spec)
 		"Microsoft.AspNetCore.SignalR.Client.HubConnection",
+
+		// ── Consumer-app + design-system service surfaces ────────────────────────
+		// Listed per the VOW "allow-list everything" disposition (2026-06-14). These are injected
+		// into Blazor components but are neither Refit transport contracts nor framework infra:
+		// VOW client app-services (cache / commands / event-bus / culture / hub / metrics) plus
+		// NnDesign + NotNot.BlazorComponents design-system services (sibling primitive layer,
+		// parallel to the MudBlazor entries above). A dedicated client-service FeatureRole would
+		// localize these to the consumer instead of this shared list — see VOW kanban follow-up.
+		"NotNot.BlazorDesign.NnDesign.Toast.INnToastService",
+		"NotNot.BlazorDesign.NnDesign.NnPreferenceService",
+		"NotNot.BlazorDesign.NnDesign.INnBugConsoleService",
+		"NotNot.BlazorDesign.NnDesign.INnContextMenuService",
+		"NotNot.BlazorDesign.NnDesign.Activity.INnPageStateMonitor",
+		"NotNot.BlazorComponents.Storage.LocalStorageService",
+		"Novaleaf.VibeOverwatch.Shared.Infrastructure.VowDataStore",
+		"Novaleaf.VibeOverwatch.Shared.Infrastructure.VowSessionCommands",
+		"Novaleaf.VibeOverwatch.Shared.Infrastructure.Localization.ICultureProvider",
+		"Novaleaf.VibeOverwatch.Shared.Services.VowDashboardActions",
+		"Novaleaf.VibeOverwatch.Shared.Services.INnTerminalHubConnection",
+		"Novaleaf.VibeOverwatch.Shared.Services.INnPerfMonitorService",
+		"Novaleaf.VibeOverwatch.Shared.Services.IBlazorTermClientMetrics",
 	};
 
 	// ── DiagnosticAnalyzer overrides ──────────────────────────────────────────
@@ -418,11 +443,16 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 
 	private static bool IsFrameworkAllowed(ITypeSymbol type)
 	{
-		// Generic types: match against the unconstructed (OriginalDefinition) display form so
-		// that ILogger<MyComponent> and IStringLocalizer<MyResources> match their open-generic
-		// allow-list entries (ILogger<T>, IStringLocalizer<T>).
+		// Generic types: match against the arity-only UNBOUND form (e.g. "ILogger<>") so the
+		// allow-list is agnostic to the declared type-parameter NAME. FullyQualifiedFormat renders
+		// an OriginalDefinition's parameter name verbatim — and the BCL declares
+		// ILogger<TCategoryName>, not ILogger<T> — so a "<T>"-shaped entry never matched a real
+		// ILogger<MyComponent> injection. The unbound form drops the parameter name entirely
+		// (IStringLocalizer<T> kept matching only because the BCL happens to name its param "T").
 		var original = type.OriginalDefinition ?? type;
-		var displayName = StripGlobalPrefix(original.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+		var displayName = (original is INamedTypeSymbol named && named.IsGenericType)
+			? StripGlobalPrefix(named.ConstructUnboundGenericType().ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+			: StripGlobalPrefix(original.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 
 		if (FrameworkAllowList.Contains(displayName))
 			return true;
