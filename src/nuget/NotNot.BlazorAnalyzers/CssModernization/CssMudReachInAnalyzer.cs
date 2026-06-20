@@ -12,7 +12,7 @@ namespace NotNot.BlazorAnalyzers.CssModernization;
 /// <summary>
 /// NNB_CSS009 — consumer scoped CSS must not REACH INTO MudBlazor internal <c>.mud-*</c> classes.
 /// <para>
-/// Sibling of <see cref="CssNnReachInAnalyzer"/> (NNB_CSS008, which guards the <c>.nn-*</c> namespace).
+/// Sibling of <see cref="CssNnReachInAnalyzer"/> (NNB_CSS008, which guards the <c>.nns-*</c> namespace).
 /// MudBlazor is the primitive layer wrapped internally by NnDesign; its <c>.mud-*</c> classes are
 /// PRIVATE implementation detail two layers down from the consumer. A consumer that restyles one
 /// (e.g. <c>::deep .mud-tab { min-width:80px }</c> or a bare <c>.mud-tabs-header { min-height:unset }</c>)
@@ -29,10 +29,10 @@ namespace NotNot.BlazorAnalyzers.CssModernization;
 /// presence (bare reach-ins exist; <c>::deep</c> into a sibling-library is out of scope).
 /// </para>
 /// <para>
-/// <b>Allow-list</b>: EMPTY. Unlike <c>.nn-*</c> (which publishes <c>.nn-chord-revealed</c> + the
-/// <c>.nns-*</c> sample marker as a public contract), MudBlazor exposes NO public <c>.mud-*</c> styling
-/// contract TO THIS CONSUMER — it is wrapped, not consumed directly. Every non-exempt <c>.mud-*</c>
-/// subject in consumer CSS is by definition a reach-in.
+/// <b>Allow-list</b>: EMPTY. Unlike <c>.nns-*</c> (which publishes <c>.nns-chord-revealed</c> as a
+/// public contract), MudBlazor exposes NO public <c>.mud-*</c> styling contract TO THIS CONSUMER — it
+/// is wrapped, not consumed directly. Every non-exempt <c>.mud-*</c> subject in consumer CSS is by
+/// definition a reach-in.
 /// </para>
 /// <para>
 /// <b>Exemptions</b> (ported from <see cref="CssNnReachInAnalyzer"/>): path buckets (the NnDesign producer's
@@ -80,7 +80,8 @@ public sealed class CssMudReachInAnalyzer : DiagnosticAnalyzer
             + "trigger sizing + fill/scroll via FillPanels / data-nn-fill), or style your OWN (non-mud) "
             + "element, optionally gated on a published ancestor state. The '.mud-*' as a STATE GATE on a "
             + "non-mud subject is allowed; the '.mud-*' as the SUBJECT is the violation. Allow-list: EMPTY "
-            + "(MudBlazor publishes no public '.mud-*' styling contract to the consumer). Exempt: NnDesign's "
+            + "(MudBlazor publishes no public '.mud-*' styling contract to the consumer, unlike '.nns-*' "
+            + "which publishes '.nns-chord-revealed'). Exempt: NnDesign's "
             + "own producer CSS / NotNot.BlazorDesign internals (the wrapper legitimately restyles "
             + "'.mud-*'), Pages/Samples/** + NnDesignSamples/**, samples CSS, global theme CSS. Per-file "
             + "opt-out: nnb_css009:allow-reachin: <reason>. Kill-switch: "

@@ -902,7 +902,7 @@ dotnet_diagnostic.NNB044.severity = warning
 **Category:** CssModernization
 **Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy · `NnDesignLayoutContract.VowSpec` SPEC-008
 
-Sibling of [NNB_CSS008](#NNB_CSS008) (which guards the `.nn-*` namespace). MudBlazor is the primitive layer wrapped internally by NnDesign; its `.mud-*` classes are private implementation detail two layers down from the consumer. A consumer that restyles one (e.g. `::deep .mud-tab { min-width:80px }` or a bare `.mud-tabs-header { min-height:unset }`) couples to MudBlazor's private DOM through the NnDesign wrapper and breaks when either layer's DOM changes. The sanctioned alternative is the NnDesign wrapper's published contract (declarative-`NnTabs` trigger-sizing default + `FillPanels` / per-panel `data-nn-fill`, `NnContentSection` params).
+Sibling of [NNB_CSS008](#NNB_CSS008) (which guards the `.nns-*` namespace). MudBlazor is the primitive layer wrapped internally by NnDesign; its `.mud-*` classes are private implementation detail two layers down from the consumer. A consumer that restyles one (e.g. `::deep .mud-tab { min-width:80px }` or a bare `.mud-tabs-header { min-height:unset }`) couples to MudBlazor's private DOM through the NnDesign wrapper and breaks when either layer's DOM changes. The sanctioned alternative is the NnDesign wrapper's published contract (declarative-`NnTabs` trigger-sizing default + `FillPanels` / per-panel `data-nn-fill`, `NnContentSection` params).
 
 **Same text-scan host + react-to/reach-into discriminator as NNB_CSS008**: the styled SUBJECT is the rightmost compound selector. A `.mud-*` class in subject position is a reach-in (warns). The same `.mud-*` as an ancestor / state gate on a non-mud subject is "react-to" (sanctioned).
 
@@ -918,7 +918,7 @@ Sibling of [NNB_CSS008](#NNB_CSS008) (which guards the `.nn-*` namespace). MudBl
 .vow-metatabs-content { overflow: auto; }
 ```
 
-**Allow-list: EMPTY** — unlike `.nn-*` (which publishes `.nn-chord-revealed` + `.nns-*` as a public contract), MudBlazor exposes no public `.mud-*` styling contract to the consumer. Every non-exempt `.mud-*` subject is a reach-in.
+**Allow-list: EMPTY** — unlike `.nns-*` (which publishes `.nns-chord-revealed` as a public contract), MudBlazor exposes no public `.mud-*` styling contract to the consumer. Every non-exempt `.mud-*` subject is a reach-in.
 
 **Path-based exception buckets** (analyzer skips diagnostic emission):
 
@@ -983,7 +983,7 @@ Viewport-relative units (`vh` `vw` `vmin` `vmax` and the dynamic variants `dvh` 
 
 | Bucket | Applies to |
 |--------|-----------|
-| NnDesign producer / wrapper internals | Any file under `**/NotNot.BlazorDesign/**` (owns the sanctioned viewport sizing: `nn-app-shell` 100vh, `.nn-popup` 90vw/85vh, `data-nn-fill="viewport"`) |
+| NnDesign producer / wrapper internals | Any file under `**/NotNot.BlazorDesign/**` (owns the sanctioned viewport sizing: `nns-app-shell` 100vh, `.nns-popup` 90vw/85vh, `data-nn-fill="viewport"`) |
 | Samples | `**/NnDesignSamples/**`, `**/Pages/Samples/**` |
 | Samples / global theme CSS | `nn-design-samples.css`, `app.css` (file-name allow-list) |
 
@@ -1005,7 +1005,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB022 | `NnDesignMudBlazorPolicyAnalyzer` | Error | Consumer `Mud*` markup / usings / identifiers |
 | NNB043 | `NnDesignTierBExposureAnalyzer` | Error | Producer `Nn*` component params |
 | NNB044 | `NnDesignInlineStyleAnalyzer` | Error | Consumer `.razor` static-literal inline `style=` |
-| NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nn-*` reach-in) |
+| NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nns-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 | NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
 

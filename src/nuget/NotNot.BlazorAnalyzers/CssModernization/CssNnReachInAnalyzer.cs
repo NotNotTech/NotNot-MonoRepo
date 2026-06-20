@@ -10,33 +10,34 @@ using Microsoft.CodeAnalysis.Text;
 namespace NotNot.BlazorAnalyzers.CssModernization;
 
 /// <summary>
-/// NNB_CSS008 — consumer scoped CSS must not REACH INTO NnDesign internal <c>.nn-*</c> classes.
+/// NNB_CSS008 — consumer scoped CSS must not REACH INTO NnDesign internal <c>.nns-*</c> classes.
 /// <para>
 /// The "mortal sin" detector. A consumer that restyles an NnDesign wrapper's internal class
-/// (e.g. <c>::deep .nn-content-section-body { }</c> or a bare <c>.nn-content-section-header { }</c>)
+/// (e.g. <c>::deep .nns-content-section-body { }</c> or a bare <c>.nns-content-section-header { }</c>)
 /// couples itself to NnDesign's private DOM and breaks the moment that DOM changes. The sanctioned
 /// "venial" act — a consumer styling its OWN element gated on an NnDesign-published root STATE
-/// (e.g. <c>html.nn-chord-revealed .my-consumer-class { }</c>) — is NOT flagged.
+/// (e.g. <c>html.nns-chord-revealed .my-consumer-class { }</c>) — is NOT flagged.
 /// </para>
 /// <para>
 /// <b>Core discriminator (react-to vs reach-into)</b>: the styled SUBJECT is the rightmost compound
-/// selector — the thing actually being restyled. An <c>.nn-*</c> class appearing as the SUBJECT is a
-/// reach-in (violation). The SAME <c>.nn-*</c> class appearing only as an ANCESTOR / state gate on a
-/// non-<c>nn</c> subject is "react-to" (sanctioned). The analyzer keys on subject position, not on the
+/// selector — the thing actually being restyled. An <c>.nns-*</c> class appearing as the SUBJECT is a
+/// reach-in (violation). The SAME <c>.nns-*</c> class appearing only as an ANCESTOR / state gate on a
+/// non-<c>nns</c> subject is "react-to" (sanctioned). The analyzer keys on subject position, not on the
 /// presence of <c>::deep</c> (which is neither necessary nor sufficient — bare reach-ins exist, and
 /// <c>::deep</c> into a different library's internals is out of scope).
 /// </para>
 /// <para>
-/// <b>Allow-list (public contract — never warn)</b>: <c>.nn-chord-revealed</c> (NnDesign-published
-/// public state token) and the <c>.nns-*</c> prefix (NnDesign sample-marker). Keyed on a TINY
-/// public-contract allow-list rather than a growing internal denylist: per the namespace-reclamation
-/// invariant the <c>nn-</c> prefix means "NnDesign owns this", so any non-allow-listed <c>.nn-*</c>
-/// subject in consumer CSS is by definition a reach-in.
+/// <b>Allow-list (public contract — never warn)</b>: <c>.nns-chord-revealed</c> (NnDesign-published
+/// public state token) only. Keyed on a TINY public-contract allow-list rather than a growing internal
+/// denylist: per the namespace-reclamation invariant the <c>nns-</c> prefix means "NnDesign owns this",
+/// so any non-allow-listed <c>.nns-*</c> subject in consumer CSS is by definition a reach-in. The
+/// samples surface is exempted by PATH bucket (below), never by a blanket prefix allow.
 /// </para>
 /// <para>
 /// <b>Exemptions</b> (ported from the NnDesign policy analyzer): path buckets (the NnDesign producer's
 /// own <c>nn-design.css</c> / <c>NotNot.BlazorDesign</c> internals; <c>Pages/Samples/**</c> and
-/// <c>NnDesignSamples/**</c>; samples CSS; global theme CSS), a per-file opt-out comment
+/// <c>NnDesignSamples/**</c>; samples CSS; global theme CSS — these are the SOLE samples exemption now
+/// that the blanket <c>.nns-*</c> prefix allow is gone), a per-file opt-out comment
 /// (<c>nnb_css008:allow-reachin: &lt;reason&gt;</c>), and the shared <c>CssAnalyzerEnabled=false</c>
 /// build-property kill-switch. Severity = Error (escalated from Warning once the consumer tree was verified reach-in-clean).
 /// </para>
@@ -64,19 +65,19 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     /// </summary>
     public static readonly DiagnosticDescriptor RuleNoNnReachIn = new(
         DiagnosticId,
-        "Do not reach into NnDesign internal .nn-* classes",
+        "Do not reach into NnDesign internal .nns-* classes",
         "Consumer CSS restyles NnDesign internal class '{0}'. Style your OWN element (optionally "
-            + "gated on a published NnDesign state like html.nn-chord-revealed) or use the wrapper's "
+            + "gated on a published NnDesign state like html.nns-chord-revealed) or use the wrapper's "
             + "public parameter/component (e.g. NnContentSection.MaxHeight / NoHeaderBorder, "
-            + "NnContentSectionGroup) instead of reaching into '.nn-*' internals. (NNB_CSS008)",
+            + "NnContentSectionGroup) instead of reaching into '.nns-*' internals. (NNB_CSS008)",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
-        description: "An NnDesign wrapper's internal '.nn-*' classes are private implementation detail. "
-            + "A consumer that restyles one (the rightmost/subject selector being an '.nn-*' class — "
+        description: "An NnDesign wrapper's internal '.nns-*' classes are private implementation detail. "
+            + "A consumer that restyles one (the rightmost/subject selector being an '.nns-*' class — "
             + "with or without ::deep) couples to NnDesign's private DOM and breaks when that DOM "
-            + "changes. Sanctioned alternative: style your OWN (non-nn) element, optionally gated on a "
-            + "published NnDesign ancestor state (html.nn-chord-revealed .your-class) — the '.nn-*' as a "
-            + "STATE GATE on a non-nn subject is allowed; the '.nn-*' as the SUBJECT is the violation. "
-            + "Public-contract allow-list (never flagged): .nn-chord-revealed, .nns-* (sample marker). "
+            + "changes. Sanctioned alternative: style your OWN (non-nns) element, optionally gated on a "
+            + "published NnDesign ancestor state (html.nns-chord-revealed .your-class) — the '.nns-*' as a "
+            + "STATE GATE on a non-nns subject is allowed; the '.nns-*' as the SUBJECT is the violation. "
+            + "Public-contract allow-list (never flagged): .nns-chord-revealed. "
             + "Exempt: NnDesign's own producer CSS / NotNot.BlazorDesign internals, Pages/Samples/** + "
             + "NnDesignSamples/**, samples CSS, global theme CSS. Per-file opt-out: "
             + "nnb_css008:allow-reachin: <reason>. Kill-switch: <CssAnalyzerEnabled>false</CssAnalyzerEnabled>.",
@@ -85,12 +86,12 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     // ── Regex patterns ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Matches a single <c>.nn-*</c> class token (the leading dot is required so attribute values and
-    /// identifiers like <c>data-nn-fill</c> or element names don't match). Case-sensitive: CSS class
+    /// Matches a single <c>.nns-*</c> class token (the leading dot is required so attribute values and
+    /// identifiers like <c>data-nns-fill</c> or element names don't match). Case-sensitive: CSS class
     /// names are case-sensitive and the NnDesign convention is lowercase.
     /// </summary>
     private static readonly Regex NnClassToken = new(
-        @"\.nn-[A-Za-z0-9_-]+",
+        @"\.nns-[A-Za-z0-9_-]+",
         RegexOptions.Compiled);
 
     /// <summary>Path segments identifying vendor/third-party files to skip (mirrors CssModernizationAnalyzer).</summary>
@@ -163,7 +164,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     /// <summary>
     /// Walks every selector list (the text preceding each top-level <c>{</c>), splits on commas into
     /// individual selectors, isolates the SUBJECT (rightmost compound selector), and reports when the
-    /// subject restyles a non-allow-listed <c>.nn-*</c> class.
+    /// subject restyles a non-allow-listed <c>.nns-*</c> class.
     /// </summary>
     private static void AnalyzeSelectors(
         CompilationAnalysisContext ctx, string filePath, SourceText src, string text,
@@ -212,7 +213,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
         string selectorList, int listOffset, List<(int Start, int End)> comments)
     {
         // A selector list is comma-separated. Each comma-part is an independent selector with its own
-        // subject. Track running offset so reported positions point at the offending .nn-* token.
+        // subject. Track running offset so reported positions point at the offending .nns-* token.
         var partStart = 0;
         for (var i = 0; i <= selectorList.Length; i++)
         {
@@ -236,15 +237,15 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
         // The SUBJECT is the rightmost compound selector — the run of simple selectors after the last
         // combinator (descendant whitespace, `>`, `+`, `~`) OR after the last `::deep` / pseudo that
         // separates ancestor context from the styled element. We compute the subject's char range
-        // within `selector`, then look for a violating .nn-* token ONLY inside that range. An .nn-*
+        // within `selector`, then look for a violating .nns-* token ONLY inside that range. An .nns-*
         // appearing earlier (ancestor/state-gate position) is "react-to" → ignored.
         var subjectStart = FindSubjectStart(selector);
 
-        // Examine the subject substring for .nn-* class tokens.
+        // Examine the subject substring for .nns-* class tokens.
         var subject = selector.Substring(subjectStart);
         foreach (Match m in NnClassToken.Matches(subject))
         {
-            var token = m.Value;               // e.g. ".nn-content-section-body"
+            var token = m.Value;               // e.g. ".nns-content-section-body"
             if (IsAllowListed(token))
                 continue;
 
@@ -295,17 +296,16 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Public-contract allow-list: <c>.nn-chord-revealed</c> (exact) and the <c>.nns-*</c> prefix.
-    /// These never count as reach-ins even when they appear in subject position.
+    /// Public-contract allow-list: <c>.nns-chord-revealed</c> (exact) only. Never counts as a reach-in
+    /// even when it appears in subject position. There is deliberately NO blanket <c>.nns-*</c> prefix
+    /// allow — the <c>.nns-*</c> prefix now denotes NnDesign INTERNALS (the very thing this analyzer
+    /// guards), so a blanket allow would silently dormant the rule. Samples are exempted by PATH bucket
+    /// (<see cref="IsExceptedPath"/>), not by prefix.
     /// </summary>
     private static bool IsAllowListed(string nnToken)
     {
-        // `.nns-*` sample-marker prefix.
-        if (nnToken.StartsWith(".nns-", StringComparison.Ordinal))
-            return true;
-
-        // `.nn-chord-revealed` published public state token (exact match).
-        if (string.Equals(nnToken, ".nn-chord-revealed", StringComparison.Ordinal))
+        // `.nns-chord-revealed` published public state token (exact match).
+        if (string.Equals(nnToken, ".nns-chord-revealed", StringComparison.Ordinal))
             return true;
 
         return false;
@@ -314,8 +314,10 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     // ── Exemptions (ported from NnDesignMudBlazorPolicyAnalyzer) ──────────────
 
     /// <summary>
-    /// Path-bucket exemption. Producer CSS / wrapper internals legitimately DEFINE <c>.nn-*</c>;
-    /// samples + global theme are not consumers reaching in.
+    /// Path-bucket exemption. Producer CSS / wrapper internals legitimately DEFINE <c>.nns-*</c>;
+    /// samples + global theme are not consumers reaching in. This is the SOLE samples exemption — the
+    /// blanket <c>.nns-*</c> prefix allow was removed (it would dormant the guard post-rename), so the
+    /// samples surface relies entirely on these path / file-name buckets.
     /// </summary>
     private static bool IsExceptedPath(string filePath)
     {
@@ -324,7 +326,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
 
         var p = filePath.Replace('\\', '/');
 
-        // The NnDesign producer / wrapper layer itself legitimately defines .nn-* classes.
+        // The NnDesign producer / wrapper layer itself legitimately defines .nns-* classes.
         if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0)
             return true;
 
@@ -340,8 +342,8 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// File-name allow-list — samples CSS + global theme CSS, where <c>.nn-*</c> / <c>.nns-*</c> roots
-    /// are authored legitimately rather than reached into.
+    /// File-name allow-list — samples CSS + global theme CSS, where <c>.nns-*</c> roots are authored
+    /// legitimately rather than reached into.
     /// </summary>
     private static readonly HashSet<string> AllowedFileNames = new(StringComparer.OrdinalIgnoreCase)
     {
