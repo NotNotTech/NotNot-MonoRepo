@@ -16,7 +16,7 @@ namespace NotNot.BlazorAnalyzers.Tests.NnDesign;
 ///   <item><see cref="Schema_IsInSync_With_Live_Producer"/> reads the REAL schema + every schema-declared
 ///         <c>.razor</c> file + the REAL <c>nn-design.css</c> off disk and asserts ZERO drift.</item>
 ///   <item>The <c>Drift_*</c> facts INJECT deliberate drift (a fake live Tier-A param; a removed schema
-///         entry; a removed live slot; an unsupported <c>data-nn-fill</c> mode) and assert the pass CATCHES
+///         entry; a removed live slot; an unsupported <c>data-nns-fill</c> mode) and assert the pass CATCHES
 ///         it. "The schema exists" / "it compiles" is NOT the proof — the drift-catch is.</item>
 /// </list>
 /// All paths resolve relative to THIS test source file (<see cref="ThisFile"/> via
@@ -195,8 +195,8 @@ public class NnComponentContractValidatorTests
     {
         var (schema, live, _) = LoadRealInputs();
 
-        // Empty the CSS-supported mode set (simulates declaring a data-nn-fill mode the CSS does not back —
-        // e.g. a schema entry 'viewport' with the matching :where([data-nn-fill="viewport"]) hook deleted).
+        // Empty the CSS-supported mode set (simulates declaring a data-nns-fill mode the CSS does not back —
+        // e.g. a schema entry 'viewport' with the matching :where([data-nns-fill="viewport"]) hook deleted).
         var noCssModes = ImmutableHashSet<string>.Empty;
 
         var drift = NnComponentContractValidator.Diff(schema, live, noCssModes);
@@ -226,7 +226,7 @@ public class NnComponentContractValidatorTests
             [component] Probe
             razor: x/Probe.razor
             tier-a: A
-            data-nn-fill: content, scroll (css-exempt)
+            data-nns-fill: content, scroll (css-exempt)
             slots: none
             """);
         var live = new Dictionary<string, NnComponentContractValidator.LiveComponentSurface>

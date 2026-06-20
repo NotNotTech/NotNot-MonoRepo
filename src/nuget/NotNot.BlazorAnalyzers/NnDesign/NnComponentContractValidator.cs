@@ -10,12 +10,12 @@ namespace NotNot.BlazorAnalyzers.NnDesign;
 /// NnDesign component-contract DIFF/VALIDATION engine (Phase-3.3 5B — schema-as-data, FIRST increment).
 /// <para>
 /// A component-contract SCHEMA (the declarative <c>NnComponentContracts.NnContract.md</c> in the producer)
-/// declares, per component, its Tier-A parameter surface, supported <c>data-nn-fill</c> modes, and slots.
+/// declares, per component, its Tier-A parameter surface, supported <c>data-nns-fill</c> modes, and slots.
 /// A schema describes what SHOULD be; it does NOT by itself prove the live components match it. THIS class
 /// is the closure: it parses the schema text + the LIVE <c>.razor</c> component source + the canonical
 /// <c>nn-design.css</c>, and emits <see cref="ContractDrift"/> findings for every divergence —
 /// a live Tier-A param absent from the schema, a schema param absent from the component, a slot mismatch,
-/// or a declared <c>data-nn-fill</c> mode with no supporting CSS hook.
+/// or a declared <c>data-nns-fill</c> mode with no supporting CSS hook.
 /// </para>
 /// <para>
 /// <b>Text-grounded, dependency-free (netstandard2.0).</b> Mirrors <see cref="NnTokensGenerator"/>'s
@@ -44,7 +44,7 @@ public static class NnComponentContractValidator
         /// <summary>A schema-declared slot is NOT present on the live component.</summary>
         SchemaSlotMissingFromComponent,
 
-        /// <summary>A schema-declared non-<c>content</c> <c>data-nn-fill</c> mode has no supporting CSS hook.</summary>
+        /// <summary>A schema-declared non-<c>content</c> <c>data-nns-fill</c> mode has no supporting CSS hook.</summary>
         DeclaredFillModeUnsupportedByCss,
 
         /// <summary>The schema names a <c>razor:</c> path that could not be read.</summary>
@@ -123,7 +123,7 @@ public static class NnComponentContractValidator
         @"^\[component\]\s+(?<name>\S+)\s*$", RegexOptions.Compiled);
 
     private static readonly Regex FieldLine = new(
-        @"^(?<key>razor|tier-a|data-nn-fill|slots)\s*:\s*(?<val>.*)$", RegexOptions.Compiled);
+        @"^(?<key>razor|tier-a|data-nns-fill|slots)\s*:\s*(?<val>.*)$", RegexOptions.Compiled);
 
     /// <summary>Strips a trailing inline <c>#</c> comment (the schema allows end-of-line comments).</summary>
     private static string StripInlineComment(string s)
@@ -135,7 +135,7 @@ public static class NnComponentContractValidator
     /// <summary>
     /// Parses the declarative schema text into per-component <see cref="ComponentSchema"/> blocks.
     /// Honors the line-based block format documented in <c>NnComponentContracts.NnContract.md</c>:
-    /// <c>[component] Name</c> opens a block; <c>razor:</c> / <c>tier-a:</c> / <c>data-nn-fill:</c> /
+    /// <c>[component] Name</c> opens a block; <c>razor:</c> / <c>tier-a:</c> / <c>data-nns-fill:</c> /
     /// <c>slots:</c> set its fields; a trailing <c>|</c> on a <c>tier-a:</c> line continues the list; a
     /// <c>(css-exempt)</c> suffix on a mode marks it as not requiring a CSS hook.
     /// </summary>
@@ -212,7 +212,7 @@ public static class NnComponentContractValidator
                     if (hasContinuation) val = val.Substring(0, val.Length - 1);
                     tierA.AddRange(SplitCsv(val));
                     break;
-                case "data-nn-fill":
+                case "data-nns-fill":
                     foreach (var token in SplitCsv(val))
                     {
                         var mode = token;
@@ -298,8 +298,8 @@ public static class NnComponentContractValidator
     // ── CSS mode-hook scan ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns the set of <c>data-nn-fill</c> mode VALUES that have at least one supporting CSS hook
-    /// (<c>[data-nn-fill="value"]</c>) anywhere in the supplied stylesheet. Used to verify a schema-declared
+    /// Returns the set of <c>data-nns-fill</c> mode VALUES that have at least one supporting CSS hook
+    /// (<c>[data-nns-fill="value"]</c>) anywhere in the supplied stylesheet. Used to verify a schema-declared
     /// non-<c>content</c> mode is actually backed by CSS (the manifesto's "one block per supported value"
     /// rule) — unless the schema marks the mode <c>(css-exempt)</c>.
     /// </summary>
@@ -314,7 +314,7 @@ public static class NnComponentContractValidator
     }
 
     private static readonly Regex CssFillHook = new(
-        @"\[\s*data-nn-fill\s*=\s*""(?<mode>[a-z]+)""\s*\]", RegexOptions.Compiled);
+        @"\[\s*data-nns-fill\s*=\s*""(?<mode>[a-z]+)""\s*\]", RegexOptions.Compiled);
 
     // ── The diff/validation pass ──────────────────────────────────────────────
 
@@ -400,7 +400,7 @@ public static class NnComponentContractValidator
                 {
                     drift.Add(new ContractDrift(
                         block.Component, DriftKind.DeclaredFillModeUnsupportedByCss,
-                        $"schema declares data-nn-fill='{mode}' but nn-design.css has no [data-nn-fill=\"{mode}\"] hook"));
+                        $"schema declares data-nns-fill='{mode}' but nn-design.css has no [data-nns-fill=\"{mode}\"] hook"));
                 }
             }
         }
