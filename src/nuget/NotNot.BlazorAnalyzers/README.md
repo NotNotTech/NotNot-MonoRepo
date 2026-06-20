@@ -311,6 +311,61 @@ Apply this to assemblies whose render-mode architecture predates or doesn't use 
 dotnet_diagnostic.NN_RM_001.severity = error
 ```
 
+<a id="nn_nnd_async_002"></a>
+### NN_NND_ASYNC_002: NnAsyncBoundComponentBase subclass lifecycle override must call base
+
+**Severity:** Warning
+**Category:** NnDesign Convention
+
+Complement to NN_NND_ASYNC_001 (which enforces "a sync handler must NOT observe async mixin state"). NN_NND_ASYNC_002 enforces the converse contract on the inheritance layer: a subclass of `NotNot.BlazorDesign.NnDesign.AsyncBound.NnAsyncBoundComponentBase<TValue>` that overrides a lifecycle method **the base itself implements** must call `base.{Method}(...)`.
+
+`NnAsyncBoundComponentBase<TValue>` performs essential per-lifecycle bookkeeping: `OnInitialized` constructs the `Behavior` save machine and seeds the `_lastCommitted` self-coerce-echo sidecar; `OnParametersSet` refreshes `_lastCommitted` from genuine external parameter changes; `Dispose` disposes the `Behavior`. An override that omits the base call silently freezes that work — `_lastCommitted` never refreshes (stale self-coerce-echo discriminator) or the `Behavior` is never constructed (no save machine). **Authority:** the trio-rollout P2 finding (commit `293aaf72`) — `NnChipSetSingle`/`NnChipSetMulti` shipped this latent override-without-base until peer review caught it.
+
+**Why semantic, not syntactic.** A plain `ComponentBase` subclass overriding `OnParametersSet` without `base` is fine (ComponentBase's impl is a no-op). The defect is specific to `NnAsyncBoundComponentBase`, whose lifecycle methods carry real work. The analyzer resolves the override's `OverriddenMethod` chain and fires only when a link's `ContainingType.OriginalDefinition` is `NnAsyncBoundComponentBase<TValue>` **and** that link is non-abstract (the base supplies a real impl). This single check auto-excludes plain `ComponentBase` overrides, methods the base does not implement (e.g. `OnAfterRender`), and the Razor-compiler-generated `BuildRenderTree` override (whose base is `ComponentBase`).
+
+**Generated-code analysis.** The most common defect form lives in `.razor` `@code` blocks, which compile to Razor-generated C# (`.g.cs`). Unlike NN_NND_ASYNC_001, this analyzer registers with `GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics` so an override-without-base inside component `@code` is caught. The precise base-chain check above is the false-positive guard against the Razor-emitted `BuildRenderTree` that generated-code analysis also surfaces.
+
+> **Accepted limitation:** the `Analyze` flag surfaces _all_ generated code, not only Razor `.g.cs`. A non-Razor source generator emitting an `NnAsyncBoundComponentBase` subclass with a base-omitting lifecycle override would also fire (and the consumer can suppress only via `#pragma` / `.editorconfig`, since generated source is not hand-editable). This is accepted: no such generator exists, and a `.razor.g.cs` path-gate would be fragile filepath coupling. The analyzer's soundness depends on `NnAsyncBoundComponentBase` never overriding a Razor-synthesized member (`BuildRenderTree` / `SetParametersAsync`) — an invariant comment guards this on the base's lifecycle region.
+
+```csharp
+// ❌ NN_NND_ASYNC_002 fires — override omits base.OnParametersSet()
+public class NnWidget : NnAsyncBoundComponentBase<int>
+{
+    protected override void OnParametersSet()
+    {
+        // _lastCommitted never refreshes — stale self-coerce-echo discriminator.
+        RecomputeLayout();
+    }
+}
+
+// ✅ No diagnostic — base call present (conventionally the first statement)
+public class NnWidget : NnAsyncBoundComponentBase<int>
+{
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        RecomputeLayout();
+    }
+}
+```
+
+The base call may appear anywhere in the body (the rule is presence-based, not first-statement) and an expression-bodied override (`=> base.OnParametersSet()`) satisfies it. Detected lifecycle methods are exactly those `NnAsyncBoundComponentBase` itself implements: `OnInitialized`, `OnParametersSet`, and `Dispose`.
+
+**Suppression** — only when the base bookkeeping is genuinely undesired (rare):
+
+```csharp
+#pragma warning disable NN_NND_ASYNC_002 // Documented reason: base bookkeeping intentionally skipped
+protected override void OnParametersSet() { /* ... */ }
+#pragma warning restore NN_NND_ASYNC_002
+```
+
+Or project/folder-wide via `.editorconfig`:
+
+```ini
+[*.{cs,razor}]
+dotnet_diagnostic.NN_NND_ASYNC_002.severity = warning
+```
+
 <a id="nnb002"></a>
 ### NNB002: JS Reference Disposal Required
 
