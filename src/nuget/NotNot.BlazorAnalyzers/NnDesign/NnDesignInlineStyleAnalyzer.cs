@@ -44,10 +44,9 @@ namespace NotNot.BlazorAnalyzers.NnDesign;
 /// marker; and the shared <c>NnDesignPolicyAnalyzerEnabled=false</c> build-property kill-switch.
 /// </para>
 /// <para>
-/// <b>Severity</b> = Warning. The static-literal Slice-3 conformity sweep is NOT yet done, so the consumer
-/// tree still carries the static-literal bulk; an Error would break the build. Warning surfaces the gap
-/// honestly and reveals the authoritative Slice-3 migration scope (its fire count + file list). Ratchets to
-/// Error only AFTER the conformity slice clears the consumer surface (Appendix A target: Warning → Error).
+/// <b>Severity</b> = Error. The static-literal Slice-3 conformity sweep cleared the consumer surface —
+/// NNB044 fires ZERO across consumer markup — so any NEW static-literal inline style breaks the build.
+/// Soften locally via <c>dotnet_diagnostic.NNB044.severity</c> when a transient exception is intended.
 /// </para>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
