@@ -781,14 +781,14 @@ Or project/folder-wide via `.editorconfig`:
 
 ```ini
 [*.cs]
-dotnet_diagnostic.NNB045.severity = warning
+dotnet_diagnostic.NNB045.severity = error
 ```
 
-**Default severity is Warning** — a new ordering rule promotes to `error` once proven quiet across a full solution build:
+**Default severity is Error** — promoted from the initial Warning rollout after proving quiet across a full solution build (zero violations tree-wide). To relax to a non-breaking warning in a specific project:
 
 ```ini
 [*.cs]
-dotnet_diagnostic.NNB045.severity = error
+dotnet_diagnostic.NNB045.severity = warning
 ```
 
 <a id="nnb041"></a>
@@ -1106,8 +1106,8 @@ dotnet_diagnostic.NNB011.severity = error
 dotnet_diagnostic.NNB012.severity = error
 dotnet_diagnostic.NNB013.severity = error
 
-# Async lifecycle transition-guard ordering (default: warning)
-dotnet_diagnostic.NNB045.severity = warning
+# Async lifecycle transition-guard ordering (default: error)
+dotnet_diagnostic.NNB045.severity = error
 
 # LiteDDD boundary rules (default: warning)
 dotnet_diagnostic.NN_LDDD_001.severity = warning

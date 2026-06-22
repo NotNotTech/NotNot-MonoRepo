@@ -31,7 +31,7 @@ public class TransitionGuardClaimAfterAwaitAnalyzerTests
 
 	private static DiagnosticResult ClaimAfterAwaitDiagnostic(string lifecycleMethod, string guardField)
 	{
-		return new DiagnosticResult(TransitionGuardClaimAfterAwaitAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+		return new DiagnosticResult(TransitionGuardClaimAfterAwaitAnalyzer.DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
 			.WithLocation(0)
 			.WithArguments(lifecycleMethod, guardField);
 	}

@@ -63,13 +63,13 @@ public sealed class TransitionGuardClaimAfterAwaitAnalyzer : DiagnosticAnalyzer
 		+ "persisted -> snapshot -> declared default). Canonical reference: the claim-then-await pattern "
 		+ "in VowSessionMetaPanel.OnParametersSetAsync.";
 
-	/// <summary>NNB045 descriptor — Warning, Lifecycle category.</summary>
+	/// <summary>NNB045 descriptor — Error, Lifecycle category.</summary>
 	public static readonly DiagnosticDescriptor Rule = new(
 		DiagnosticId,
 		Title,
 		MessageFormat,
 		Category,
-		DiagnosticSeverity.Warning,
+		DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
 		description: Description,
 		helpLinkUri: HelpBase + "nnb045");
