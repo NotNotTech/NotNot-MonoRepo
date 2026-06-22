@@ -710,6 +710,87 @@ public async ValueTask DisposeAsync()
 - v1 scope: `DisposeAsync` methods in Blazor components only
 - Code fix not yet implemented (coming in v2)
 
+<a id="nnb045"></a>
+### NNB045: Transition-guard field claimed after `await` in async lifecycle
+
+**Severity:** Warning
+**Category:** Lifecycle
+
+Detects a parameter-transition guard `if (x != _field)` whose block assigns `_field = …` lexically AFTER the first `await`, inside an `async` Blazor lifecycle override (`OnParametersSetAsync` primary; `OnInitializedAsync` / `OnAfterRenderAsync` secondary) of a `ComponentBase`-derived type.
+
+Blazor re-invokes async lifecycle methods (especially `OnParametersSetAsync`, on every parameter change) and renders the component tree at each `await` suspension. A guard that claims `_field` only after an `await` leaves it **unclaimed across the await window**: a re-entrant pass re-runs the side-effecting block (duplicate work), and any child component whose post-render restore (e.g. persisted expand-state) lands during the window is **clobbered** by the resumed continuation's late reset.
+
+```csharp
+// ❌ NNB045 fires — guard field claimed AFTER the awaits
+public class UserInputsPanel : ComponentBase
+{
+    private string? _currentSessionId;
+    [Parameter] public string? newId { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (newId != _currentSessionId)
+        {
+            await _cts.CancelAsync();
+            await Unregister(_currentSessionId);
+            _currentSessionId = newId;   // ← unclaimed across the awaits
+        }
+    }
+}
+
+// ✅ claim-then-await — claim synchronously, then do async teardown
+public class UserInputsPanel : ComponentBase
+{
+    private string? _currentSessionId;
+    [Parameter] public string? newId { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (newId != _currentSessionId)
+        {
+            var previous = _currentSessionId;
+            _currentSessionId = newId;   // ← claimed BEFORE any await
+            await _cts.CancelAsync();
+            await Unregister(previous);
+        }
+    }
+}
+```
+
+**The fix** is to hoist the `_field` claim — and the block's synchronous state resets — above the first `await`, so the first render emitted at the await already reflects the new transition's state. The canonical reference is the claim-then-await pattern in `VowSessionMetaPanel.OnParametersSetAsync`.
+
+**Seed order** when hoisting state resets: `persisted -> snapshot -> declared default`. A declared-default reset that runs after an await is the residual D2 class (a child's persisted restore landing during the await window is overwritten by the late default) — D2 is undecidable without annotation and is NOT enforced; NNB045 enforces the precise, sound D1 point (the guard-field claim itself), which in every observed instance co-occurred with the late resets.
+
+**Detection** is semantic for two facts (the containing type derives from `ComponentBase`, and the guard-field symbol compared in the `!=` equals the field assigned after the await); ordering is syntactic (span comparison).
+
+**When NNB045 does NOT fire:**
+- Claim appears BEFORE the first `await` in the block (the claim-then-await fix).
+- The guard block has no assignment to the compared field.
+- The enclosing type is not a `ComponentBase`-derived component (a coincidentally-named `OnParametersSetAsync` elsewhere).
+- The assignment lives inside a nested lambda or local function after the await (deferred execution — not a synchronous claim).
+
+**Suppression** — only when awaiting before the claim is genuinely required (rare):
+
+```csharp
+#pragma warning disable NNB045 // Documented reason: await must precede the claim here
+_currentSessionId = newId;
+#pragma warning restore NNB045
+```
+
+Or project/folder-wide via `.editorconfig`:
+
+```ini
+[*.cs]
+dotnet_diagnostic.NNB045.severity = warning
+```
+
+**Default severity is Warning** — a new ordering rule promotes to `error` once proven quiet across a full solution build:
+
+```ini
+[*.cs]
+dotnet_diagnostic.NNB045.severity = error
+```
+
 <a id="nnb041"></a>
 ### NNB041: ReplaceUrlStateAsync requires adjacent component-state mutation
 
@@ -1024,6 +1105,9 @@ dotnet_diagnostic.NNB010.severity = error
 dotnet_diagnostic.NNB011.severity = error
 dotnet_diagnostic.NNB012.severity = error
 dotnet_diagnostic.NNB013.severity = error
+
+# Async lifecycle transition-guard ordering (default: warning)
+dotnet_diagnostic.NNB045.severity = warning
 
 # LiteDDD boundary rules (default: warning)
 dotnet_diagnostic.NN_LDDD_001.severity = warning
