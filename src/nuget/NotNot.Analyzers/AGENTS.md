@@ -76,6 +76,27 @@ Catch blocks with zero statements silently swallow exceptions. Any exception typ
 
 **Key principle**: Even legitimate race-condition catches must not be empty — observability requires at minimum a DebugAssert or log statement.
 
+### NN_R007: Hand-Rolled Atomic File Write
+
+A write to a DETERMINISTIC temp path followed by `File.Move(temp, final, overwrite: true)` — a hand-rolled atomic write missing the unique-temp + per-path-serialization concurrency guard. Concurrent writers collide on the shared `.tmp` (Windows `ERROR_SHARING_VIOLATION`); racing overwrite-renames to one destination are not mutually safe.
+
+**Severity**: Error
+**Flagged**: `File.Move(temp, final, overwrite: true)` where `temp` resolves (local declaration OR inline) to a DETERMINISTIC `+ ".tmp"` concat (no `Guid`/`Random`/`Ticks`/`GetRandomFileName`/`GetTempFileName` in the concat tree).
+**Allowed**:
+- `NotNot.Storage.AtomicFileWriter.WriteAtomic` / `WriteAtomicAsync` — the sanctioned helper (its temp is minted via a method call, not a literal-bearing deterministic concat).
+- Unique temp: `var tmp = finalPath + "." + Guid.NewGuid().ToString("N") + ".tmp";` (Guid → unique, not deterministic).
+- `File.Move(a, b)` — no `overwrite: true` (not the temp-then-rename idiom).
+- `File.WriteAllText(finalPath, ...)` — direct final write, no temp + Move.
+
+**Preferred Fix** (in order):
+1. `NotNot.Storage.AtomicFileWriter.WriteAtomic` / `WriteAtomicAsync` (unique temp + per-path lock + bounded retry). A `WriteAtomic(string finalPath, IEnumerable<string> lines, Encoding? = null)` overload mirrors `File.WriteAllLines`.
+2. If `AtomicFileWriter` is unavailable: a UNIQUE temp (`finalPath + Guid + ".tmp"`) AND per-final-path serialization of the write+rename — the unique temp and the per-path lock are BOTH required; removing either re-opens a race.
+3. `#pragma warning disable NN_R007` only if the write is provably single-threaded AND single-process for the file's lifetime.
+
+**Key principle**: Unique-name alone is insufficient — two racers each still `Move(uniqueTmp → SAME finalPath, overwrite:true)`; the entire write+replace pair must serialize per normalized final path.
+
+Complementary to NN_R001/NN_R002 (Task-concurrency) and NN_R005/NN_R006 (catch-reliability) on a disjoint axis — NN_R007 is the file-I/O concurrency-reliability rule.
+
 ### NN_C003: Boolean Default False
 
 Enforces the `BOOLEAN_DEFAULT_FALSE` convention — boolean parameters, properties, and fields must default to `false`, not `true`. Default-true booleans silently flip behavior on consumers who don't know to opt out; default-false forces explicit opt-in and keeps the read surface unsurprising.
@@ -172,6 +193,7 @@ Complementary to NN_C004 (AppSettingsCodeDefault) on a disjoint axis: C004 = wri
 | `Reliability/Exceptions/CatchBlockMustRethrowAnalyzer.cs` | NN_R005 |
 | `Reliability/Exceptions/EmptyCatchBlockAnalyzer.cs` | NN_R006 |
 | `Reliability/Concurrency/TaskAwaitedOrReturnedAnalyzer.cs` | NN_R001 |
+| `Reliability/Concurrency/HandRolledAtomicFileWriteAnalyzer.cs` | NN_R007 |
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
 | `Conventions/AppSettingsCodeDefaultAnalyzer.cs` | NN_C004 |
 | `Conventions/NnAppSettingsServerOnlyReadAnalyzer.cs` | NN_C005 |

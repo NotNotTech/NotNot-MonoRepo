@@ -102,6 +102,48 @@ public static class AtomicFileWriter
 		ArgumentNullException.ThrowIfNull(finalPath);
 		ArgumentNullException.ThrowIfNull(contents);
 
+		WriteAtomicCore(finalPath, tempPath =>
+		{
+			if (encoding is null)
+				File.WriteAllText(tempPath, contents);
+			else
+				File.WriteAllText(tempPath, contents, encoding);
+		});
+	}
+
+	/// <summary>
+	/// Atomically and concurrency-safely writes <paramref name="lines"/> to <paramref name="finalPath"/>
+	/// (synchronous, line-oriented — the <see cref="File.WriteAllLines(string, IEnumerable{string})"/>
+	/// analogue of <see cref="WriteAtomic(string, string, Encoding?)"/>). Use for line-delimited callers
+	/// (e.g. JSONL trims / appends rewritten in place). Shares the SAME per-path serialization, unique
+	/// temp, and bounded external-lock retry as the string overload — the lines are written to the per-call
+	/// unique temp, then an atomic rename replaces the final file (so a reader never observes a torn file).
+	/// </summary>
+	/// <param name="finalPath">Destination file path. On Windows, case-equivalent spellings share one write gate; on case-sensitive platforms only exact-case spellings do.</param>
+	/// <param name="lines">Lines to write (one per element), via <see cref="File.WriteAllLines(string, IEnumerable{string})"/> semantics.</param>
+	/// <param name="encoding">Optional encoding (default: UTF-8 without BOM, matching <see cref="File.WriteAllLines(string, IEnumerable{string})"/>).</param>
+	public static void WriteAtomic(string finalPath, IEnumerable<string> lines, Encoding? encoding = null)
+	{
+		ArgumentNullException.ThrowIfNull(finalPath);
+		ArgumentNullException.ThrowIfNull(lines);
+
+		WriteAtomicCore(finalPath, tempPath =>
+		{
+			if (encoding is null)
+				File.WriteAllLines(tempPath, lines);
+			else
+				File.WriteAllLines(tempPath, lines, encoding);
+		});
+	}
+
+	/// <summary>
+	/// Shared synchronous core for the string + lines overloads: serializes per normalized final path,
+	/// writes to a per-call UNIQUE temp via <paramref name="writeTempContent"/>, then atomic-renames it
+	/// into place under a bounded transient-external-lock retry. Factored so the gate + retry machinery has
+	/// ONE owner (the unique-temp + per-path-lock concurrency guard is identical regardless of payload shape).
+	/// </summary>
+	private static void WriteAtomicCore(string finalPath, Action<string> writeTempContent)
+	{
 		var full = Path.GetFullPath(finalPath);
 		var gate = GetGate(GateKey(full));
 		gate.Wait();
@@ -112,10 +154,7 @@ public static class AtomicFileWriter
 				var tempPath = MakeTempPath(full);
 				try
 				{
-					if (encoding is null)
-						File.WriteAllText(tempPath, contents);
-					else
-						File.WriteAllText(tempPath, contents, encoding);
+					writeTempContent(tempPath);
 					File.Move(tempPath, full, overwrite: true);
 					return;
 				}

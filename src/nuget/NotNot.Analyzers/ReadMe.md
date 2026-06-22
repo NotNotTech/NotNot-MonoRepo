@@ -231,6 +231,47 @@ catch (IOException ex)
 }
 ```
 
+<a id="NN_R007"></a>
+### NN_R007: Hand-rolled atomic file write is not concurrency-safe
+**Severity:** Error
+**Category:** Reliability
+
+Detects a hand-rolled atomic file write — a write to a **deterministic** `.tmp` path followed by `File.Move(temp, final, overwrite: true)` — that lacks the unique-temp + per-path-serialization concurrency guard. Two correctness mechanisms are **both** required; removing either re-opens a race:
+
+1. **Unique temp name per writer** — on Windows the default `FileShare.Read` on a *shared* `.tmp` open makes the second same-path writer throw `ERROR_SHARING_VIOLATION`.
+2. **Per-final-path serialization of the entire write+rename** — concurrent `MoveFileEx`/`MOVEFILE_REPLACE_EXISTING` calls racing **one** destination are not mutually safe; the losing rename throws.
+
+```csharp
+// ❌ Flagged (fires at the File.Move) — deterministic temp + overwrite-rename, no concurrency guard
+var tempPath = filePath + ".tmp";          // deterministic concat ending in ".tmp"
+File.WriteAllText(tempPath, json);
+File.Move(tempPath, filePath, overwrite: true);
+
+// ✅ Option 1 (preferred): the sanctioned helper — unique temp + per-path lock + bounded retry
+NotNot.Storage.AtomicFileWriter.WriteAtomic(filePath, json);
+NotNot.Storage.AtomicFileWriter.WriteAtomic(filePath, lines);          // IEnumerable<string> overload (mirrors File.WriteAllLines)
+await NotNot.Storage.AtomicFileWriter.WriteAtomicAsync(filePath, json);
+
+// ✅ Option 2: if AtomicFileWriter is unavailable — UNIQUE temp AND serialize the write+rename per final path
+var tempPath = filePath + "." + Guid.NewGuid().ToString("N") + ".tmp"; // unique → silent
+//   ... PLUS a per-final-path lock around the WriteAllText + Move pair (unique name alone is insufficient)
+
+// ✅ Allowed (silent): no overwrite, or a direct final write
+File.Move(a, b);                            // not the temp-then-rename idiom
+File.WriteAllText(finalPath, json);         // no temp + Move — different concern
+```
+
+**Flagged**: `File.Move(temp, final, overwrite: true)` (the receiver resolves to `System.IO.File`; the third argument is the literal `true`, named `overwrite:` or positional) where `temp` resolves — to its single-method local declaration **or** inline — to a **deterministic** `+ ".tmp"` concat with **no** `Guid`/`Random`/`Ticks`/`GetRandomFileName`/`GetTempFileName` identifier anywhere in the concat tree.
+
+**Allowed**: `NotNot.Storage.AtomicFileWriter.WriteAtomic`/`WriteAtomicAsync` (its temp is minted via a method call, never a literal-bearing deterministic concat — not matched); a Guid/Random/Ticks-bearing **unique** temp (not deterministic); a plain `File.Move(a, b)` with no `overwrite: true`; a direct `File.WriteAllText(finalPath, ...)` with no temp + Move; a `temp` sourced from a method call (e.g. `MakeTempPath(x)`).
+
+**Preferred fix** (in order):
+1. Use `NotNot.Storage.AtomicFileWriter.WriteAtomic`/`WriteAtomicAsync` (unique temp + per-path lock + bounded retry). A `WriteAtomic(string finalPath, IEnumerable<string> lines, Encoding? = null)` overload mirrors `File.WriteAllLines`.
+2. If `AtomicFileWriter` is unavailable here, use a unique temp (`finalPath + Guid + ".tmp"`) **and** serialize the write+rename per final path — unique-name alone is insufficient.
+3. `#pragma warning disable NN_R007` / `.editorconfig` severity override only if the write is provably single-threaded **and** single-process for the file's lifetime.
+
+Complementary to NN_R001/NN_R002 (Task-concurrency) and NN_R005/NN_R006 (catch-reliability) on a disjoint axis — NN_R007 is the file-I/O concurrency-reliability rule.
+
 <a id="NN_C004"></a>
 ### NN_C004: No code-side default for AppSettings options
 **Severity:** Error
@@ -317,6 +358,7 @@ dotnet_diagnostic.NN_C002.severity = error
 dotnet_diagnostic.NOTNOT001.severity = error
 dotnet_diagnostic.NN_R005.severity = error
 dotnet_diagnostic.NN_R006.severity = error
+dotnet_diagnostic.NN_R007.severity = error
 dotnet_diagnostic.NN_C004.severity = error
 dotnet_diagnostic.NN_C005.severity = error
 
