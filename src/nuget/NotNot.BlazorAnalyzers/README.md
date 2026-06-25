@@ -1077,6 +1077,50 @@ Viewport-relative units (`vh` `vw` `vmin` `vmax` and the dynamic variants `dvh` 
 dotnet_diagnostic.NNB_CSS010.severity = warning
 ```
 
+<a id="NNB_CSS011"></a><a id="nnb_css011"></a>
+### NNB_CSS011: Do not apply consumer CSS to an `Nn*` element (even via a consumer-owned class)
+
+**Severity:** Warning (interim ratchet → Error once the consumer surface is verified clean)
+**Category:** CssModernization
+**Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer CSS — No Consumer Styling of `Nn*` · Appendix A NNB_CSS011
+
+Closes the loophole [NNB_CSS008](#NNB_CSS008) / [NNB_CSS009](#nnb_css009) leave open. Those ban only the internal-namespace reach-in (the styled SUBJECT being a `.nns-*`/`.mud-*` class). They do NOT fire on `::deep .my-class { … }` where `.my-class` is a **consumer-authored** class that is BOUND to an `Nn*` component root. The declaration still lands on an `Nn*` element — e.g. `::deep .vow-metaside-actions-section { min-height: 80px }` paired with `<NnContentSection Class="vow-metaside-actions-section">`, a section-root floor that silently defeats the component's collapse. Tier A/B govern Nn* *parameters*; this governs consumer *CSS*. Property-agnostic: a `min-height`/`margin` layout declaration counts exactly as a `color`/`background` one.
+
+**Detection is cross-file (`VIABLE_COSTLY`).** A candidate is a `::deep <compound>` selector in a consumer `.razor.css` whose SUBJECT (rightmost compound) is a plain consumer `.class` (NOT `.nns-*`/`.mud-*`). The `::deep` is the necessary condition — it is what pierces the scoped boundary into the child component's DOM; own-element styling omits `::deep`. The analyzer then reads the PAIRED `.razor` (same path, `.css` stripped) from the AdditionalFiles set and checks for an `Nn*` open-tag carrying a LITERAL `Class="… class …"` containing the subject class as a space-separated token. Match (and the component is not gray-zone) → it warns at the CSS selector subject.
+
+```css
+/* ❌ NNB_CSS011 fires — ::deep subject is a consumer class bound to an Nn* root in the paired .razor */
+::deep .my-section { min-height: 80px; }
+
+/* ✅ own element (no ::deep) — NO warning */
+.my-section { min-height: 80px; }
+
+/* ✅ .nns-* / .mud-* subject — NOT this rule (CSS008 / CSS009 own those vectors) */
+::deep .nns-content-section-body { max-height: 40vh; }
+```
+
+**Sanctioned alternative** (never an exemption from the ban): sizing/fill → a Layout Contract mode (`Fill` / `MaxHeight` / `data-nns-fill`); positioning → the axis-spacer mode; any other need → a producer default or a Tier-A param. Resolve an existing fire by DELETE-first triage: (1) DELETE if the rule restates a correct default (fix the default once); (2) expose a Tier-A param for genuine per-instance variation; (3) per-file opt-out only if truly intended.
+
+**Documented false-negatives** (accepted; never guessed-around): dynamic `Class="@expr"` on the `Nn*` tag (not literal-matchable); inline `Style=` on the `Nn*` tag (owned by [NNB044](#nnb044) — this rule is CSS-selector-only, so it never double-emits on inline styles); a subject class bound to the `Nn*` in a different, non-paired `.razor`.
+
+**Path-based exception buckets** (conform to [NNB_CSS009](#nnb_css009)'s set; analyzer skips diagnostic emission):
+
+| Bucket | Applies to |
+|--------|-----------|
+| NnDesign producer / wrapper internals | Any file under `**/NotNot.BlazorDesign/**` |
+| Samples | `**/NnDesignSamples/**`, `**/Pages/Samples/**` |
+| Samples / global theme CSS | `nn-design-samples.css`, `app.css` (file-name allow-list) |
+| Gray-zone consumer-local `Nn*` | `NnBlazorTermTab`, `NnBlazorTermTabFooter`, `NnPerfMonitorPanel` (retain the `Nn*` prefix as branding markers but live in the consumer assembly — styling them is consumer-local, not a design-system reach-in) |
+
+**Per-file opt-out**: `/* nnb_css011:allow-reachin: <reason> */`. **Kill-switch** (shared with the CSS suite): `<CssAnalyzerEnabled>false</CssAnalyzerEnabled>`.
+
+**Default severity is Warning** — interim ratchet. The step-3 consumer-CSS sweep left a documented `TODO(NnDesign-sweep)` tail of `::deep`-on-`Nn*` rules; Warning surfaces that tail as a worklist without breaking the build. Escalates to Error once the consumer surface is verified `::deep`-on-`Nn*`-clean (the doctrine end-state). To soften locally:
+
+```ini
+[*.css]
+dotnet_diagnostic.NNB_CSS011.severity = suggestion
+```
+
 ## Analyzer ID Registry (tested guard)
 
 The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s. This registry is the single source; the per-ID sections above point at it. A registry test (`AnalyzerIdRegistryTests`) asserts every ID below resolves to exactly one analyzer's `SupportedDiagnostics` descriptor (and the reverse — no implemented descriptor is unregistered), so prose IDs cannot drift from code (the failure mode that left "Planned: NNB022" stale while NNB022 was live).
@@ -1089,6 +1133,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nns-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 | NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
+| NNB_CSS011 | `CssNnConsumerClassAnalyzer` | Warning | Consumer scoped CSS (`::deep` consumer-class bound to an `Nn*` root, cross-file `.razor.css`↔`.razor`) |
 
 ## Configuration
 
