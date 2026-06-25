@@ -221,7 +221,8 @@ internal static partial class XRayMetadata
 
         // FALLBACK: Pattern-based heuristics for edge cases
         // NOTE: This path should rarely be hit when assembly name matches folder
-        var patterns = new[] { "/Features/", "/Pages/", "/Shared/", "/Layout/", "/Components/" };
+        // SSOT: XRayPathMarkers.SingleSegment (consumed here + by the NNB046 drift analyzer baseline).
+        var patterns = XRayPathMarkers.SingleSegment;
         foreach (var pattern in patterns)
         {
             var idx = normalized.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);

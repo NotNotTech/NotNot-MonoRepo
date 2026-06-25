@@ -791,6 +791,65 @@ dotnet_diagnostic.NNB045.severity = error
 dotnet_diagnostic.NNB045.severity = warning
 ```
 
+<a id="nnb046"></a>
+### NNB046: XRay path-marker set drifted from the canonical SSOT
+
+**Severity:** Warning
+**Category:** Conventions / Architecture (SSOT enforcement)
+
+The XRay single-segment folder-marker set `{ /Features/, /Pages/, /Shared/, /Layout/, /Components/ }` has multiple mirrors that MUST carry the same membership or XRay source resolution silently breaks (the proven root cause of the prior XRay drift defect):
+
+- **`XRayPathMarkers.SingleSegment`** — the C# SSOT (in `NotNot.BlazorAnalyzers`), consumed by `XRayMetadataGenerator.ComputeRelativePath`'s relative-path FALLBACK.
+- **`XRayHelper._fallbackMarkers`** — a bare-init `string[]` FIELD (slashed) in `NotNot.BlazorComponents.XRay`.
+- **`XRayEndpoints.fallbackPrefixes`** — a collection-expression `string[]` method-LOCAL (slash-less) in `NotNot.BlazorComponents.XRay`.
+- **`xray-path-helpers.js::SINGLE_SEGMENT_MARKERS`** — the JS SSOT (`xray-interop.js::appPathMarkers` is a DERIVED `.map()` of it, not a separate source).
+
+The runtime C# mirrors live in a different assembly that cannot reference the analyzer const (the analyzer is referenced analyzer-only, `ReferenceOutputAssembly=false`), so NNB046 enforces their equality at compile time. It covers BOTH a field mirror and a method-local mirror, and guards **two drift axes** — both break XRay resolution:
+
+1. **Segment membership** — slashes normalized away, the segment **SET** compared (membership, not order). A dropped / added / renamed segment fires.
+2. **Per-site slash convention** — the slash form is load-bearing and differs per site: `_fallbackMarkers` requires **leading+trailing** slashes (`"/Features/"` — its `IndexOf(marker)` + `Substring(idx + 1)` fallback consumer depends on the leading slash; `XRayMetadataGenerator` carries the identical dependency), while `fallbackPrefixes` requires **trailing-only** (`"Features/"` — its `prefix + file` → `Path.Combine` consumer must NOT carry a leading slash). A copy with the right segments but the WRONG slash form for that site silently breaks resolution, so after the membership check passes NNB046 ALSO verifies the slash form expected at the matched mirror name.
+
+A `CollectionExpressionSyntax` containing a **spread** (`[..other]`) makes the literal set un-knowable → NNB046 bails (preserving the never-false-positive guarantee).
+
+```csharp
+// ❌ NNB046 fires — segment-set drift (in the XRay namespace, a known mirror name)
+namespace NotNot.BlazorComponents.XRay;
+internal static class Mirror
+{
+    // /Layout/ dropped → segment set drifted from the canonical 5
+    private static readonly string[] _fallbackMarkers =
+        { "/Features/", "/Pages/", "/Shared/", "/Components/" };
+}
+
+// ❌ NNB046 fires — slash-convention drift (correct segments, WRONG form for the site)
+private static readonly string[] _fallbackMarkers =
+    { "Features/", "Pages/", "Shared/", "Layout/", "Components/" }; // field requires LEADING+TRAILING slashes
+string[] fallbackPrefixes = ["/Features/", "/Pages/", "/Shared/", "/Layout/", "/Components/"]; // local requires TRAILING-ONLY
+
+// ✅ allowed — in-sync segments AND the per-site slash form
+private static readonly string[] _fallbackMarkers =
+    { "/Features/", "/Pages/", "/Shared/", "/Layout/", "/Components/" }; // slashed field — silent
+string[] fallbackPrefixes = ["Features/", "Pages/", "Shared/", "Layout/", "Components/"]; // slash-less local — silent
+```
+
+**Fix order:**
+1. Update the drifted declaration to the canonical segment set in ITS required slash convention (`_fallbackMarkers` ⇒ leading+trailing; `fallbackPrefixes` ⇒ trailing-only); OR
+2. If the set legitimately changed, update `XRayPathMarkers.SingleSegment` + every mirror (`XRayMetadataGenerator` via the const, `XRayHelper._fallbackMarkers`, `XRayEndpoints.fallbackPrefixes`, and the JS SSOT `xray-path-helpers.js::SINGLE_SEGMENT_MARKERS`) + the JS drift test together; OR
+3. `#pragma warning disable NNB046` only if the array is genuinely NOT an XRay marker mirror.
+
+**When NNB046 does NOT fire:**
+- The declaration is in-sync with the canonical set (after slash normalization) AND carries the per-site slash form expected at its mirror name.
+- The declaration is outside an XRay namespace (namespace is not `NotNot.BlazorComponents.XRay` and does not end in `.XRay`).
+- The declaration name is not a known mirror name (`_fallbackMarkers` / `fallbackPrefixes`).
+- The initializer is not a constant `string[]` literal, or a collection expression uses a spread element (a dynamic / spread / non-string array cannot be proven drifted).
+
+Project/folder-wide via `.editorconfig`:
+
+```ini
+[*.cs]
+dotnet_diagnostic.NNB046.severity = warning
+```
+
 <a id="nnb041"></a>
 ### NNB041: ReplaceUrlStateAsync requires adjacent component-state mutation
 
@@ -1153,6 +1212,9 @@ dotnet_diagnostic.NNB013.severity = error
 
 # Async lifecycle transition-guard ordering (default: error)
 dotnet_diagnostic.NNB045.severity = error
+
+# XRay path-marker SSOT drift guard (default: warning)
+dotnet_diagnostic.NNB046.severity = warning
 
 # LiteDDD boundary rules (default: warning)
 dotnet_diagnostic.NN_LDDD_001.severity = warning
