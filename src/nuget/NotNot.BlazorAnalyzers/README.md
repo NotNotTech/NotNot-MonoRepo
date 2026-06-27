@@ -1145,10 +1145,15 @@ dotnet_diagnostic.NNB_CSS010.severity = warning
 
 Closes the loophole [NNB_CSS008](#NNB_CSS008) / [NNB_CSS009](#nnb_css009) leave open. Those ban only the internal-namespace reach-in (the styled SUBJECT being a `.nns-*`/`.mud-*` class). They do NOT fire on `::deep .my-class { … }` where `.my-class` is a **consumer-authored** class that is BOUND to an `Nn*` component root. The declaration still lands on an `Nn*` element — e.g. `::deep .vow-metaside-actions-section { min-height: 80px }` paired with `<NnContentSection Class="vow-metaside-actions-section">`, a section-root floor that silently defeats the component's collapse. Tier A/B govern Nn* *parameters*; this governs consumer *CSS*. Property-agnostic: a `min-height`/`margin` layout declaration counts exactly as a `color`/`background` one.
 
-**Detection is cross-file (`VIABLE_COSTLY`).** A candidate is a `::deep <compound>` selector in a consumer `.razor.css` whose SUBJECT (rightmost compound) is a plain consumer `.class` (NOT `.nns-*`/`.mud-*`). The `::deep` is the necessary condition — it is what pierces the scoped boundary into the child component's DOM; own-element styling omits `::deep`. The analyzer then reads the PAIRED `.razor` (same path, `.css` stripped) from the AdditionalFiles set and checks for an `Nn*` open-tag carrying a LITERAL `Class="… class …"` containing the subject class as a space-separated token. Match (and the component is not gray-zone) → it warns at the CSS selector subject.
+**Two CSS-delivery surfaces, one rule.** NNB_CSS011 catches the same consumer-CSS-on-`Nn*` violation regardless of WHERE the CSS text lives:
+
+1. **Scoped `.razor.css` `::deep` rule** — a `::deep .my-class { … }` selector in a consumer `.razor.css` whose class binds to an `Nn*` root in the paired `.razor`. The `::deep` is the necessary condition here — it is what pierces the scoped boundary into the child component's DOM (own-element styling omits `::deep`).
+2. **Inline `.razor` `<style>` block** — a plain (non-`::deep`) class selector inside an inline `<style>…</style>` block authored directly in a `.razor`, whose class binds to an `Nn*` via a static-literal `Class="…"` in the SAME `.razor`. The inline path requires NO `::deep`: an inline `<style>` is unscoped (it leaks **globally**), so `::deep` would be inert — the plain class selector IS the violation, and arguably worse than the scoped form.
+
+**Detection is cross-file / intra-file (`VIABLE_COSTLY`).** For the scoped surface the analyzer reads the PAIRED `.razor` (same path, `.css` stripped); for the inline surface it scans each `<style>` block against the SAME `.razor`'s markup. Both build a class→`Nn*` binding map from `Nn*` open-tags carrying a LITERAL `Class="… class …"` (the subject class as a space-separated token); match (and the component is not gray-zone) → it warns at the CSS selector subject inside the rule / block.
 
 ```css
-/* ❌ NNB_CSS011 fires — ::deep subject is a consumer class bound to an Nn* root in the paired .razor */
+/* ❌ NNB_CSS011 fires (scoped) — ::deep subject is a consumer class bound to an Nn* root in the paired .razor */
 ::deep .my-section { min-height: 80px; }
 
 /* ✅ own element (no ::deep) — NO warning */
@@ -1158,9 +1163,21 @@ Closes the loophole [NNB_CSS008](#NNB_CSS008) / [NNB_CSS009](#nnb_css009) leave 
 ::deep .nns-content-section-body { max-height: 40vh; }
 ```
 
+```razor
+@* ❌ NNB_CSS011 fires (inline) — a plain class selector in an inline <style> block, bound to an Nn* root *@
+<style>.sidebar { width: 220px; }</style>
+<NnSidebarPanel Class="sidebar" />
+
+@* ✅ inline <style> styling a PLAIN element (not an Nn*) — NO warning *@
+<style>.page-root { display: flex; }</style>
+<div class="page-root">…</div>
+```
+
+**Relocating the CSS between the two deliveries is NOT a fix.** Moving a `::deep .my-class` rule out of `Foo.razor.css` into an inline `<style>` in `Foo.razor` (or vice-versa) does not resolve the violation — both surfaces land consumer CSS on the `Nn*` element, and the inline form additionally globalizes it. One DiagnosticId owns both deliveries precisely so the relocation loophole cannot reopen.
+
 **Sanctioned alternative** (never an exemption from the ban): sizing/fill → a Layout Contract mode (`Fill` / `MaxHeight` / `data-nns-fill`); positioning → the axis-spacer mode; any other need → a producer default or a Tier-A param. Resolve an existing fire by DELETE-first triage: (1) DELETE if the rule restates a correct default (fix the default once); (2) expose a Tier-A param for genuine per-instance variation; (3) per-file opt-out only if truly intended.
 
-**Documented false-negatives** (accepted; never guessed-around): dynamic `Class="@expr"` on the `Nn*` tag (not literal-matchable); inline `Style=` on the `Nn*` tag (owned by [NNB044](#nnb044) — this rule is CSS-selector-only, so it never double-emits on inline styles); a subject class bound to the `Nn*` in a different, non-paired `.razor`.
+**Documented false-negatives** (accepted; never guessed-around): dynamic `Class="@expr"` on the `Nn*` tag (not literal-matchable — applies to BOTH deliveries); `@media`/`@supports`-nested rules (the selector walk skips top-level `@`-blocks, so a rule nested inside `@media { … }` is invisible on both deliveries — the inline surface makes responsive `@media` blocks common, so this is the most likely inline miss); inline `Style=` ATTRIBUTE on the `Nn*` tag (owned by [NNB044](#nnb044) — distinct from an inline `<style>` BLOCK, which NNB_CSS011 DOES catch; this rule is CSS-selector-only, so it never double-emits on inline `Style=` attributes); a subject class bound to the `Nn*` in a different, non-paired `.razor`.
 
 **Path-based exception buckets** (conform to [NNB_CSS009](#nnb_css009)'s set; analyzer skips diagnostic emission):
 
@@ -1171,7 +1188,9 @@ Closes the loophole [NNB_CSS008](#NNB_CSS008) / [NNB_CSS009](#nnb_css009) leave 
 | Samples / global theme CSS | `nn-design-samples.css`, `app.css` (file-name allow-list) |
 | Gray-zone consumer-local `Nn*` | `NnBlazorTermTab`, `NnBlazorTermTabFooter`, `NnPerfMonitorPanel` (retain the `Nn*` prefix as branding markers but live in the consumer assembly — styling them is consumer-local, not a design-system reach-in) |
 
-**Per-file opt-out**: `/* nnb_css011:allow-reachin: <reason> */`. **Kill-switch** (shared with the CSS suite): `<CssAnalyzerEnabled>false</CssAnalyzerEnabled>`.
+The exception buckets above apply identically to BOTH deliveries — the inline `.razor` `<style>` path uses the SAME path buckets, gray-zone component list, per-file opt-out marker, and kill-switch (the opt-out marker is matched anywhere in the `.razor`, including inside the `<style>` block or a `@* … *@` comment). Commented-out (`@* … *@` / `<!-- … -->`) `<style>`+`<Nn* Class>` pairs are stripped before extraction, so dead markup never false-positives.
+
+**Per-file opt-out**: `/* nnb_css011:allow-reachin: <reason> */` (or a `@* nnb_css011:allow-reachin: <reason> *@` Razor comment on the inline path). **Kill-switch** (shared with the CSS suite): `<CssAnalyzerEnabled>false</CssAnalyzerEnabled>`.
 
 **Default severity is Warning** — interim ratchet. The step-3 consumer-CSS sweep left a documented `TODO(NnDesign-sweep)` tail of `::deep`-on-`Nn*` rules; Warning surfaces that tail as a worklist without breaking the build. Escalates to Error once the consumer surface is verified `::deep`-on-`Nn*`-clean (the doctrine end-state). To soften locally:
 
@@ -1192,7 +1211,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nns-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 | NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
-| NNB_CSS011 | `CssNnConsumerClassAnalyzer` | Warning | Consumer scoped CSS (`::deep` consumer-class bound to an `Nn*` root, cross-file `.razor.css`↔`.razor`) |
+| NNB_CSS011 | `CssNnConsumerClassAnalyzer` | Warning | Consumer CSS class bound to an `Nn*` root via TWO deliveries: scoped `::deep` in `.razor.css` (cross-file `.razor.css`↔`.razor`) AND an inline `<style>` block in a `.razor` (intra-file) |
 
 ## Configuration
 

@@ -87,26 +87,32 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
     public static readonly DiagnosticDescriptor RuleNoConsumerNnStyling = new(
         DiagnosticId,
         "Do not apply consumer CSS to an Nn* element (even via a consumer-owned class)",
-        "Consumer scoped CSS '::deep .{0}' lands on the Nn* component '<{1}>' (paired .razor binds "
-            + "Class=\"…{0}…\" to it). A consumer never styles an Nn* element — visual OR layout. "
-            + "Resolve: (1) DELETE the rule if it restates a producer default (fix the default once); "
-            + "(2) use/add an NnDesign Tier-A param or a Layout Contract mode (Fill / MaxHeight / "
-            + "data-nns-fill); (3) only if genuinely intended, add a per-file "
-            + "nnb_css011:allow-reachin comment. (NNB_CSS011)",
+        "Consumer CSS class '.{0}' (in {2}) lands on the Nn* component '<{1}>'. A consumer never "
+            + "styles an Nn* element — visual OR layout. Resolve: (1) DELETE the rule if it restates a "
+            + "producer default (fix the NnDesign default once); (2) use/add an NnDesign Tier-A param or "
+            + "a Layout Contract mode (Fill / MaxHeight / data-nns-fill); (3) only if genuinely intended, "
+            + "add a per-file nnb_css011:allow-reachin comment. Relocating the CSS between a .razor.css "
+            + "::deep rule and an inline <style> block is NOT a fix — both are the same violation. "
+            + "(NNB_CSS011)",
         Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
         description: "Tier A/B govern Nn* PARAMETERS; this governs consumer CSS. A consumer-authored CSS "
             + "declaration must never land on an Nn* element, regardless of delivery — internal-class "
-            + "reach-in (NNB_CSS008/009) OR a consumer-owned class applied to the Nn* via ::deep. The "
-            + "live loophole NNB_CSS008/009 miss: '::deep .my-class { … }' where '.my-class' is a "
-            + "consumer class bound to an Nn* root in the paired .razor (e.g. a section-root min-height "
-            + "floor that silently defeats the component's collapse). Property-agnostic (layout counts "
+            + "reach-in (NNB_CSS008/009) OR a consumer-owned class applied to the Nn* via two CSS "
+            + "deliveries: a scoped .razor.css '::deep .my-class { … }' rule, OR an inline .razor "
+            + "'<style> .my-class { … } </style>' block (the inline block is unscoped/global, so it needs "
+            + "no ::deep — the plain class selector IS the violation). Both bind '.my-class' to an Nn* "
+            + "root via a literal Class=\"…\" in the same/paired .razor (e.g. a section-root min-height "
+            + "floor that silently defeats the component's collapse). Relocating CSS between the two "
+            + "deliveries is NOT a fix — both are the same violation. Property-agnostic (layout counts "
             + "as much as visual). Sanctioned alternative: a Layout Contract mode (Fill / MaxHeight / "
             + "data-nns-fill) or a Tier-A param — never restyle the Nn* element. Exempt: NnDesign "
             + "producer / NotNot.BlazorDesign internals, NnDesignSamples/** + Pages/Samples/**, samples "
             + "+ global theme CSS, gray-zone consumer-local Nn* (NnBlazorTermTab, NnBlazorTermTabFooter, "
             + "NnPerfMonitorPanel). Per-file opt-out: nnb_css011:allow-reachin: <reason>. Kill-switch: "
             + "<CssAnalyzerEnabled>false</CssAnalyzerEnabled>. Known false-negatives: dynamic "
-            + "Class=\"@expr\" (not literal-matchable); inline Style= (owned by NNB044).",
+            + "Class=\"@expr\" (not literal-matchable, both deliveries); @media/@supports-nested rules "
+            + "(top-level @-blocks are skipped, both deliveries); inline Style= attribute (owned by "
+            + "NNB044).",
         helpLinkUri: HelpBase + "NNB_CSS011");
 
     // ── Regex patterns ────────────────────────────────────────────────────
@@ -129,6 +135,33 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static readonly Regex NnOpenTag = new(
         @"<(?<name>Nn[A-Z]\w*)(?<attrs>[^>]*?)/?>",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    /// <summary>
+    /// Matches an inline <c>&lt;style&gt;…&lt;/style&gt;</c> block in a <c>.razor</c>, capturing the
+    /// INNER CSS text (group <c>body</c>) so its absolute offset within the <c>.razor</c> is recoverable
+    /// via <c>match.Groups["body"].Index</c>. Singleline so a multi-line block is captured whole;
+    /// IgnoreCase so <c>&lt;Style&gt;</c>/<c>&lt;STYLE&gt;</c> match; non-greedy <c>body</c> so multiple
+    /// blocks in one file are matched independently.
+    /// </summary>
+    private static readonly Regex StyleBlock = new(
+        @"<style[^>]*>(?<body>.*?)</style>",
+        RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Matches a Razor server-comment span <c>@* … *@</c> (non-greedy, Singleline). Used by
+    /// <see cref="StripRazorAndHtmlComments"/> to blank dead markup before <c>&lt;style&gt;</c> extraction
+    /// and binding-map construction, so a commented-out <c>&lt;style&gt;</c>+<c>&lt;Nn* Class&gt;</c> pair
+    /// never false-positives on dead code (the inline path scans <c>.razor</c>, which — unlike pure
+    /// <c>.razor.css</c> — carries Razor/HTML comment forms the CSS comment scanner cannot see).
+    /// </summary>
+    private static readonly Regex RazorComment = new(
+        @"@\*.*?\*@",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    /// <summary>Matches an HTML comment span <c>&lt;!-- … --&gt;</c> (non-greedy, Singleline).</summary>
+    private static readonly Regex HtmlComment = new(
+        @"<!--.*?-->",
         RegexOptions.Compiled | RegexOptions.Singleline);
 
     /// <summary>Path segments identifying vendor/third-party files to skip (mirrors CssNnReachInAnalyzer).</summary>
@@ -179,6 +212,81 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
         {
             context.CancellationToken.ThrowIfCancellationRequested();
             AnalyzeCssFile(context, file, razorByPath);
+        }
+
+        // SECOND delivery surface: an inline <style> block authored directly in a .razor whose plain
+        // (non-::deep) class selector binds to an <Nn*> via a static-literal Class="…" in the SAME
+        // .razor. Inline <style> is unscoped (global) — the same consumer-CSS-on-Nn* violation by a
+        // different delivery. Reuses the same engine/exemptions; the only difference is requireDeep:false.
+        foreach (var razorFile in razorByPath.Values)
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+            AnalyzeRazorInlineStyle(context, razorFile);
+        }
+    }
+
+    /// <summary>
+    /// Detects the inline-<c>&lt;style&gt;</c> delivery: a plain class selector inside an inline
+    /// <c>&lt;style&gt;</c> block in a <c>.razor</c> whose class binds to an <c>Nn*</c> via a static
+    /// literal <c>Class="…"</c> in the SAME <c>.razor</c>. Reuses the binding map, exemptions, selector
+    /// engine, and reporting verbatim; the <c>::deep</c> necessary-condition gate is disabled
+    /// (<c>requireDeep:false</c>) because an inline block is already global, so any class selector whose
+    /// subject binds to an <c>Nn*</c> is the violation.
+    /// </summary>
+    private static void AnalyzeRazorInlineStyle(
+        CompilationAnalysisContext context, AdditionalText razorFile)
+    {
+        var path = razorFile.Path;
+        if (string.IsNullOrEmpty(path) || IsVendorFile(path) || IsExceptedPath(path))
+            return;
+
+        var razorSource = razorFile.GetText(context.CancellationToken);
+        if (razorSource == null || razorSource.Length == 0)
+            return;
+
+        var razorText = razorSource.ToString();
+
+        // Perf early-return: no inline <style> anywhere → no inline delivery to analyze. OrdinalIgnoreCase
+        // to match StyleBlock's IgnoreCase (a case-sensitive guard would skip <Style>/<STYLE>, dropping a
+        // real violation). Runs BEFORE the comment-strip + map build so the common no-<style> .razor pays
+        // only one cheap scan.
+        if (razorText.IndexOf("<style", StringComparison.OrdinalIgnoreCase) < 0)
+            return;
+
+        // Per-file opt-out marker (whole-file scan, same coarse semantics as the scoped path).
+        if (HasOptOutComment(razorText))
+            return;
+
+        // STRIP Razor (@* *@) and HTML (<!-- -->) comment spans BEFORE <style>-block extraction AND the
+        // binding map, so a commented-out <style>+<Nn* Class> pair never false-positives on dead code.
+        // Comment spans are blanked with same-length whitespace so every surviving character keeps its
+        // absolute offset (line/column reporting stays correct).
+        var scrubbed = StripRazorAndHtmlComments(razorText);
+
+        // Build the class→Nn* binding map over the .razor MARKUP only, with live <style> block BODIES
+        // blanked (same-length whitespace, identical technique to the comment-strip). Nn* tags live in
+        // real markup, never in CSS — but tag-shaped text inside a <style> body (e.g.
+        // content: '<NnSidebarPanel Class="sidebar">') would otherwise manufacture a FALSE binding. The
+        // per-block SELECTOR scan below still iterates `scrubbed` (real <style> bodies intact); only the
+        // binding-map INPUT is style-body-blanked. Blanking is same-length so offsets are unaffected.
+        var markupForBinding = StripStyleBlockBodies(scrubbed);
+        var classToNnComponent = BuildClassBindingMap(markupForBinding);
+        if (classToNnComponent.Count == 0)
+            return;
+
+        // Analyze each inline <style> block at its own absolute offset within the .razor.
+        foreach (Match block in StyleBlock.Matches(scrubbed))
+        {
+            var body = block.Groups["body"].Value;
+            if (body.Length == 0)
+                continue;
+
+            var baseOffset = block.Groups["body"].Index;
+            // Comment ranges are block-relative (computed over `body`); the selector scan is also
+            // block-relative. baseOffset is applied ONCE, at the Report boundary.
+            var comments = FindCssCommentRanges(body);
+            AnalyzeSelectors(context, path, razorSource, body, comments, classToNnComponent,
+                requireDeep: false, deliveryNoun: "an inline <style> block", baseOffset: baseOffset);
         }
     }
 
@@ -250,7 +358,45 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             return;
 
         var comments = FindCssCommentRanges(cssText);
-        AnalyzeSelectors(context, file.Path, cssSource, cssText, comments, classToNnComponent);
+        AnalyzeSelectors(context, file.Path, cssSource, cssText, comments, classToNnComponent,
+            requireDeep: true, deliveryNoun: "a scoped ::deep rule", baseOffset: 0);
+    }
+
+    /// <summary>
+    /// Blanks Razor (<c>@* … *@</c>) and HTML (<c>&lt;!-- … --&gt;</c>) comment spans in a <c>.razor</c>
+    /// by replacing each with the same number of space characters. Same-length replacement preserves the
+    /// absolute offset of every surviving character so downstream line/column reporting is unaffected.
+    /// Dead (commented-out) <c>&lt;style&gt;</c> blocks and <c>&lt;Nn* Class&gt;</c> bindings disappear,
+    /// closing the commented-block false-positive vector unique to the <c>.razor</c> inline surface.
+    /// </summary>
+    private static string StripRazorAndHtmlComments(string razorText)
+    {
+        string Blank(Match m) => new string(' ', m.Length);
+        var afterRazor = RazorComment.Replace(razorText, Blank);
+        return HtmlComment.Replace(afterRazor, Blank);
+    }
+
+    /// <summary>
+    /// Blanks the BODY of every live <c>&lt;style&gt;…&lt;/style&gt;</c> block (the captured
+    /// <c>body</c> group) with same-length whitespace, leaving the <c>&lt;style&gt;</c> open/close tags
+    /// intact. Used ONLY to build the class→<c>Nn*</c> binding map from real markup: tag-shaped CSS text
+    /// inside a <c>&lt;style&gt;</c> body (e.g. <c>content: '&lt;NnSidebarPanel Class="sidebar"&gt;'</c>)
+    /// would otherwise be matched by <see cref="NnOpenTag"/> and manufacture a FALSE binding. Nn* tags
+    /// live in real markup, never in CSS, so blanking style bodies removes only spurious matches.
+    /// Same-length replacement preserves every surviving character's absolute offset.
+    /// </summary>
+    private static string StripStyleBlockBodies(string razorText)
+    {
+        return StyleBlock.Replace(razorText, m =>
+        {
+            var body = m.Groups["body"];
+            var sb = new System.Text.StringBuilder(m.Value);
+            // body.Index is absolute; offset into the match's own value to blank in place.
+            var bodyStartInMatch = body.Index - m.Index;
+            for (var i = 0; i < body.Length; i++)
+                sb[bodyStartInMatch + i] = ' ';
+            return sb.ToString();
+        });
     }
 
     // ── Paired .razor → class-binding map ─────────────────────────────────────
@@ -325,7 +471,8 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
 
     private static void AnalyzeSelectors(
         CompilationAnalysisContext ctx, string filePath, SourceText src, string text,
-        List<(int Start, int End)> comments, Dictionary<string, string> classToNnComponent)
+        List<(int Start, int End)> comments, Dictionary<string, string> classToNnComponent,
+        bool requireDeep, string deliveryNoun, int baseOffset)
     {
         var selectorStart = 0;
         var depth = 0;
@@ -346,7 +493,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
                     if (!trimmed.StartsWith("@", StringComparison.Ordinal))
                     {
                         AnalyzeSelectorList(ctx, filePath, src, selectorList, selectorStart, comments,
-                            classToNnComponent);
+                            classToNnComponent, requireDeep, deliveryNoun, baseOffset);
                     }
                 }
                 depth++;
@@ -363,7 +510,8 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeSelectorList(
         CompilationAnalysisContext ctx, string filePath, SourceText src,
         string selectorList, int listOffset, List<(int Start, int End)> comments,
-        Dictionary<string, string> classToNnComponent)
+        Dictionary<string, string> classToNnComponent,
+        bool requireDeep, string deliveryNoun, int baseOffset)
     {
         var partStart = 0;
         for (var i = 0; i <= selectorList.Length; i++)
@@ -373,7 +521,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             {
                 var part = selectorList.Substring(partStart, i - partStart);
                 AnalyzeSingleSelector(ctx, filePath, src, part, listOffset + partStart, comments,
-                    classToNnComponent);
+                    classToNnComponent, requireDeep, deliveryNoun, baseOffset);
                 partStart = i + 1;
             }
         }
@@ -382,15 +530,19 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeSingleSelector(
         CompilationAnalysisContext ctx, string filePath, SourceText src,
         string selector, int selectorOffset, List<(int Start, int End)> comments,
-        Dictionary<string, string> classToNnComponent)
+        Dictionary<string, string> classToNnComponent,
+        bool requireDeep, string deliveryNoun, int baseOffset)
     {
         if (string.IsNullOrWhiteSpace(selector))
             return;
 
-        // The ::deep pseudo is the REQUIRED necessary condition — it is what pierces the scoped boundary
-        // into the child Nn* component's DOM. A selector with no ::deep styles the consumer's OWN element
-        // (own-element styling never carries ::deep), which is not an Nn*-element reach-in.
-        if (selector.IndexOf("::deep", StringComparison.OrdinalIgnoreCase) < 0)
+        // The ::deep pseudo is the necessary condition for the SCOPED .razor.css delivery — it is what
+        // pierces the scoped boundary into the child Nn* component's DOM. A scoped selector with no
+        // ::deep styles the consumer's OWN element (own-element styling never carries ::deep), which is
+        // not an Nn*-element reach-in. The inline-<style> delivery (requireDeep:false) is already global,
+        // so any plain class selector whose subject binds to an Nn* is the violation — ::deep is inert
+        // there and NOT required.
+        if (requireDeep && selector.IndexOf("::deep", StringComparison.OrdinalIgnoreCase) < 0)
             return;
 
         // The SUBJECT is the rightmost compound selector (everything after the last combinator / ::deep).
@@ -414,11 +566,16 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             if (!classToNnComponent.TryGetValue(bare, out var componentName))
                 continue;
 
-            var absoluteIndex = selectorOffset + subjectStart + m.Index;
-            if (IsInComment(comments, absoluteIndex))
+            // scanIndex is BLOCK-RELATIVE (relative to the text that was scanned + its comment ranges)
+            // — it is the ONLY value passed to IsInComment, whose ranges are in the same coordinate
+            // space. The ABSOLUTE offset into `src` is baseOffset + scanIndex, computed ONCE at the
+            // Report boundary (scoped path: baseOffset == 0, so behavior is identical).
+            var scanIndex = selectorOffset + subjectStart + m.Index;
+            if (IsInComment(comments, scanIndex))
                 continue;
 
-            Report(ctx, filePath, src, absoluteIndex, m.Length, bare, componentName);
+            Report(ctx, filePath, src, baseOffset + scanIndex, m.Length, bare, componentName,
+                deliveryNoun);
             // One diagnostic per selector — the subject is a single styled element.
             return;
         }
@@ -513,8 +670,10 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
 
     private static void Report(
         CompilationAnalysisContext ctx, string filePath, SourceText src,
-        int position, int length, string className, string componentName)
+        int position, int length, string className, string componentName, string deliveryNoun)
     {
+        // `position` is the ABSOLUTE offset into `src` (the full .razor.css or .razor SourceText) — both
+        // the TextSpan and the line/column lookups use it, so span-offset and line/column agree.
         var start = src.Lines.GetLinePosition(position);
         var end = src.Lines.GetLinePosition(position + length);
         var location = Location.Create(
@@ -523,7 +682,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             new LinePositionSpan(start, end));
 
         ctx.ReportDiagnostic(Diagnostic.Create(
-            RuleNoConsumerNnStyling, location, className, componentName));
+            RuleNoConsumerNnStyling, location, className, componentName, deliveryNoun));
     }
 
     private static List<(int Start, int End)> FindCssCommentRanges(string text)

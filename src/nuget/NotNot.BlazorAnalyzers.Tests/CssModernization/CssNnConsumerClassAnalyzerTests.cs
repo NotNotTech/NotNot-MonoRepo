@@ -40,14 +40,51 @@ public class CssNnConsumerClassAnalyzerTests
         await test.RunAsync();
     }
 
+    /// <summary>
+    /// Runs the analyzer over a single <c>.razor</c> (registered as the only AdditionalFile) — the
+    /// inline-<c>&lt;style&gt;</c> delivery needs no paired <c>.razor.css</c>. Mirrors
+    /// <see cref="VerifyPairAsync"/>.
+    /// </summary>
+    private static async Task VerifyRazorAsync(
+        string razorContent, string razorPath,
+        params DiagnosticResult[] expected)
+    {
+        var test = new CSharpAnalyzerTest<CssNnConsumerClassAnalyzer, DefaultVerifier>
+        {
+            TestCode = "class Placeholder { }"
+        };
+        test.TestState.AdditionalFiles.Add((razorPath, razorContent));
+        if (expected?.Length > 0)
+            test.ExpectedDiagnostics.AddRange(expected);
+        await test.RunAsync();
+    }
+
+    /// <summary>The scoped <c>.razor.css</c> <c>::deep</c> delivery noun (NNB_CSS011 message arg {2}).</summary>
+    private const string ScopedDelivery = "a scoped ::deep rule";
+
+    /// <summary>The inline <c>.razor</c> <c>&lt;style&gt;</c> block delivery noun (NNB_CSS011 message arg {2}).</summary>
+    private const string InlineDelivery = "an inline <style> block";
+
     private static DiagnosticResult Diagnostic(
         string className, string componentName, string filePath,
-        int line, int column, int endLine, int endColumn)
+        int line, int column, int endLine, int endColumn, string deliveryNoun)
     {
         return new DiagnosticResult(CssNnConsumerClassAnalyzer.DiagnosticId, DiagnosticSeverity.Warning)
             .WithSpan(filePath, line, column, endLine, endColumn)
-            .WithArguments(className, componentName);
+            .WithArguments(className, componentName, deliveryNoun);
     }
+
+    /// <summary>
+    /// Renders the NNB_CSS011 descriptor's MessageFormat with the three diagnostic args, so a test can
+    /// substring-assert the delivery noun actually reaches the rendered message (F3 — the Roslyn verifier
+    /// compares expected vs actual using the SAME descriptor, so an omitted {2} placeholder would be
+    /// silently masked; this pins the {2} surface at runtime).
+    /// </summary>
+    private static string RenderedMessage(string className, string componentName, string deliveryNoun)
+        => string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            CssNnConsumerClassAnalyzer.RuleNoConsumerNnStyling.MessageFormat.ToString(),
+            className, componentName, deliveryNoun);
 
     // ═══════════════════════════════════════════════════════════════════════
     // (a) POSITIVE: ::deep .my-section on a class bound to <NnContentSection> → MUST warn.
@@ -67,7 +104,7 @@ public class CssNnConsumerClassAnalyzerTests
 
         // `::deep ` = 7 chars; `.my-section` subject starts at column 8, length 11 → end column 19.
         await VerifyPairAsync(css, cssPath, razor, razorPath,
-            Diagnostic("my-section", "NnContentSection", cssPath, 1, 8, 1, 19));
+            Diagnostic("my-section", "NnContentSection", cssPath, 1, 8, 1, 19, ScopedDelivery));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -200,7 +237,7 @@ public class CssNnConsumerClassAnalyzerTests
         var razorPath = "/TestProject/Components/Sessions/VowSessionMetaPanel.razor";
 
         await VerifyPairAsync(css, cssPath, razor, razorPath,
-            Diagnostic("my-section", "NnContentSection", cssPath, 1, 8, 1, 19));
+            Diagnostic("my-section", "NnContentSection", cssPath, 1, 8, 1, 19, ScopedDelivery));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -290,5 +327,187 @@ build_property.CssAnalyzerEnabled = false
         };
         test.TestState.AdditionalFiles.Add((cssPath, css));
         await test.RunAsync();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // (F3) Rendered-message accuracy: the scoped delivery noun reaches the message text.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void ScopedFixture_RenderedMessage_ContainsScopedDeliveryNoun()
+    {
+        var message = RenderedMessage("my-section", "NnContentSection", ScopedDelivery);
+        // Assert the SUBSTITUTION CONTEXT: the `(in ` prefix originates ONLY from the `(in {2})`
+        // placeholder, never the descriptor's relocation clause (which mentions the bare delivery noun
+        // without the parenthesized prefix). A literal "a scoped ::deep rule" substring would also match
+        // that clause, masking an empty {2} render — the parenthesized form pins {2} actually substituted.
+        Assert.Contains("(in a scoped ::deep rule)", message);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // INLINE <style> DELIVERY — POSITIVE fixtures (fire NNB_CSS011 at the in-block selector).
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // POS-1: single-line inline <style>, layout property; mirrors Options.razor sidebar
+    // (.options-nav-sidebar { width: 220px } + <NnSidebarPanel Class="options-nav-sidebar">).
+    [Fact]
+    public async Task POS1_InlineStyle_BoundToNn_Warns()
+    {
+        // `<style>` = 7 chars; `.sidebar` selector starts at column 8 (1-based), length 8 → end col 16.
+        var razor = @"<style>.sidebar{width:220px}</style>
+<NnSidebarPanel Class=""sidebar"" />";
+        var razorPath = "/TestProject/Components/Pages/Options.razor";
+
+        await VerifyRazorAsync(razor, razorPath,
+            Diagnostic("sidebar", "NnSidebarPanel", razorPath, 1, 8, 1, 16, InlineDelivery));
+    }
+
+    // POS-2: visual property, static-literal Class on an Nn* element.
+    [Fact]
+    public async Task POS2_InlineStyle_VisualProperty_Warns()
+    {
+        // `<style>` = 7 chars; `.nav-active` starts at column 8, length 11 → end col 19.
+        var razor = @"<style>.nav-active{background:var(--nns-action-hover)}</style>
+<NnNavLink Class=""nav-active"">x</NnNavLink>";
+        var razorPath = "/TestProject/Components/Pages/Nav.razor";
+
+        await VerifyRazorAsync(razor, razorPath,
+            Diagnostic("nav-active", "NnNavLink", razorPath, 1, 8, 1, 19, InlineDelivery));
+    }
+
+    // POS-3: MULTI-LINE inline <style> NOT at file start — stresses the baseOffset + SourceText
+    // line-table column math (the selector lands on line 3, indented).
+    [Fact]
+    public async Task POS3_InlineStyle_MultiLineNotAtStart_Warns()
+    {
+        var razor = "<h1>Title</h1>\n<style>\n  .panel {\n    min-height: 80px;\n  }\n</style>\n<NnContentSection Class=\"panel\" />";
+        var razorPath = "/TestProject/Components/Pages/Dashboard.razor";
+
+        // `.panel` is on line 3, after 2 leading spaces → column 3 (1-based), length 6 → end col 9.
+        await VerifyRazorAsync(razor, razorPath,
+            Diagnostic("panel", "NnContentSection", razorPath, 3, 3, 3, 9, InlineDelivery));
+    }
+
+    // F3: the inline delivery noun reaches the rendered message text.
+    [Fact]
+    public void InlineFixture_RenderedMessage_ContainsInlineDeliveryNoun()
+    {
+        var message = RenderedMessage("sidebar", "NnSidebarPanel", InlineDelivery);
+        // Assert the SUBSTITUTION CONTEXT: the `(in ` prefix originates ONLY from the `(in {2})`
+        // placeholder, NOT the relocation clause ("…and an inline <style> block is NOT a fix…") which
+        // also contains the bare "an inline <style> block" substring — a bare-substring assert would pass
+        // even with an empty {2} render. The parenthesized form pins {2} actually substituted.
+        Assert.Contains("(in an inline <style> block)", message);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // INLINE <style> DELIVERY — NEGATIVE fixtures (silent).
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // NEG-1: class bound to a plain element (div), not an Nn* → silent.
+    [Fact]
+    public async Task NEG1_InlineStyle_PlainElement_NoWarning()
+    {
+        var razor = @"<style>.page-root{display:flex}</style>
+<div class=""page-root"">body</div>";
+        var razorPath = "/TestProject/Components/Pages/Layout.razor";
+
+        await VerifyRazorAsync(razor, razorPath);
+    }
+
+    // NEG-2: dynamic Class="@expr" → not literal-matchable → silent (documented false-negative;
+    // mirrors the REAL Options.razor nav-active case).
+    [Fact]
+    public async Task NEG2_InlineStyle_DynamicClass_NoWarning()
+    {
+        var razor = @"<style>.thing{color:red}</style>
+<NnNavLink Class=""@NavLinkClass"">y</NnNavLink>";
+        var razorPath = "/TestProject/Components/Pages/Options.razor";
+
+        await VerifyRazorAsync(razor, razorPath);
+    }
+
+    // NEG-3: gray-zone consumer-local Nn* (NnBlazorTermTab) → silent.
+    [Fact]
+    public async Task NEG3_InlineStyle_GrayZone_NoWarning()
+    {
+        var razor = @"<style>.x{min-height:80px}</style>
+<NnBlazorTermTab Class=""x"" />";
+        var razorPath = "/TestProject/Components/Sessions/SessionTermPane.razor";
+
+        await VerifyRazorAsync(razor, razorPath);
+    }
+
+    // NEG-4: per-file opt-out comment present → silent.
+    [Fact]
+    public async Task NEG4_InlineStyle_PerFileOptOut_NoWarning()
+    {
+        var razor = @"@* nnb_css011:allow-reachin: transitional override pending NnSidebarPanel.Width param *@
+<style>.sidebar{width:220px}</style>
+<NnSidebarPanel Class=""sidebar"" />";
+        var razorPath = "/TestProject/Components/Pages/Options.razor";
+
+        await VerifyRazorAsync(razor, razorPath);
+    }
+
+    // NEG-5: path-exempt (Pages/Samples/) → silent.
+    [Fact]
+    public async Task NEG5_InlineStyle_PathExempt_NoWarning()
+    {
+        var razor = @"<style>.sidebar{width:220px}</style>
+<NnSidebarPanel Class=""sidebar"" />";
+        var razorPath = "/TestProject/Components/Pages/Samples/Demo.razor";
+
+        await VerifyRazorAsync(razor, razorPath);
+    }
+
+    // NEG-6: styled class NOT bound to any Nn* (bound to a div nested inside an Nn*) → silent.
+    [Fact]
+    public async Task NEG6_InlineStyle_ClassNotBoundToNn_NoWarning()
+    {
+        var razor = @"<style>.only-div{color:red}</style>
+<NnContentSection Class=""other"">
+    <span class=""only-div"">x</span>
+</NnContentSection>";
+        var razorPath = "/TestProject/Components/Pages/Detail.razor";
+
+        await VerifyRazorAsync(razor, razorPath);
+    }
+
+    // NEG-7 (F2): commented-out <style>+<Nn* Class> pair (Razor @* *@) → silent (dead code is stripped
+    // before <style> extraction + binding-map construction).
+    [Fact]
+    public async Task NEG7_InlineStyle_RazorCommentedOut_NoWarning()
+    {
+        var razor = @"@* <style>.sidebar{width:220px}</style> <NnSidebarPanel Class=""sidebar"" /> *@
+<p>live content</p>";
+        var razorPath = "/TestProject/Components/Pages/Options.razor";
+
+        await VerifyRazorAsync(razor, razorPath);
+    }
+
+    // NEG-7b (F2): HTML-comment variant of the commented-out pair → silent.
+    [Fact]
+    public async Task NEG7b_InlineStyle_HtmlCommentedOut_NoWarning()
+    {
+        var razor = @"<!-- <style>.sidebar{width:220px}</style> <NnSidebarPanel Class=""sidebar"" /> -->
+<p>live content</p>";
+        var razorPath = "/TestProject/Components/Pages/Options.razor";
+
+        await VerifyRazorAsync(razor, razorPath);
+    }
+
+    // NEG-8 (FIX-2): tag-shaped CSS text inside a <style> body must NOT manufacture a binding. The
+    // `content: '<NnSidebarPanel Class="sidebar">'` string lives in CSS, not markup; the real `.sidebar`
+    // selector binds to NOTHING in actual markup → silent. Proves the binding map is built from
+    // style-body-blanked markup, not live <style> bodies (PLAN.md:48 safety invariant).
+    [Fact]
+    public async Task NEG8_InlineStyle_TagShapedCssText_NoFalseBinding_NoWarning()
+    {
+        var razor = @"<style>.sidebar{content:'<NnSidebarPanel Class=""sidebar"">';width:220px}</style>
+<div class=""sidebar"">real markup, not an Nn*</div>";
+        var razorPath = "/TestProject/Components/Pages/Options.razor";
+
+        await VerifyRazorAsync(razor, razorPath);
     }
 }
