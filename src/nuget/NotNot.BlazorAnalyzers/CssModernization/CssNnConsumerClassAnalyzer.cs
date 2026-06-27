@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.IO;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -27,7 +26,7 @@ namespace NotNot.BlazorAnalyzers.CssModernization;
 /// <para>
 /// <b>Detection (cross-file AdditionalText correlation — VIABLE_COSTLY).</b> A candidate is a
 /// <c>::deep &lt;compound&gt;</c> selector in a consumer <c>.razor.css</c> whose SUBJECT (rightmost
-/// compound, computed by <see cref="FindSubjectStart"/>) is a PLAIN consumer <c>.class</c> token (NOT
+/// compound, computed by <see cref="CssSelectorScanner.FindSubjectStart"/>) is a PLAIN consumer <c>.class</c> token (NOT
 /// <c>.nns-*</c>/<c>.mud-*</c> — those are CSS008/009's concern). The <c>::deep</c> is REQUIRED: it is
 /// what pierces the scoped boundary into the child component's DOM — own-element styling omits
 /// <c>::deep</c>, so its presence is a necessary condition for "this rule reaches into a child". The
@@ -164,12 +163,6 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
         @"<!--.*?-->",
         RegexOptions.Compiled | RegexOptions.Singleline);
 
-    /// <summary>Path segments identifying vendor/third-party files to skip (mirrors CssNnReachInAnalyzer).</summary>
-    private static readonly string[] VendorPathSegments =
-    {
-        "/lib/", "/node_modules/", "/xterm", "/prism", "/tiny-mde"
-    };
-
     /// <summary>
     /// GRAY-ZONE consumer-local <c>Nn*</c> components (VOW-local per Novaleaf.VibeOverwatch/AGENTS.md):
     /// they retain the <c>Nn*</c> prefix as branding markers but cannot relocate into NnDesign without
@@ -202,7 +195,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
         // Shared kill-switch with the rest of the CSS modernization rules.
-        if (IsOptedOut(context))
+        if (CssConsumerExemptions.IsOptedOut(context))
             return;
 
         // Index .razor AdditionalFiles by path so the paired-file lookup is O(1) per candidate CSS file.
@@ -237,7 +230,8 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
         CompilationAnalysisContext context, AdditionalText razorFile)
     {
         var path = razorFile.Path;
-        if (string.IsNullOrEmpty(path) || IsVendorFile(path) || IsExceptedPath(path))
+        if (string.IsNullOrEmpty(path) || CssConsumerExemptions.IsVendorFile(path) ||
+            CssConsumerExemptions.IsExceptedPath(path))
             return;
 
         var razorSource = razorFile.GetText(context.CancellationToken);
@@ -254,7 +248,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             return;
 
         // Per-file opt-out marker (whole-file scan, same coarse semantics as the scoped path).
-        if (HasOptOutComment(razorText))
+        if (CssConsumerExemptions.HasOptOutComment(razorText, OptOutMarker))
             return;
 
         // STRIP Razor (@* *@) and HTML (<!-- -->) comment spans BEFORE <style>-block extraction AND the
@@ -284,9 +278,11 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             var baseOffset = block.Groups["body"].Index;
             // Comment ranges are block-relative (computed over `body`); the selector scan is also
             // block-relative. baseOffset is applied ONCE, at the Report boundary.
-            var comments = FindCssCommentRanges(body);
-            AnalyzeSelectors(context, path, razorSource, body, comments, classToNnComponent,
-                requireDeep: false, deliveryNoun: "an inline <style> block", baseOffset: baseOffset);
+            var comments = CssSelectorScanner.FindCssCommentRanges(body);
+            CssSelectorScanner.ForEachSelector(body, comments,
+                (selector, offset) => AnalyzeSingleSelector(
+                    context, path, razorSource, selector, offset, comments, classToNnComponent,
+                    requireDeep: false, deliveryNoun: "an inline <style> block", baseOffset: baseOffset));
         }
     }
 
@@ -317,7 +313,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
         Dictionary<string, AdditionalText> razorByPath)
     {
         var path = file.Path;
-        if (string.IsNullOrEmpty(path) || IsVendorFile(path))
+        if (string.IsNullOrEmpty(path) || CssConsumerExemptions.IsVendorFile(path))
             return;
 
         // Only component-scoped CSS (.razor.css) can pair with a .razor and carry a ::deep reach-in.
@@ -326,7 +322,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             return;
 
         // Path-bucket exemption — producer CSS, samples, global theme.
-        if (IsExceptedPath(path))
+        if (CssConsumerExemptions.IsExceptedPath(path))
             return;
 
         // Resolve the paired .razor (strip the trailing ".css"). No pair → cannot correlate → skip.
@@ -341,7 +337,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
         var cssText = cssSource.ToString();
 
         // Per-file opt-out marker (whole-file scan, same coarse semantics as the sibling analyzers).
-        if (HasOptOutComment(cssText))
+        if (CssConsumerExemptions.HasOptOutComment(cssText, OptOutMarker))
             return;
 
         var razorSource = razorFile.GetText(context.CancellationToken);
@@ -357,9 +353,11 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
         if (classToNnComponent.Count == 0)
             return;
 
-        var comments = FindCssCommentRanges(cssText);
-        AnalyzeSelectors(context, file.Path, cssSource, cssText, comments, classToNnComponent,
-            requireDeep: true, deliveryNoun: "a scoped ::deep rule", baseOffset: 0);
+        var comments = CssSelectorScanner.FindCssCommentRanges(cssText);
+        CssSelectorScanner.ForEachSelector(cssText, comments,
+            (selector, offset) => AnalyzeSingleSelector(
+                context, file.Path, cssSource, selector, offset, comments, classToNnComponent,
+                requireDeep: true, deliveryNoun: "a scoped ::deep rule", baseOffset: 0));
     }
 
     /// <summary>
@@ -468,64 +466,10 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
         RegexOptions.Compiled);
 
     // ── Selector analysis (subject = consumer class under ::deep) ──────────────
-
-    private static void AnalyzeSelectors(
-        CompilationAnalysisContext ctx, string filePath, SourceText src, string text,
-        List<(int Start, int End)> comments, Dictionary<string, string> classToNnComponent,
-        bool requireDeep, string deliveryNoun, int baseOffset)
-    {
-        var selectorStart = 0;
-        var depth = 0;
-
-        for (var i = 0; i < text.Length; i++)
-        {
-            var ch = text[i];
-
-            if (IsInComment(comments, i))
-                continue;
-
-            if (ch == '{')
-            {
-                if (depth == 0)
-                {
-                    var selectorList = text.Substring(selectorStart, i - selectorStart);
-                    var trimmed = selectorList.TrimStart();
-                    if (!trimmed.StartsWith("@", StringComparison.Ordinal))
-                    {
-                        AnalyzeSelectorList(ctx, filePath, src, selectorList, selectorStart, comments,
-                            classToNnComponent, requireDeep, deliveryNoun, baseOffset);
-                    }
-                }
-                depth++;
-            }
-            else if (ch == '}')
-            {
-                if (depth > 0)
-                    depth--;
-                selectorStart = i + 1;
-            }
-        }
-    }
-
-    private static void AnalyzeSelectorList(
-        CompilationAnalysisContext ctx, string filePath, SourceText src,
-        string selectorList, int listOffset, List<(int Start, int End)> comments,
-        Dictionary<string, string> classToNnComponent,
-        bool requireDeep, string deliveryNoun, int baseOffset)
-    {
-        var partStart = 0;
-        for (var i = 0; i <= selectorList.Length; i++)
-        {
-            var atEnd = i == selectorList.Length;
-            if (atEnd || selectorList[i] == ',')
-            {
-                var part = selectorList.Substring(partStart, i - partStart);
-                AnalyzeSingleSelector(ctx, filePath, src, part, listOffset + partStart, comments,
-                    classToNnComponent, requireDeep, deliveryNoun, baseOffset);
-                partStart = i + 1;
-            }
-        }
-    }
+    // The selector-list walk (top-level spans → comma-split individuals) is the shared
+    // CssSelectorScanner.ForEachSelector engine; each call site passes a closure capturing this rule's
+    // classToNnComponent / requireDeep / deliveryNoun / baseOffset. The per-selector classification +
+    // cross-file binding lookup stay here.
 
     private static void AnalyzeSingleSelector(
         CompilationAnalysisContext ctx, string filePath, SourceText src,
@@ -546,7 +490,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             return;
 
         // The SUBJECT is the rightmost compound selector (everything after the last combinator / ::deep).
-        var subjectStart = FindSubjectStart(selector);
+        var subjectStart = CssSelectorScanner.FindSubjectStart(selector);
         var subject = selector.Substring(subjectStart);
 
         // Examine each plain class token in the subject. The FIRST class token that resolves to an Nn*
@@ -571,7 +515,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             // space. The ABSOLUTE offset into `src` is baseOffset + scanIndex, computed ONCE at the
             // Report boundary (scoped path: baseOffset == 0, so behavior is identical).
             var scanIndex = selectorOffset + subjectStart + m.Index;
-            if (IsInComment(comments, scanIndex))
+            if (CssSelectorScanner.IsInComment(comments, scanIndex))
                 continue;
 
             Report(ctx, filePath, src, baseOffset + scanIndex, m.Length, bare, componentName,
@@ -581,92 +525,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    /// <summary>
-    /// Returns the start index (within <paramref name="selector"/>) of the SUBJECT — the rightmost
-    /// compound selector. Mirrors <see cref="CssNnReachInAnalyzer.FindSubjectStart"/>: everything before
-    /// this index is ancestor / state-gate / <c>::deep</c> context. The subject begins after the last
-    /// top-level combinator (descendant whitespace, <c>&gt;</c>, <c>+</c>, <c>~</c>); <c>::deep</c>
-    /// resolves to a whitespace boundary (it is followed by whitespace then the subject).
-    /// </summary>
-    private static int FindSubjectStart(string selector)
-    {
-        var end = selector.Length;
-        while (end > 0 && char.IsWhiteSpace(selector[end - 1]))
-            end--;
-
-        var i = end - 1;
-        while (i >= 0)
-        {
-            var ch = selector[i];
-            if (ch == '>' || ch == '+' || ch == '~' || char.IsWhiteSpace(ch))
-            {
-                var start = i + 1;
-                while (start < end && (char.IsWhiteSpace(selector[start]) ||
-                       selector[start] == '>' || selector[start] == '+' || selector[start] == '~'))
-                    start++;
-                return start;
-            }
-            i--;
-        }
-        return 0;
-    }
-
-    // ── Exemptions (ported from CssNnReachInAnalyzer) ─────────────────────────
-
-    private static bool IsExceptedPath(string filePath)
-    {
-        if (string.IsNullOrEmpty(filePath))
-            return false;
-
-        var p = filePath.Replace('\\', '/');
-
-        if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0)
-            return true;
-        if (p.IndexOf("/NnDesignSamples/", StringComparison.OrdinalIgnoreCase) >= 0)
-            return true;
-        if (p.IndexOf("/Pages/Samples/", StringComparison.OrdinalIgnoreCase) >= 0)
-            return true;
-
-        var fileName = Path.GetFileName(p);
-        return AllowedFileNames.Contains(fileName);
-    }
-
-    private static readonly HashSet<string> AllowedFileNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "nn-design-samples.css",
-        "app.css",
-    };
-
-    private static bool HasOptOutComment(string fileText)
-    {
-        if (string.IsNullOrEmpty(fileText))
-            return false;
-        return fileText.IndexOf(OptOutMarker, StringComparison.OrdinalIgnoreCase) >= 0;
-    }
-
-    private static bool IsOptedOut(CompilationAnalysisContext context)
-    {
-        return context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
-                   .TryGetValue("build_property.CssAnalyzerEnabled", out var value) &&
-               string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsVendorFile(string filePath)
-    {
-        var normalized = filePath.Replace('\\', '/');
-
-        if (normalized.EndsWith(".min.css", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        foreach (var segment in VendorPathSegments)
-        {
-            if (normalized.IndexOf(segment, StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-        }
-        return false;
-    }
-
-    // ── Reporting + comment infra (mirrors CssNnReachInAnalyzer) ───────────────
+    // ── Reporting (shared exemption / scanner infra lives in CssConsumerExemptions / CssSelectorScanner) ──
 
     private static void Report(
         CompilationAnalysisContext ctx, string filePath, SourceText src,
@@ -683,44 +542,5 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
 
         ctx.ReportDiagnostic(Diagnostic.Create(
             RuleNoConsumerNnStyling, location, className, componentName, deliveryNoun));
-    }
-
-    private static List<(int Start, int End)> FindCssCommentRanges(string text)
-    {
-        var ranges = new List<(int Start, int End)>();
-        var i = 0;
-        while (i < text.Length - 1)
-        {
-            if (text[i] == '/' && text[i + 1] == '*')
-            {
-                var start = i;
-                i += 2;
-                while (i < text.Length - 1)
-                {
-                    if (text[i] == '*' && text[i + 1] == '/')
-                    {
-                        i += 2;
-                        break;
-                    }
-                    i++;
-                }
-                ranges.Add((start, i));
-            }
-            else
-            {
-                i++;
-            }
-        }
-        return ranges;
-    }
-
-    private static bool IsInComment(List<(int Start, int End)> ranges, int position)
-    {
-        foreach (var (s, e) in ranges)
-        {
-            if (position >= s && position < e) return true;
-            if (s > position) break;
-        }
-        return false;
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.IO;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -94,12 +93,6 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
         @"\.nns-[A-Za-z0-9_-]+",
         RegexOptions.Compiled);
 
-    /// <summary>Path segments identifying vendor/third-party files to skip (mirrors CssModernizationAnalyzer).</summary>
-    private static readonly string[] VendorPathSegments =
-    {
-        "/lib/", "/node_modules/", "/xterm", "/prism", "/tiny-mde"
-    };
-
     // ── DiagnosticAnalyzer overrides ────────────────────────────────────────
 
     /// <inheritdoc/>
@@ -119,7 +112,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
         // Shared kill-switch with the rest of the CSS modernization rules.
-        if (IsOptedOut(context))
+        if (CssConsumerExemptions.IsOptedOut(context))
             return;
 
         foreach (var file in context.Options.AdditionalFiles)
@@ -132,7 +125,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeFile(CompilationAnalysisContext context, AdditionalText file)
     {
         var path = file.Path;
-        if (string.IsNullOrEmpty(path) || IsVendorFile(path))
+        if (string.IsNullOrEmpty(path) || CssConsumerExemptions.IsVendorFile(path))
             return;
 
         // Only scoped/global CSS carries reach-in selectors. (.razor markup uses Class="..."
@@ -142,7 +135,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
             return;
 
         // Path-bucket exemption — producer CSS, samples, global theme.
-        if (IsExceptedPath(path))
+        if (CssConsumerExemptions.IsExceptedPath(path))
             return;
 
         var sourceText = file.GetText(context.CancellationToken);
@@ -152,80 +145,16 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
         var text = sourceText.ToString();
 
         // Per-file opt-out marker (whole-file scan, same coarse semantics as the policy analyzer).
-        if (HasOptOutComment(text))
+        if (CssConsumerExemptions.HasOptOutComment(text, OptOutMarker))
             return;
 
-        var comments = FindCssCommentRanges(text);
-        AnalyzeSelectors(context, file.Path, sourceText, text, comments);
+        var comments = CssSelectorScanner.FindCssCommentRanges(text);
+        // Walk every individual selector (shared engine), applying the .nns-* subject classification.
+        CssSelectorScanner.ForEachSelector(text, comments,
+            (selector, offset) => AnalyzeSingleSelector(context, file.Path, sourceText, selector, offset, comments));
     }
 
     // ── Selector analysis ────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Walks every selector list (the text preceding each top-level <c>{</c>), splits on commas into
-    /// individual selectors, isolates the SUBJECT (rightmost compound selector), and reports when the
-    /// subject restyles a non-allow-listed <c>.nns-*</c> class.
-    /// </summary>
-    private static void AnalyzeSelectors(
-        CompilationAnalysisContext ctx, string filePath, SourceText src, string text,
-        List<(int Start, int End)> comments)
-    {
-        // Scan top-level selector-list spans: from the start of file / after the previous rule's `}`
-        // up to the next `{`. We skip @-rule preludes (e.g. @media) — their inner rules are reached on
-        // subsequent iterations because the body still contains `selector {` pairs. Brace depth tracks
-        // declaration blocks so a `{` inside a value (rare) does not derail the scan.
-        var selectorStart = 0;
-        var depth = 0;
-
-        for (var i = 0; i < text.Length; i++)
-        {
-            var ch = text[i];
-
-            if (IsInComment(comments, i))
-                continue;
-
-            if (ch == '{')
-            {
-                if (depth == 0)
-                {
-                    var selectorList = text.Substring(selectorStart, i - selectorStart);
-                    // Skip at-rule preludes (@media, @supports, @layer, @keyframes ...): those have no
-                    // styled subject themselves; their nested rules are visited as the scan continues.
-                    var trimmed = selectorList.TrimStart();
-                    if (!trimmed.StartsWith("@", StringComparison.Ordinal))
-                    {
-                        AnalyzeSelectorList(ctx, filePath, src, selectorList, selectorStart, comments);
-                    }
-                }
-                depth++;
-            }
-            else if (ch == '}')
-            {
-                if (depth > 0)
-                    depth--;
-                selectorStart = i + 1;
-            }
-        }
-    }
-
-    private static void AnalyzeSelectorList(
-        CompilationAnalysisContext ctx, string filePath, SourceText src,
-        string selectorList, int listOffset, List<(int Start, int End)> comments)
-    {
-        // A selector list is comma-separated. Each comma-part is an independent selector with its own
-        // subject. Track running offset so reported positions point at the offending .nns-* token.
-        var partStart = 0;
-        for (var i = 0; i <= selectorList.Length; i++)
-        {
-            var atEnd = i == selectorList.Length;
-            if (atEnd || selectorList[i] == ',')
-            {
-                var part = selectorList.Substring(partStart, i - partStart);
-                AnalyzeSingleSelector(ctx, filePath, src, part, listOffset + partStart, comments);
-                partStart = i + 1;
-            }
-        }
-    }
 
     private static void AnalyzeSingleSelector(
         CompilationAnalysisContext ctx, string filePath, SourceText src,
@@ -239,7 +168,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
         // separates ancestor context from the styled element. We compute the subject's char range
         // within `selector`, then look for a violating .nns-* token ONLY inside that range. An .nns-*
         // appearing earlier (ancestor/state-gate position) is "react-to" → ignored.
-        var subjectStart = FindSubjectStart(selector);
+        var subjectStart = CssSelectorScanner.FindSubjectStart(selector);
 
         // Examine the subject substring for .nns-* class tokens.
         var subject = selector.Substring(subjectStart);
@@ -250,7 +179,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
                 continue;
 
             var absoluteIndex = selectorOffset + subjectStart + m.Index;
-            if (IsInComment(comments, absoluteIndex))
+            if (CssSelectorScanner.IsInComment(comments, absoluteIndex))
                 continue;
 
             // Report on the offending token (sans leading dot for the message argument readability).
@@ -259,48 +188,11 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Returns the start index (within <paramref name="selector"/>) of the SUBJECT — the rightmost
-    /// compound selector. Everything before this index is ancestor / state-gate context.
-    /// </summary>
-    /// <remarks>
-    /// The subject begins after the last top-level combinator. Combinators: descendant (whitespace),
-    /// child (<c>&gt;</c>), adjacent (<c>+</c>), general sibling (<c>~</c>). Blazor's <c>::deep</c>
-    /// pseudo-element is ALSO an ancestor boundary — <c>::deep X</c> means "X anywhere under the scoped
-    /// root", so the subject is what follows the last <c>::deep</c> + its following whitespace. We scan
-    /// from the right and stop at the first boundary.
-    /// </remarks>
-    private static int FindSubjectStart(string selector)
-    {
-        // Normalize trailing whitespace for the scan (the subject is the last NON-empty compound).
-        var end = selector.Length;
-        while (end > 0 && char.IsWhiteSpace(selector[end - 1]))
-            end--;
-
-        // Walk leftward from `end` to the previous combinator boundary.
-        var i = end - 1;
-        while (i >= 0)
-        {
-            var ch = selector[i];
-            if (ch == '>' || ch == '+' || ch == '~' || char.IsWhiteSpace(ch))
-            {
-                // Boundary found; subject starts at the next non-combinator, non-whitespace char.
-                var start = i + 1;
-                while (start < end && (char.IsWhiteSpace(selector[start]) ||
-                       selector[start] == '>' || selector[start] == '+' || selector[start] == '~'))
-                    start++;
-                return start;
-            }
-            i--;
-        }
-        return 0;
-    }
-
-    /// <summary>
     /// Public-contract allow-list: <c>.nns-chord-revealed</c> (exact) only. Never counts as a reach-in
     /// even when it appears in subject position. There is deliberately NO blanket <c>.nns-*</c> prefix
     /// allow — the <c>.nns-*</c> prefix now denotes NnDesign INTERNALS (the very thing this analyzer
     /// guards), so a blanket allow would silently dormant the rule. Samples are exempted by PATH bucket
-    /// (<see cref="IsExceptedPath"/>), not by prefix.
+    /// (<see cref="CssConsumerExemptions.IsExceptedPath"/>), not by prefix.
     /// </summary>
     private static bool IsAllowListed(string nnToken)
     {
@@ -311,76 +203,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    // ── Exemptions (ported from NnDesignMudBlazorPolicyAnalyzer) ──────────────
-
-    /// <summary>
-    /// Path-bucket exemption. Producer CSS / wrapper internals legitimately DEFINE <c>.nns-*</c>;
-    /// samples + global theme are not consumers reaching in. This is the SOLE samples exemption — the
-    /// blanket <c>.nns-*</c> prefix allow was removed (it would dormant the guard post-rename), so the
-    /// samples surface relies entirely on these path / file-name buckets.
-    /// </summary>
-    private static bool IsExceptedPath(string filePath)
-    {
-        if (string.IsNullOrEmpty(filePath))
-            return false;
-
-        var p = filePath.Replace('\\', '/');
-
-        // The NnDesign producer / wrapper layer itself legitimately defines .nns-* classes.
-        if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0)
-            return true;
-
-        // Samples pages — both the canonical NnDesignSamples folder and the generic Pages/Samples bucket.
-        if (p.IndexOf("/NnDesignSamples/", StringComparison.OrdinalIgnoreCase) >= 0)
-            return true;
-        if (p.IndexOf("/Pages/Samples/", StringComparison.OrdinalIgnoreCase) >= 0)
-            return true;
-
-        // Specific sample / global-theme CSS files (own-roots / .nns-* live here legitimately).
-        var fileName = Path.GetFileName(p);
-        return AllowedFileNames.Contains(fileName);
-    }
-
-    /// <summary>
-    /// File-name allow-list — samples CSS + global theme CSS, where <c>.nns-*</c> roots are authored
-    /// legitimately rather than reached into.
-    /// </summary>
-    private static readonly HashSet<string> AllowedFileNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "nn-design-samples.css",
-        "app.css",
-    };
-
-    private static bool HasOptOutComment(string fileText)
-    {
-        if (string.IsNullOrEmpty(fileText))
-            return false;
-        return fileText.IndexOf(OptOutMarker, StringComparison.OrdinalIgnoreCase) >= 0;
-    }
-
-    private static bool IsOptedOut(CompilationAnalysisContext context)
-    {
-        return context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
-                   .TryGetValue("build_property.CssAnalyzerEnabled", out var value) &&
-               string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsVendorFile(string filePath)
-    {
-        var normalized = filePath.Replace('\\', '/');
-
-        if (normalized.EndsWith(".min.css", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        foreach (var segment in VendorPathSegments)
-        {
-            if (normalized.IndexOf(segment, StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-        }
-        return false;
-    }
-
-    // ── Reporting + comment infra (mirrors CssModernizationAnalyzer) ──────────
+    // ── Reporting (shared exemption / scanner infra lives in CssConsumerExemptions / CssSelectorScanner) ──
 
     private static void Report(
         CompilationAnalysisContext ctx, string filePath, SourceText src,
@@ -394,45 +217,5 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
             new LinePositionSpan(start, end));
 
         ctx.ReportDiagnostic(Diagnostic.Create(RuleNoNnReachIn, location, displayName));
-    }
-
-    /// <summary>Builds a sorted list of <c>/* ... */</c> comment ranges. Single O(N) forward pass.</summary>
-    private static List<(int Start, int End)> FindCssCommentRanges(string text)
-    {
-        var ranges = new List<(int Start, int End)>();
-        var i = 0;
-        while (i < text.Length - 1)
-        {
-            if (text[i] == '/' && text[i + 1] == '*')
-            {
-                var start = i;
-                i += 2;
-                while (i < text.Length - 1)
-                {
-                    if (text[i] == '*' && text[i + 1] == '/')
-                    {
-                        i += 2;
-                        break;
-                    }
-                    i++;
-                }
-                ranges.Add((start, i));
-            }
-            else
-            {
-                i++;
-            }
-        }
-        return ranges;
-    }
-
-    private static bool IsInComment(List<(int Start, int End)> ranges, int position)
-    {
-        foreach (var (s, e) in ranges)
-        {
-            if (position >= s && position < e) return true;
-            if (s > position) break;
-        }
-        return false;
     }
 }

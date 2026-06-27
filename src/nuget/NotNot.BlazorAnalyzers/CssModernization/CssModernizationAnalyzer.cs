@@ -159,12 +159,6 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         @"\b\d+(?:\.\d+)?(?:d|s|l)?v(?:h|w|min|max)\b",
         RegexOptions.Compiled);
 
-    /// <summary>Path segments identifying vendor/third-party files to skip.</summary>
-    private static readonly string[] VendorPathSegments =
-    {
-        "/lib/", "/node_modules/", "/xterm", "/prism", "/tiny-mde"
-    };
-
     // ── DiagnosticAnalyzer overrides ────────────────────────────────────
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
@@ -186,7 +180,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
         // Opt-out: set <CssAnalyzerEnabled>false</CssAnalyzerEnabled> in project
-        if (IsOptedOut(context))
+        if (CssConsumerExemptions.IsOptedOut(context))
             return;
 
         foreach (var file in context.Options.AdditionalFiles)
@@ -199,7 +193,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeFile(CompilationAnalysisContext context, AdditionalText file)
     {
         var path = file.Path;
-        if (string.IsNullOrEmpty(path) || IsVendorFile(path))
+        if (string.IsNullOrEmpty(path) || CssConsumerExemptions.IsVendorFile(path))
             return;
 
         var sourceText = file.GetText(context.CancellationToken);
@@ -215,7 +209,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
 
         if (isGlobalCss)
         {
-            var comments = FindCssCommentRanges(text);
+            var comments = CssSelectorScanner.FindCssCommentRanges(text);
             CheckNoImportant(context, file, sourceText, text, comments);
             CheckNoPrefersColorScheme(context, file, sourceText, text, comments);
             CheckNoHardcodedRgba(context, file, sourceText, text, comments);
@@ -224,7 +218,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         }
         else if (isRazorCss)
         {
-            var comments = FindCssCommentRanges(text);
+            var comments = CssSelectorScanner.FindCssCommentRanges(text);
             CheckNoNestingAmpersand(context, file, sourceText, text, comments);
             CheckNoHasSelector(context, file, sourceText, text, comments);
             CheckNoContentVisibility(context, file, sourceText, text, comments);
@@ -247,7 +241,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         int pos = 0;
         while ((pos = text.IndexOf("!important", pos, StringComparison.Ordinal)) >= 0)
         {
-            if (!IsInComment(comments, pos))
+            if (!CssSelectorScanner.IsInComment(comments, pos))
                 Report(ctx, file.Path, src, pos, "!important".Length, RuleNoImportant);
             pos += "!important".Length;
         }
@@ -261,7 +255,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         int pos = 0;
         while ((pos = text.IndexOf("prefers-color-scheme", pos, StringComparison.Ordinal)) >= 0)
         {
-            if (!IsInComment(comments, pos))
+            if (!CssSelectorScanner.IsInComment(comments, pos))
                 Report(ctx, file.Path, src, pos, "prefers-color-scheme".Length, RuleNoPrefersColorScheme);
             pos += "prefers-color-scheme".Length;
         }
@@ -282,7 +276,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
     {
         foreach (Match m in pattern.Matches(text))
         {
-            if (IsInComment(comments, m.Index))
+            if (CssSelectorScanner.IsInComment(comments, m.Index))
                 continue;
 
             // Skip if the line already uses light-dark() wrapping
@@ -303,7 +297,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         {
             // Capturing group 1 is the & character itself
             var amp = m.Groups[1];
-            if (IsInComment(comments, amp.Index))
+            if (CssSelectorScanner.IsInComment(comments, amp.Index))
                 continue;
 
             // & can appear legitimately inside url() strings
@@ -323,7 +317,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         int pos = 0;
         while ((pos = text.IndexOf("content-visibility", pos, StringComparison.OrdinalIgnoreCase)) >= 0)
         {
-            if (!IsInComment(comments, pos))
+            if (!CssSelectorScanner.IsInComment(comments, pos))
                 Report(ctx, file.Path, src, pos, "content-visibility".Length, RuleNoContentVisibility);
             pos += "content-visibility".Length;
         }
@@ -339,7 +333,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
 
         foreach (Match m in LinkLayerPattern.Matches(text))
         {
-            if (IsInComment(htmlComments, m.Index) || IsInComment(razorComments, m.Index))
+            if (CssSelectorScanner.IsInComment(htmlComments, m.Index) || CssSelectorScanner.IsInComment(razorComments, m.Index))
                 continue;
 
             Report(ctx, file.Path, src, m.Index, m.Length, RuleNoLinkLayer);
@@ -354,7 +348,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         int pos = 0;
         while ((pos = text.IndexOf(":has(", pos, StringComparison.Ordinal)) >= 0)
         {
-            if (!IsInComment(comments, pos))
+            if (!CssSelectorScanner.IsInComment(comments, pos))
                 Report(ctx, file.Path, src, pos, ":has(".Length, RuleNoHasInScoped);
             pos += ":has(".Length;
         }
@@ -373,7 +367,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
 
         foreach (Match m in ViewportUnitPattern.Matches(text))
         {
-            if (IsInComment(comments, m.Index))
+            if (CssSelectorScanner.IsInComment(comments, m.Index))
                 continue;
 
             Report(ctx, file.Path, src, m.Index, m.Length, RuleNoViewportUnits, m.Value);
@@ -397,7 +391,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
 
         foreach (Match m in ViewportUnitPattern.Matches(text))
         {
-            if (IsInComment(htmlComments, m.Index) || IsInComment(razorComments, m.Index))
+            if (CssSelectorScanner.IsInComment(htmlComments, m.Index) || CssSelectorScanner.IsInComment(razorComments, m.Index))
                 continue;
 
             if (!TryGetEnclosingRange(attributeValues, m.Index, out var value))
@@ -486,7 +480,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>Finds the range containing <paramref name="position"/>; ranges sorted by start,
-    /// linear scan with early exit (mirrors <see cref="IsInComment"/>).</summary>
+    /// linear scan with early exit (mirrors <see cref="CssSelectorScanner.IsInComment"/>).</summary>
     private static bool TryGetEnclosingRange(
         List<(int Start, int End)> ranges, int position, out (int Start, int End) enclosing)
     {
@@ -503,13 +497,6 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    private static bool IsOptedOut(CompilationAnalysisContext context)
-    {
-        return context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
-                   .TryGetValue("build_property.CssAnalyzerEnabled", out var value) &&
-               string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
-    }
-
     private static void Report(
         CompilationAnalysisContext ctx, string filePath, SourceText src,
         int position, int length, DiagnosticDescriptor rule, params object[] args)
@@ -524,40 +511,6 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         ctx.ReportDiagnostic(args.Length > 0
             ? Diagnostic.Create(rule, location, args)
             : Diagnostic.Create(rule, location));
-    }
-
-    /// <summary>
-    /// Builds a sorted list of /* ... */ comment ranges for O(1)-per-lookup comment detection.
-    /// Single forward pass over the text — O(N) total.
-    /// </summary>
-    private static List<(int Start, int End)> FindCssCommentRanges(string text)
-    {
-        var ranges = new List<(int Start, int End)>();
-        int i = 0;
-        while (i < text.Length - 1)
-        {
-            if (text[i] == '/' && text[i + 1] == '*')
-            {
-                int start = i;
-                i += 2;
-                while (i < text.Length - 1)
-                {
-                    if (text[i] == '*' && text[i + 1] == '/')
-                    {
-                        i += 2;
-                        break;
-                    }
-                    i++;
-                }
-                // If no closing */ found, treat rest of file as comment
-                ranges.Add((start, i));
-            }
-            else
-            {
-                i++;
-            }
-        }
-        return ranges;
     }
 
     /// <summary>Builds sorted list of &lt;!-- ... --&gt; comment ranges in HTML/Razor text.</summary>
@@ -620,36 +573,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         return ranges;
     }
 
-    /// <summary>
-    /// Checks if a character position falls within any comment range.
-    /// Ranges are sorted by start position; linear scan with early exit.
-    /// </summary>
-    private static bool IsInComment(List<(int Start, int End)> ranges, int position)
-    {
-        foreach (var (s, e) in ranges)
-        {
-            if (position >= s && position < e) return true;
-            if (s > position) break;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Determines if a file is a vendor/third-party CSS file that should be skipped.
-    /// Matches: *.min.css, paths containing /lib/, /node_modules/, /xterm, /prism, /tiny-mde.
-    /// </summary>
-    private static bool IsVendorFile(string filePath)
-    {
-        var normalized = filePath.Replace('\\', '/');
-
-        if (normalized.EndsWith(".min.css", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        foreach (var segment in VendorPathSegments)
-        {
-            if (normalized.IndexOf(segment, StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-        }
-        return false;
-    }
+    // ── Vendor / build-property / CSS-comment scaffolding lives in CssConsumerExemptions /
+    //    CssSelectorScanner (shared with the reach-in analyzers). HTML / Razor comment finders below are
+    //    NNB_CSS006/010-specific and stay local.
 }
