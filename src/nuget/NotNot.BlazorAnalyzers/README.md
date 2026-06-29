@@ -1035,6 +1035,42 @@ The consumer-side counterpart to [NNB043](#nnb043) (producer-side Tier-B exposur
 dotnet_diagnostic.NNB044.severity = warning
 ```
 
+<a id="nnb047"></a>
+### NNB047: Duplicate `NnSampleSection` Id (HTML ids must be unique)
+
+**Severity:** Error
+**Category:** NnDesign
+**Authority:** [`NotNot.BlazorDesign/AGENTS.md`](https://github.com/NotNotTech/NotNot-MonoRepo) → Consumer Policy
+
+`NnSampleSection` renders its `Id` parameter as an HTML `id` (`<NnPaper id="@Id">`). The `/samples` Table of Contents and browser tests anchor on that id via `document.getElementById`, which returns only the **first** matching element. Two `NnSampleSection` sharing an `Id` therefore make every anchor / ToC navigation to that id silently mis-target the first occurrence (the motivating defect: a duplicated `Id="sample-27"` sent the "NnSelect" ToC entry to the wrong section). NNB047 aggregates every static-literal `NnSampleSection` `Id` across `.razor` markup and reports each section in a duplicate set.
+
+```razor
+@* ❌ NNB047 fires on BOTH — they share Id="sample-x" (getElementById resolves only the first) *@
+<NnSampleSection Id="sample-x" XRaySource="@XRayHelper.Source()">…</NnSampleSection>
+…
+<NnSampleSection Id="sample-x" XRaySource="@XRayHelper.Source()">…</NnSampleSection>
+
+@* ✅ each section has a distinct Id *@
+<NnSampleSection Id="sample-x" XRaySource="@XRayHelper.Source()">…</NnSampleSection>
+<NnSampleSection Id="sample-y" XRaySource="@XRayHelper.Source()">…</NnSampleSection>
+
+@* ✅ dynamic Id (Id="@expr") is not statically comparable → skipped *@
+<NnSampleSection Id="@_id" XRaySource="@XRayHelper.Source()">…</NnSampleSection>
+```
+
+**Scan target:** `.razor` markup only (not `.razor.cs` / `.cs` / `.razor.css`). Uniqueness is **compilation-scoped** — a duplicate spanning two files fires in both. Skips matches inside HTML (`<!-- -->`) and Razor (`@* *@`) comments. Dynamic `Id="@expr"` values are not statically comparable and are skipped.
+
+**No path exemptions.** Unlike the consumer-policy NnDesign analyzers ([NNB044](#nnb044) etc.), NNB047 does **not** exempt `NnDesignSamples/**` or `NnDesignSamplesPage.razor` — that is precisely where `NnSampleSection` is used. It keys on the component, not on a consumer path.
+
+**Assembly opt-out**: `[assembly: NotNot.BlazorAnalyzers.NnDesign.NnDesignBypass]`. **Kill-switch** (shared with the NnDesign policy suite): `<NnDesignPolicyAnalyzerEnabled>false</NnDesignPolicyAnalyzerEnabled>`.
+
+**Default severity is Error** — a duplicate HTML id is a correctness defect (silent mis-navigation). To soften locally (rare), override via `.editorconfig`:
+
+```ini
+[*.razor]
+dotnet_diagnostic.NNB047.severity = warning
+```
+
 <a id="nnb_css009"></a>
 ### NNB_CSS009: Do not reach into MudBlazor internal `.mud-*` classes
 
@@ -1208,6 +1244,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB022 | `NnDesignMudBlazorPolicyAnalyzer` | Error | Consumer `Mud*` markup / usings / identifiers |
 | NNB043 | `NnDesignTierBExposureAnalyzer` | Error | Producer `Nn*` component params |
 | NNB044 | `NnDesignInlineStyleAnalyzer` | Error | Consumer `.razor` static-literal inline `style=` |
+| NNB047 | `NnSampleSectionIdUniquenessAnalyzer` | Error | `.razor` `<NnSampleSection Id>` cross-file uniqueness |
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nns-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 | NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
