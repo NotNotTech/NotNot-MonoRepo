@@ -158,3 +158,37 @@ public readonly record struct Tag(string Name, string? Value, string? Detail)
 	/// <returns><c>true</c> when <see cref="Name"/> begins with <paramref name="namePrefix"/> under <see cref="StringComparison.OrdinalIgnoreCase"/>.</returns>
 	public bool MatchesPrefix(string namePrefix) => Name.StartsWith(namePrefix, StringComparison.OrdinalIgnoreCase);
 }
+
+/// <summary>
+/// Collection-level helpers over a <see cref="Tag"/> sequence. <see cref="Tag"/> exposes only per-instance
+/// <see cref="Tag.MatchesName(string)"/>; these resolve a value across a tag list (the single owner of the
+/// "walk the tags, return the first name-matching non-empty <see cref="Tag.Value"/>" predicate).
+/// </summary>
+public static class zz_Extensions_Tag
+{
+	/// <summary>
+	/// Resolve the first name-matching tag's non-empty <see cref="Tag.Value"/> from a tag sequence, or null
+	/// when no tag of that name carries a value. Name match is ordinal-ignore-case
+	/// (<see cref="Tag.MatchesName(string)"/>); a present-but-empty Value is treated as absent.
+	/// </summary>
+	/// <param name="tags">The tag sequence to search. A null sequence yields null.</param>
+	/// <param name="name">The tag name to resolve (ordinal-ignore-case).</param>
+	/// <returns>The first matching non-empty value, or null.</returns>
+	public static string? _TryGetTagValue(this IEnumerable<Tag>? tags, string name)
+	{
+		if (tags is null)
+		{
+			return null;
+		}
+
+		foreach (var tag in tags)
+		{
+			if (tag.MatchesName(name) && tag.Value is { Length: > 0 } value)
+			{
+				return value;
+			}
+		}
+
+		return null;
+	}
+}
