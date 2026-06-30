@@ -8,7 +8,9 @@ namespace NotNot.Analyzers.Tests.Architecture.DI;
 /// <summary>
 /// Tests for <see cref="DiMarkerEnforcementAnalyzer"/> — NN_DI_001 (lifetime mismatch),
 /// NN_DI_002 (redundant registration), NN_DI_003 (passthrough factory),
-/// NN_DI_004 (marker + IHostedService), plus cross-cutting bypass behavior.
+/// NN_DI_004 (marker + IHostedService), NN_DI_005 (missing marker — auto-registration candidate),
+/// NN_DI_006 (hosted service with a required delegate ctor parameter), plus cross-cutting bypass
+/// behavior.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -102,6 +104,11 @@ public class DiMarkerEnforcementAnalyzerTests
 		new DiagnosticResult(DiMarkerEnforcementAnalyzer.DI005_DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Info)
 			.WithLocation(markup)
 			.WithArguments(implType, lifetime);
+
+	private static DiagnosticResult DI006(string hostedType, string paramName, string delegateType, int markup = 0) =>
+		new DiagnosticResult(DiMarkerEnforcementAnalyzer.DI006_DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+			.WithLocation(markup)
+			.WithArguments(hostedType, paramName, delegateType);
 
 	// ══════════════════════════════════════════════════════════════════════════
 	// NN_DI_001 — Lifetime mismatch with marker interface (Error)
@@ -1770,6 +1777,217 @@ public class Bootstrap
     }
 }";
 			await VerifyAsync(source);
+		}
+	}
+
+	// ══════════════════════════════════════════════════════════════════════════
+	// NN_DI_006 — Hosted service with a required delegate ctor parameter (Error)
+	// ══════════════════════════════════════════════════════════════════════════
+
+	public class NN_DI_006_HostedServiceRequiredDelegateCtor
+	{
+		[Fact]
+		public async Task ConcreteHostedService_RequiredDelegateCtorParam_Fires()
+		{
+			// F1 positive: a concrete BackgroundService (IHostedService) whose single public ctor
+			// requires a Func<> delegate parameter DI cannot provide. Marker-LESS — proves NN_DI_006
+			// fires regardless of marker presence (the branch runs BEFORE the NN_DI_004 marker-gate
+			// return). If this fails to fire, the detection branch is misplaced after the marker gate.
+			var source = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+public class {|#0:CrashObserver|} : BackgroundService
+{
+    public CrashObserver(Func<string, CancellationToken, Task> purge) { }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(source, DI006(
+				"CrashObserver",
+				"purge",
+				"System.Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task>"));
+		}
+
+		[Fact]
+		public async Task OptionalDefaultDelegateParam_Silent()
+		{
+			// N1: the delegate ctor parameter has a default (= null) → HasExplicitDefaultValue is true →
+			// DI passes null and the registration is constructible. NN_DI_006 silent (PtySessionManager
+			// shape — an optional delegate is a safe no-op).
+			var source = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+public class Svc : BackgroundService
+{
+    public Svc(Func<string, string?>? resolver = null) { }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task RequiredRegisteredInterfaceParam_Silent()
+		{
+			// N2: the required ctor parameter is an interface abstraction (not a delegate) →
+			// TypeKind != Delegate → DI can resolve it. NN_DI_006 silent. This is the preferred-fix
+			// shape the diagnostic message steers toward.
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+public interface ISomeService { }
+
+public class Svc : BackgroundService
+{
+    public Svc(ISomeService dep) { }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task NonHostedServiceClass_RequiredDelegateCtor_Silent()
+		{
+			// N3: a plain class (not IHostedService) with a required delegate ctor — it never reaches
+			// the IHostedService auto-registration scan, so a constructor-injected delegate is a
+			// legitimate manual-factory pattern. ImplementsHostedService false → NN_DI_006 silent.
+			var source = @"
+using System;
+
+public class Plain
+{
+    public Plain(Func<int> f) { }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task AbstractHostedService_RequiredDelegateCtor_Silent()
+		{
+			// N4: an abstract IHostedService with a required delegate ctor — abstract types are not
+			// auto-registered as concrete (the shared concrete/!abstract guard at the method top
+			// returns first). NN_DI_006 silent.
+			var source = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+public abstract class Base : BackgroundService
+{
+    protected Base(Func<int> f) { }
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task BypassedHostedService_RequiredDelegateCtor_Silent()
+		{
+			// N5: [AutoDiBypass] on the type — the shared type-scope guard returns before the NN_DI_006
+			// branch. Silent (developer's explicit opt-out: the type is hand-constructed).
+			var source = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+
+[AutoDiBypass]
+public class Svc : BackgroundService
+{
+    public Svc(Func<int> f) { }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task AssemblyBypass_HostedServiceRequiredDelegateCtor_Silent()
+		{
+			// N6 (markers-absent intent, realized via the testable short-circuit): VerifyAsync
+			// UNCONDITIONALLY references NotNot.Bcl.Core, so GetTypeByMetadataName always resolves the
+			// markers and a true markers-absent compilation is not achievable in this harness — the
+			// compilation-start marker-gate never short-circuits. Per the harness precedent
+			// (AssemblyBypass_NoNN_DI_005), realize REQ-2's compilation-gate-silence intent via the
+			// genuine `[assembly: AutoDiBypass]` short-circuit, which returns from OnCompilationStart
+			// BEFORE AnalyzeNamedType is ever registered. Fixture mirrors F1 plus the assembly bypass.
+			var source = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+
+[assembly: AutoDiBypass]
+
+public class CrashObserver : BackgroundService
+{
+    public CrashObserver(Func<string, CancellationToken, Task> purge) { }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task TwoPublicCtors_OneWithRequiredDelegateParam_Silent()
+		{
+			// N7 (FP-prevention guard pin): a concrete BackgroundService with TWO public instance
+			// constructors — one of which has a required Func<> delegate parameter. NN_DI_006 must stay
+			// SILENT because TryGetSinglePublicInstanceConstructor returns false on >1 public ctor
+			// (MS.DI greedy-resolve / [ActivatorUtilitiesConstructor] disambiguation is undecidable, so
+			// the rule conservatively skips). Without the >1-ctor skip this would be a false positive —
+			// this test pins that the guard prevents it.
+			var source = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+public class Svc : BackgroundService
+{
+    public Svc(Func<int> f) { }
+    public Svc(int x) { }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task MarkedHostedService_SingleRequiredDelegateCtor_CoFires_NN_DI_004_And_NN_DI_006()
+		{
+			// Co-fire (detection step-5 documented): a MARKED IHostedService (carries IDiSingletonService)
+			// whose single public ctor has a required Func<> delegate param emits BOTH NN_DI_004 (marker +
+			// IHostedService conflict) AND NN_DI_006 (required delegate ctor param). The two rules fire on
+			// disjoint conditions over the SAME class-declaration location — NN_DI_006 runs BEFORE the
+			// NN_DI_004 marker-gate `return` and is marker-independent, so it does not suppress NN_DI_004,
+			// and the marker presence does not suppress NN_DI_006. A single class-name markup serves both
+			// (both report on namedType.Locations[0]).
+			var source = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+public class {|#0:CrashObserver|} : IDiSingletonService, IHostedService
+{
+    public CrashObserver(Func<string, CancellationToken, Task> purge) { }
+    public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(
+				source,
+				DI006(
+					"CrashObserver",
+					"purge",
+					"System.Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task>",
+					markup: 0),
+				DI004("CrashObserver", "IDiSingletonService", "Singleton", markup: 0));
 		}
 	}
 

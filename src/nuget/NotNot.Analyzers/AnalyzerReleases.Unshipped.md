@@ -18,3 +18,4 @@ NN_R006 | Reliability | Error | EmptyCatchBlockAnalyzer, [Documentation](https:/
 NN_C004 | CodeStyle | Error | AppSettingsCodeDefaultAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_C004)
 NN_C005 | CodeStyle | Error | NnAppSettingsServerOnlyReadAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#nn_c005)
 NN_R007 | Reliability | Error | HandRolledAtomicFileWriteAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_R007)
+NN_DI_006 | Reliability | Error | DiMarkerEnforcementAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#nn_di_006)

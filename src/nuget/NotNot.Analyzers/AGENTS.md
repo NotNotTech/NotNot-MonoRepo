@@ -166,6 +166,25 @@ Forbids reading a `NotNot.AppSettings`-generated **ServerOnly** key from a `.Sha
 
 Complementary to NN_C004 (AppSettingsCodeDefault) on a disjoint axis: C004 = write-side `?? default` ban at CONSUMPTION; C005 = read-side ServerOnly-reachability ban. Never co-fire.
 
+### NN_DI_006: Hosted Service Required Delegate Ctor Param
+
+A concrete `IHostedService` (e.g. `BackgroundService`) whose single public constructor has a REQUIRED delegate-typed parameter (`Func<>`/`Action<>`/custom delegate) that DI never registers. The NotNot Scrutor convention auto-registers every `IHostedService` `AsSelfWithInterfaces` with constructor injection; a required delegate param makes the concrete registration unconstructible → the host crashes at `builder.Build()` (Dev `ValidateOnBuild`) / `Host.StartAsync` (Prod) BEFORE any port binds. Gap-filling third rule of the hosted-service matrix (NN_DI_004 = marker+IHostedService conflict; NN_DI_005 = marker-absence; NN_DI_006 = ctor-unconstructibility) — marker-INDEPENDENT (fires whether or not the type carries an `IDi{L}Service` marker).
+
+**Severity**: Error
+**Flagged**: A concrete (non-abstract) class implementing `Microsoft.Extensions.Hosting.IHostedService` (directly or via `BackgroundService`/a base) with EXACTLY ONE public instance constructor whose parameter list includes a `!HasExplicitDefaultValue` parameter of `TypeKind.Delegate`.
+**Allowed**:
+- Optional-default delegate param (`Func<...>? f = null`) — DI passes null, safe no-op.
+- Required NON-delegate param (a registered interface abstraction) — DI resolves it.
+- Non-`IHostedService` class with a delegate ctor param (manual-factory pattern; never auto-registered).
+- Abstract `IHostedService` (not auto-registered as concrete).
+- Zero or >1 public instance ctors (ambiguous; MS.DI greedy-resolve / `[ActivatorUtilitiesConstructor]` undecidable — conservative skip).
+- `[AutoDiBypass]` on the type / assembly.
+
+**Preferred Fix** (in order):
+1. Replace the delegate with a DI-registered abstraction — a small interface implemented by the providing service (e.g. `ISessionReapPurger` implemented by `VowSessionService`) — and inject that.
+2. ONLY if a null delegate is a SAFE no-op for the auto-registered instance, make the parameter optional with a default (`Func<...>? f = null`). NOT if absence silently disables required behavior.
+3. `[AutoDiBypass]` on the type, or `#pragma warning disable NN_DI_006` / `.editorconfig` severity, ONLY if the type is provably never auto-registered / DI-constructed.
+
 ## Suppressors (CA2000)
 
 | ID | Pattern | Why Suppressed |
@@ -197,6 +216,7 @@ Complementary to NN_C004 (AppSettingsCodeDefault) on a disjoint axis: C004 = wri
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
 | `Conventions/AppSettingsCodeDefaultAnalyzer.cs` | NN_C004 |
 | `Conventions/NnAppSettingsServerOnlyReadAnalyzer.cs` | NN_C005 |
+| `Architecture/DI/DiMarkerEnforcementAnalyzer.cs` | NN_DI_001..006 |
 
 ## Adding New Suppressors
 

@@ -7,7 +7,7 @@ namespace NotNot.Analyzers.Architecture.DI;
 
 /// <summary>
 /// Shared helpers for the DI marker-enforcement analyzer family
-/// (<c>NN_DI_001</c> through <c>NN_DI_005</c>). Mirrors the helper-extraction strategy
+/// (<c>NN_DI_001</c> through <c>NN_DI_006</c>). Mirrors the helper-extraction strategy
 /// used by <c>NotNot.BlazorAnalyzers.LiteDDD.LdddAnalyzerHelpers</c> (sibling project).
 /// </summary>
 /// <remarks>

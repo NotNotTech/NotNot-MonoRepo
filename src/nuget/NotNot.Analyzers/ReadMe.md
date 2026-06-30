@@ -541,3 +541,75 @@ non-abstract, lacks any `IDi{L}Service` marker, and isn't covered by an existing
 (`TryAdd*`, third-party, interface-bridge factory, `[AutoDiBypass]`). Severity: **Info**.
 Documentation page pending.
 
+<a id="nn_di_006"></a>
+### NN_DI_006 — Hosted service has a required delegate constructor parameter DI cannot provide
+**Severity:** Error
+**Category:** Reliability
+
+Fires on a concrete `IHostedService` (directly, or via `BackgroundService`/a base) with EXACTLY one
+public instance constructor that has a **required** parameter of delegate type (`Func<>`/`Action<>`/a
+custom delegate). The NotNot Scrutor convention
+(`AddClasses(AssignableTo<IHostedService>()).AsSelfWithInterfaces()`) auto-registers every hosted
+service with constructor injection; delegate types are never DI-registered, so a required delegate
+parameter makes the `AsSelf` concrete registration **unconstructible** — the host crashes at
+`builder.Build()` (Dev `ValidateOnBuild`) or `Host.StartAsync` (Prod) **before any port binds**. Marker-
+independent: NN_DI_006 fires whether or not the type carries an `IDi{L}Service` marker (the proven crash
+type carries none). It is the gap-filling third rule of the hosted-service matrix (NN_DI_004 =
+marker+IHostedService conflict; NN_DI_005 = marker-absence; NN_DI_006 = ctor-unconstructibility).
+
+```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+// ❌ Flagged (fires at the class declaration) — required delegate ctor param, unconstructible under auto-registration
+public class CrashObserver : BackgroundService
+{
+    public CrashObserver(Func<string, CancellationToken, Task> purge) { /* ... */ }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+
+// ✅ Option 1 (preferred): inject a DI-registered abstraction instead of a raw delegate
+public interface ISessionReapPurger { Task PurgeAsync(string id, CancellationToken ct); }
+
+public class ReapObserver : BackgroundService
+{
+    public ReapObserver(ISessionReapPurger purger) { /* ... */ }   // DI resolves the registered interface
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+
+// ✅ Option 2 (only if a null delegate is a SAFE no-op): make the parameter optional with a default
+public class OptionalObserver : BackgroundService
+{
+    public OptionalObserver(Func<string, CancellationToken, Task>? purge = null) { /* DI passes null */ }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+
+// ✅ Allowed (silent): a plain class (not IHostedService) — never reaches the auto-registration scan
+public class ManualFactoryConsumer
+{
+    public ManualFactoryConsumer(Func<int> f) { /* constructed by a hand-written factory */ }
+}
+```
+
+**Flagged**: a concrete (non-abstract) class implementing `Microsoft.Extensions.Hosting.IHostedService`
+with EXACTLY one public instance constructor whose parameter list contains a parameter that has no
+explicit default value AND whose type is `TypeKind.Delegate`.
+
+**Allowed**: an optional-default delegate parameter (`Func<...>? f = null` — DI passes null); a required
+non-delegate parameter (a registered interface abstraction); a non-`IHostedService` class with a
+delegate ctor param (manual-factory pattern); an abstract `IHostedService` (not auto-registered as
+concrete); a type with zero or more-than-one public instance constructors (ambiguous — MS.DI
+greedy-resolution / `[ActivatorUtilitiesConstructor]` undecidable, conservative skip); and a type/assembly
+carrying `[AutoDiBypass]`.
+
+**Preferred fix** (the fix is a *decision*, not a reflex):
+1. Replace the delegate with a DI-registered abstraction — define a small interface implemented by the
+   providing service (e.g. `ISessionReapPurger` implemented by `VowSessionService`) and inject that.
+2. ONLY if a null delegate is a SAFE no-op for the auto-registered instance, make the parameter optional
+   with a default (`Func<...>? f = null`). NOT if absence silently disables required behavior.
+3. `[AutoDiBypass]` on the type, or `#pragma warning disable NN_DI_006` / `.editorconfig`
+   `dotnet_diagnostic.NN_DI_006.severity = none`, ONLY if the type is provably never
+   auto-registered / DI-constructed.
+

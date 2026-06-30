@@ -7,8 +7,8 @@ using Microsoft.CodeAnalysis.Operations;
 namespace NotNot.Analyzers.Architecture.DI;
 
 /// <summary>
-/// Dependency-injection marker-enforcement analyzer hosting five diagnostic rules
-/// (<c>NN_DI_001</c> through <c>NN_DI_005</c>) for the project's
+/// Dependency-injection marker-enforcement analyzer hosting six diagnostic rules
+/// (<c>NN_DI_001</c> through <c>NN_DI_006</c>) for the project's
 /// <c>IDi{Singleton,Scoped,Transient}Service</c> marker-interface auto-registration convention.
 /// Mirrors the pattern of <c>NotNot.BlazorAnalyzers.LiteDDD.LdddAssemblyFenceAnalyzer</c> —
 /// single analyzer class with regions per rule, shared compilation-start gate, helper extraction
@@ -60,6 +60,22 @@ namespace NotNot.Analyzers.Architecture.DI;
 ///     NN_DI_003 (NN_DI_003 handles passthrough-factory shapes; NN_DI_005 handles every other
 ///     no-marker registration shape).
 ///   </description></item>
+///   <item><description>
+///     <b>NN_DI_006</b> — Hosted service with a required delegate constructor parameter (Error).
+///     Fires on a concrete (non-abstract) <c>IHostedService</c> (e.g. <c>BackgroundService</c>)
+///     whose single public instance constructor has a REQUIRED (<c>!HasExplicitDefaultValue</c>)
+///     delegate-typed parameter (<c>Func&lt;&gt;</c>/<c>Action&lt;&gt;</c>/custom delegate). The
+///     NotNot Scrutor <c>AsSelfWithInterfaces</c> auto-registration over <c>IHostedService</c>
+///     uses constructor injection; DI never registers a delegate, so the concrete registration is
+///     unconstructible and crashes host startup (Dev <c>ValidateOnBuild</c> at <c>builder.Build()</c>
+///     / Prod <c>Host.StartAsync</c>) BEFORE any port binds. Category Reliability/Error.
+///     <b>Marker-INDEPENDENT</b>: fires whether or not the type carries an <c>IDi{L}Service</c>
+///     marker — it analyzes ctor-unconstructibility, not marker presence. Gap-filling third rule of
+///     the hosted-service matrix (NN_DI_004 = marker+IHostedService conflict; NN_DI_005 =
+///     marker-absence; NN_DI_006 = ctor-unconstructibility). Skips zero / more-than-one public
+///     instance ctors (ambiguous MS.DI greedy-resolve / <c>[ActivatorUtilitiesConstructor]</c> —
+///     conservative near-zero-FP bias for an Error rule).
+///   </description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -70,7 +86,9 @@ namespace NotNot.Analyzers.Architecture.DI;
 ///   </description></item>
 ///   <item><description>
 ///     <c>[AutoDiBypass]</c> on a class — type-scope bypass; rules NN_DI_001/002/003/005 (when their
-///     target type is the bypassed type) and NN_DI_004 (when applied to the analyzed class) skip.
+///     target type is the bypassed type) and NN_DI_004/006 (when applied to the analyzed class) skip
+///     (the shared type-scope <c>[AutoDiBypass]</c> guard in <see cref="AnalyzeNamedType"/> returns
+///     before both the NN_DI_006 and NN_DI_004 branches).
 ///   </description></item>
 /// </list>
 /// </para>
@@ -310,11 +328,51 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 		description: DI005_Description,
 		helpLinkUri: DiAnalyzerHelpers.HelpBase + "nn_di_005");
 
+	// ── NN_DI_006 — Hosted service required delegate ctor param DI can't provide ─
+
+	/// <summary>Diagnostic ID for a hosted service whose required constructor delegate parameter DI cannot provide.</summary>
+	public const string DI006_DiagnosticId = "NN_DI_006";
+
+	private static readonly LocalizableString DI006_Title =
+		"Hosted service has a required delegate constructor parameter dependency injection cannot provide";
+
+	private static readonly LocalizableString DI006_MessageFormat =
+		"Hosted service '{0}' has a required constructor parameter '{1}' of delegate type '{2}' that "
+		+ "dependency injection cannot provide — auto-registration (NotNot Scrutor AsSelfWithInterfaces "
+		+ "over IHostedService) will fail to construct it and crash host startup before the port binds. "
+		+ "Fix (preferred first): (1) replace the delegate with a DI-registered abstraction — define a "
+		+ "small interface implemented by the providing service and inject that (e.g. ISessionReapPurger "
+		+ "implemented by VowSessionService); (2) only if a null delegate is a SAFE no-op for the "
+		+ "auto-registered instance, make the parameter optional with a default ('{2}? {1} = null') — NOT "
+		+ "if absence silently disables required behavior; (3) [AutoDiBypass] on '{0}' or "
+		+ "'#pragma warning disable NN_DI_006' ONLY if '{0}' is provably never auto-registered/DI-constructed. "
+		+ "(NN_DI_006)";
+
+	private static readonly LocalizableString DI006_Description =
+		"The auto-registration convention registers every IHostedService AsSelfWithInterfaces with "
+		+ "constructor injection; delegate types (Func<>/Action<>) are never DI-registered, so a REQUIRED "
+		+ "delegate ctor parameter makes the concrete registration unconstructible and crashes boot. An "
+		+ "OPTIONAL delegate parameter (with a default) is safe — DI passes null. Prefer a registered "
+		+ "interface abstraction over a raw delegate so the dependency is declarative and resolvable. "
+		+ "Apply [AutoDiBypass] on the type, or #pragma/.editorconfig severity, only when the type is "
+		+ "genuinely hand-constructed and never reaches the auto-registration scan.";
+
+	/// <summary>NN_DI_006 descriptor — Error severity.</summary>
+	public static readonly DiagnosticDescriptor DI006_Rule = new(
+		DI006_DiagnosticId,
+		DI006_Title,
+		DI006_MessageFormat,
+		ReliabilityCategory,
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true,
+		description: DI006_Description,
+		helpLinkUri: DiAnalyzerHelpers.HelpBase + "nn_di_006");
+
 	// ── DiagnosticAnalyzer overrides ──────────────────────────────────────────
 
 	/// <inheritdoc/>
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-		ImmutableArray.Create(DI001_Rule, DI002_Rule, DI003_Rule, DI004_Rule, DI005_Rule);
+		ImmutableArray.Create(DI001_Rule, DI002_Rule, DI003_Rule, DI004_Rule, DI005_Rule, DI006_Rule);
 
 	/// <inheritdoc/>
 	public override void Initialize(AnalysisContext context)
@@ -569,6 +627,36 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 			return;
 		}
 
+		// ── NN_DI_006 — Hosted service with a required delegate ctor parameter ──
+		// Marker-INDEPENDENT: fires on ctor-unconstructibility regardless of marker presence, so it
+		// must run BEFORE the NN_DI_004 marker-gate `return` below (the proven crash type carries no
+		// IDi*Service marker). A concrete IHostedService whose single public constructor requires a
+		// delegate-typed parameter is unconstructible under the NotNot Scrutor AsSelfWithInterfaces
+		// auto-registration (DI never supplies a Func<>/Action<>), crashing host startup before the
+		// port binds. NN_DI_004 and NN_DI_006 fire on disjoint conditions — a type hitting both is two
+		// distinct defects, so no mutual-exclusion return.
+		if (ImplementsHostedService(namedType)
+			&& TryGetSinglePublicInstanceConstructor(namedType, out var di006Ctor))
+		{
+			foreach (var param in di006Ctor.Parameters)
+			{
+				if (!param.HasExplicitDefaultValue && param.Type.TypeKind == TypeKind.Delegate)
+				{
+					var di006Location = namedType.Locations.Length > 0
+						? namedType.Locations[0]
+						: Location.None;
+
+					context.ReportDiagnostic(Diagnostic.Create(
+						DI006_Rule,
+						di006Location,
+						namedType.ToDisplayString(),
+						param.Name,
+						param.Type.ToDisplayString()));
+					break;
+				}
+			}
+		}
+
 		// Marker check — short-circuits if no marker present.
 		if (!DiAnalyzerHelpers.TryGetExpectedLifetime(namedType, out var lifetime, out var markerFqn))
 		{
@@ -720,5 +808,32 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 			}
 		}
 		return false;
+	}
+
+	/// <summary>
+	/// Returns true and the single public instance constructor of <paramref name="type"/> when EXACTLY
+	/// one exists; false (with <paramref name="constructor"/> null) for zero or more-than-one public
+	/// instance constructors. Multi-ctor disambiguation is undecidable here (MS.DI greedy resolution /
+	/// <c>[ActivatorUtilitiesConstructor]</c>), so NN_DI_006 conservatively skips ambiguous types —
+	/// the near-zero-false-positive bias appropriate for an Error-severity rule.
+	/// </summary>
+	private static bool TryGetSinglePublicInstanceConstructor(INamedTypeSymbol type, out IMethodSymbol constructor)
+	{
+		constructor = null!;
+		foreach (var ctor in type.InstanceConstructors)
+		{
+			if (ctor.DeclaredAccessibility != Accessibility.Public)
+			{
+				continue;
+			}
+			if (constructor != null)
+			{
+				// More than one public instance constructor — ambiguous, skip.
+				constructor = null!;
+				return false;
+			}
+			constructor = ctor;
+		}
+		return constructor != null;
 	}
 }
