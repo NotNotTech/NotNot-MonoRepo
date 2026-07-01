@@ -26,16 +26,23 @@ namespace NotNot.BlazorAnalyzers.NnDesign;
 /// <para>
 /// <b>Why SEMANTIC, not syntactic</b>: a plain <c>ComponentBase</c> subclass overriding
 /// <c>OnParametersSet</c> without <c>base</c> is FINE (ComponentBase's impl is a no-op). The defect
-/// is specific to <c>NnAsyncBoundComponentBase</c>, whose lifecycle methods carry real work. The
-/// detection therefore requires the override's <c>OverriddenMethod</c> chain to contain a link whose
+/// is specific to <c>NnAsyncBoundComponentBase</c>'s THREE real-bookkeeping lifecycle methods
+/// (<c>OnInitialized</c> / <c>OnParametersSet</c> / <c>Dispose</c>). Detection therefore requires
+/// BOTH: (1) the override's method NAME is one of those three (<c>LifecycleMethodNames</c>) — this
+/// partitions the base's real-work lifecycle from its many no-op POLICY SEAMS (<c>IsEmpty</c> /
+/// <c>Clamp</c> / <c>ApplyRevertedValue</c> / <c>NotifyValueChanged</c> / <c>GetEffectivePreFlight</c>
+/// / <c>DefaultAllowNull</c> / <c>EmptyNonNullValue</c> / <c>DefaultInteractionMode</c>), each authored
+/// <c>=&gt; default</c> / <c>{ }</c> to be REPLACED (a base-omitting seam override is correct — and for
+/// <c>IsEmpty</c> calling base would reintroduce the <c>=&gt; false</c> default → latent bug); AND
+/// (2) the override's <c>OverriddenMethod</c> chain contains a link whose
 /// <c>ContainingType.OriginalDefinition</c> is <c>NnAsyncBoundComponentBase`1</c> AND is non-abstract
-/// (the base provides a real impl). This single check subsumes both the "is-a-subclass" and
-/// "base-has-work" conditions precisely, and auto-excludes:
+/// (the base provides a real impl). Together they auto-exclude:
 /// <list type="bullet">
+///   <item>the base's no-op policy seams (name not in the whitelist);</item>
 ///   <item>plain <c>ComponentBase</c> overrides (no NnAsyncBoundComponentBase link in the chain);</item>
 ///   <item>methods the base does NOT implement, e.g. <c>OnAfterRender</c> (no link);</item>
-///   <item>the Razor-compiler-generated <c>BuildRenderTree</c> override (its base is
-///     <c>ComponentBase</c>, not <c>NnAsyncBoundComponentBase</c>).</item>
+///   <item>the Razor-compiler-generated <c>BuildRenderTree</c> override (name not whitelisted AND its
+///     base is <c>ComponentBase</c>, not <c>NnAsyncBoundComponentBase</c>).</item>
 /// </list>
 /// </para>
 /// <para>
@@ -64,6 +71,26 @@ public sealed class NnAsyncBoundLifecycleBaseCallAnalyzer : DiagnosticAnalyzer
 
     private const string BaseTypeMetadataName =
         "NotNot.BlazorDesign.NnDesign.AsyncBound.NnAsyncBoundComponentBase`1";
+
+    // The ONLY NnAsyncBoundComponentBase members whose base impl does REAL per-lifecycle bookkeeping
+    // that a base-omitting override silently disables:
+    //   OnInitialized   — constructs the Behavior save machine + seeds the _lastCommitted sidecar,
+    //   OnParametersSet — refreshes _lastCommitted from genuine external parameter changes,
+    //   Dispose         — disposes the Behavior.
+    // Every OTHER overridable base member (IsEmpty / Clamp / ApplyRevertedValue / NotifyValueChanged /
+    // GetEffectivePreFlight / DefaultAllowNull / EmptyNonNullValue / DefaultInteractionMode) is a bare
+    // no-op / default / identity POLICY SEAM authored `=> default` / `{ }` — it EXISTS to be replaced,
+    // so an override that omits base is CORRECT (calling base is pointless, and for IsEmpty it would
+    // REINTRODUCE the `=> false` default the override replaces → a latent bug). Gating on these three
+    // names is the false-positive guard against the no-op seams; the base-chain check remains the guard
+    // against plain-ComponentBase overrides + the Razor-emitted BuildRenderTree. The name is invariant
+    // along the override chain, so this matches the transitive-chain fixtures unchanged.
+    // MAINTENANCE SEAM: a future base lifecycle method carrying real bookkeeping must be added here.
+    private static readonly ImmutableHashSet<string> LifecycleMethodNames =
+        ImmutableHashSet.Create(
+            "OnInitialized",
+            "OnParametersSet",
+            "Dispose");
 
     /// <summary>NN_NND_ASYNC_002 descriptor — Warning severity (matches the NN_NND_ASYNC_001 sibling).</summary>
     public static readonly DiagnosticDescriptor Rule = new(
@@ -131,6 +158,14 @@ public sealed class NnAsyncBoundLifecycleBaseCallAnalyzer : DiagnosticAnalyzer
 
         // Cheap syntax pre-screen: must carry the `override` modifier.
         if (!HasOverrideModifier(methodDecl.Modifiers))
+            return;
+
+        // Cheap syntax pre-screen: must be one of the three real-bookkeeping lifecycle methods.
+        // The override's identifier equals the overridden base member's name (invariant along the
+        // chain), so this rejects every no-op POLICY SEAM (IsEmpty / Clamp / ApplyRevertedValue /
+        // NotifyValueChanged / etc.) before the (costlier) semantic base-chain walk. This is the FP
+        // guard that stops the analyzer firing on seam overrides that legitimately omit base.
+        if (!LifecycleMethodNames.Contains(methodDecl.Identifier.ValueText))
             return;
 
         // Resolve the method symbol and walk its OverriddenMethod chain. Require a link whose

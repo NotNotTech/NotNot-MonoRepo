@@ -34,9 +34,15 @@ namespace NotNot.BlazorAnalyzers.Tests.NnDesign;
 ///     inside <c>if</c>; base call inside <c>try</c>) → SILENT. Pins README's presence-based
 ///     promise. (An <c>await base.OnInitializedAsync()</c> fixture is N/A: the base implements only
 ///     SYNC lifecycle methods, so no async override resolves a qualifying link.)</item>
-///   <item>N9 — RED regression / latent-footgun boundary: a base-stub variant where the base ITSELF
-///     overrides <c>BuildRenderTree</c> → generated <c>BuildRenderTree</c> override FALSE-POSITIVES.
-///     Asserts the FP, documenting why the base must never override a Razor-synthesized member.</item>
+///   <item>N9 — latent-footgun boundary (NOW DOUBLE-GUARDED): a base-stub variant where the base
+///     ITSELF overrides <c>BuildRenderTree</c> → SILENT, because <c>BuildRenderTree</c> is not a
+///     whitelisted lifecycle name. Pins that the name whitelist neutralizes the Razor-synthesized-
+///     member footgun independently of the base chain.</item>
+///   <item>S1–S5 (SEAM SILENCE — the 37→0 over-fire fix) — a subclass overriding a base no-op POLICY
+///     SEAM (<c>IsEmpty</c> / <c>Clamp</c> / <c>ApplyRevertedValue</c> / <c>NotifyValueChanged</c> /
+///     <c>GetEffectivePreFlight</c>) WITHOUT calling base → SILENT. The seams exist to be replaced;
+///     base-omitting overrides are correct (calling <c>IsEmpty</c> base reintroduces its <c>false</c>
+///     default → latent bug). The name whitelist rejects them before the base-chain walk.</item>
 /// </list>
 /// </summary>
 public class NnAsyncBoundLifecycleBaseCallAnalyzerTests
@@ -44,9 +50,13 @@ public class NnAsyncBoundLifecycleBaseCallAnalyzerTests
     // ── Base-class stubs (compilation-only — minimal lifecycle surface mirroring the real base) ──
     // ComponentBase provides no-op OnInitialized/OnParametersSet + virtual BuildRenderTree.
     // NnAsyncBoundComponentBase<T> provides NON-abstract OnInitialized/OnParametersSet/Dispose that
-    // call into ComponentBase — exactly the "base does real work" shape the analyzer keys on.
+    // call into ComponentBase — the "base does real work" shape the analyzer keys on — PLUS the no-op
+    // POLICY SEAMS (IsEmpty / Clamp / ApplyRevertedValue / NotifyValueChanged / GetEffectivePreFlight)
+    // authored `=> default` / `{ }`. An override of a seam that omits base is CORRECT (the seam exists
+    // to be replaced), so the analyzer must be SILENT on it — pinned by the S-series fixtures.
     private const string BaseStubs = @"
 using System;
+using System.Threading.Tasks;
 
 namespace Microsoft.AspNetCore.Components.Rendering
 {
@@ -70,9 +80,17 @@ namespace NotNot.BlazorDesign.NnDesign.AsyncBound
 
     public abstract class NnAsyncBoundComponentBase<TValue> : ComponentBase, IDisposable
     {
+        // Real-bookkeeping lifecycle (whitelisted — override-without-base is a defect).
         protected override void OnInitialized() { base.OnInitialized(); }
         protected override void OnParametersSet() { base.OnParametersSet(); }
         public virtual void Dispose() { }
+
+        // No-op POLICY SEAMS (NOT whitelisted — override-without-base is CORRECT).
+        protected virtual bool IsEmpty(TValue value) => false;
+        protected virtual TValue Clamp(TValue value) => value;
+        protected virtual void ApplyRevertedValue(TValue value) { }
+        protected virtual Task NotifyValueChanged(TValue value) => Task.CompletedTask;
+        protected virtual System.Func<TValue, Task>? GetEffectivePreFlight() => null;
     }
 }
 ";
@@ -574,18 +592,18 @@ public class TestComponent : NnAsyncBoundComponentBase<int>
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // N9 (RED REGRESSION — LATENT FOOTGUN BOUNDARY TEST) — uses a base-stub variant where
-    // NnAsyncBoundComponentBase ITSELF overrides BuildRenderTree (the invariant the real base
-    // MUST NOT violate). A generated component's Razor-emitted BuildRenderTree override WOULD then
-    // resolve a qualifying NnAsyncBoundComponentBase link → the analyzer FALSE-POSITIVES. This
-    // fixture ASSERTS that FP, turning the soundness invariant into an executable boundary test:
-    // if a future base edit overrides BuildRenderTree, THIS fixture's expected-diagnostic makes
-    // the consequence loud (it documents WHY the invariant comment exists). The real base does NOT
-    // override BuildRenderTree (N4 pins the safe shape); this fixture pins the dangerous one.
+    // N9 (LATENT FOOTGUN BOUNDARY — NOW DOUBLE-GUARDED) — uses a base-stub variant where
+    // NnAsyncBoundComponentBase ITSELF overrides BuildRenderTree (the invariant the real base MUST
+    // NOT violate). Under the base-chain-ONLY predicate this false-positived; the NAME WHITELIST now
+    // adds a SECOND, independent guard — BuildRenderTree is not one of the three real-bookkeeping
+    // lifecycle names (OnInitialized/OnParametersSet/Dispose), so the analyzer is SILENT even when the
+    // base overrides it. This fixture pins that the whitelist neutralizes the footgun: a future base
+    // edit overriding a Razor-synthesized member no longer false-positives on every generated
+    // component (the consequence the invariant comment guards against). N4 pins the safe shape.
     // ═══════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task Test_N9_BaseOverridesBuildRenderTree_FalsePositiveBoundary_Reports()
+    public async Task Test_N9_BaseOverridesBuildRenderTree_WhitelistGuardsFootgun_NotReported()
     {
         var source = @"// <auto-generated/>
 using Microsoft.AspNetCore.Components.Rendering;
@@ -595,17 +613,112 @@ namespace NotNot.BlazorDesign.NnDesign;
 
 public class GeneratedComponent : NnAsyncBoundComponentBase<int>
 {
-    protected override void {|#0:BuildRenderTree|}(RenderTreeBuilder builder)
+    protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
-        // Razor-emitted override with no base call. Because the (test-only) base ALSO overrides
-        // BuildRenderTree non-abstractly, the chain now contains a qualifying link → the analyzer
-        // fires. This is the documented latent footgun, asserted here as a boundary test.
+        // Razor-emitted override with no base call. Even though the (test-only) base ALSO overrides
+        // BuildRenderTree non-abstractly, BuildRenderTree is NOT a whitelisted lifecycle name, so the
+        // analyzer is SILENT — the name whitelist guards the footgun independently of the base chain.
     }
 }
 ";
         var path = "/TestProject/Components/GeneratedComponentN9.razor.g.cs";
         await VerifyWithExtraSourcesAsync(
-            source, path, BaseStubsWithBuildRenderTreeOverride, Array.Empty<string>(),
-            ExpectedAtMarker("BuildRenderTree"));
+            source, path, BaseStubsWithBuildRenderTreeOverride, Array.Empty<string>());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // S-series (SEAM SILENCE — the over-fire fix) — a subclass overriding one of the base's no-op
+    // POLICY SEAMS WITHOUT calling base → SILENT. These seams are authored `=> default` / `{ }` to be
+    // REPLACED; a base-omitting override is CORRECT (for IsEmpty, calling base would reintroduce the
+    // `=> false` default → latent bug). Pins the 37→0 false-positive fix: the name whitelist rejects
+    // every seam before the base-chain walk. Contrast P1/P3/P4 (lifecycle-without-base → REPORT).
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task Test_S1_IsEmptySeamOverrideNoBaseCall_NotReported()
+    {
+        var source = @"using NotNot.BlazorDesign.NnDesign.AsyncBound;
+
+namespace NotNot.BlazorDesign.NnDesign;
+
+public class TestComponent : NnAsyncBoundComponentBase<int>
+{
+    protected override bool IsEmpty(int value) => value == 0;
+}
+";
+        var path = "/TestProject/Components/TestComponentS1.cs";
+        await VerifyAsync(source, path);
+    }
+
+    [Fact]
+    public async Task Test_S2_ClampSeamOverrideNoBaseCall_NotReported()
+    {
+        var source = @"using NotNot.BlazorDesign.NnDesign.AsyncBound;
+
+namespace NotNot.BlazorDesign.NnDesign;
+
+public class TestComponent : NnAsyncBoundComponentBase<int>
+{
+    protected override int Clamp(int value) => value < 0 ? 0 : value;
+}
+";
+        var path = "/TestProject/Components/TestComponentS2.cs";
+        await VerifyAsync(source, path);
+    }
+
+    [Fact]
+    public async Task Test_S3_ApplyRevertedValueSeamOverrideNoBaseCall_NotReported()
+    {
+        var source = @"using NotNot.BlazorDesign.NnDesign.AsyncBound;
+
+namespace NotNot.BlazorDesign.NnDesign;
+
+public class TestComponent : NnAsyncBoundComponentBase<int>
+{
+    private int _value;
+    protected override void ApplyRevertedValue(int value)
+    {
+        // Assigns the control's own bound field — no base call (base is a no-op).
+        _value = value;
+    }
+}
+";
+        var path = "/TestProject/Components/TestComponentS3.cs";
+        await VerifyAsync(source, path);
+    }
+
+    [Fact]
+    public async Task Test_S4_NotifyValueChangedSeamOverrideNoBaseCall_NotReported()
+    {
+        var source = @"using System.Threading.Tasks;
+using NotNot.BlazorDesign.NnDesign.AsyncBound;
+
+namespace NotNot.BlazorDesign.NnDesign;
+
+public class TestComponent : NnAsyncBoundComponentBase<int>
+{
+    protected override Task NotifyValueChanged(int value) => Task.CompletedTask;
+}
+";
+        var path = "/TestProject/Components/TestComponentS4.cs";
+        await VerifyAsync(source, path);
+    }
+
+    [Fact]
+    public async Task Test_S5_GetEffectivePreFlightSeamOverrideNoBaseCall_NotReported()
+    {
+        var source = @"using System;
+using System.Threading.Tasks;
+using NotNot.BlazorDesign.NnDesign.AsyncBound;
+
+namespace NotNot.BlazorDesign.NnDesign;
+
+public class TestComponent : NnAsyncBoundComponentBase<int>
+{
+    protected override Func<int, Task>? GetEffectivePreFlight() => v => Task.CompletedTask;
+}
+";
+        var path = "/TestProject/Components/TestComponentS5.cs";
+        await VerifyAsync(source, path);
     }
 }
