@@ -388,6 +388,30 @@ public static class zz_Extensions_String
 		return value._ConvertToAlphanumeric().Trim().Equals(other._ConvertToAlphanumeric().Trim(), StringComparison.InvariantCultureIgnoreCase);
 	}
 
+	/// <summary>
+	///    like <see cref="_AproxEqual" /> but MORE lenient: strips ALL non-alphanumeric characters
+	///    (including all whitespace) from both strings first, so separator/punctuation PLACEMENT never
+	///    causes a mismatch, then compares via <see cref="_AproxEqual" /> semantics (case + culture
+	///    insensitive).
+	///    <para>example: "✳ Skill-Housekeeping!" ._Similar "skill housekeeping" ==> true</para>
+	///    <para>(contrast <see cref="_AproxEqual" />, which collapses separator RUNS to a single '_' —
+	///    "SkillHousekeeping" vs "Skill Housekeeping" differ there but match here)</para>
+	/// </summary>
+	public static bool _Similar(this string? value, string? other)
+	{
+		if (string.IsNullOrWhiteSpace(value) && string.IsNullOrWhiteSpace(other))
+		{
+			return true;
+		}
+
+		if (string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(other))
+		{
+			return false;
+		}
+
+		return value._ConvertToAlphanumeric(whiteSpace: null)._AproxEqual(other._ConvertToAlphanumeric(whiteSpace: null));
+	}
+
 	///// <summary>
 	///// Equality using OrdinalIgnoreCase
 	///// </summary>
