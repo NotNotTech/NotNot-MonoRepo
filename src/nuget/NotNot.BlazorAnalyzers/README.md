@@ -1237,6 +1237,48 @@ The exception buckets above apply identically to BOTH deliveries — the inline 
 dotnet_diagnostic.NNB_CSS011.severity = suggestion
 ```
 
+<a id="NNB_CSS012"></a><a id="nnb_css012"></a>
+### NNB_CSS012: `font-size` literal duplicates an `--nns-font-size-*` design token
+
+**Severity:** Error
+**Category:** CssModernization
+**Authority:** The NnDesign token system (producer manifesto) — `nn-design.css` `:root` `--nns-font-size-*` scale is the SSOT.
+
+A different axis from the reach-in family ([NNB_CSS008](#NNB_CSS008) / [NNB_CSS009](#nnb_css009) / [NNB_CSS011](#NNB_CSS011)): those police the styled SUBJECT of a selector; NNB_CSS012 policies the VALUE of a `font-size:` declaration. A literal `font-size: 0.875rem` (or its px equivalent `14px`) silently restates the `--nns-font-size-md` token — when the token ladder is re-tuned the literal stays frozen and detaches from the scale. The cheapest correct fix is token substitution: `font-size: var(--nns-font-size-md)`.
+
+**Token values are the SSOT parsed from `nn-design.css`.** The analyzer finds the canonical `nn-design.css` among the AdditionalFiles and parses its `:root` `--nns-font-size-*` declarations into a flag-set = each rem value + its px equivalent (rem × 16, root = 16px): `sm` = 0.75rem / 12px, `md` = 0.875rem / 14px, `lg` = 1rem / 16px. If `nn-design.css` is not registered as an AdditionalFile (a consumer build), the token-map is empty and the analyzer is inert — this scopes NNB_CSS012 to the producer build that owns the scale.
+
+**Exemption posture is INVERTED vs the reach-in family** (precedent [NNB043](#nnb043) "scans the PRODUCER, no producer-path exemption"). NNB_CSS012 deliberately does NOT call the producer-path exemption ([NNB_CSS008](#NNB_CSS008) et al. exempt `**/NotNot.BlazorDesign/**` because they police *consumer* usage) — the producer CSS is exactly where the tokens and their literal-duplicating `font-size` declarations live, so it MUST be scanned. Only the vendor-file skip, the shared `CssAnalyzerEnabled=false` kill-switch, and the per-file `nnb_css012:allow-fontsize-literal` marker apply.
+
+```css
+/* ❌ NNB_CSS012 fires — rem literal equals design token --nns-font-size-md */
+.label { font-size: 0.875rem; }
+
+/* ❌ NNB_CSS012 fires — px equivalent of --nns-font-size-md (14px == 0.875rem × 16) */
+.label { font-size: 14px; }
+
+/* ✅ use the token — NO warning */
+.label { font-size: var(--nns-font-size-md); }
+
+/* ✅ off-ladder value with no matching token — NO warning */
+.caption { font-size: 0.8125rem; }
+
+/* ✅ the token DEFINITION itself — NO warning (excluded by construction) */
+:root { --nns-font-size-md: 0.875rem; }
+
+/* ✅ intentional icon-glyph size with a same-line marker — NO warning */
+.icon { font-size: 16px; /* nnb_css012:allow-fontsize-literal: icon glyph */ }
+```
+
+**Documented non-goals / false-negatives** (accepted): the `--nns-font-size-*:` token definitions and `var(--nns-font-size-*)` references are excluded by construction (the `(?<![\w-])` lookbehind on the `font-size` match fails on the preceding `-`); inline `style="font-size:…"` in `.razor` markup is owned by [NNB044](#nnb044) (an explicit non-goal here); off-ladder values with no matching token never fire.
+
+**Per-file opt-out**: `/* nnb_css012:allow-fontsize-literal: <reason> */`. **Kill-switch** (shared with the CSS suite): `<CssAnalyzerEnabled>false</CssAnalyzerEnabled>`. To soften locally:
+
+```ini
+[*.css]
+dotnet_diagnostic.NNB_CSS012.severity = suggestion
+```
+
 ## Analyzer ID Registry (tested guard)
 
 The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s. This registry is the single source; the per-ID sections above point at it. A registry test (`AnalyzerIdRegistryTests`) asserts every ID below resolves to exactly one analyzer's `SupportedDiagnostics` descriptor (and the reverse — no implemented descriptor is unregistered), so prose IDs cannot drift from code (the failure mode that left "Planned: NNB022" stale while NNB022 was live).
@@ -1251,6 +1293,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 | NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
 | NNB_CSS011 | `CssNnConsumerClassAnalyzer` | Warning | Consumer CSS class bound to an `Nn*` root via TWO deliveries: scoped `::deep` in `.razor.css` (cross-file `.razor.css`↔`.razor`) AND an inline `<style>` block in a `.razor` (intra-file) |
+| NNB_CSS012 | `CssFontSizeTokenAnalyzer` | Error | `font-size` literal (rem / px) in `.css` / `.razor.css` duplicating an `--nns-font-size-*` token value |
 
 ## Configuration
 
