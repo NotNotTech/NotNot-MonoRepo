@@ -229,6 +229,67 @@ public static class AtomicFileWriter
 		}
 	}
 
+	/// <summary>
+	/// Appends <paramref name="contents"/> to <paramref name="finalPath"/> under the SAME bounded
+	/// transient-external-lock retry policy the <see cref="WriteAtomic(string, string, Encoding?)"/>
+	/// overloads use (<see cref="IsTransient"/> classification, <see cref="MaxAttempts"/>,
+	/// <see cref="BackoffMs"/>), delivered as an O(1) direct append rather than the O(n) temp+rename
+	/// rewrite of <c>WriteAtomic</c>. Intended for hot per-event line appends (e.g. JSONL capture logs).
+	/// <para>
+	/// <b>Package / namespace</b>: <c>NotNot.Bcl.Core</c> → <c>NotNot.Storage.AtomicFileWriter</c>
+	/// (<c>using NotNot.Storage;</c>). Framework-agnostic (no ASP.NET dependency).
+	/// </para>
+	/// <para>
+	/// <b>Retry contract</b>: each attempt is <see cref="File.AppendAllText(string, string)"/>, which opens
+	/// <c>FileMode.Append</c> + <c>FileShare.Read</c> — a concurrent WRITER is excluded, so each append is
+	/// whole (never a torn line); the loser retries. On a transient <see cref="IOException"/> (an AV/indexer
+	/// OR another process momentarily holding the file — the cross-process case) it sleeps a JITTERED backoff
+	/// and retries. Unlike <c>WriteAtomic*</c> (whose per-path <see cref="SemaphoreSlim"/> gate already
+	/// serializes same-process retries, so jitter would be pointless), this append has NO such gate — jitter
+	/// is REQUIRED here so two independent PROCESSES retrying on a fixed cadence do not re-collide in lockstep.
+	/// </para>
+	/// <para>
+	/// <b>Rethrows on exhaustion</b>: after <see cref="MaxAttempts"/> genuine collisions the final
+	/// <see cref="IOException"/> PROPAGATES (a persistent failure stays visible; the caller decides whether to
+	/// swallow) — it is NOT silently dropped.
+	/// </para>
+	/// <para>
+	/// <b>Synchronous by contract</b>: uses <see cref="Thread.Sleep(int)"/> (not <c>await Task.Delay</c>) so it
+	/// is callable from inside a monitor <c>lock</c> (which cannot span an <c>await</c>) — the intended VOW
+	/// quota-append call site appends under a per-account monitor.
+	/// </para>
+	/// </summary>
+	/// <param name="finalPath">Destination file path to append to (created if absent).</param>
+	/// <param name="contents">Content to append.</param>
+	/// <param name="encoding">Optional encoding (default: UTF-8 without BOM, matching <see cref="File.AppendAllText(string, string)"/>).</param>
+	public static void AppendWithRetry(string finalPath, string contents, Encoding? encoding = null)
+	{
+		ArgumentNullException.ThrowIfNull(finalPath);
+		ArgumentNullException.ThrowIfNull(contents);
+
+		for (var attempt = 1; ; attempt++)
+		{
+			try
+			{
+				if (encoding is null)
+					File.AppendAllText(finalPath, contents);
+				else
+					File.AppendAllText(finalPath, contents, encoding);
+				return;
+			}
+			catch (Exception ex) when (IsTransient(ex) && attempt < MaxAttempts)
+			{
+				// Transient external lock (AV/indexer OR another PROCESS momentarily holding the file):
+				// jittered backoff breaks cross-process lockstep, then retry. The final attempt does NOT
+				// enter this catch (attempt < MaxAttempts guard) — its exception propagates (rethrow-on-exhaustion).
+				// IsTransient is the SOLE classifier (catch Exception, identical to WriteAtomicCore) so a transient
+				// UnauthorizedAccessException (AV/indexer ACCESS_DENIED) is retried the same as a sharing-violation IOException.
+				// Jitter derives from BackoffMs (up to +100% of the base) so it tracks the backoff base with no duplicated literal.
+				Thread.Sleep(BackoffMs(attempt) + Random.Shared.Next(0, BackoffMs(attempt)));
+			}
+		}
+	}
+
 	private static string MakeTempPath(string normalizedFinalPath) =>
 		normalizedFinalPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
 
@@ -238,7 +299,13 @@ public static class AtomicFileWriter
 	/// </summary>
 	private static bool IsTransient(Exception ex) => ex is IOException or UnauthorizedAccessException;
 
-	/// <summary>Short linear backoff (50ms, 100ms) — these are sub-second external locks, not contention.</summary>
+	/// <summary>
+	/// Short linear backoff base (50ms, 100ms) — these are sub-second external locks, not contention.
+	/// The <c>WriteAtomic*</c> paths use it bare (their per-path <see cref="SemaphoreSlim"/> gate already
+	/// prevents same-process lockstep, so no jitter is needed). <see cref="AppendWithRetry"/> layers random
+	/// jitter ON TOP of this base because it has no such gate — jitter avoids two independent PROCESSES
+	/// re-colliding on a fixed retry cadence.
+	/// </summary>
 	private static int BackoffMs(int attempt) => 50 * attempt;
 
 	private static void TryDelete(string path)
