@@ -19,3 +19,4 @@ NN_C004 | CodeStyle | Error | AppSettingsCodeDefaultAnalyzer, [Documentation](ht
 NN_C005 | CodeStyle | Error | NnAppSettingsServerOnlyReadAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#nn_c005)
 NN_R007 | Reliability | Error | HandRolledAtomicFileWriteAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_R007)
 NN_DI_006 | Reliability | Error | DiMarkerEnforcementAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#nn_di_006)
+NN_R008 | Reliability | Error | DirectFileAppendAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_R008)

@@ -97,6 +97,25 @@ A write to a DETERMINISTIC temp path followed by `File.Move(temp, final, overwri
 
 Complementary to NN_R001/NN_R002 (Task-concurrency) and NN_R005/NN_R006 (catch-reliability) on a disjoint axis — NN_R007 is the file-I/O concurrency-reliability rule.
 
+### NN_R008: Direct File Append Has No Cross-Process Retry
+
+A direct `System.IO.File` append — `File.AppendAllText`, `File.AppendAllLines`, or their async `AppendAllTextAsync`/`AppendAllLinesAsync` variants — to a final path, invoked OUTSIDE `NotNot.Storage.AtomicFileWriter`. These APIs open the file with the default `FileShare.Read`; a SECOND OS process appending the SAME file (e.g. a shared growing log) throws `IOException "being used by another process"` (Windows `ERROR_SHARING_VIOLATION`). An in-process `lock` cannot arbitrate a cross-process collision — the losing process must retry the transient lock.
+
+**Severity**: Error
+**Flagged**: `File.AppendAllText` / `File.AppendAllLines` / `File.AppendAllTextAsync` / `File.AppendAllLinesAsync` where the invoked method's containing type resolves to `System.IO.File` (covers `File.`, `IO.File.`, fully-qualified, aliased) AND the enclosing type is not `NotNot.Storage.AtomicFileWriter`.
+**Allowed**:
+- `NotNot.Storage.AtomicFileWriter.AppendWithRetry` — the sanctioned helper (not a `System.IO.File` member, never matched).
+- A `File.Append*` call INSIDE `NotNot.Storage.AtomicFileWriter` itself — its `AppendWithRetry` calls `File.AppendAllText` internally (the sanctioned impl); containing-type exemption.
+- `File.WriteAllText(finalPath, ...)` — a direct full-file write, not an append (out of scope).
+- `File.Move(temp, final, overwrite: true)` — the NN_R007 temp-then-rename domain, not append.
+
+**Preferred Fix** (in order):
+1. `NotNot.Storage.AtomicFileWriter.AppendWithRetry(path, contents)` — bounded transient-lock retry (reuses the AtomicFileWriter `IsTransient`/`BackoffMs`/`MaxAttempts` + jitter policy, rethrow-on-exhaustion).
+2. If the intent is a full-file rewrite rather than an append: `NotNot.Storage.AtomicFileWriter.WriteAtomic`.
+3. `#pragma warning disable NN_R008` only if this append is provably single-process for the file's lifetime.
+
+Complementary to NN_R007 on a disjoint axis: NN_R007 = hand-rolled atomic full-file REWRITE (deterministic temp + overwrite rename); NN_R008 = direct APPEND (no temp, no Move). Together gap-free — `AtomicFileWriter` is silent under both.
+
 ### NN_C003: Boolean Default False
 
 Enforces the `BOOLEAN_DEFAULT_FALSE` convention — boolean parameters, properties, and fields must default to `false`, not `true`. Default-true booleans silently flip behavior on consumers who don't know to opt out; default-false forces explicit opt-in and keeps the read surface unsurprising.
@@ -213,6 +232,7 @@ A concrete `IHostedService` (e.g. `BackgroundService`) whose single public const
 | `Reliability/Exceptions/EmptyCatchBlockAnalyzer.cs` | NN_R006 |
 | `Reliability/Concurrency/TaskAwaitedOrReturnedAnalyzer.cs` | NN_R001 |
 | `Reliability/Concurrency/HandRolledAtomicFileWriteAnalyzer.cs` | NN_R007 |
+| `Reliability/Concurrency/DirectFileAppendAnalyzer.cs` | NN_R008 |
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
 | `Conventions/AppSettingsCodeDefaultAnalyzer.cs` | NN_C004 |
 | `Conventions/NnAppSettingsServerOnlyReadAnalyzer.cs` | NN_C005 |

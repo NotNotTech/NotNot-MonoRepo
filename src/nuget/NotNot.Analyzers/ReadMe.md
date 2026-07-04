@@ -272,6 +272,41 @@ File.WriteAllText(finalPath, json);         // no temp + Move — different conc
 
 Complementary to NN_R001/NN_R002 (Task-concurrency) and NN_R005/NN_R006 (catch-reliability) on a disjoint axis — NN_R007 is the file-I/O concurrency-reliability rule.
 
+<a id="NN_R008"></a>
+### NN_R008: Direct file append has no cross-process retry
+**Severity:** Error
+**Category:** Reliability
+
+Detects a direct `System.IO.File` **append** — `File.AppendAllText`, `File.AppendAllLines`, or their async `AppendAllTextAsync`/`AppendAllLinesAsync` variants — to a final path, invoked **outside** `NotNot.Storage.AtomicFileWriter`. These APIs open the file with the default `FileShare.Read`: a **second OS process** appending the **same** file (e.g. a shared growing log) throws `IOException "being used by another process"` (Windows `ERROR_SHARING_VIOLATION`). An in-process `lock` cannot arbitrate a cross-process collision — each append is whole per call (`FileShare.Read` excludes concurrent writers), so the losing process must **retry** the transient lock.
+
+```csharp
+// ❌ Flagged (fires at the append) — no cross-process retry on a shared final path
+File.AppendAllText(finalPath, line);
+File.AppendAllLines(finalPath, lines);
+await File.AppendAllTextAsync(finalPath, line);
+
+// ✅ Option 1 (preferred): the sanctioned helper — bounded transient-lock retry
+NotNot.Storage.AtomicFileWriter.AppendWithRetry(finalPath, contents);
+
+// ✅ Option 2: if the intent is a full-file rewrite (not an append)
+NotNot.Storage.AtomicFileWriter.WriteAtomic(finalPath, json);
+
+// ✅ Allowed (silent): a direct full write, or the NN_R007 temp-then-rename idiom
+File.WriteAllText(finalPath, json);              // full write, not an append — out of scope
+File.Move(temp, finalPath, overwrite: true);     // NN_R007's domain, not NN_R008
+```
+
+**Flagged**: `File.AppendAllText`/`File.AppendAllLines`/`File.AppendAllTextAsync`/`File.AppendAllLinesAsync` where the invoked method's containing type resolves to `System.IO.File` (covers `File.`, `IO.File.`, fully-qualified, or an aliased import) AND the enclosing type is not `NotNot.Storage.AtomicFileWriter`.
+
+**Allowed**: `NotNot.Storage.AtomicFileWriter.AppendWithRetry` (the sanctioned helper — not a `System.IO.File` member, never matched); a `File.Append*` call **inside** `NotNot.Storage.AtomicFileWriter` itself (its `AppendWithRetry` legitimately calls `File.AppendAllText` internally — containing-type exemption); a direct `File.WriteAllText(finalPath, ...)` (full write, not an append — out of scope); `File.Move(temp, final, overwrite: true)` (the NN_R007 temp-then-rename domain).
+
+**Preferred fix** (in order):
+1. Use `NotNot.Storage.AtomicFileWriter.AppendWithRetry(path, contents)` — bounded transient-lock retry (reuses the AtomicFileWriter `IsTransient`/`BackoffMs`/`MaxAttempts` + jitter policy, rethrow-on-exhaustion).
+2. If the intent is a full-file rewrite rather than an append, use `NotNot.Storage.AtomicFileWriter.WriteAtomic`.
+3. `#pragma warning disable NN_R008` / `.editorconfig` severity override only if this append is provably single-process for the file's lifetime.
+
+Complementary to NN_R007 on a disjoint axis: NN_R007 = hand-rolled atomic full-file **rewrite** (deterministic temp + overwrite rename); NN_R008 = direct **append** (no temp, no Move). Together they form a gap-free file-I/O concurrency matrix — `AtomicFileWriter` is silent under both.
+
 <a id="NN_C004"></a>
 ### NN_C004: No code-side default for AppSettings options
 **Severity:** Error
@@ -359,6 +394,7 @@ dotnet_diagnostic.NOTNOT001.severity = error
 dotnet_diagnostic.NN_R005.severity = error
 dotnet_diagnostic.NN_R006.severity = error
 dotnet_diagnostic.NN_R007.severity = error
+dotnet_diagnostic.NN_R008.severity = error
 dotnet_diagnostic.NN_C004.severity = error
 dotnet_diagnostic.NN_C005.severity = error
 
