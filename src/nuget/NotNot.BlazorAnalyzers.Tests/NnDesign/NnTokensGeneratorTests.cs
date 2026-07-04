@@ -11,10 +11,13 @@ namespace NotNot.BlazorAnalyzers.Tests.NnDesign;
 
 /// <summary>
 /// Discriminating consumer-fixture verification for <see cref="NnTokensGenerator"/> (Phase-1.4 5A).
-/// Runs the generator over a synthetic compilation with a representative <c>nn-design.css</c> registered
-/// as an <see cref="AdditionalText"/>, then inspects the GENERATED sources to confirm the generator
-/// actually ran and produced the correct strongly-typed accessor + analyzer manifest. "It compiles" is
-/// NOT the assertion — these tests assert the generated CONTENT (token members, var() refs, manifest set).
+/// Runs the generator over a synthetic compilation with representative authority stylesheets
+/// (<c>nn-design.css</c> + <c>nn-colors.css</c>) registered as <see cref="AdditionalText"/>s, then
+/// inspects the GENERATED sources to confirm the generator actually ran and produced the correct
+/// strongly-typed accessor + manifest. "It compiles" is NOT the assertion — these tests assert the
+/// generated CONTENT: the real <c>--nns-*</c> token family is CAPTURED (the pre-repair generator matched
+/// the nonexistent <c>--nn-*</c> family and emitted the empty Count=0 branch), the <c>nns-</c> prefix is
+/// dropped from member names, and the second authority file is read.
 /// </summary>
 public class NnTokensGeneratorTests
 {
@@ -25,31 +28,41 @@ public class NnTokensGeneratorTests
           color-scheme: light dark;
 
           /* Layout Dimensions */
-          --nn-navbar-height: 40px;
-          --nn-panel-header-height: 32px;
+          --nns-navbar-height: 40px;
+          --nns-panel-header-height: 32px;
 
           /* === SPACING SCALE === */
-          --nn-spacing-xs: 4px;
-          --nn-spacing-sm: 8px;
-          --nn-spacing-md: 16px;
+          --nns-spacing-xs: 4px;
+          --nns-spacing-sm: 8px;
+          --nns-spacing-md: 16px;
 
           /* var()-valued token with a fallback (must capture the whole value) */
-          --nn-splitter-color: var(--mud-palette-lines-default, light-dark(#e0e0e0, #444));
-
-          /* --nns-* family MUST be ignored (distinct state-token axis) */
-          --nns-surface: #fff;
-          --nns-text: #212121;
+          --nns-splitter-color: var(--mud-palette-lines-default, light-dark(#e0e0e0, #444));
         }
 
         /* A dark-mode redeclaration: FIRST (canonical :root) wins, this must NOT override the value */
         :root.nns-dark {
-          --nn-navbar-height: 999px;
+          --nns-navbar-height: 999px;
+        }
+        }
+        """;
+
+    /// <summary>A slice of the second authority stylesheet nn-colors.css (proves the two-file read).</summary>
+    private const string ColorsCssSlice = """
+        @layer nn-design {
+        :root {
+          --nns-bg-info: #1e88e5;
+          --nns-fg-default: #e0e0e0;
         }
         }
         """;
 
     private static (string nnTokens, string manifest, ImmutableArray<Diagnostic> diagnostics) Generate(
         string cssContent, string cssFileName = "nn-design.css")
+        => Generate((cssFileName, cssContent));
+
+    private static (string nnTokens, string manifest, ImmutableArray<Diagnostic> diagnostics) Generate(
+        params (string fileName, string content)[] cssFiles)
     {
         var compilation = CSharpCompilation.Create(
             "NotNot.BlazorDesign",
@@ -58,11 +71,13 @@ public class NnTokensGeneratorTests
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new NnTokensGenerator();
-        var additionalText = new InMemoryAdditionalText(cssFileName, cssContent);
+        var additionalTexts = cssFiles
+            .Select(f => (AdditionalText)new InMemoryAdditionalText(f.fileName, f.content))
+            .ToArray();
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators: new[] { generator.AsSourceGenerator() },
-            additionalTexts: new[] { (AdditionalText)additionalText });
+            additionalTexts: additionalTexts);
 
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out var diagnostics);
 
@@ -91,10 +106,10 @@ public class NnTokensGeneratorTests
     {
         var (nnTokens, _, _) = Generate(CanonicalCssSlice);
 
-        // PascalCase members (nn- prefix dropped), each holding the var(--nn-*) reference.
-        nnTokens.Should().Contain("public const string SpacingMd = \"var(--nn-spacing-md)\";");
-        nnTokens.Should().Contain("public const string NavbarHeight = \"var(--nn-navbar-height)\";");
-        nnTokens.Should().Contain("public const string PanelHeaderHeight = \"var(--nn-panel-header-height)\";");
+        // PascalCase members (nns- prefix dropped), each holding the var(--nns-*) reference.
+        nnTokens.Should().Contain("public const string SpacingMd = \"var(--nns-spacing-md)\";");
+        nnTokens.Should().Contain("public const string NavbarHeight = \"var(--nns-navbar-height)\";");
+        nnTokens.Should().Contain("public const string PanelHeaderHeight = \"var(--nns-panel-header-height)\";");
         nnTokens.Should().Contain("namespace NotNot.BlazorDesign.Tokens;");
     }
 
@@ -104,8 +119,20 @@ public class NnTokensGeneratorTests
         var (nnTokens, _, _) = Generate(CanonicalCssSlice);
 
         // Defaults dictionary carries the authored value verbatim (var()-with-fallback captured whole).
-        nnTokens.Should().Contain("[\"nn-spacing-md\"] = \"16px\",");
+        nnTokens.Should().Contain("[\"nns-spacing-md\"] = \"16px\",");
         nnTokens.Should().Contain("var(--mud-palette-lines-default, light-dark(#e0e0e0, #444))");
+    }
+
+    [Fact]
+    public void Nns_Prefix_Is_Dropped_From_Member_Names()
+    {
+        var (nnTokens, manifest, _) = Generate(CanonicalCssSlice);
+
+        // The nns- prefix is stripped for the C# member (Substring(4)); NOT the wrong NnsSpacingMd.
+        nnTokens.Should().Contain("public const string SpacingMd =");
+        nnTokens.Should().NotContain("NnsSpacingMd");
+        // The CSS name / manifest RETAIN the full nns- token name.
+        manifest.Should().Contain("\"nns-spacing-md\",");
     }
 
     [Fact]
@@ -114,19 +141,26 @@ public class NnTokensGeneratorTests
         var (nnTokens, _, _) = Generate(CanonicalCssSlice);
 
         // Canonical :root value (40px) wins; the :root.nns-dark 999px override must be ignored.
-        nnTokens.Should().Contain("[\"nn-navbar-height\"] = \"40px\",");
+        nnTokens.Should().Contain("[\"nns-navbar-height\"] = \"40px\",");
         nnTokens.Should().NotContain("999px");
     }
 
     [Fact]
-    public void Nns_State_Tokens_Are_Excluded()
+    public void TwoFile_Read_Merges_Both_Authority_Stylesheets()
     {
-        var (nnTokens, manifest, _) = Generate(CanonicalCssSlice);
+        var (nnTokens, manifest, _) = Generate(
+            ("nn-design.css", CanonicalCssSlice),
+            ("nn-colors.css", ColorsCssSlice));
 
-        // --nns-* is a DISTINCT axis (nn-colors.css) — must NOT leak into the --nn-* manifest/accessor.
-        nnTokens.Should().NotContain("nns-surface");
-        nnTokens.Should().NotContain("nns-text");
-        manifest.Should().NotContain("nns-surface");
+        // The second authority file (nn-colors.css) is READ too — its tokens reach both artifacts.
+        nnTokens.Should().Contain("public const string BgInfo = \"var(--nns-bg-info)\";");
+        nnTokens.Should().Contain("[\"nns-bg-info\"] = \"#1e88e5\",");
+        nnTokens.Should().Contain("public const string FgDefault = \"var(--nns-fg-default)\";");
+        manifest.Should().Contain("\"nns-bg-info\",");
+        // Tokens from the first file (nn-design.css) are still present — the two sets are merged.
+        nnTokens.Should().Contain("public const string SpacingMd = \"var(--nns-spacing-md)\";");
+        // 6 design tokens + 2 color tokens = 8, merged across both files.
+        manifest.Should().Contain("public const int Count = 8;");
     }
 
     [Fact]
@@ -136,13 +170,13 @@ public class NnTokensGeneratorTests
 
         manifest.Should().Contain("public static partial class NnDesignTokenManifest");
         manifest.Should().Contain("public static readonly string[] ValidTokenNames");
-        manifest.Should().Contain("\"nn-spacing-md\",");
-        manifest.Should().Contain("\"nn-splitter-color\",");
-        // Embedded JSON manifest (the analyzer-consumable artifact).
+        manifest.Should().Contain("\"nns-spacing-md\",");
+        manifest.Should().Contain("\"nns-splitter-color\",");
+        // Embedded JSON manifest (the schema-as-data SSOT artifact).
         manifest.Should().Contain("\"version\":1");
-        manifest.Should().Contain("\"name\":\"nn-spacing-md\"");
-        // Count = 6 --nn-* tokens (navbar-height, panel-header-height, spacing-xs/sm/md, splitter-color);
-        // the two --nns-* tokens are excluded.
+        manifest.Should().Contain("\"name\":\"nns-spacing-md\"");
+        // Count = 6 --nns-* tokens (navbar-height, panel-header-height, spacing-xs/sm/md, splitter-color)
+        // in the single-file slice.
         manifest.Should().Contain("public const int Count = 6;");
     }
 

@@ -1279,6 +1279,49 @@ A different axis from the reach-in family ([NNB_CSS008](#NNB_CSS008) / [NNB_CSS0
 dotnet_diagnostic.NNB_CSS012.severity = suggestion
 ```
 
+<a id="NNB_CSS013"></a><a id="nnb_css013"></a>
+### NNB_CSS013: bare `var(--nns-*)` reference to an unknown design token
+
+**Severity:** Warning (interim; target Error)
+**Category:** CssModernization
+**Authority:** The NnDesign token system (producer manifesto) — the `@property` + `:root` `--nns-*` declarations in `nn-design.css` / `nn-colors.css` are the SSOT for the valid token set.
+
+A bare `var(--nns-typo)` (no fallback) to a token declared in NO authority CSS silently resolves to nothing: no compiler error, no browser error, no fallback. That single, high-value, least-visible failure is the one bug this rule guards — the authority files' own internal wiring is exactly this bare form (e.g. `nn-design.css` `var(--nns-switch-accent)`), so a typo there is invisible until the affected pixel renders empty. The cheapest correct fix is to correct the token name, or add a fallback: `var(--nns-typo, <value>)`.
+
+**The valid `--nns-*` set is harvested from the AUTHORITY sources, two-pass.** Pass 1 builds the valid set from the authority CSS files (`nn-design.css` / `nn-colors.css` — both the `@property --nns-x { … }` registration and the `:root` `--nns-x:` value forms) UNIONED with producer `.razor` / `.razor.cs` C#-string token declarations (e.g. `--nns-switch-accent`, declared inline in producer markup yet referenced bare in the authority CSS). Component-scoped `.css` / `.razor.css` are deliberately NOT declaration sources — a stray local must not launder a mis-typed token into the valid set. Pass 2 then checks every bare reference on the CSS surfaces (`.css` / `.razor.css`) against that global set; two passes are mandatory because a reference may precede its declaration file in AdditionalFiles order.
+
+**Authority-presence gate (producer-scoped MVP).** The analyzer is INERT (zero diagnostics) unless at least one authority CSS file (`nn-design.css` / `nn-colors.css`) is registered as an AdditionalFile. Authority CSS is producer-resident (`NotNot.BlazorDesign/wwwroot/`) and a ProjectReference / PackageReference does not import an RCL's `wwwroot` CSS, so the gate holds true ONLY in the producer build — exactly where every reference is producer-resident and the C#-string harvest is safe. Consumer-side coverage (distributing the valid set with the analyzer package so consumer builds validate too) is the ratified fast-follow, NOT this increment.
+
+**Bare-only, by construction (the bare-vs-fallback rule).** Only a BARE reference — trailing `)` — fires; it genuinely resolves to nothing. A FALLBACK-GUARDED reference `var(--nns-x, <value>)` — trailing `,` — resolves to its fallback and is intentionally SKIPPED: it is categorically outside the "resolves to nothing" target bug. Interpolated `var(--nns-color-{role})` (a C#-string-interpolated token, not literal-checkable) and malformed tokens are likewise skipped as documented false-negatives (malformed-token grammar is the future naming rule's job).
+
+**Exemption posture is producer-INCLUSIVE (like [NNB_CSS012](#NNB_CSS012), unlike the reach-in family).** Token-validity is universal — a bare typo'd `var(--nns-*)` is a bug in the producer authority files and samples too, and those files are exactly where bare references live. So the reference-check deliberately does NOT call the producer-path exemption (`IsExceptedPath`). Only the vendor-file skip (`*.min.css`), the shared `CssAnalyzerEnabled=false` kill-switch, and the per-file `nnb_css013:allow-unknown-token` marker apply.
+
+```css
+/* ❌ NNB_CSS013 fires (Warning) — bare var() to a token declared in no authority CSS */
+.switch { accent-color: var(--nns-swich-accent); }
+
+/* ✅ fallback-guarded — resolves to the fallback, NOT flagged */
+.switch { accent-color: var(--nns-swich-accent, currentColor); }
+
+/* ✅ known token declared in nn-design.css / nn-colors.css — NO warning */
+.switch { accent-color: var(--nns-switch-accent); }
+
+/* ✅ interpolated / dynamic (C#-interpolated) token — skipped (not literal-checkable) */
+.chip { color: var(--nns-color-{role}); }
+
+/* ✅ runtime-injected token the analyzer cannot see — same-line marker */
+.host { color: var(--nns-tenant-brand); /* nnb_css013:allow-unknown-token: injected at runtime */ }
+```
+
+**Severity is interim Warning → target Error.** An unknown bare reference is a hard correctness defect (peer of [NNB_CSS012](#NNB_CSS012), Error end-state). It ships at interim **Warning**; the ratchet to **Error** is a later build-gated step, contingent on a proven-clean authority-present producer build (zero residual bare hits).
+
+**Per-file opt-out**: `/* nnb_css013:allow-unknown-token: <reason> */`. **Kill-switch** (shared with the CSS suite): `<CssAnalyzerEnabled>false</CssAnalyzerEnabled>`. To soften locally:
+
+```ini
+[*.css]
+dotnet_diagnostic.NNB_CSS013.severity = suggestion
+```
+
 ## Analyzer ID Registry (tested guard)
 
 The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s. This registry is the single source; the per-ID sections above point at it. A registry test (`AnalyzerIdRegistryTests`) asserts every ID below resolves to exactly one analyzer's `SupportedDiagnostics` descriptor (and the reverse — no implemented descriptor is unregistered), so prose IDs cannot drift from code (the failure mode that left "Planned: NNB022" stale while NNB022 was live).
@@ -1294,6 +1337,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
 | NNB_CSS011 | `CssNnConsumerClassAnalyzer` | Warning | Consumer CSS class bound to an `Nn*` root via TWO deliveries: scoped `::deep` in `.razor.css` (cross-file `.razor.css`↔`.razor`) AND an inline `<style>` block in a `.razor` (intra-file) |
 | NNB_CSS012 | `CssFontSizeTokenAnalyzer` | Error | `font-size` literal (rem / px) in `.css` / `.razor.css` duplicating an `--nns-font-size-*` token value |
+| NNB_CSS013 | `CssNnTokenValidityAnalyzer` | Warning | Unknown `--nns-*` token reference (bare, producer-scoped) |
 
 ## Configuration
 
