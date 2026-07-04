@@ -1282,7 +1282,7 @@ dotnet_diagnostic.NNB_CSS012.severity = suggestion
 <a id="NNB_CSS013"></a><a id="nnb_css013"></a>
 ### NNB_CSS013: bare `var(--nns-*)` reference to an unknown design token
 
-**Severity:** Warning (interim; target Error)
+**Severity:** Error
 **Category:** CssModernization
 **Authority:** The NnDesign token system (producer manifesto) — the `@property` + `:root` `--nns-*` declarations in `nn-design.css` / `nn-colors.css` are the SSOT for the valid token set.
 
@@ -1297,7 +1297,7 @@ A bare `var(--nns-typo)` (no fallback) to a token declared in NO authority CSS s
 **Exemption posture is producer-INCLUSIVE (like [NNB_CSS012](#NNB_CSS012), unlike the reach-in family).** Token-validity is universal — a bare typo'd `var(--nns-*)` is a bug in the producer authority files and samples too, and those files are exactly where bare references live. So the reference-check deliberately does NOT call the producer-path exemption (`IsExceptedPath`). Only the vendor-file skip (`*.min.css`), the shared `CssAnalyzerEnabled=false` kill-switch, and the per-file `nnb_css013:allow-unknown-token` marker apply.
 
 ```css
-/* ❌ NNB_CSS013 fires (Warning) — bare var() to a token declared in no authority CSS */
+/* ❌ NNB_CSS013 fires (Error) — bare var() to a token declared in no authority CSS */
 .switch { accent-color: var(--nns-swich-accent); }
 
 /* ✅ fallback-guarded — resolves to the fallback, NOT flagged */
@@ -1337,7 +1337,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
 | NNB_CSS011 | `CssNnConsumerClassAnalyzer` | Warning | Consumer CSS class bound to an `Nn*` root via TWO deliveries: scoped `::deep` in `.razor.css` (cross-file `.razor.css`↔`.razor`) AND an inline `<style>` block in a `.razor` (intra-file) |
 | NNB_CSS012 | `CssFontSizeTokenAnalyzer` | Error | `font-size` literal (rem / px) in `.css` / `.razor.css` duplicating an `--nns-font-size-*` token value |
-| NNB_CSS013 | `CssNnTokenValidityAnalyzer` | Warning | Unknown `--nns-*` token reference (bare, producer-scoped) |
+| NNB_CSS013 | `CssNnTokenValidityAnalyzer` | Error | Unknown `--nns-*` token reference (bare, producer-scoped) |
 
 ## Configuration
 

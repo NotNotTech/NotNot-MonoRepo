@@ -49,9 +49,9 @@ namespace NotNot.BlazorAnalyzers.CssModernization;
 /// <c>nnb_css013:allow-unknown-token</c> opt-out marker apply.
 /// </para>
 /// <para>
-/// <b>Severity is interim Warning → target Error.</b> Unknown bare-reference is a hard correctness defect
-/// (peer of NNB_CSS012, Error end-state). It ships at interim Warning; the ratchet to Error is a later
-/// build-gated step contingent on a proven-clean authority-present producer build.
+/// <b>Severity is Error.</b> An unknown bare reference is a hard correctness defect (peer of NNB_CSS012).
+/// The authority-presence gate makes the producer build the only place the rule is live, and that build is
+/// proven clean, so the rule fails the build on any new unknown bare <c>var(--nns-*)</c>.
 /// </para>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -76,10 +76,10 @@ public sealed class CssNnTokenValidityAnalyzer : DiagnosticAnalyzer
     };
 
     /// <summary>
-    /// NNB_CSS013 descriptor. Severity = Warning (interim; target Error) — a bare <c>var(--nns-typo)</c>
-    /// reference to an undeclared token silently resolves to nothing. Kill-switch for a runtime/third-party
-    /// injected token the analyzer cannot see: the per-file <c>nnb_css013:allow-unknown-token</c> comment,
-    /// or the <c>CssAnalyzerEnabled=false</c> build property.
+    /// NNB_CSS013 descriptor. Severity = Error — a bare <c>var(--nns-typo)</c> reference to an undeclared
+    /// token silently resolves to nothing. Kill-switch for a runtime/third-party injected token the analyzer
+    /// cannot see: the per-file <c>nnb_css013:allow-unknown-token</c> comment, or the
+    /// <c>CssAnalyzerEnabled=false</c> build property.
     /// </summary>
     public static readonly DiagnosticDescriptor RuleUnknownToken = new(
         DiagnosticId,
@@ -88,7 +88,7 @@ public sealed class CssNnTokenValidityAnalyzer : DiagnosticAnalyzer
             + "(nn-design.css / nn-colors.css) — fix the token name, or add a fallback: var(--{0}, <value>). "
             + "Runtime-injected token the analyzer cannot see? add a same-line "
             + "/* nnb_css013:allow-unknown-token: <reason> */ marker. (NNB_CSS013)",
-        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "A BARE var(--nns-*) reference (no fallback) to a token declared in neither authority "
             + "CSS file silently resolves to nothing — no compiler error, no browser error, no fallback. The "
             + "valid --nns-* set is harvested from nn-design.css / nn-colors.css (@property + :root "
