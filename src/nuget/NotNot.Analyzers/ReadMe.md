@@ -307,6 +307,45 @@ File.Move(temp, finalPath, overwrite: true);     // NN_R007's domain, not NN_R00
 
 Complementary to NN_R007 on a disjoint axis: NN_R007 = hand-rolled atomic full-file **rewrite** (deterministic temp + overwrite rename); NN_R008 = direct **append** (no temp, no Move). Together they form a gap-free file-I/O concurrency matrix — `AtomicFileWriter` is silent under both.
 
+<a id="NN_R009"></a>
+### NN_R009: Field PeriodicTimer disposed while WaitForNextTickAsync may be pending risks a shutdown-race exception
+**Severity:** Error
+**Category:** Reliability
+
+Detects a graceful-shutdown crash class: a **field/property** `System.Threading.PeriodicTimer` that is **both** polled via `WaitForNextTickAsync(...)` **and** disposed inside a disposal method (`Dispose()` / `Dispose(bool)` / `DisposeAsync()`). `WaitForNextTickAsync` is backed by a **single-consumer** `IValueTaskSource`: a tick firing at the same instant as **either** the `CancellationToken` cancel **or** `_timer.Dispose()` tears that shared source and throws `InvalidOperationException` from the `while (await ...)` loop condition — **outside** any per-tick try/catch — which faults the loop task, escapes an `OperationCanceledException`-only catch, and aborts the process (SIGABRT) on graceful shutdown. Passing a `CancellationToken` does **not** prevent it.
+
+```csharp
+// ❌ Flagged (fires at the field declaration) — a field PeriodicTimer polled AND disposed in a disposal method
+private readonly PeriodicTimer _timer = new(TimeSpan.FromSeconds(1));
+// ...
+while (await _timer.WaitForNextTickAsync(ct)) { }          // condition (b): polled
+// ...
+public async ValueTask DisposeAsync() { _timer.Dispose(); } // condition (c): disposed in a disposal method
+
+// ✅ Option 1 (preferred): a per-iteration Task.Delay loop — atomic TrySetResult/TrySetCanceled, race-safe; delete the timer field
+while (!ct.IsCancellationRequested)
+{
+    await Task.Delay(TimeSpan.FromSeconds(1), ct);
+}
+
+// ✅ Option 2: a `using var` LOCAL PeriodicTimer disposed by its scope AFTER the loop exits (no active wait at dispose)
+using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+while (await timer.WaitForNextTickAsync(ct)) { }
+
+// ✅ Allowed (silent): a field PeriodicTimer waited-on but never disposed, or disposed but never waited-on
+```
+
+**Flagged**: a field/property whose type resolves to `System.Threading.PeriodicTimer` where **all three** hold within the declaring type — (a) it is a field/property (not a `using var`/local), (b) `.WaitForNextTickAsync(...)` is invoked on it somewhere in the type, and (c) `.Dispose()` is invoked on it inside a disposal method (`Dispose()`/`Dispose(bool)`/`DisposeAsync()`). Reported at the field/property declaration; `{0}` = the member name.
+
+**Allowed**: a `using var`/local `PeriodicTimer` disposed after its loop exits (the safe pattern — never a member, never collected); the canonical fix (a `Task.Delay(interval, token)` loop with no PeriodicTimer); a field PeriodicTimer waited-on but never disposed (condition (c) unmet); a field PeriodicTimer disposed but never waited-on (condition (b) unmet).
+
+**Preferred fix** (in order):
+1. Replace the PeriodicTimer poll loop with a per-iteration `await Task.Delay(interval, token)` loop — the cheapest correct and strictly safer shape (atomic `TrySetResult`/`TrySetCanceled`) — and delete the timer field plus its `Dispose()`.
+2. If a timer is required, use a `using var` local disposed **after** the loop exits, so no wait is active at dispose.
+3. `#pragma warning disable NN_R009` / `.editorconfig` severity override only when disposal provably can never race a pending wait.
+
+Complementary to NN_R001/NN_R002 (Task-await) and NN_R007/NN_R008 (atomic-file-write) on a disjoint axis — NN_R009 is the timer-lifecycle concurrency-reliability rule.
+
 <a id="NN_C004"></a>
 ### NN_C004: No code-side default for AppSettings options
 **Severity:** Error
@@ -395,6 +434,7 @@ dotnet_diagnostic.NN_R005.severity = error
 dotnet_diagnostic.NN_R006.severity = error
 dotnet_diagnostic.NN_R007.severity = error
 dotnet_diagnostic.NN_R008.severity = error
+dotnet_diagnostic.NN_R009.severity = error
 dotnet_diagnostic.NN_C004.severity = error
 dotnet_diagnostic.NN_C005.severity = error
 

@@ -116,6 +116,25 @@ A direct `System.IO.File` append — `File.AppendAllText`, `File.AppendAllLines`
 
 Complementary to NN_R007 on a disjoint axis: NN_R007 = hand-rolled atomic full-file REWRITE (deterministic temp + overwrite rename); NN_R008 = direct APPEND (no temp, no Move). Together gap-free — `AtomicFileWriter` is silent under both.
 
+### NN_R009: PeriodicTimer disposal race
+
+A **field/property** `System.Threading.PeriodicTimer` that is BOTH polled via `WaitForNextTickAsync(...)` AND disposed inside a disposal method (`Dispose()`/`Dispose(bool)`/`DisposeAsync()`). `WaitForNextTickAsync` is backed by a single-consumer `IValueTaskSource`; a tick firing at the same instant as EITHER the `CancellationToken` cancel OR `_timer.Dispose()` tears that shared source and throws `InvalidOperationException` from the `while (await ...)` loop condition — outside any per-tick try/catch — faulting the loop task, escaping an OCE-only catch, and aborting the process (SIGABRT) on graceful shutdown. Passing a `CancellationToken` does NOT prevent it.
+
+**Severity**: Error
+**Flagged**: a field/property of type `System.Threading.PeriodicTimer` where all three hold in the declaring type — (a) it is a field/property (not a `using var`/local), (b) `.WaitForNextTickAsync(...)` is invoked on it somewhere in the type, (c) `.Dispose()` is invoked on it inside a disposal method (`Dispose`/`Dispose(bool)`/`DisposeAsync`). Reported at the member declaration; `{0}` = the member name.
+**Allowed**:
+- A `using var`/local `PeriodicTimer` disposed by its scope AFTER the loop exits (the safe pattern — never a member, never collected).
+- The canonical fix: a per-iteration `Task.Delay(interval, token)` loop with no PeriodicTimer.
+- A field PeriodicTimer waited-on but NEVER disposed (condition (c) unmet).
+- A field PeriodicTimer disposed but NEVER waited-on (condition (b) unmet).
+
+**Preferred Fix** (in order):
+1. Replace the PeriodicTimer poll loop with a per-iteration `await Task.Delay(interval, token)` loop — cheapest correct and strictly safer (atomic `TrySetResult`/`TrySetCanceled`) — and delete the timer field plus its `Dispose()`.
+2. If a timer is required, use a `using var` local disposed AFTER the loop exits, so no wait is active at dispose.
+3. `#pragma warning disable NN_R009` / `.editorconfig` severity override only when disposal provably can never race a pending wait.
+
+Complementary to NN_R001/NN_R002 (Task-await) and NN_R007/NN_R008 (atomic-file-write) on a disjoint axis — NN_R009 is the timer-lifecycle concurrency-reliability rule.
+
 ### NN_C003: Boolean Default False
 
 Enforces the `BOOLEAN_DEFAULT_FALSE` convention — boolean parameters, properties, and fields must default to `false`, not `true`. Default-true booleans silently flip behavior on consumers who don't know to opt out; default-false forces explicit opt-in and keeps the read surface unsurprising.
@@ -233,6 +252,7 @@ A concrete `IHostedService` (e.g. `BackgroundService`) whose single public const
 | `Reliability/Concurrency/TaskAwaitedOrReturnedAnalyzer.cs` | NN_R001 |
 | `Reliability/Concurrency/HandRolledAtomicFileWriteAnalyzer.cs` | NN_R007 |
 | `Reliability/Concurrency/DirectFileAppendAnalyzer.cs` | NN_R008 |
+| `Reliability/Concurrency/PeriodicTimerDisposalRaceAnalyzer.cs` | NN_R009 |
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
 | `Conventions/AppSettingsCodeDefaultAnalyzer.cs` | NN_C004 |
 | `Conventions/NnAppSettingsServerOnlyReadAnalyzer.cs` | NN_C005 |
