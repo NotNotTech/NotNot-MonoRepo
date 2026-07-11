@@ -1,14 +1,20 @@
 namespace NotNot.Bcl.Diagnostics;
 
 /// <summary>
-/// Marker that exempts a scope from the <c>NN_DI_*</c> dependency-injection marker-enforcement
-/// analyzer rule family (<c>NN_DI_001</c> lifetime mismatch, <c>NN_DI_002</c> redundant
+/// Marker that exempts a scope from dependency-injection auto-registration and the <c>NN_DI_*</c>
+/// marker-enforcement analyzer rule family (<c>NN_DI_001</c> lifetime mismatch, <c>NN_DI_002</c> redundant
 /// registration, <c>NN_DI_003</c> passthrough factory, <c>NN_DI_004</c> marker +
-/// <c>IHostedService</c>, <c>NN_DI_005</c> missing marker on auto-registration candidate).
+/// <c>IHostedService</c>, <c>NN_DI_005</c> missing marker on auto-registration candidate,
+/// <c>NN_DI_006</c> DI-unconstructible required delegate dependency).
 /// Mirrors the <c>LdddBypassAttribute</c> precedent — single bypass marker that suppresses the
 /// entire analyzer rule family within the marked scope.
 /// </summary>
 /// <remarks>
+/// <para>
+/// <b>Runtime scope</b>: assembly- and type-level annotations exclude that assembly or type from
+/// <c>AddNotNotDiServices</c> scanning. Method-level annotations affect analyzer diagnostics only because
+/// runtime assembly scanning has no registration-call-site context.
+/// </para>
 /// <para>
 /// <b>What this bypasses</b>: the <c>NotNot.Analyzers</c> Roslyn analyzer family that
 /// enforces the project's <c>IDi{Singleton,Scoped,Transient}Service</c> marker-interface

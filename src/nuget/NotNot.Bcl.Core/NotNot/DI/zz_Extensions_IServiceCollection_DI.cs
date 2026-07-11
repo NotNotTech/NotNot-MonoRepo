@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
 using NotNot.DI.Advanced;
 using Scrutor;
 
@@ -109,10 +110,16 @@ public static class zz_Extensions_IServiceCollection_DI
 	[SuppressMessage("ReSharper", "PossibleMultipleEnumeration")]
 	internal static void _ScrutorRegisterServiceInterfaces(IServiceCollection services, IEnumerable<Assembly> targetAssemblies)
 	{
+		var runtimeScanAssemblies = targetAssemblies
+			.Where(assembly => !assembly.IsDefined(typeof(AutoDiBypassAttribute), inherit: false))
+			.Distinct()
+			.ToArray();
+
 		// Validate: IHostedService implementations must not also implement DI marker interfaces
-		var invalidServices = targetAssemblies
+		var invalidServices = runtimeScanAssemblies
 			.SelectMany(assembly => assembly.GetTypes())
-			.Where(type => typeof(IHostedService).IsAssignableFrom(type) &&
+			.Where(type => !_IsRuntimeAutoDiBypassed(type) &&
+						   typeof(IHostedService).IsAssignableFrom(type) &&
 						   (typeof(IDiSingletonService).IsAssignableFrom(type) ||
 							typeof(IDiTransientService).IsAssignableFrom(type) ||
 							typeof(IDiScopedService).IsAssignableFrom(type)))
@@ -139,29 +146,33 @@ public static class zz_Extensions_IServiceCollection_DI
 		services.Scan(scan =>
 		{
 			// IHostedService → Singleton
-			scan.FromAssemblies(targetAssemblies)
-				.AddClasses(classes => classes.AssignableTo<IHostedService>())
+			scan.FromAssemblies(runtimeScanAssemblies)
+				.AddClasses(classes => classes.AssignableTo<IHostedService>()
+					.Where(type => !_IsRuntimeAutoDiBypassed(type)))
 				.UsingRegistrationStrategy(RegistrationStrategy.Append)
 				.AsSelfWithInterfaces()
 				.WithSingletonLifetime();
 
 			// IDiSingletonService → Singleton
-			scan.FromAssemblies(targetAssemblies)
-				.AddClasses(classes => classes.AssignableTo<IDiSingletonService>())
+			scan.FromAssemblies(runtimeScanAssemblies)
+				.AddClasses(classes => classes.AssignableTo<IDiSingletonService>()
+					.Where(type => !_IsRuntimeAutoDiBypassed(type)))
 				.UsingRegistrationStrategy(RegistrationStrategy.Append)
 				.AsSelfWithInterfaces()
 				.WithSingletonLifetime();
 
 			// IDiTransientService → Transient
-			scan.FromAssemblies(targetAssemblies)
-				.AddClasses(classes => classes.AssignableTo<IDiTransientService>())
+			scan.FromAssemblies(runtimeScanAssemblies)
+				.AddClasses(classes => classes.AssignableTo<IDiTransientService>()
+					.Where(type => !_IsRuntimeAutoDiBypassed(type)))
 				.UsingRegistrationStrategy(RegistrationStrategy.Append)
 				.AsSelfWithInterfaces()
 				.WithTransientLifetime();
 
 			// IDiScopedService → Scoped
-			scan.FromAssemblies(targetAssemblies)
-				.AddClasses(classes => classes.AssignableTo<IDiScopedService>())
+			scan.FromAssemblies(runtimeScanAssemblies)
+				.AddClasses(classes => classes.AssignableTo<IDiScopedService>()
+					.Where(type => !_IsRuntimeAutoDiBypassed(type)))
 				.UsingRegistrationStrategy(RegistrationStrategy.Append)
 				.AsSelfWithInterfaces()
 				.WithScopedLifetime();
@@ -171,7 +182,9 @@ public static class zz_Extensions_IServiceCollection_DI
 		var manualHostedServiceRegistrations = services
 			.Where(sd => sd.ServiceType == typeof(IHostedService) &&
 						 sd.ImplementationType != null &&
-						 !sd.ImplementationType.FullName!.StartsWith("Microsoft."))
+						 !sd.ImplementationType.FullName!.StartsWith("Microsoft.") &&
+						 runtimeScanAssemblies.Contains(sd.ImplementationType.Assembly) &&
+						 !_IsRuntimeAutoDiBypassed(sd.ImplementationType))
 			.Select(sd => sd.ImplementationType!)
 			.ToList();
 
@@ -183,6 +196,10 @@ public static class zz_Extensions_IServiceCollection_DI
 				$"IHostedService implementations are auto-registered by Scrutor - do NOT call AddHostedService<T>().\n{msg}");
 		}
 	}
+
+	private static bool _IsRuntimeAutoDiBypassed(Type type)
+		=> type.IsDefined(typeof(AutoDiBypassAttribute), inherit: false)
+			|| type.Assembly.IsDefined(typeof(AutoDiBypassAttribute), inherit: false);
 
 	/// <summary>
 	/// Decorates all <see cref="IDiAutoInitialize"/> services with auto-initialization calls.
