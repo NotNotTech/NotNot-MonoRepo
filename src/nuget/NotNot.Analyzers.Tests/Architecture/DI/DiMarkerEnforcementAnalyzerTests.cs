@@ -527,8 +527,15 @@ public class Bootstrap
 			// True carve-out shape: AddSingleton<FooUseCases>(sp => sp.GetRequiredService<FooUseCases>())
 			// when FooUseCases : IDiSingletonService — NN_DI_002 candidate that the
 			// IsInterfaceBridgeFactory skip neutralizes.
+			//
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present so the NN_DI_002
+			// scan-marker gate (implInScanAssembly) does NOT silence — the interface-bridge carve-out
+			// is what actually suppresses the diagnostic, so this test genuinely exercises
+			// IsInterfaceBridgeFactory rather than short-circuiting at the gate.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class FooUseCases : IDiSingletonService { }
 
@@ -545,8 +552,12 @@ public class Bootstrap
 		[Fact]
 		public async Task InterfaceBridgeFactory_AddScoped_NoDiagnostic()
 		{
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present so the interface-bridge
+			// carve-out — not the scan-marker gate — is what suppresses NN_DI_002.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiScopedService { }
 
@@ -564,8 +575,13 @@ public class Bootstrap
 		public async Task InterfaceBridgeFactory_UsingGetService_NoDiagnostic()
 		{
 			// GetService (non-Required) also classifies as interface-bridge per the helper.
+			//
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present so the interface-bridge
+			// carve-out — not the scan-marker gate — is what suppresses NN_DI_002.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiSingletonService { }
 
@@ -584,9 +600,13 @@ public class Bootstrap
 		[Fact]
 		public async Task TryAddSingleton_OnSingletonMarker_NoDiagnostic()
 		{
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present so the TryAdd carve-out
+			// (!isTryAdd) — not the scan-marker gate — is what suppresses NN_DI_002.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiSingletonService { }
 
@@ -613,8 +633,16 @@ public class Bootstrap
 			// shape than the marker-interface convention addresses. This test locks the current
 			// boundary so a future refactor that adds `AddKeyed*` to the classifier doesn't silently
 			// flip the FP profile.
+			//
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present so the silence is
+			// attributable to TryClassifyLifetimeMethod rejecting `AddKeyedSingleton` (the classifier
+			// boundary under test) rather than the scan-marker gate. With the marker, if a future
+			// refactor added `AddKeyed*` to the classifier, NN_DI_002 WOULD fire here — pinning the
+			// boundary against exactly that regression.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiSingletonService { }
 
@@ -709,8 +737,13 @@ public class Bootstrap
 			// registration as redundant. UnwrapConversions strips the cast, the inner
 			// IInvocationOperation surfaces as a GetRequiredService call, the carve-out fires,
 			// and NN_DI_002 stays silent.
+			//
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present so the cast-unwrap +
+			// interface-bridge carve-out — not the scan-marker gate — is what suppresses NN_DI_002.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiSingletonService { }
 
@@ -837,9 +870,15 @@ public class Bootstrap
 		[Fact]
 		public async Task TryAddSingleton_Passthrough_NoDiagnostic_DeliberateConditional()
 		{
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present + `Service` is unmarked
+			// project-internal, so WITHOUT the TryAdd carve-out (!isTryAdd) NN_DI_003 (passthrough) and
+			// NN_DI_005 (missing-marker) would fire. The TryAdd guard is what genuinely suppresses both —
+			// this now exercises the carve-out rather than short-circuiting at the scan-marker gate.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Dep1 : IDiSingletonService { }
 public class Service
@@ -915,8 +954,15 @@ public class Bootstrap
 			// `IObjectCreationOperation`, so IsPassthroughFactory returns false. Test the
 			// negative-NN_DI_003 path explicitly (the IsInterfaceBridgeFactory skip only matters
 			// for NN_DI_002; NN_DI_003 simply doesn't match the lambda shape).
+			//
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present + `Concrete` is unmarked
+			// project-internal, so WITHOUT the interface-bridge carve-out NN_DI_005 (missing-marker) would
+			// fire. The IsInterfaceBridgeFactory skip in the NN_DI_005 predicate is what genuinely
+			// suppresses it — this now exercises the carve-out rather than the scan-marker gate.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Concrete { }
 
@@ -1686,8 +1732,14 @@ public class Bootstrap
 			// DP4 lock-in: `IsInterfaceBridgeFactory` returns true for
 			// `sp => sp.GetRequiredService<Service>()`, so the NN_DI_005 predicate skips.
 			// All rules silent on this shape.
+			//
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present + `Service` is unmarked
+			// project-internal, so WITHOUT the interface-bridge carve-out NN_DI_005 would fire. The
+			// IsInterfaceBridgeFactory skip is what genuinely suppresses it, not the scan-marker gate.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service { }
 
@@ -1725,9 +1777,15 @@ public class Bootstrap
 		{
 			// TryAdd* is deliberate conditional registration. NN_DI_005's `!isTryAdd` guard
 			// prevents firing — consistent with NN_DI_002/003 TryAdd carve-outs.
+			//
+			// F1 coverage-restoration: [assembly: AutoDiScanAssembly] present + `Service` is unmarked
+			// project-internal, so WITHOUT the TryAdd carve-out NN_DI_005 would fire. The `!isTryAdd`
+			// guard is what genuinely suppresses it, not the scan-marker gate.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service { }
 

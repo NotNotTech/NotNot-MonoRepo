@@ -86,7 +86,7 @@ public sealed class AutoDiRuntimeBypassTests
 		// IHostedService via `.AddClasses(classes => classes.AssignableTo<IHostedService>().Where(...))`.
 		// Scrutor 7.0 defaults that scan to PUBLIC-ONLY at the top-level: a top-level `internal` class is
 		// NOT registered. This pins the runtime truth the NN_DI_007 analyzer aligns to (top-level
-		// non-public → not scan-eligible → analyzer stays silent, IsEffectivelyPublic correct for this axis).
+		// non-public → not scan-eligible → analyzer stays silent, IsScrutorPublicScanVisible correct for this axis).
 		var services = new ServiceCollection();
 
 		services.AddNotNotDiServices(typeof(AutoDiRuntimeBypassTests).Assembly);
@@ -100,10 +100,10 @@ public sealed class AutoDiRuntimeBypassTests
 		// F2 GROUND-TRUTH PROBE (b). A `public` IHostedService NESTED inside an `internal` container has
 		// non-public EFFECTIVE visibility, yet Scrutor 7.0's public-type scan STILL registers it — the
 		// scan keys on the type's OWN DeclaredAccessibility, not the effective (enclosing-aware)
-		// visibility. This is the false-negative the NN_DI_007 analyzer's IsEffectivelyPublic predicate
-		// produces: the runtime auto-registers this shape, so an explicit AddHostedService of it IS a
-		// duplicate and the analyzer MUST fire. Aligned predicate: own-accessibility public, not
-		// effective-public.
+		// visibility. This WAS the false-negative the pre-fix effective-public predicate produced: the
+		// runtime auto-registers this shape, so an explicit AddHostedService of it IS a duplicate and the
+		// analyzer MUST fire. Aligned predicate (NN_DI_007 IsScrutorPublicScanVisible): own-accessibility
+		// public, not effective-public.
 		var services = new ServiceCollection();
 
 		services.AddNotNotDiServices(typeof(AutoDiRuntimeBypassTests).Assembly);
@@ -133,9 +133,9 @@ public sealed class BypassedSingletonFixture : IDiSingletonService;
 // ── F2 visibility-matrix fixtures ──────────────────────────────────────────────
 
 /// <summary>
-/// An <c>internal</c> (non-public) <see cref="IHostedService"/>. Proves the Scrutor
-/// single-<c>Action</c> <c>AddClasses</c> overload (default <c>publicOnly: false</c>) registers
-/// non-public hosted services.
+/// A top-level <c>internal</c> (non-public) <see cref="IHostedService"/>. Proves the Scrutor
+/// <c>AddClasses</c> public-type scan does NOT register a top-level internal hosted service — the
+/// runtime ground-truth the NN_DI_007 <c>IsScrutorPublicScanVisible</c> predicate aligns to.
 /// </summary>
 internal sealed class InternalHostedFixture : IHostedService
 {
@@ -145,8 +145,10 @@ internal sealed class InternalHostedFixture : IHostedService
 
 /// <summary>
 /// An <c>internal</c> container holding a <c>public</c> nested <see cref="IHostedService"/> whose
-/// EFFECTIVE visibility is not public (a non-public enclosing type). Proves the Scrutor scan still
-/// registers it — the NN_DI_007 analyzer's stricter effective-public predicate is a false negative.
+/// EFFECTIVE visibility is not public (a non-public enclosing type). Proves the Scrutor scan STILL
+/// registers it (keying on the type's OWN accessibility, not effective enclosing-aware visibility) —
+/// the case NN_DI_007 <c>IsScrutorPublicScanVisible</c> now correctly fires on (the pre-fix
+/// effective-public predicate produced a false negative here).
 /// </summary>
 internal static class InternalContainer
 {
