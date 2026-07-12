@@ -14,22 +14,63 @@ using Scrutor;
 public static class AssemblyReflectionHelper
 {
 	/// <summary>
-	/// Filters assemblies for Scrutor DI scanning.
+	/// Selects the assemblies eligible for Scrutor DI scanning. A candidate assembly is scanned
+	/// iff-and-only-if it carries <c>[assembly: AutoDiScanAssembly]</c> AND does NOT carry
+	/// <c>[assembly: AutoDiBypass]</c> (bypass is higher precedence). This is the SINGLE marker
+	/// authority — there is no assembly-name-prefix inference and no scan-all-minus-ignore-glob
+	/// default.
 	/// </summary>
-	/// <param name="scanAssemblies">Assemblies to scan. Default: <c>AppDomain.CurrentDomain.GetAssemblies()</c>.</param>
-	/// <param name="scanIgnore">Assembly name glob patterns to exclude. Default: <c>["Microsoft.*", "netstandard*", "Serilog*", "System*", "Azure*"]</c>.</param>
+	/// <param name="scanAssemblies">
+	/// Assemblies to consider. <c>null</c> selects the DEFAULT-APPDOMAIN path
+	/// (<c>AppDomain.CurrentDomain.GetAssemblies()</c>) — unmarked assemblies are SILENTLY excluded.
+	/// A non-null list selects the EXPLICIT-SCAN path — every named assembly lacking the marker is a
+	/// caller error and the method THROWS with a list of the offenders (fail-fast).
+	/// </param>
+	/// <param name="scanIgnore">
+	/// Optional secondary assembly-name glob filter applied AFTER the marker gate. Marked assemblies
+	/// matching a pattern here are still dropped (unless matched by <paramref name="keepRegardless"/>).
+	/// Rarely needed now that the marker is the primary gate; retained for callers that want to
+	/// narrow an already-marked set.
+	/// </param>
 	/// <param name="keepRegardless">Assembly name glob patterns to keep even if matched by <paramref name="scanIgnore"/>.</param>
 	public static List<Assembly> _FilterAssemblies(IEnumerable<Assembly>? scanAssemblies, IEnumerable<string>? scanIgnore = null, IEnumerable<string>? keepRegardless = null)
 	{
-		scanAssemblies ??= AppDomain.CurrentDomain.GetAssemblies();
-		var targetAssemblies = new List<Assembly>(scanAssemblies);
+		// null => default-AppDomain path (silent-exclude unmarked); non-null => explicit path (fail-fast unmarked).
+		var isExplicitScan = scanAssemblies is not null;
+		var candidates = new List<Assembly>(scanAssemblies ?? AppDomain.CurrentDomain.GetAssemblies());
 
-		var thisAssembly = Assembly.GetExecutingAssembly();
-		if (!targetAssemblies.Contains(thisAssembly))
+		// NotNot.Bcl.Core participates via the DEFAULT-AppDomain path (it carries [assembly: AutoDiScanAssembly]
+		// and is always present in AppDomain.CurrentDomain.GetAssemblies()). It is NOT force-added here: on
+		// the default path the force-add was dead code, and on the explicit path it silently injected an
+		// assembly the caller never named — violating the explicit-scan fail-fast contract and risking a
+		// double-scan (duplicate descriptors). An explicit caller who wants Bcl.Core scanned must name it.
+
+		// PRIMARY GATE — marker presence. AutoDiBypass is higher precedence than the scan marker.
+		if (isExplicitScan)
 		{
-			targetAssemblies.Add(thisAssembly);
+			// Fail-fast: a caller who explicitly names an assembly expects it scanned; an unmarked one
+			// (that is not deliberately bypassed) is a caller error, not a silent drop.
+			var unmarked = candidates
+				.Where(assembly => !_IsBypassed(assembly) && !_IsScanMarked(assembly))
+				.Distinct()
+				.ToList();
+			if (unmarked.Count > 0)
+			{
+				var offenders = string.Join("\n", unmarked.Select(a => $"  - {a.FullName}"));
+				__.Throw(
+					"AddNotNotDiServices was passed explicit assemblies that lack " +
+					"[assembly: NotNot.Bcl.Diagnostics.AutoDiScanAssembly]. Add the marker to each " +
+					"assembly that participates in auto-registration, or remove it from the scan list " +
+					$"(apply [assembly: AutoDiBypass] to deliberately opt out):\n{offenders}");
+			}
 		}
 
+		var targetAssemblies = candidates
+			.Where(assembly => _IsScanMarked(assembly) && !_IsBypassed(assembly))
+			.Distinct()
+			.ToList();
+
+		// SECONDARY GATE — optional name-glob narrowing over the already-marked set.
 		if (scanIgnore is null || !scanIgnore.Any())
 		{
 			return targetAssemblies;
@@ -61,6 +102,15 @@ public static class AssemblyReflectionHelper
 
 		return targetAssemblies;
 	}
+
+	/// <summary>True when the assembly carries <c>[assembly: AutoDiScanAssembly]</c>.</summary>
+	private static bool _IsScanMarked(Assembly assembly)
+		=> assembly.IsDefined(typeof(AutoDiScanAssemblyAttribute), inherit: false);
+
+	/// <summary>True when the assembly carries <c>[assembly: AutoDiBypass]</c> (higher precedence than the scan marker).
+	/// The canonical assembly-level bypass check — the single owner of this predicate.</summary>
+	internal static bool _IsBypassed(Assembly assembly)
+		=> assembly.IsDefined(typeof(AutoDiBypassAttribute), inherit: false);
 }
 
 /// <summary>
@@ -77,15 +127,18 @@ public static class zz_Extensions_IServiceCollection_DI
 	/// and auto-registers them. Also decorates <see cref="IDiAutoInitialize"/> services.
 	/// </summary>
 	/// <param name="services">The service collection to register into.</param>
-	/// <param name="scanAssemblies">Assemblies to scan. Default: <c>AppDomain.CurrentDomain.GetAssemblies()</c>.</param>
-	/// <param name="scanIgnore">Assembly name glob patterns to exclude from scanning.
-	/// Default: <c>["Microsoft.*", "netstandard*", "Serilog*", "System*", "Azure*"]</c>.</param>
+	/// <param name="scanAssemblies">
+	/// Assemblies to scan. <c>null</c> => default-AppDomain path (scans marked assemblies in
+	/// <c>AppDomain.CurrentDomain.GetAssemblies()</c>; unmarked silently excluded). A non-null list =>
+	/// explicit path (fail-fast on any named assembly lacking <c>[assembly: AutoDiScanAssembly]</c>).
+	/// </param>
+	/// <param name="scanIgnore">Optional secondary assembly-name glob filter applied AFTER the
+	/// <c>[assembly: AutoDiScanAssembly]</c> marker gate. Defaults to <c>null</c> (marker gate is the
+	/// sole filter).</param>
 	public static void AddNotNotDiServices(this IServiceCollection services,
 		IEnumerable<Assembly>? scanAssemblies = null,
 		IEnumerable<string>? scanIgnore = null)
 	{
-		scanIgnore ??= ["Microsoft.*", "netstandard*", "Serilog*", "System*", "Azure*"];
-
 		var targetAssemblies = AssemblyReflectionHelper._FilterAssemblies(
 			scanAssemblies: scanAssemblies,
 			scanIgnore: scanIgnore);
@@ -95,12 +148,15 @@ public static class zz_Extensions_IServiceCollection_DI
 	}
 
 	/// <summary>
-	/// Convenience overload: scans specific assemblies with no ignore patterns.
-	/// Useful for WASM clients scanning known library assemblies.
+	/// Convenience overload: scans a specific explicit assembly list (WASM clients scanning known
+	/// library assemblies). Routes through the same marker gate — each named assembly MUST carry
+	/// <c>[assembly: AutoDiScanAssembly]</c> or the scan fails fast.
 	/// </summary>
 	public static void AddNotNotDiServices(this IServiceCollection services, params Assembly[] assemblies)
 	{
-		_ScrutorRegisterServiceInterfaces(services, assemblies);
+		var targetAssemblies = AssemblyReflectionHelper._FilterAssemblies(scanAssemblies: assemblies);
+
+		_ScrutorRegisterServiceInterfaces(services, targetAssemblies);
 		_DecorateAutoInitializeServices(services);
 	}
 
@@ -111,7 +167,7 @@ public static class zz_Extensions_IServiceCollection_DI
 	internal static void _ScrutorRegisterServiceInterfaces(IServiceCollection services, IEnumerable<Assembly> targetAssemblies)
 	{
 		var runtimeScanAssemblies = targetAssemblies
-			.Where(assembly => !assembly.IsDefined(typeof(AutoDiBypassAttribute), inherit: false))
+			.Where(assembly => !AssemblyReflectionHelper._IsBypassed(assembly))
 			.Distinct()
 			.ToArray();
 
@@ -199,7 +255,7 @@ public static class zz_Extensions_IServiceCollection_DI
 
 	private static bool _IsRuntimeAutoDiBypassed(Type type)
 		=> type.IsDefined(typeof(AutoDiBypassAttribute), inherit: false)
-			|| type.Assembly.IsDefined(typeof(AutoDiBypassAttribute), inherit: false);
+			|| AssemblyReflectionHelper._IsBypassed(type.Assembly);
 
 	/// <summary>
 	/// Decorates all <see cref="IDiAutoInitialize"/> services with auto-initialization calls.

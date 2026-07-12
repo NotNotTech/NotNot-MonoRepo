@@ -7,7 +7,7 @@ namespace NotNot.Analyzers.Architecture.DI;
 
 /// <summary>
 /// Shared helpers for the DI marker-enforcement analyzer family
-/// (<c>NN_DI_001</c> through <c>NN_DI_006</c>). Mirrors the helper-extraction strategy
+/// (<c>NN_DI_001</c> through <c>NN_DI_007</c>). Mirrors the helper-extraction strategy
 /// used by <c>NotNot.BlazorAnalyzers.LiteDDD.LdddAnalyzerHelpers</c> (sibling project).
 /// </summary>
 /// <remarks>
@@ -67,6 +67,43 @@ internal static class DiAnalyzerHelpers
 	/// simple-name match would create.
 	/// </summary>
 	internal const string AutoDiBypassAttributeFullName = "NotNot.Bcl.Diagnostics.AutoDiBypassAttribute";
+
+	/// <summary>
+	/// Fully-qualified name of the <c>[AutoDiScanAssembly]</c> opt-in marker. Lives in
+	/// <c>NotNot.Bcl.Core/NotNot/Diagnostics/AutoDiScanAssemblyAttribute.cs</c>. An assembly is
+	/// AutoDI-scan-eligible iff it carries this marker (and does NOT carry
+	/// <see cref="AutoDiBypassAttributeFullName"/>, which is higher precedence). Match is FQN-only —
+	/// a locally-declared shadow in an unrelated namespace is NOT honored (mirrors the AutoDiBypass
+	/// FQN-only policy — avoids silent scan-enabling by a collision).
+	/// </summary>
+	internal const string AutoDiScanAssemblyAttributeFullName = "NotNot.Bcl.Diagnostics.AutoDiScanAssemblyAttribute";
+
+	/// <summary>
+	/// Returns true when <paramref name="assembly"/> carries an <c>[assembly: AutoDiScanAssembly]</c>
+	/// marker, matched by fully-qualified name only
+	/// (<c>NotNot.Bcl.Diagnostics.AutoDiScanAssemblyAttribute</c>) — the SAME mechanism the bypass twin
+	/// <see cref="HasAutoDiBypassAttribute(IAssemblySymbol)"/> uses. FQN-string matching needs no
+	/// compilation-level symbol resolution, so it detects the marker on a REFERENCED sibling assembly
+	/// even when the marker's declaring assembly (NotNot.Bcl.Core) is not visible to the CONSUMER
+	/// compilation — the cross-assembly case a <c>GetTypeByMetadataName</c> + <c>SymbolEqualityComparer</c>
+	/// lookup silently missed (null/ambiguous resolution → rule silently disabled).
+	/// </summary>
+	internal static bool HasAutoDiScanAssemblyAttribute(IAssemblySymbol? assembly)
+	{
+		if (assembly == null)
+		{
+			return false;
+		}
+
+		foreach (var attribute in assembly.GetAttributes())
+		{
+			if (IsAutoDiScanAssemblyAttributeClass(attribute.AttributeClass))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
 
 	/// <summary>
 	/// Returns true when the compilation's assembly carries an <c>[assembly: AutoDiBypass]</c>
@@ -413,6 +450,24 @@ internal static class DiAnalyzerHelpers
 		// ImplementsMarkerInterface, then compare against the canonical name.
 		var fullName = StripGlobalPrefix(attrClass.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 		return string.Equals(fullName, AutoDiBypassAttributeFullName, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Returns true when <paramref name="attrClass"/> matches the canonical <c>[AutoDiScanAssembly]</c>
+	/// marker by fully-qualified name only (<c>NotNot.Bcl.Diagnostics.AutoDiScanAssemblyAttribute</c>).
+	/// Mirrors <see cref="IsAutoDiBypassAttributeClass"/> exactly — one detection mechanism (FQN-string
+	/// comparison) for the two twin marker concepts. A locally-declared shadow in an unrelated namespace
+	/// is NOT honored (avoids silent scan-enabling by a collision).
+	/// </summary>
+	private static bool IsAutoDiScanAssemblyAttributeClass(INamedTypeSymbol? attrClass)
+	{
+		if (attrClass == null)
+		{
+			return false;
+		}
+
+		var fullName = StripGlobalPrefix(attrClass.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+		return string.Equals(fullName, AutoDiScanAssemblyAttributeFullName, StringComparison.Ordinal);
 	}
 
 	/// <summary>

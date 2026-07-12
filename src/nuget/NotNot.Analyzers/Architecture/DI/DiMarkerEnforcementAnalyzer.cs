@@ -7,8 +7,8 @@ using Microsoft.CodeAnalysis.Operations;
 namespace NotNot.Analyzers.Architecture.DI;
 
 /// <summary>
-/// Dependency-injection marker-enforcement analyzer hosting six diagnostic rules
-/// (<c>NN_DI_001</c> through <c>NN_DI_006</c>) for the project's
+/// Dependency-injection marker-enforcement analyzer hosting seven diagnostic rules
+/// (<c>NN_DI_001</c> through <c>NN_DI_007</c>) for the project's
 /// <c>IDi{Singleton,Scoped,Transient}Service</c> marker-interface auto-registration convention.
 /// Mirrors the pattern of <c>NotNot.BlazorAnalyzers.LiteDDD.LdddAssemblyFenceAnalyzer</c> —
 /// single analyzer class with regions per rule, shared compilation-start gate, helper extraction
@@ -75,6 +75,14 @@ namespace NotNot.Analyzers.Architecture.DI;
 ///     marker-absence; NN_DI_006 = ctor-unconstructibility). Skips zero / more-than-one public
 ///     instance ctors (ambiguous MS.DI greedy-resolve / <c>[ActivatorUtilitiesConstructor]</c> —
 ///     conservative near-zero-FP bias for an Error rule).
+///   </description></item>
+///   <item><description>
+///     <b>NN_DI_007</b> — Explicit registration of a scan-eligible hosted service (Error). Fires on
+///     either <c>AddHostedService&lt;T&gt;()</c> overload when <c>T</c> is a public, concrete
+///     <c>IHostedService</c> whose containing assembly carries <c>[assembly: AutoDiScanAssembly]</c>
+///     (and neither the type nor its assembly carries <c>[AutoDiBypass]</c>). Only a scan-marked
+///     assembly is auto-registered by the NotNot Scrutor scan, so only there is an explicit
+///     registration a duplicate; use <c>[AutoDiBypass]</c> when explicit registration is intentional.
 ///   </description></item>
 /// </list>
 /// </para>
@@ -167,6 +175,10 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 	/// stripped-<c>global::</c> display string per the convention in <see cref="DiAnalyzerHelpers"/>.
 	/// </summary>
 	private const string HostedServiceFullName = "Microsoft.Extensions.Hosting.IHostedService";
+
+	/// <summary>Canonical metadata name of Microsoft's hosted-service registration extensions.</summary>
+	private const string HostedServiceExtensionsFullName =
+		"Microsoft.Extensions.DependencyInjection.ServiceCollectionHostedServiceExtensions";
 
 	// ── NN_DI_001 — Lifetime mismatch with marker interface ──────────────────
 
@@ -368,11 +380,44 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 		description: DI006_Description,
 		helpLinkUri: DiAnalyzerHelpers.HelpBase + "nn_di_006");
 
+	// ── NN_DI_007 — Explicit registration duplicates hosted-service auto-scan ──────
+
+	/// <summary>Diagnostic ID for explicit registration of a scan-eligible hosted service.</summary>
+	public const string DI007_DiagnosticId = "NN_DI_007";
+
+	private static readonly LocalizableString DI007_Title =
+		"Explicit hosted-service registration duplicates the NotNot auto-registration scan";
+
+	private static readonly LocalizableString DI007_MessageFormat =
+		"Hosted service '{0}' is public, concrete, and lives in an [assembly: AutoDiScanAssembly] "
+		+ "assembly, so NotNot already registers it through the IHostedService Scrutor scan. Remove this "
+		+ "AddHostedService<{0}> registration, or apply [AutoDiBypass] to the type or assembly when "
+		+ "explicit registration is intentional. (NN_DI_007)";
+
+	private static readonly LocalizableString DI007_Description =
+		"NotNot scans public concrete IHostedService implementations declared in assemblies marked with "
+		+ "[assembly: AutoDiScanAssembly] and registers them as self and interfaces with singleton "
+		+ "lifetime. Calling either AddHostedService<T> overload for such a scan-eligible type creates a "
+		+ "second registration path. A hosted service in an unmarked assembly is never auto-scanned, so "
+		+ "an explicit registration there stays silent. Remove the explicit registration; use the "
+		+ "canonical AutoDiBypass attribute when manual factory ownership is required.";
+
+	/// <summary>NN_DI_007 descriptor — Error severity.</summary>
+	public static readonly DiagnosticDescriptor DI007_Rule = new(
+		DI007_DiagnosticId,
+		DI007_Title,
+		DI007_MessageFormat,
+		ReliabilityCategory,
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true,
+		description: DI007_Description,
+		helpLinkUri: DiAnalyzerHelpers.HelpBase + "nn_di_007");
+
 	// ── DiagnosticAnalyzer overrides ──────────────────────────────────────────
 
 	/// <inheritdoc/>
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-		ImmutableArray.Create(DI001_Rule, DI002_Rule, DI003_Rule, DI004_Rule, DI005_Rule, DI006_Rule);
+		ImmutableArray.Create(DI001_Rule, DI002_Rule, DI003_Rule, DI004_Rule, DI005_Rule, DI006_Rule, DI007_Rule);
 
 	/// <inheritdoc/>
 	public override void Initialize(AnalysisContext context)
@@ -391,6 +436,15 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 	private static void OnCompilationStart(CompilationStartAnalysisContext context)
 	{
 		var compilation = context.Compilation;
+		var hostedServiceExtensions = compilation.GetTypeByMetadataName(HostedServiceExtensionsFullName);
+
+		// Cache the canonical Microsoft AddHostedService method OriginalDefinitions (the direct
+		// AddHostedService<T> and the factory AddHostedService<T>(Func<...>) overload) once per
+		// compilation. NN_DI_007 compares each candidate invocation's method against this set so a
+		// user-defined `AddHostedService` on an UNRELATED type (namespace/name lookalike) stays silent —
+		// containing-type identity alone is insufficient because a spoof type in a
+		// `Microsoft.Extensions.DependencyInjection.*` namespace could masquerade.
+		var canonicalAddHostedServiceMethods = ResolveCanonicalAddHostedServiceMethods(hostedServiceExtensions);
 
 		// Assembly-level bypass — entire compilation opts out of the rule family.
 		if (DiAnalyzerHelpers.HasAutoDiBypassAttribute(compilation.Assembly))
@@ -413,8 +467,10 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 			return;
 		}
 
-		// Register invocation-level rules (NN_DI_001/002/003/005).
-		context.RegisterOperationAction(AnalyzeInvocation, OperationKind.Invocation);
+		// Register invocation-level rules (NN_DI_001/002/003/005/007).
+		context.RegisterOperationAction(
+			operationContext => AnalyzeInvocation(operationContext, canonicalAddHostedServiceMethods),
+			OperationKind.Invocation);
 
 		// Register symbol-level rule (NN_DI_004).
 		context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
@@ -441,12 +497,23 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 			|| DiAnalyzerHelpers.ImplementsMarkerInterface(type, DiAnalyzerHelpers.DiTransientServiceFullName);
 	}
 
-	// ── Invocation-level rules (NN_DI_001 / NN_DI_002 / NN_DI_003 / NN_DI_005) ─
+	// ── Invocation-level rules (NN_DI_001 / NN_DI_002 / NN_DI_003 / NN_DI_005 / NN_DI_007) ─
 
-	private static void AnalyzeInvocation(OperationAnalysisContext context)
+	private static void AnalyzeInvocation(
+		OperationAnalysisContext context,
+		ImmutableArray<IMethodSymbol> canonicalAddHostedServiceMethods)
 	{
 		var invocation = (IInvocationOperation)context.Operation;
 		var targetMethod = invocation.TargetMethod;
+
+		// NN_DI_007 owns AddHostedService<T> before the lifetime-registration family below. Both the
+		// direct and factory overload have one generic type argument; the resolved T is the hosted
+		// implementation in either shape.
+		if (IsCanonicalAddHostedService(targetMethod, canonicalAddHostedServiceMethods))
+		{
+			AnalyzeHostedServiceRegistration(context, invocation, targetMethod);
+			return;
+		}
 
 		// Cheap method-name pre-filter — mirrors the IsLikelyTypeOrNamespaceReference optimization
 		// in LdddAnalyzerHelpers. Most invocations in a compilation are NOT DI registrations.
@@ -574,6 +641,83 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 				implType.ToDisplayString(),
 				calledLifetime));
 		}
+	}
+
+	private static void AnalyzeHostedServiceRegistration(
+		OperationAnalysisContext context,
+		IInvocationOperation invocation,
+		IMethodSymbol targetMethod)
+	{
+		if (targetMethod.TypeArguments.Length != 1
+			|| targetMethod.TypeArguments[0] is not INamedTypeSymbol hostedType
+			|| hostedType.TypeKind != TypeKind.Class
+			|| hostedType.IsAbstract
+			|| !IsEffectivelyPublic(hostedType)
+			|| !ImplementsHostedService(hostedType)
+			|| !DiAnalyzerHelpers.HasAutoDiScanAssemblyAttribute(hostedType.ContainingAssembly)
+			|| DiAnalyzerHelpers.HasAutoDiBypassAttribute(hostedType.ContainingAssembly)
+			|| DiAnalyzerHelpers.HasAutoDiBypassAttribute(hostedType))
+		{
+			return;
+		}
+
+		context.ReportDiagnostic(Diagnostic.Create(
+			DI007_Rule,
+			invocation.Syntax.GetLocation(),
+			hostedType.ToDisplayString()));
+	}
+
+	/// <summary>
+	/// Resolves the canonical Microsoft <c>AddHostedService</c> extension-method
+	/// <c>OriginalDefinition</c>s from <c>ServiceCollectionHostedServiceExtensions</c> — the direct
+	/// <c>AddHostedService&lt;T&gt;()</c> and the factory <c>AddHostedService&lt;T&gt;(Func&lt;...&gt;)</c>
+	/// overload (distinct method symbols). Caching this set at compilation-start lets
+	/// <see cref="IsCanonicalAddHostedService"/> compare each candidate call by method-symbol identity
+	/// rather than containing-type identity — a user-defined <c>AddHostedService</c> on an unrelated
+	/// type (even one spoofing the MS.DI namespace) resolves to an <c>OriginalDefinition</c> absent from
+	/// this set and stays silent. Empty when the extensions type is absent (the rule then never fires).
+	/// </summary>
+	private static ImmutableArray<IMethodSymbol> ResolveCanonicalAddHostedServiceMethods(INamedTypeSymbol? hostedServiceExtensions)
+	{
+		if (hostedServiceExtensions == null)
+		{
+			return ImmutableArray<IMethodSymbol>.Empty;
+		}
+
+		var builder = ImmutableArray.CreateBuilder<IMethodSymbol>();
+		foreach (var member in hostedServiceExtensions.GetMembers("AddHostedService"))
+		{
+			if (member is IMethodSymbol method)
+			{
+				builder.Add(method.OriginalDefinition);
+			}
+		}
+		return builder.ToImmutable();
+	}
+
+	private static bool IsCanonicalAddHostedService(
+		IMethodSymbol targetMethod,
+		ImmutableArray<IMethodSymbol> canonicalAddHostedServiceMethods)
+	{
+		if (canonicalAddHostedServiceMethods.IsDefaultOrEmpty
+			|| !string.Equals(targetMethod.Name, "AddHostedService", StringComparison.Ordinal))
+		{
+			return false;
+		}
+
+		// Compare against the cached canonical OriginalDefinitions. `ReducedFrom` unwraps the extension
+		// call's reduced form to its static-method definition; `OriginalDefinition` normalizes the
+		// constructed generic (AddHostedService<Worker>) back to the open method (AddHostedService<T>),
+		// so a lookalike on an unrelated containing type resolves to a symbol absent from the set.
+		var canonicalMethod = (targetMethod.ReducedFrom ?? targetMethod).OriginalDefinition;
+		foreach (var canonical in canonicalAddHostedServiceMethods)
+		{
+			if (SymbolEqualityComparer.Default.Equals(canonicalMethod, canonical))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/// <summary>
@@ -808,6 +952,22 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 			}
 		}
 		return false;
+	}
+
+	/// <summary>
+	/// Mirrors reflection visibility for Scrutor's public-type scan: the type and every containing
+	/// type must be public. A public nested class inside a non-public container is not scan-visible.
+	/// </summary>
+	private static bool IsEffectivelyPublic(INamedTypeSymbol type)
+	{
+		for (INamedTypeSymbol? current = type; current != null; current = current.ContainingType)
+		{
+			if (current.DeclaredAccessibility != Accessibility.Public)
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/// <summary>

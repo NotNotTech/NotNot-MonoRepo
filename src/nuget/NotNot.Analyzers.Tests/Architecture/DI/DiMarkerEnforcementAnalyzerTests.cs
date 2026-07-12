@@ -1,4 +1,6 @@
 using System.IO;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
 using NotNot.Analyzers.Architecture.DI;
@@ -9,7 +11,8 @@ namespace NotNot.Analyzers.Tests.Architecture.DI;
 /// Tests for <see cref="DiMarkerEnforcementAnalyzer"/> — NN_DI_001 (lifetime mismatch),
 /// NN_DI_002 (redundant registration), NN_DI_003 (passthrough factory),
 /// NN_DI_004 (marker + IHostedService), NN_DI_005 (missing marker — auto-registration candidate),
-/// NN_DI_006 (hosted service with a required delegate ctor parameter), plus cross-cutting bypass
+/// NN_DI_006 (hosted service with a required delegate ctor parameter), NN_DI_007 (explicit
+/// registration of a scan-eligible hosted service), plus cross-cutting bypass
 /// behavior.
 /// </summary>
 /// <remarks>
@@ -46,6 +49,12 @@ public class DiMarkerEnforcementAnalyzerTests
 		Path.Combine("ref", "net10.0"));
 
 	private static async Task VerifyAsync(string source, params DiagnosticResult[] expected)
+		=> await VerifyWithReferencesAsync(source, [], expected);
+
+	private static async Task VerifyWithReferencesAsync(
+		string source,
+		IEnumerable<MetadataReference> additionalReferences,
+		params DiagnosticResult[] expected)
 	{
 		var test = new CSharpAnalyzerTest<DiMarkerEnforcementAnalyzer, DefaultVerifier>
 		{
@@ -64,9 +73,29 @@ public class DiMarkerEnforcementAnalyzerTests
 			typeof(Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions).Assembly, // (same .Extensions assembly)
 			typeof(Microsoft.Extensions.Hosting.IHostedService).Assembly,                               // Microsoft.Extensions.Hosting.Abstractions
 		};
+
+		// Cross-assembly fixtures: sibling metadata references built by CompileMetadataReference are compiled
+		// against TRUSTED_PLATFORM_ASSEMBLIES, where System.Object lives in System.Private.CoreLib — but the
+		// consumer compilation uses Microsoft.NETCore.App.Ref (Object in System.Runtime). Without corelib a
+		// referenced sibling type triggers CS0012 ("type 'Object' is defined in an assembly that is not
+		// referenced"), which makes the whole AddHostedService<Sibling>() call an OperationKind.Invalid
+		// operation the analyzer never sees — silently defeating NN_DI_007 on marked-sibling fixtures.
+		// Added ONLY when sibling references are present: injecting System.Private.CoreLib into a pure
+		// ref-assembly (in-compilation-only) compilation creates a dual-corelib duplicate-Object situation
+		// that breaks factory-overload binding in those fixtures.
+		var siblingReferences = new System.Collections.Generic.List<MetadataReference>(additionalReferences);
+		if (siblingReferences.Count > 0)
+		{
+			refs.Add(typeof(object).Assembly);                                                          // System.Private.CoreLib (aligns with sibling TPA-built metadata)
+		}
+
 		foreach (var asm in refs)
 		{
 			test.TestState.AdditionalReferences.Add(asm);
+		}
+		foreach (var reference in siblingReferences)
+		{
+			test.TestState.AdditionalReferences.Add(reference);
 		}
 
 		// Compiler diagnostics suppressed — fixture source-strings are minimal and may emit
@@ -78,6 +107,29 @@ public class DiMarkerEnforcementAnalyzerTests
 			test.ExpectedDiagnostics.AddRange(expected);
 		}
 		await test.RunAsync();
+	}
+
+	private static MetadataReference CompileMetadataReference(string assemblyName, string source)
+	{
+		// Include NotNot.Bcl.Core alongside the platform + Hosting assemblies so sibling sources can
+		// reference [assembly: AutoDiScanAssembly] / [assembly: AutoDiBypass] and the IDi*Service markers
+		// with zero compiler errors (emitResult.Success must hold).
+		var referencePaths = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
+			.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+			.Append(typeof(Microsoft.Extensions.Hosting.IHostedService).Assembly.Location)
+			.Append(typeof(NotNot.Bcl.Diagnostics.AutoDiScanAssemblyAttribute).Assembly.Location)
+			.Distinct(StringComparer.OrdinalIgnoreCase);
+		var compilation = CSharpCompilation.Create(
+			assemblyName,
+			[CSharpSyntaxTree.ParseText(source)],
+			referencePaths.Select(path => MetadataReference.CreateFromFile(path)),
+			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+		using var stream = new MemoryStream();
+		var emitResult = compilation.Emit(stream);
+		Assert.True(
+			emitResult.Success,
+			string.Join(Environment.NewLine, emitResult.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+		return MetadataReference.CreateFromImage(stream.ToArray());
 	}
 
 	private static DiagnosticResult DI001(string implType, string calledLifetime, string markerFqn, string expectedLifetime, int markup = 0) =>
@@ -109,6 +161,11 @@ public class DiMarkerEnforcementAnalyzerTests
 		new DiagnosticResult(DiMarkerEnforcementAnalyzer.DI006_DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
 			.WithLocation(markup)
 			.WithArguments(hostedType, paramName, delegateType);
+
+	private static DiagnosticResult DI007(string hostedType, int markup = 0) =>
+		new DiagnosticResult(DiMarkerEnforcementAnalyzer.DI007_DiagnosticId, Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+			.WithLocation(markup)
+			.WithArguments(hostedType);
 
 	// ══════════════════════════════════════════════════════════════════════════
 	// NN_DI_001 — Lifetime mismatch with marker interface (Error)
@@ -1992,6 +2049,413 @@ public class {|#0:CrashObserver|} : IDiSingletonService, IHostedService
 	}
 
 	// ══════════════════════════════════════════════════════════════════════════
+	// NN_DI_007 — Explicit hosted-service registration duplicates auto-scan (Error)
+
+	public class NN_DI_007_ExplicitHostedServiceRegistration
+	{
+		[Fact]
+		public async Task DirectRegistration_PublicConcreteHostedService_Fires()
+		{
+			// The hosted type lives in THIS compilation, which must carry [assembly: AutoDiScanAssembly]
+			// for the type to be scan-eligible under the marker-based contract.
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+public sealed class Worker : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services)
+        => {|#0:services.AddHostedService<Worker>()|};
+}";
+			await VerifyAsync(source, DI007("Worker"));
+		}
+
+		[Fact]
+		public async Task FactoryRegistration_PublicConcreteHostedService_Fires()
+		{
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+public interface IDependency { }
+public sealed class Worker : BackgroundService
+{
+    public Worker(IDependency dependency) { }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services)
+        => {|#0:services.AddHostedService(sp => new Worker(sp.GetRequiredService<IDependency>()))|};
+}";
+			await VerifyAsync(source, DI007("Worker"));
+		}
+
+		[Fact]
+		public async Task DirectRegistration_UnmarkedAssemblyHostedService_Silent()
+		{
+			// No [assembly: AutoDiScanAssembly] — the type is not scan-eligible, so the explicit
+			// registration is legitimate and must stay silent (inversion from name-inference: an
+			// unmarked in-compilation type used to fire because it was the current compilation).
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+public sealed class Worker : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services) => services.AddHostedService<Worker>();
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task MarkedReferencedSiblingHostedService_Fires()
+		{
+			// The sibling assembly carries [assembly: AutoDiScanAssembly] — it opts INTO the AutoDI
+			// scan, so an explicit AddHostedService<SiblingWorker> in the consumer duplicates the scan.
+			// Re-keys the former name-inference fixture: eligibility is now the marker, not the name.
+			var sibling = CompileMetadataReference(
+				"Contoso.MarkedSibling",
+				@"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+namespace Contoso.MarkedSibling;
+public sealed class SiblingWorker : IHostedService
+{
+    public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}");
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using Contoso.MarkedSibling;
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services)
+        => {|#0:services.AddHostedService<SiblingWorker>()|};
+}";
+			await VerifyWithReferencesAsync(source, [sibling], DI007("Contoso.MarkedSibling.SiblingWorker"));
+		}
+
+		// F4(b) NOTE — cross-assembly FACTORY-overload pin intentionally omitted. The factory overload
+		// AddHostedService(sp => ...) requires the lambda to convert to Func<IServiceProvider, T>, but the
+		// cross-assembly fixture closure (sibling compiled against TRUSTED_PLATFORM_ASSEMBLIES + the consumer
+		// referencing System.Private.CoreLib to resolve the sibling's Object — see VerifyWithReferencesAsync)
+		// is a dual-corelib compilation that breaks predefined-type resolution (CS0518 System.Void/Object) and
+		// therefore delegate-type recognition (CS1660), so no such fixture can COMPILE. The factory overload's
+		// firing is already pinned in-compilation (FactoryRegistration_PublicConcreteHostedService_Fires) and
+		// cross-assembly marker detection is pinned via the direct overload (MarkedReferencedSiblingHostedService_Fires);
+		// the analyzer treats both overloads identically once IsCanonicalAddHostedService matches and marker
+		// detection is overload-independent, so their intersection covers the factory-sibling case.
+
+		[Fact]
+		public async Task ShadowScanMarkerInUnrelatedNamespace_DoesNotEnableRule_Silent()
+		{
+			// F4(a) pin: a locally-declared AutoDiScanAssemblyAttribute in an UNRELATED namespace must NOT
+			// be honored (mirrors the bypass twin's AutoDiBypass_FromUnrelatedNamespace test). Only the
+			// canonical NotNot.Bcl.Diagnostics.AutoDiScanAssemblyAttribute opts an assembly in — a shadow
+			// with the same simple name is a different type, so the sibling stays non-scan-eligible and the
+			// explicit registration is legitimate (silent). Detection is FQN-only.
+			var sibling = CompileMetadataReference(
+				"Contoso.ShadowMarkerSibling",
+				@"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+[assembly: SomeOtherCompany.AutoDiScanAssembly]
+namespace SomeOtherCompany
+{
+    [AttributeUsage(AttributeTargets.Assembly)]
+    public sealed class AutoDiScanAssemblyAttribute : Attribute { }
+}
+namespace Contoso.ShadowMarkerSibling
+{
+    public sealed class SiblingWorker : IHostedService
+    {
+        public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+    }
+}");
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using Contoso.ShadowMarkerSibling;
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services)
+        => services.AddHostedService<SiblingWorker>();
+}";
+			await VerifyWithReferencesAsync(source, [sibling]);
+		}
+
+		[Fact]
+		public async Task UnmarkedReferencedSiblingHostedService_Silent()
+		{
+			// No [assembly: AutoDiScanAssembly] on the sibling — it is not scan-eligible, so the explicit
+			// registration is legitimate. Formerly a NotNot.*/Novaleaf.* name would have forced a fire;
+			// under the marker contract an unmarked assembly (even a would-be-owned one) is silent.
+			var sibling = CompileMetadataReference(
+				"Contoso.UnmarkedSibling",
+				@"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+namespace Contoso.UnmarkedSibling;
+public sealed class PackageWorker : IHostedService
+{
+    public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}");
+			var source = @"
+using Contoso.UnmarkedSibling;
+using Microsoft.Extensions.DependencyInjection;
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services)
+        => services.AddHostedService<PackageWorker>();
+}";
+			await VerifyWithReferencesAsync(source, [sibling]);
+		}
+
+		[Fact]
+		public async Task MarkedSiblingWithTypeBypass_Silent()
+		{
+			// Sibling assembly is scan-marked, but the hosted type carries [AutoDiBypass] — bypass is
+			// higher precedence, so the type is excluded from the scan and the explicit registration is
+			// the intentional single owner. Must stay silent.
+			var sibling = CompileMetadataReference(
+				"Contoso.MarkedTypeBypassSibling",
+				@"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+namespace Contoso.MarkedTypeBypassSibling;
+[AutoDiBypass]
+public sealed class SiblingWorker : IHostedService
+{
+    public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}");
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using Contoso.MarkedTypeBypassSibling;
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services)
+        => services.AddHostedService<SiblingWorker>();
+}";
+			await VerifyWithReferencesAsync(source, [sibling]);
+		}
+
+		[Fact]
+		public async Task MarkedSiblingWithAssemblyBypass_Silent()
+		{
+			// Sibling assembly carries BOTH [assembly: AutoDiScanAssembly] and [assembly: AutoDiBypass].
+			// AutoDiBypass is higher precedence: the assembly is excluded from the scan, so the explicit
+			// registration is legitimate. Must stay silent.
+			var sibling = CompileMetadataReference(
+				"Contoso.MarkedAssemblyBypassSibling",
+				@"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+[assembly: AutoDiBypass]
+namespace Contoso.MarkedAssemblyBypassSibling;
+public sealed class SiblingWorker : IHostedService
+{
+    public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}");
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+using Contoso.MarkedAssemblyBypassSibling;
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services)
+        => services.AddHostedService<SiblingWorker>();
+}";
+			await VerifyWithReferencesAsync(source, [sibling]);
+		}
+
+		[Theory]
+		[InlineData("internal sealed class")]
+		[InlineData("public abstract class")]
+		public async Task NonScanEligibleHostedService_Silent(string declaration)
+		{
+			// [assembly: AutoDiScanAssembly] present so the marker gate does NOT silence — this isolates
+			// the visibility/abstractness exclusion axis (non-public or abstract types are not scanned).
+			var source = $@"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+{declaration} Worker : BackgroundService
+{{
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}}
+public static class Bootstrap
+{{
+    public static void Configure(IServiceCollection services) => services.AddHostedService<Worker>();
+}}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task PublicNestedInInternalType_IsNotEffectivelyPublic_Silent()
+		{
+			// Scan-marked assembly — isolates the effective-visibility exclusion (public nested inside a
+			// non-public container is not scan-visible).
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+internal static class Container
+{
+    public sealed class Worker : BackgroundService
+    {
+        protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+    }
+}
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services) => services.AddHostedService<Container.Worker>();
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task TypeBypass_ExplicitRegistration_Silent()
+		{
+			// Scan-marked assembly + [AutoDiBypass] on the type — isolates type-bypass precedence over
+			// the scan marker (bypass wins, so the explicit registration is the intentional owner).
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+[AutoDiBypass]
+public sealed class Worker : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services) => services.AddHostedService<Worker>();
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task AssemblyBypass_ExplicitRegistration_Silent()
+		{
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiBypass]
+public sealed class Worker : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services) => services.AddHostedService<Worker>();
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task UnrelatedMethodWithSameName_Silent()
+		{
+			// Scan-marked assembly so marker-absence is NOT the reason for silence — this isolates the
+			// OriginalDefinition method-identity hardening: a same-named AddHostedService<T> on an
+			// unrelated type resolves to a different method symbol and must stay silent.
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+public sealed class Worker : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+public sealed class CustomCollection
+{
+    public void AddHostedService<T>() where T : class, IHostedService { }
+}
+public static class Bootstrap
+{
+    public static void Configure(CustomCollection services) => services.AddHostedService<Worker>();
+}";
+			await VerifyAsync(source);
+		}
+
+		[Fact]
+		public async Task SpoofExtensionInMicrosoftDiCustomNamespace_Silent()
+		{
+			// Scan-marked assembly + a spoof AddHostedService<T> declared inside a
+			// Microsoft.Extensions.DependencyInjection.* namespace. The OriginalDefinition identity check
+			// resolves it to a symbol absent from the cached canonical set, so it stays silent — proving
+			// namespace proximity alone cannot masquerade as the canonical method.
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection.Custom;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+public sealed class Worker : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+public sealed class FakeCollection { }
+namespace Microsoft.Extensions.DependencyInjection.Custom
+{
+    public static class SpoofHostedServiceExtensions
+    {
+        public static void AddHostedService<T>(this global::FakeCollection services)
+            where T : class, IHostedService { }
+    }
+}
+public static class Bootstrap
+{
+    public static void Configure(FakeCollection services) => services.AddHostedService<Worker>();
+}";
+			await VerifyAsync(source);
+		}
+	}
+
 	// Reflection-based contract tests (Wave 1 I1 review)
 	// ══════════════════════════════════════════════════════════════════════════
 

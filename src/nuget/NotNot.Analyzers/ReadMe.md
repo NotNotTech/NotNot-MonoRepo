@@ -36,7 +36,7 @@ dotnet add package NotNot.Analyzers
 ## 🔍 Analyzer Rules
 
 ### NN_R001: Task should be awaited, assigned, or returned
-**Severity:** Error  
+**Severity:** Error
 **Category:** Reliability
 
 Detects fire-and-forget task patterns that can lead to unhandled exceptions.
@@ -53,7 +53,7 @@ return DoWorkAsync();       // Option 4: Return from method
 ```
 
 ### NN_R002: Task<T> result should be observed
-**Severity:** Error  
+**Severity:** Error
 **Category:** Reliability
 
 Ensures that Task<T> results are properly observed when awaited.
@@ -186,8 +186,7 @@ Ensures destructors (finalizers) wrap their logic in try/catch blocks to prevent
 - Critical for resource management and application stability
 
 ### NN_R005: Catch block must rethrow general exception
-**Severity:** Error  
-**Category:** Reliability
+**Severity:** Error | **Category:** Reliability
 
 Catch blocks catching `Exception`, `SystemException`, or bare `catch` must rethrow. Specific exception types can be swallowed.
 
@@ -689,3 +688,50 @@ carrying `[AutoDiBypass]`.
    `dotnet_diagnostic.NN_DI_006.severity = none`, ONLY if the type is provably never
    auto-registered / DI-constructed.
 
+<a id="nn_di_007"></a>
+### NN_DI_007 — Explicit hosted-service registration duplicates the auto-registration scan
+**Severity:** Error  
+**Category:** Reliability
+
+Fires on either canonical Microsoft `AddHostedService<T>()` overload when `T` is a public, concrete
+`IHostedService` **whose containing assembly carries `[assembly: NotNot.Bcl.Diagnostics.AutoDiScanAssembly]`**
+(and neither the type nor its assembly carries `[AutoDiBypass]`). Eligibility is the explicit
+`[AutoDiScanAssembly]` opt-in marker — NOT an assembly-name prefix. Only a marked assembly is scanned by
+the NotNot Scrutor convention (`AsSelfWithInterfaces`, singleton lifetime), so only there does a direct
+or factory `AddHostedService<T>` create a second registration path. The analyzer detects the marker by
+fully-qualified-name STRING match (`NotNot.Bcl.Diagnostics.AutoDiScanAssemblyAttribute` — each assembly
+attribute's class rendered via `ToDisplayString(FullyQualifiedFormat)`, `global::` stripped, compared with
+`string.Equals`), the SAME mechanism as `[AutoDiBypass]`, with no simple-name fallback. FQN-string matching
+needs no compilation-level symbol resolution, so it detects the marker on a referenced sibling assembly even
+when the declaring assembly is not visible to the consumer compilation — the cross-assembly case a
+`GetTypeByMetadataName` + `SymbolEqualityComparer` lookup silently missed. The canonical `AddHostedService`
+method is matched by cached `OriginalDefinition` symbol identity,
+so a same-named method on an unrelated type (even one declared in a `Microsoft.Extensions.DependencyInjection.*`
+namespace) stays silent.
+
+```csharp
+// In an assembly that opts into the AutoDI scan:
+[assembly: NotNot.Bcl.Diagnostics.AutoDiScanAssembly]
+
+// ❌ Flagged: Worker is already discovered by the NotNot hosted-service scan.
+services.AddHostedService<Worker>();
+services.AddHostedService(sp => new Worker(sp.GetRequiredService<IDependency>()));
+
+// ✅ Manual factory ownership is explicit and singular.
+[AutoDiBypass]
+public sealed class Worker : BackgroundService { /* ... */ }
+services.AddHostedService(sp => new Worker(sp.GetRequiredService<IDependency>()));
+```
+
+**Allowed:** hosted-service types in assemblies WITHOUT `[assembly: AutoDiScanAssembly]` (not scanned —
+including framework/package assemblies); non-public or abstract hosted-service types; types or assemblies
+carrying `[AutoDiBypass]` (higher precedence than the scan marker); and same-named methods that do not
+resolve to Microsoft's canonical `ServiceCollectionHostedServiceExtensions` `AddHostedService`
+`OriginalDefinition`.
+
+**Preferred fix:** remove the explicit registration. If custom factory construction or ordering is
+intentional, add `[AutoDiBypass]` so the composition root becomes the sole registration owner.
+
+**Runtime pairing:** the `AddNotNotDiServices` scanner uses the SAME marker. Its default-AppDomain path
+silently excludes unmarked assemblies; its explicit-`scanAssemblies` path FAILS FAST on any named
+assembly lacking the marker. `[AutoDiBypass]` excludes a marked assembly/type (higher precedence).

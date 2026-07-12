@@ -223,6 +223,22 @@ A concrete `IHostedService` (e.g. `BackgroundService`) whose single public const
 2. ONLY if a null delegate is a SAFE no-op for the auto-registered instance, make the parameter optional with a default (`Func<...>? f = null`). NOT if absence silently disables required behavior.
 3. `[AutoDiBypass]` on the type, or `#pragma warning disable NN_DI_006` / `.editorconfig` severity, ONLY if the type is provably never auto-registered / DI-constructed.
 
+### NN_DI_007: Explicit Hosted Service Registration
+
+Rejects either canonical Microsoft `AddHostedService<T>()` overload when `T` is a public, concrete `IHostedService` whose containing assembly carries `[assembly: NotNot.Bcl.Diagnostics.AutoDiScanAssembly]` (and neither the type nor its assembly carries `[AutoDiBypass]`). Scan eligibility is the explicit `[AutoDiScanAssembly]` opt-in marker — NOT an assembly-name prefix. Only a marked assembly is scanned by the NotNot Scrutor convention (`AsSelfWithInterfaces`, singleton), so only there does a direct or factory registration create a second ownership path. The marker is detected by fully-qualified-name STRING match (`NotNot.Bcl.Diagnostics.AutoDiScanAssemblyAttribute` — each assembly attribute's class rendered via `ToDisplayString(FullyQualifiedFormat)`, `global::` stripped, compared with `string.Equals`), the SAME mechanism as `[AutoDiBypass]`, with no simple-name fallback — a locally-declared shadow is not honored. FQN-string matching needs no compilation-level symbol resolution, so it detects the marker on a referenced sibling assembly even when the declaring assembly is not visible to the consumer compilation — the cross-assembly case a `GetTypeByMetadataName` + `SymbolEqualityComparer` lookup silently missed. The canonical `AddHostedService` method is matched by cached `OriginalDefinition` symbol identity (both the direct and factory overload), so a same-named method on an unrelated type never matches.
+
+**Severity**: Error
+**Flagged**: `services.AddHostedService<Worker>()` and `services.AddHostedService(sp => new Worker(...))` for a scan-eligible `Worker` (public, concrete, in an `[assembly: AutoDiScanAssembly]` assembly, no `[AutoDiBypass]`).
+**Allowed**:
+- Hosted-service types in assemblies WITHOUT `[assembly: AutoDiScanAssembly]` (not scanned — includes framework/package assemblies and any unmarked project).
+- Non-public or abstract hosted-service types (not scan-eligible).
+- Types or assemblies carrying `[AutoDiBypass]` (higher precedence than the scan marker).
+- Unrelated methods named `AddHostedService`, including namespace spoofs; method identity must resolve to Microsoft's `ServiceCollectionHostedServiceExtensions` `AddHostedService` `OriginalDefinition`.
+
+**Preferred Fix**: Remove the explicit registration. If a factory or explicit ordering is intentional, apply `[AutoDiBypass]` to move registration ownership cleanly to the composition root.
+
+**Marker contract (as-built)**: `[assembly: AutoDiScanAssembly]` (`NotNot.Bcl.Core/NotNot/Diagnostics/AutoDiScanAssemblyAttribute.cs`) is the SINGLE authority shared by the analyzer and the `AddNotNotDiServices` runtime scanner (`NotNot.Bcl.Core/NotNot/DI/zz_Extensions_IServiceCollection_DI.cs`). Runtime: default-AppDomain path silently excludes unmarked assemblies; explicit-`scanAssemblies` path FAILS FAST listing every unmarked named assembly. `[AutoDiBypass]` is higher precedence (marked-but-bypassed = excluded). This replaced the former `NotNot.`/`Novaleaf.` name-inference in both producer sites.
+
 ## Suppressors (CA2000)
 
 | ID | Pattern | Why Suppressed |
@@ -256,7 +272,7 @@ A concrete `IHostedService` (e.g. `BackgroundService`) whose single public const
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
 | `Conventions/AppSettingsCodeDefaultAnalyzer.cs` | NN_C004 |
 | `Conventions/NnAppSettingsServerOnlyReadAnalyzer.cs` | NN_C005 |
-| `Architecture/DI/DiMarkerEnforcementAnalyzer.cs` | NN_DI_001..006 |
+| `Architecture/DI/DiMarkerEnforcementAnalyzer.cs` | NN_DI_001..007 |
 
 ## Adding New Suppressors
 
