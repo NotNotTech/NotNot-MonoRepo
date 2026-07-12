@@ -27,21 +27,25 @@ namespace NotNot.Analyzers.Architecture.DI;
 ///   <item><description>
 ///     <b>NN_DI_002</b> — Redundant explicit registration (Warning). Fires on
 ///     <c>Add{L}&lt;T&gt;()</c> where <c>T</c> implements <c>IDi{L}Service</c> (matched lifetime,
-///     so auto-registration would already handle it). Skipped when the registration is an
-///     interface-bridge factory (<see cref="DiAnalyzerHelpers.IsInterfaceBridgeFactory"/>),
-///     a <c>TryAdd*</c> variant (deliberate conditional registration), or the type is
-///     third-party (<see cref="DiAnalyzerHelpers.IsThirdPartyType"/>).
+///     so auto-registration would already handle it) AND <c>T</c>'s assembly carries
+///     <c>[assembly: AutoDiScanAssembly]</c> (only then is <c>T</c> actually auto-registered).
+///     Skipped when the registration is an interface-bridge factory
+///     (<see cref="DiAnalyzerHelpers.IsInterfaceBridgeFactory"/>), a <c>TryAdd*</c> variant
+///     (deliberate conditional registration), or the type is third-party
+///     (<see cref="DiAnalyzerHelpers.IsThirdPartyType"/>).
 ///   </description></item>
 ///   <item><description>
 ///     <b>NN_DI_003</b> — Passthrough factory eligible for auto-registration (Info). Fires on
 ///     <c>Add{L}&lt;T&gt;(sp =&gt; new T(sp.GetRequiredService&lt;...&gt;(), ...))</c> when
-///     <c>T</c> is project-defined (not third-party) and does not already implement a marker
-///     interface (otherwise NN_DI_002 covers it). Suggests adding the appropriate
-///     <c>IDi{L}Service</c> marker and removing the factory lambda.
+///     <c>T</c> is project-defined (not third-party), its assembly carries
+///     <c>[assembly: AutoDiScanAssembly]</c> (else adding a marker would be inert), and it does not
+///     already implement a marker interface (otherwise NN_DI_002 covers it). Suggests adding the
+///     appropriate <c>IDi{L}Service</c> marker and removing the factory lambda.
 ///   </description></item>
 ///   <item><description>
 ///     <b>NN_DI_004</b> — Marker interface combined with <c>IHostedService</c> (Error). Fires on
-///     a class symbol implementing both a marker interface and
+///     a class symbol (declared in an <c>[assembly: AutoDiScanAssembly]</c> assembly — only there do
+///     both auto-registration paths exist) implementing both a marker interface and
 ///     <c>Microsoft.Extensions.Hosting.IHostedService</c> — the two registration paths conflict
 ///     (marker → auto-register as service; <c>IHostedService</c> → register via
 ///     <c>AddHostedService</c>; both can produce duplicate instances or surprise singleton-vs-scoped
@@ -53,9 +57,10 @@ namespace NotNot.Analyzers.Architecture.DI;
 ///   <item><description>
 ///     <b>NN_DI_005</b> — Missing marker for project-internal candidate (Info). Fires on
 ///     <c>Add{L}&lt;T&gt;()</c> or <c>Add{L}&lt;TService, TImpl&gt;()</c> where the implementation
-///     type is project-internal, NOT a <c>TryAdd*</c> variant, NOT an interface-bridge factory,
-///     NOT third-party, NOT <c>[AutoDiBypass]</c>'d, is a non-abstract class, and lacks any
-///     <c>IDi{L}Service</c> marker. Suggests adding the marker interface and removing the
+///     type is project-internal, its assembly carries <c>[assembly: AutoDiScanAssembly]</c> (else a
+///     marker would not enable auto-registration), NOT a <c>TryAdd*</c> variant, NOT an
+///     interface-bridge factory, NOT third-party, NOT <c>[AutoDiBypass]</c>'d, is a non-abstract
+///     class, and lacks any <c>IDi{L}Service</c> marker. Suggests adding the marker interface and removing the
 ///     explicit registration. NN_DI_005 is the inverse of NN_DI_002 and the residual case of
 ///     NN_DI_003 (NN_DI_003 handles passthrough-factory shapes; NN_DI_005 handles every other
 ///     no-marker registration shape).
@@ -63,8 +68,10 @@ namespace NotNot.Analyzers.Architecture.DI;
 ///   <item><description>
 ///     <b>NN_DI_006</b> — Hosted service with a required delegate constructor parameter (Error).
 ///     Fires on a concrete (non-abstract) <c>IHostedService</c> (e.g. <c>BackgroundService</c>)
-///     whose single public instance constructor has a REQUIRED (<c>!HasExplicitDefaultValue</c>)
-///     delegate-typed parameter (<c>Func&lt;&gt;</c>/<c>Action&lt;&gt;</c>/custom delegate). The
+///     declared in an <c>[assembly: AutoDiScanAssembly]</c> assembly (only there is it auto-registered
+///     and thus boot-crashing) whose single public instance constructor has a REQUIRED
+///     (<c>!HasExplicitDefaultValue</c>) delegate-typed parameter
+///     (<c>Func&lt;&gt;</c>/<c>Action&lt;&gt;</c>/custom delegate). The
 ///     NotNot Scrutor <c>AsSelfWithInterfaces</c> auto-registration over <c>IHostedService</c>
 ///     uses constructor injection; DI never registers a delegate, so the concrete registration is
 ///     unconstructible and crashes host startup (Dev <c>ValidateOnBuild</c> at <c>builder.Build()</c>
@@ -546,6 +553,17 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 
 		var hasMarker = DiAnalyzerHelpers.TryGetExpectedLifetime(implType, out var expectedLifetime, out var markerFqn);
 
+		// Scan-marker gate for the auto-registration-advice rules (NN_DI_002/003/005). The runtime
+		// scanner (_FilterAssemblies in zz_Extensions_IServiceCollection_DI) auto-registers a type
+		// ONLY when its assembly carries [assembly: AutoDiScanAssembly]. In an UNMARKED assembly the
+		// type is never auto-registered, so every "auto-registration would already handle it" premise
+		// is false: NN_DI_002 ("redundant — remove the explicit call") would unregister the only
+		// registration, and NN_DI_003/005 ("add a marker instead") are inert (the marker would do
+		// nothing without the assembly opting in). NN_DI_001 is INTENTIONALLY excluded — a lifetime
+		// mismatch between an explicit Add{L} and the type's own marker is a correctness bug about the
+		// developer's stated intent regardless of scan eligibility, so it fires everywhere.
+		var implInScanAssembly = DiAnalyzerHelpers.HasAutoDiScanAssemblyAttribute(implType?.ContainingAssembly);
+
 		// ── NN_DI_001 — Lifetime mismatch ─────────────────────────────────────
 		if (hasMarker
 			&& !string.Equals(expectedLifetime, calledLifetime, StringComparison.Ordinal))
@@ -569,6 +587,7 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 		//   - Third-party type: the user can't add a marker to a type they don't own (this is
 		//     the only way to register it).
 		if (hasMarker
+			&& implInScanAssembly
 			&& string.Equals(expectedLifetime, calledLifetime, StringComparison.Ordinal)
 			&& !isTryAdd
 			&& !DiAnalyzerHelpers.IsInterfaceBridgeFactory(invocation)
@@ -597,6 +616,7 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 			&& !hasMarker
 			&& DiAnalyzerHelpers.IsPassthroughFactory(invocation, out var concreteType)
 			&& concreteType != null
+			&& DiAnalyzerHelpers.HasAutoDiScanAssemblyAttribute(concreteType.ContainingAssembly)
 			&& !DiAnalyzerHelpers.HasAutoDiBypassAttribute(concreteType)
 			&& !DiAnalyzerHelpers.IsThirdPartyType(concreteType)
 			&& !ConcreteTypeHasMarker(concreteType, implType, hasMarker))
@@ -629,6 +649,7 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 		// `hasMarker` is the cached result from line ~347 (Wave 1 F2 perf reuse — no recomputation).
 		if (!isTryAdd
 			&& !hasMarker
+			&& implInScanAssembly
 			&& !TypeImplementsAnyMarker(implType)
 			&& implType.TypeKind == TypeKind.Class
 			&& !implType.IsAbstract
@@ -652,7 +673,7 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 			|| targetMethod.TypeArguments[0] is not INamedTypeSymbol hostedType
 			|| hostedType.TypeKind != TypeKind.Class
 			|| hostedType.IsAbstract
-			|| !IsEffectivelyPublic(hostedType)
+			|| !IsScrutorPublicScanVisible(hostedType)
 			|| !ImplementsHostedService(hostedType)
 			|| !DiAnalyzerHelpers.HasAutoDiScanAssemblyAttribute(hostedType.ContainingAssembly)
 			|| DiAnalyzerHelpers.HasAutoDiBypassAttribute(hostedType.ContainingAssembly)
@@ -767,6 +788,17 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 
 		// Type-level [AutoDiBypass] on the class.
 		if (DiAnalyzerHelpers.HasAutoDiBypassAttribute(namedType))
+		{
+			return;
+		}
+
+		// Scan-marker gate. Both symbol rules below describe hazards that only materialize when the
+		// type is auto-registered by the runtime scanner, which happens ONLY for types declared in an
+		// [assembly: AutoDiScanAssembly] assembly (_FilterAssemblies in zz_Extensions_IServiceCollection_DI).
+		// NN_DI_006's ctor-unconstructibility crash occurs at the auto-registration boot, and NN_DI_004's
+		// two-path conflict needs BOTH auto-registration paths active — neither exists in an unmarked
+		// assembly, so both rules stay silent there.
+		if (!DiAnalyzerHelpers.HasAutoDiScanAssemblyAttribute(namedType.ContainingAssembly))
 		{
 			return;
 		}
@@ -955,20 +987,19 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 	}
 
 	/// <summary>
-	/// Mirrors reflection visibility for Scrutor's public-type scan: the type and every containing
-	/// type must be public. A public nested class inside a non-public container is not scan-visible.
+	/// Mirrors the actual Scrutor public-type scan (runtime-verified). Scrutor's
+	/// <c>AddClasses(...)</c> public-only filter keys on the type's OWN reflection visibility
+	/// (<c>Type.IsPublic || Type.IsNestedPublic</c>), i.e. the type's own
+	/// <see cref="Accessibility.Public"/> declared accessibility — NOT the effective
+	/// (enclosing-aware) visibility. A <c>public</c> class nested inside an <c>internal</c> container
+	/// therefore IS scan-eligible and IS auto-registered (proven by
+	/// <c>NotNot.Bcl.Core.Tests.AutoDiRuntimeBypassTests.AddNotNotDiServices_PublicNestedInInternal_IsScanned</c>);
+	/// a top-level <c>internal</c> class is NOT (proven by the sibling
+	/// <c>..._TopLevelInternalHostedService_IsNotScanned</c>). An earlier effective-public predicate
+	/// (walking every containing type) produced a false negative on the public-nested-in-internal shape.
 	/// </summary>
-	private static bool IsEffectivelyPublic(INamedTypeSymbol type)
-	{
-		for (INamedTypeSymbol? current = type; current != null; current = current.ContainingType)
-		{
-			if (current.DeclaredAccessibility != Accessibility.Public)
-			{
-				return false;
-			}
-		}
-		return true;
-	}
+	private static bool IsScrutorPublicScanVisible(INamedTypeSymbol type)
+		=> type.DeclaredAccessibility == Accessibility.Public;
 
 	/// <summary>
 	/// Returns true and the single public instance constructor of <paramref name="type"/> when EXACTLY

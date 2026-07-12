@@ -433,6 +433,8 @@ public class Bootstrap
 		{
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiSingletonService { }
 
@@ -451,6 +453,8 @@ public class Bootstrap
 		{
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiScopedService { }
 
@@ -469,6 +473,8 @@ public class Bootstrap
 		{
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiTransientService { }
 
@@ -489,6 +495,8 @@ public class Bootstrap
 			// interface-bridge. Still redundant: the marker already auto-registers Service.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiSingletonService { }
 
@@ -672,6 +680,8 @@ public class Bootstrap
 		{
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiSingletonService { }
 
@@ -713,6 +723,28 @@ public class Bootstrap
 }";
 			await VerifyAsync(source);
 		}
+
+		[Fact]
+		public async Task AddSingleton_OnSingletonMarker_UnmarkedAssembly_Silent()
+		{
+			// F1 scan-marker gate (negative): identical to AddSingleton_OnSingletonMarker_Fires but
+			// WITHOUT [assembly: AutoDiScanAssembly]. In an unmarked assembly the type is never
+			// auto-registered, so the explicit AddSingleton is NOT redundant — it is the only
+			// registration. NN_DI_002 must stay silent (advising removal would unregister the type).
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service : IDiSingletonService { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<Service>();
+    }
+}";
+			await VerifyAsync(source);
+		}
 	}
 
 	// ══════════════════════════════════════════════════════════════════════════
@@ -726,6 +758,8 @@ public class Bootstrap
 		{
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Dep1 : IDiSingletonService { }
 public class Dep2 : IDiSingletonService { }
@@ -855,6 +889,8 @@ public class Bootstrap
 			// NN_DI_003 stays silent to avoid double-firing on the same invocation.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Dep1 : IDiSingletonService { }
 public class Service : IDiSingletonService
@@ -932,6 +968,8 @@ public class Bootstrap
 			// precisely; NN_DI_003 narrows to "factory that bridges DI-resolved deps".
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service { }
 
@@ -958,6 +996,8 @@ public class Bootstrap
 			// cast-detection test independent of H1's interface-registration scope limitation.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Dep1 : IDiSingletonService { }
 public interface IService { }
@@ -975,6 +1015,33 @@ public class Bootstrap
 }";
 			await VerifyAsync(source, DI003("Singleton", "ServiceImpl"));
 		}
+
+		[Fact]
+		public async Task PassthroughFactory_UnmarkedAssembly_Silent()
+		{
+			// F1 scan-marker gate (negative): identical to PassthroughFactory_TwoDIArgs_Fires_OnUnmarkedConcrete
+			// but WITHOUT [assembly: AutoDiScanAssembly]. The concrete's assembly is unmarked, so adding a
+			// marker would not enable auto-registration — the NN_DI_003 "add a marker, drop the factory"
+			// advice is inert. NN_DI_003 (and the residual NN_DI_005) must stay silent.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Dep1 : IDiSingletonService { }
+public class Dep2 : IDiSingletonService { }
+public class Service
+{
+    public Service(Dep1 a, Dep2 b) { }
+}
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<Service>(sp => new Service(sp.GetRequiredService<Dep1>(), sp.GetRequiredService<Dep2>()));
+    }
+}";
+			await VerifyAsync(source);
+		}
 	}
 
 	// ══════════════════════════════════════════════════════════════════════════
@@ -990,6 +1057,8 @@ public class Bootstrap
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class {|#0:HostedWorker|} : IDiSingletonService, IHostedService
 {
@@ -1006,6 +1075,8 @@ public class {|#0:HostedWorker|} : IDiSingletonService, IHostedService
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class {|#0:HostedWorker|} : IDiScopedService, IHostedService
 {
@@ -1074,6 +1145,8 @@ public class HostedWorker : IDiSingletonService, IHostedService
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public abstract class MyHostedBase : IHostedService
 {
@@ -1087,6 +1160,26 @@ public class {|#0:DerivedWorker|} : MyHostedBase, IDiSingletonService
     public override Task StopAsync(CancellationToken ct) => Task.CompletedTask;
 }";
 			await VerifyAsync(source, DI004("DerivedWorker", "IDiSingletonService", "Singleton"));
+		}
+
+		[Fact]
+		public async Task SingletonMarker_PlusIHostedService_UnmarkedAssembly_Silent()
+		{
+			// F1 scan-marker gate (negative): identical to SingletonMarker_PlusIHostedService_Fires but
+			// WITHOUT [assembly: AutoDiScanAssembly]. The runtime scanner never auto-registers a type in an
+			// unmarked assembly, so neither the marker auto-registration path nor the IHostedService
+			// auto-registration path exists — there is no two-path conflict. NN_DI_004 must stay silent.
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+public class HostedWorker : IDiSingletonService, IHostedService
+{
+    public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(source);
 		}
 	}
 
@@ -1276,6 +1369,7 @@ public class Bootstrap
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
 using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 [AutoDiBypass]
 public class BypassedService { }
@@ -1307,6 +1401,8 @@ public class Bootstrap
 		{
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service { }
 
@@ -1325,6 +1421,8 @@ public class Bootstrap
 		{
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service { }
 
@@ -1343,6 +1441,8 @@ public class Bootstrap
 		{
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service { }
 
@@ -1363,6 +1463,8 @@ public class Bootstrap
 			// Developer reviews each site and applies [AutoDiBypass] for intentional 2-arg shapes.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public interface IService { }
 public class ServiceImpl : IService { }
@@ -1385,6 +1487,8 @@ public class Bootstrap
 			// NN_DI_003 doesn't fire. NN_DI_005's predicate is satisfied — fires once.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service
 {
@@ -1409,6 +1513,8 @@ public class Bootstrap
 			// `IObjectCreationOperation`). NN_DI_003 silent. Service is unmarked → NN_DI_005 fires.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service
 {
@@ -1460,6 +1566,8 @@ public class Bootstrap
 			// marker candidate. NN_DI_005 fires.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class MyGeneric<T> { }
 
@@ -1481,6 +1589,8 @@ public class Bootstrap
 			// implementation type within a compilation unit.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service { }
 
@@ -1506,6 +1616,8 @@ public class Bootstrap
 			// hasMarker is true → NN_DI_002 covers the redundancy. NN_DI_005 silent.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Service : IDiSingletonService { }
 
@@ -1549,6 +1661,8 @@ public class Bootstrap
 			// unexpected NN_DI_005 emission. Direct runtime catch for the F1 bug.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class Dep : IDiSingletonService { }
 public class Service
@@ -1704,6 +1818,8 @@ public class Bootstrap
 			// fires for the redundancy. NN_DI_005 silent.
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class MyGeneric<T> : IDiSingletonService { }
 
@@ -1728,6 +1844,8 @@ public class Bootstrap
 			// the open-generic inheritance path (`ClosedGeneric_MarkedOpenForm_Silent`).
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class MarkedBase : IDiSingletonService { }
 public class MyGeneric<T> : MarkedBase { }
@@ -1750,6 +1868,8 @@ public class Bootstrap
 			// NN_DI_005 silent (its `!hasMarker` predicate fails).
 			var source = @"
 using Microsoft.Extensions.DependencyInjection;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public interface IService { }
 public class ServiceImpl : IService, IDiSingletonService { }
@@ -1835,6 +1955,27 @@ public class Bootstrap
 }";
 			await VerifyAsync(source);
 		}
+
+		[Fact]
+		public async Task AddSingleton_OnUnmarkedClass_UnmarkedAssembly_Silent()
+		{
+			// F1 scan-marker gate (negative): identical to AddSingleton_OnUnmarkedClass_Fires but WITHOUT
+			// [assembly: AutoDiScanAssembly]. In an unmarked assembly the class is never auto-registered,
+			// so "add a marker for auto-registration" is inert advice. NN_DI_005 must stay silent.
+			var source = @"
+using Microsoft.Extensions.DependencyInjection;
+
+public class Service { }
+
+public class Bootstrap
+{
+    public static void Configure(IServiceCollection sc)
+    {
+        sc.AddSingleton<Service>();
+    }
+}";
+			await VerifyAsync(source);
+		}
 	}
 
 	// ══════════════════════════════════════════════════════════════════════════
@@ -1855,6 +1996,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class {|#0:CrashObserver|} : BackgroundService
 {
@@ -2030,6 +2173,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
 
 public class {|#0:CrashObserver|} : IDiSingletonService, IHostedService
 {
@@ -2045,6 +2190,27 @@ public class {|#0:CrashObserver|} : IDiSingletonService, IHostedService
 					"System.Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task>",
 					markup: 0),
 				DI004("CrashObserver", "IDiSingletonService", "Singleton", markup: 0));
+		}
+
+		[Fact]
+		public async Task ConcreteHostedService_RequiredDelegateCtorParam_UnmarkedAssembly_Silent()
+		{
+			// F1 scan-marker gate (negative): identical to ConcreteHostedService_RequiredDelegateCtorParam_Fires
+			// but WITHOUT [assembly: AutoDiScanAssembly]. The unconstructible-ctor crash only happens when the
+			// runtime auto-registers the type, which requires a scan-marked assembly. In an unmarked assembly
+			// the hosted service is never auto-registered, so no boot crash — NN_DI_006 must stay silent.
+			var source = @"
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+public class CrashObserver : BackgroundService
+{
+    public CrashObserver(Func<string, CancellationToken, Task> purge) { }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}";
+			await VerifyAsync(source);
 		}
 	}
 
@@ -2324,10 +2490,15 @@ public static class Bootstrap
 		}
 
 		[Fact]
-		public async Task PublicNestedInInternalType_IsNotEffectivelyPublic_Silent()
+		public async Task PublicNestedInInternalType_IsScrutorScanVisible_Fires()
 		{
-			// Scan-marked assembly — isolates the effective-visibility exclusion (public nested inside a
-			// non-public container is not scan-visible).
+			// F2 runtime-alignment (runtime-verified): a `public` hosted service nested inside an
+			// `internal` container is auto-registered by the Scrutor scan — the scan keys on the type's
+			// OWN declared accessibility (`Type.IsNestedPublic`), NOT the effective (enclosing-aware)
+			// visibility. Proven by NotNot.Bcl.Core.Tests.AutoDiRuntimeBypassTests
+			// .AddNotNotDiServices_PublicNestedInInternal_IsScanned. The explicit AddHostedService of this
+			// shape therefore duplicates the scan, so NN_DI_007 MUST fire. (Before the F2 fix the analyzer's
+			// effective-public predicate wrongly stayed silent here — a false negative.)
 			var source = @"
 using System.Threading;
 using System.Threading.Tasks;
@@ -2344,7 +2515,35 @@ internal static class Container
 }
 public static class Bootstrap
 {
-    public static void Configure(IServiceCollection services) => services.AddHostedService<Container.Worker>();
+    public static void Configure(IServiceCollection services) => {|#0:services.AddHostedService<Container.Worker>()|};
+}";
+			await VerifyAsync(source, DI007("Container.Worker"));
+		}
+
+		[Fact]
+		public async Task TopLevelInternalType_NotScrutorScanVisible_Silent()
+		{
+			// F2 runtime-alignment (runtime-verified): a TOP-LEVEL `internal` hosted service is NOT
+			// auto-registered by the Scrutor public-only scan (its own declared accessibility is not
+			// public). Proven by NotNot.Bcl.Core.Tests.AutoDiRuntimeBypassTests
+			// .AddNotNotDiServices_TopLevelInternalHostedService_IsNotScanned. The explicit registration is
+			// therefore the sole owner — NN_DI_007 stays silent. (Also covered by the
+			// `internal sealed class` arm of NonScanEligibleHostedService_Silent; this pins the runtime
+			// matrix's negative half alongside its positive twin above.)
+			var source = @"
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NotNot.Bcl.Diagnostics;
+[assembly: AutoDiScanAssembly]
+internal sealed class Worker : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+public static class Bootstrap
+{
+    public static void Configure(IServiceCollection services) => services.AddHostedService<Worker>();
 }";
 			await VerifyAsync(source);
 		}

@@ -78,6 +78,38 @@ public sealed class AutoDiRuntimeBypassTests
 
 		Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(ScannedSingletonFixture));
 	}
+
+	[Fact]
+	public void AddNotNotDiServices_TopLevelInternalHostedService_IsNotScanned()
+	{
+		// F2 GROUND-TRUTH PROBE (a). The Scrutor scan in _ScrutorRegisterServiceInterfaces registers
+		// IHostedService via `.AddClasses(classes => classes.AssignableTo<IHostedService>().Where(...))`.
+		// Scrutor 7.0 defaults that scan to PUBLIC-ONLY at the top-level: a top-level `internal` class is
+		// NOT registered. This pins the runtime truth the NN_DI_007 analyzer aligns to (top-level
+		// non-public → not scan-eligible → analyzer stays silent, IsEffectivelyPublic correct for this axis).
+		var services = new ServiceCollection();
+
+		services.AddNotNotDiServices(typeof(AutoDiRuntimeBypassTests).Assembly);
+
+		Assert.DoesNotContain(services, descriptor => descriptor.ImplementationType == typeof(InternalHostedFixture));
+	}
+
+	[Fact]
+	public void AddNotNotDiServices_PublicNestedInInternal_IsScanned()
+	{
+		// F2 GROUND-TRUTH PROBE (b). A `public` IHostedService NESTED inside an `internal` container has
+		// non-public EFFECTIVE visibility, yet Scrutor 7.0's public-type scan STILL registers it — the
+		// scan keys on the type's OWN DeclaredAccessibility, not the effective (enclosing-aware)
+		// visibility. This is the false-negative the NN_DI_007 analyzer's IsEffectivelyPublic predicate
+		// produces: the runtime auto-registers this shape, so an explicit AddHostedService of it IS a
+		// duplicate and the analyzer MUST fire. Aligned predicate: own-accessibility public, not
+		// effective-public.
+		var services = new ServiceCollection();
+
+		services.AddNotNotDiServices(typeof(AutoDiRuntimeBypassTests).Assembly);
+
+		Assert.Contains(services, descriptor => descriptor.ImplementationType == typeof(InternalContainer.PublicNestedHostedFixture));
+	}
 }
 
 public sealed class ScannedHostedFixture : IHostedService
@@ -97,3 +129,30 @@ public sealed class ScannedSingletonFixture : IDiSingletonService;
 
 [AutoDiBypass]
 public sealed class BypassedSingletonFixture : IDiSingletonService;
+
+// ── F2 visibility-matrix fixtures ──────────────────────────────────────────────
+
+/// <summary>
+/// An <c>internal</c> (non-public) <see cref="IHostedService"/>. Proves the Scrutor
+/// single-<c>Action</c> <c>AddClasses</c> overload (default <c>publicOnly: false</c>) registers
+/// non-public hosted services.
+/// </summary>
+internal sealed class InternalHostedFixture : IHostedService
+{
+	public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+/// <summary>
+/// An <c>internal</c> container holding a <c>public</c> nested <see cref="IHostedService"/> whose
+/// EFFECTIVE visibility is not public (a non-public enclosing type). Proves the Scrutor scan still
+/// registers it — the NN_DI_007 analyzer's stricter effective-public predicate is a false negative.
+/// </summary>
+internal static class InternalContainer
+{
+	public sealed class PublicNestedHostedFixture : IHostedService
+	{
+		public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+		public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+	}
+}
