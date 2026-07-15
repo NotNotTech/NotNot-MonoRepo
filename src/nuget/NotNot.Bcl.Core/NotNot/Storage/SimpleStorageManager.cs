@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -106,8 +107,37 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// <param name="ex">The non-fatal manager-operation exception to surface to subscribers.</param>
 	public void RaiseWriteError(Exception ex)
 	{
-		var snapshot = GetDataSnapshot();
-		_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, snapshot, Problem.FromEx(ex)));
+		EmitSyntheticWriteError(ex, GetDataSnapshot());
+	}
+
+	/// <summary>
+	/// Constructs and emits a synthetic fresh-ID <see cref="WriteEventError{TData}"/> on the
+	/// <see cref="Writes"/> stream: a fresh <see cref="Guid"/> writeId, <see cref="DateTimeOffset.UtcNow"/>,
+	/// the supplied <paramref name="snapshot"/>, and a <see cref="Problem"/> derived from
+	/// <paramref name="ex"/>. Single construction point for the four non-batch error paths
+	/// (public <see cref="RaiseWriteError"/>, read-failure, and the two disposal catches);
+	/// the batch-correlated <see cref="WriteCoreAsync"/> path is deliberately NOT routed here
+	/// (it reuses batchWriteId + an under-lock pre-write snapshot + TCS drain).
+	/// </summary>
+	/// <param name="ex">The non-fatal manager-operation exception to surface.</param>
+	/// <param name="snapshot">The ALREADY-selected data snapshot (caller chooses
+	/// <see cref="GetDataSnapshot"/> vs <see cref="GetDataSnapshotOrDefault"/>).</param>
+	/// <remarks>Caller-info params are auto-populated by the compiler AT EACH CALL SITE and
+	/// forwarded to <see cref="Problem.FromEx"/>, so <c>Problem.source</c> continues to name the
+	/// originating method (RaiseWriteError / ReadCoreAsync / DisposeAsync), not this helper.
+	/// Emits synchronously — no Task.Run / async dispatch, and never call while holding <c>_lock</c>.</remarks>
+	private void EmitSyntheticWriteError(
+		Exception ex,
+		TData snapshot,
+		[CallerMemberName] string memberName = "",
+		[CallerFilePath] string sourceFilePath = "",
+		[CallerLineNumber] int sourceLineNumber = 0)
+	{
+		_writes.OnNext(new WriteEventError<TData>(
+			Guid.NewGuid(),
+			DateTimeOffset.UtcNow,
+			snapshot,
+			Problem.FromEx(ex, memberName, sourceFilePath, sourceLineNumber)));
 	}
 
 	/// <summary>
@@ -676,8 +706,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 						_data ??= new TData();
 					}
 				}
-				var snapshot = GetDataSnapshot();
-				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, snapshot, Problem.FromEx(ex)));
+				EmitSyntheticWriteError(ex, GetDataSnapshot());
 			}
 		}
 		OnDataLoaded?.Invoke();
@@ -714,8 +743,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 			try { action(); }
 			catch (Exception ex)
 			{
-				var snapshot = GetDataSnapshotOrDefault();
-				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, snapshot, Problem.FromEx(ex)));
+				EmitSyntheticWriteError(ex, GetDataSnapshotOrDefault());
 			}
 #pragma warning restore NN_R005
 		}
@@ -740,8 +768,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 			catch (Exception ex)
 #pragma warning restore NN_R005
 			{
-				var snapshot = GetDataSnapshotOrDefault();
-				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, snapshot, Problem.FromEx(ex)));
+				EmitSyntheticWriteError(ex, GetDataSnapshotOrDefault());
 			}
 		}
 

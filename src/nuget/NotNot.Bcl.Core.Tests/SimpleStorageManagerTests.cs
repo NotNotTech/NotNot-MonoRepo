@@ -119,6 +119,67 @@ public class SimpleStorageManagerTests
         Assert.Contains("test sentinel", captured!.Problem.Detail, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Provenance guard (F-H1): the consolidated <c>EmitSyntheticWriteError</c> helper forwards
+    /// <c>[CallerMemberName]</c> to <see cref="NotNot.Problem.FromEx"/>, so the emitted
+    /// <see cref="NotNot.Problem"/>'s <c>source</c> continues to name the ORIGINATING method
+    /// (<c>RaiseWriteError</c>) rather than the helper. Asserts member-name only (stable);
+    /// file-path/line-number are intentionally NOT asserted (brittle). Fails on a naive extraction
+    /// that drops caller-info forwarding; passes with the forwarding signature.
+    /// </summary>
+    [Fact]
+    public void RaiseWriteError_PreservesCallerProvenanceMemberName()
+    {
+        var adapter = new EphemeralMemoryStorageAdapter();
+        var manager = new SimpleStorageManager<TestData>(adapter);
+
+        WriteEventError<TestData>? captured = null;
+        using var sub = manager.Writes.Subscribe(new ActionObserver<WriteEvent<TestData>>(evt =>
+        {
+            if (evt is WriteEventError<TestData> err) captured = err;
+        }));
+
+        manager.RaiseWriteError(new InvalidCastException("provenance sentinel"));
+
+        Assert.NotNull(captured);
+        Assert.Equal("RaiseWriteError", captured!.Problem.DecomposeSource().memberName);
+    }
+
+    /// <summary>
+    /// Disposal-path regression (site 3 — previously uncovered): a throwing disposal action must
+    /// (a) surface a <see cref="WriteEventError{TData}"/> with a non-null <c>Data</c> snapshot
+    /// (proving <c>GetDataSnapshotOrDefault()</c> still feeds the disposal-action catch),
+    /// (b) carry the thrown exception's message in <c>Problem.Detail</c>, and
+    /// (c) NOT block a second registered disposal action from running (best-effort isolation).
+    /// </summary>
+    [Fact]
+    public async Task DisposeAsync_ThrowingDisposalAction_EmitsWriteErrorAndRunsSubsequentActions()
+    {
+        var adapter = new EphemeralMemoryStorageAdapter();
+        var manager = new SimpleStorageManager<TestData>(adapter);
+        await manager.InitializeAsync();
+
+        WriteEventError<TestData>? captured = null;
+        using var sub = manager.Writes.Subscribe(new ActionObserver<WriteEvent<TestData>>(evt =>
+        {
+            if (evt is WriteEventError<TestData> err) captured = err;
+        }));
+
+        bool secondActionRan = false;
+        manager.RegisterDisposalAction(() => throw new InvalidOperationException("disposal sentinel"));
+        manager.RegisterDisposalAction(() => secondActionRan = true);
+
+        await manager.DisposeAsync();
+
+        // (a) error surfaced with a non-null default-allowed snapshot
+        Assert.NotNull(captured);
+        Assert.NotNull(captured!.Data);
+        // (b) thrown message carried through
+        Assert.Contains("disposal sentinel", captured.Problem.Detail, StringComparison.Ordinal);
+        // (c) best-effort isolation — the subsequent action still ran
+        Assert.True(secondActionRan);
+    }
+
     [Fact]
     public async Task RaiseWriteError_WaitsForInFlightMutationBeforeReadingDataSnapshot()
     {
