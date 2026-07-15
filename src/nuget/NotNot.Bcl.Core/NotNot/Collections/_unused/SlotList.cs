@@ -35,11 +35,16 @@ public class SlotList<T> : IDisposable where T : class
 		}
 
 		IsDisposed = true;
+		// Dispose is a terminal operation and requires exclusive caller ownership. The
+		// allocation locks cannot protect disposal because their objects are cleared
+		// and released here; no operation is supported concurrently with Dispose.
+#pragma warning disable PH_B010 // Terminal disposal is externally serialized, not part of the allocation lock protocol.
 		_storage.Clear();
 		_storage = null;
 		_freeSlots.Clear();
 		_freeSlots = null;
 		_count = -1;
+#pragma warning restore PH_B010
 	}
 
 	public int AllocSlot()

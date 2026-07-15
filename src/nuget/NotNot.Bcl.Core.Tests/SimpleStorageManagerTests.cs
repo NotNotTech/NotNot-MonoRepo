@@ -118,4 +118,49 @@ public class SimpleStorageManagerTests
         Assert.NotNull(captured);
         Assert.Contains("test sentinel", captured!.Problem.Detail, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task RaiseWriteError_WaitsForInFlightMutationBeforeReadingDataSnapshot()
+    {
+        var adapter = new EphemeralMemoryStorageAdapter();
+        var manager = new SimpleStorageManager<TestData>(adapter, new SimpleStorageOptions
+        {
+            WriteDebounce = TimeSpan.FromMilliseconds(1),
+        });
+        await manager.InitializeAsync();
+
+        WriteEventError<TestData>? captured = null;
+        using var sub = manager.Writes.Subscribe(new ActionObserver<WriteEvent<TestData>>(evt =>
+        {
+            if (evt is WriteEventError<TestData> error) captured = error;
+        }));
+        using var mutationEntered = new ManualResetEventSlim(false);
+        using var releaseMutation = new ManualResetEventSlim(false);
+        using var errorReadStarted = new ManualResetEventSlim(false);
+
+        var updateTask = Task.Run(async () => await manager.UpdateAsync(data =>
+        {
+            mutationEntered.Set();
+            releaseMutation.Wait();
+            data.Value = 42;
+        }));
+
+        Assert.True(mutationEntered.Wait(TimeSpan.FromSeconds(5)));
+        var errorTask = Task.Run(() =>
+        {
+            errorReadStarted.Set();
+            manager.RaiseWriteError(new InvalidOperationException("snapshot sentinel"));
+        });
+        Assert.True(errorReadStarted.Wait(TimeSpan.FromSeconds(5)));
+        await Task.Delay(50);
+        Assert.False(errorTask.IsCompleted);
+
+        releaseMutation.Set();
+        await errorTask.WaitAsync(TimeSpan.FromSeconds(5));
+        _ = await updateTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(captured);
+        Assert.Equal(42, captured!.Data.Value);
+        await manager.DisposeAsync();
+    }
 }

@@ -106,7 +106,8 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// <param name="ex">The non-fatal manager-operation exception to surface to subscribers.</param>
 	public void RaiseWriteError(Exception ex)
 	{
-		_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, _data!, Problem.FromEx(ex)));
+		var snapshot = GetDataSnapshot();
+		_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, snapshot, Problem.FromEx(ex)));
 	}
 
 	/// <summary>
@@ -206,7 +207,23 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 		get
 		{
 			if (!_isInitialized) throw new InvalidOperationException($"SimpleStorageManager<{typeof(TData).Name}> not initialized. Call InitializeAsync() first.");
+			return GetDataSnapshot();
+		}
+	}
+
+	private TData GetDataSnapshot()
+	{
+		lock (_lock)
+		{
 			return _data!;
+		}
+	}
+
+	private TData GetDataSnapshotOrDefault()
+	{
+		lock (_lock)
+		{
+			return _data ?? new TData();
 		}
 	}
 
@@ -239,7 +256,8 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 		if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
 
 		var writeId = Guid.NewGuid();
-		_writes.OnNext(new WriteEventStart<TData>(writeId, DateTimeOffset.UtcNow, _data!));
+		var snapshot = GetDataSnapshot();
+		_writes.OnNext(new WriteEventStart<TData>(writeId, DateTimeOffset.UtcNow, snapshot));
 
 		lock (_lock)
 		{
@@ -658,7 +676,8 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 						_data ??= new TData();
 					}
 				}
-				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, _data!, Problem.FromEx(ex)));
+				var snapshot = GetDataSnapshot();
+				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, snapshot, Problem.FromEx(ex)));
 			}
 		}
 		OnDataLoaded?.Invoke();
@@ -695,7 +714,8 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 			try { action(); }
 			catch (Exception ex)
 			{
-				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, _data ?? new TData(), Problem.FromEx(ex)));
+				var snapshot = GetDataSnapshotOrDefault();
+				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, snapshot, Problem.FromEx(ex)));
 			}
 #pragma warning restore NN_R005
 		}
@@ -705,7 +725,11 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 		_readDebouncer?.Dispose();
 
 		// Flush any pending dirty data after debouncers are stopped
+		// Both counters use Interlocked/Volatile for every cross-thread access. PH_B010
+		// models monitor locks but not this lock-free generation-counter protocol.
+#pragma warning disable PH_B010 // Interlocked/Volatile provide the synchronization invariant for both counters.
 		if (_isInitialized && Volatile.Read(ref _dirtyGeneration) != Volatile.Read(ref _writtenGeneration))
+#pragma warning restore PH_B010
 		{
 			try
 			{
@@ -716,7 +740,8 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 			catch (Exception ex)
 #pragma warning restore NN_R005
 			{
-				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, _data ?? new TData(), Problem.FromEx(ex)));
+				var snapshot = GetDataSnapshotOrDefault();
+				_writes.OnNext(new WriteEventError<TData>(Guid.NewGuid(), DateTimeOffset.UtcNow, snapshot, Problem.FromEx(ex)));
 			}
 		}
 

@@ -93,7 +93,6 @@
 
 	<!-- Debug configuration -->
 	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
-		<WarningLevel>0</WarningLevel>
 		<NoWarn>$(NoWarn);NU5128</NoWarn>
 		<DebugType>embedded</DebugType>
 	</PropertyGroup>
