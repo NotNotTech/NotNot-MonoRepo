@@ -149,8 +149,10 @@ public class SimpleStorageManagerTests
     /// Disposal-path regression (site 3 — previously uncovered): a throwing disposal action must
     /// (a) surface a <see cref="WriteEventError{TData}"/> with a non-null <c>Data</c> snapshot
     /// (proving <c>GetDataSnapshotOrDefault()</c> still feeds the disposal-action catch),
-    /// (b) carry the thrown exception's message in <c>Problem.Detail</c>, and
-    /// (c) NOT block a second registered disposal action from running (best-effort isolation).
+    /// (b) carry the thrown exception's message in <c>Problem.Detail</c> with <c>DisposeAsync</c>
+    /// caller provenance, and
+    /// (c) NOT block a second registered disposal action from running AFTER the throwing one
+    /// (best-effort isolation with proven ordering).
     /// </summary>
     [Fact]
     public async Task DisposeAsync_ThrowingDisposalAction_EmitsWriteErrorAndRunsSubsequentActions()
@@ -165,19 +167,25 @@ public class SimpleStorageManagerTests
             if (evt is WriteEventError<TestData> err) captured = err;
         }));
 
-        bool secondActionRan = false;
-        manager.RegisterDisposalAction(() => throw new InvalidOperationException("disposal sentinel"));
-        manager.RegisterDisposalAction(() => secondActionRan = true);
+        bool firstActionStarted = false;
+        bool secondRanAfterFirst = false;
+        manager.RegisterDisposalAction(() =>
+        {
+            firstActionStarted = true;
+            throw new InvalidOperationException("disposal sentinel");
+        });
+        manager.RegisterDisposalAction(() => secondRanAfterFirst = firstActionStarted);
 
         await manager.DisposeAsync();
 
         // (a) error surfaced with a non-null default-allowed snapshot
         Assert.NotNull(captured);
         Assert.NotNull(captured!.Data);
-        // (b) thrown message carried through
+        // (b) thrown message carried through, with DisposeAsync caller provenance (MR-001)
         Assert.Contains("disposal sentinel", captured.Problem.Detail, StringComparison.Ordinal);
-        // (c) best-effort isolation — the subsequent action still ran
-        Assert.True(secondActionRan);
+        Assert.Equal("DisposeAsync", captured.Problem.DecomposeSource().memberName);
+        // (c) best-effort isolation — the subsequent action ran AFTER the throwing one (MR-002)
+        Assert.True(secondRanAfterFirst);
     }
 
     [Fact]
