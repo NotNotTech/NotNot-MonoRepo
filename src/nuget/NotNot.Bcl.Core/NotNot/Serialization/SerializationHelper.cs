@@ -661,7 +661,9 @@ internal class CaseInsensitiveEnumConverter<T> : JsonConverter<T> where T : stru
 
 		// Guarded: TokenType checked == String above, so GetString() is non-null.
 		string enumValue = reader.GetString()!;
-		if (Enum.TryParse(enumValue, ignoreCase: true, out T result))
+		// Resolve the attribute-pinned wire token first, then a case-insensitive member-name parse, so
+		// data written before the token was honored (raw PascalCase member names) still round-trips.
+		if (EnumWireMap<T>.TryParse(enumValue, out T result))
 		{
 			return result;
 		}
@@ -671,7 +673,54 @@ internal class CaseInsensitiveEnumConverter<T> : JsonConverter<T> where T : stru
 
 	public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
 	{
-		writer.WriteStringValue(value.ToString());
+		// Honor [JsonStringEnumMemberName] when a member pins a wire token; otherwise emit the member
+		// identifier — byte-identical to the historical value.ToString() for any enum that does not opt
+		// in, so no already-persisted enum changes wire form.
+		writer.WriteStringValue(EnumWireMap<T>.ToWire(value));
+	}
+}
+
+/// <summary>
+/// Per-enum-type wire-token map for <see cref="CaseInsensitiveEnumConverter{T}"/>: honors
+/// <see cref="JsonStringEnumMemberNameAttribute"/> on individual members while preserving the converter's
+/// case-insensitive read. Built once per closed <typeparamref name="T"/> (static ctor). A member without
+/// the attribute maps to its own identifier, so serialized output is byte-identical to the historical
+/// <c>value.ToString()</c> for any enum that does not opt into a pinned token.
+/// </summary>
+internal static class EnumWireMap<T> where T : struct, Enum
+{
+	private static readonly Dictionary<T, string> _toWire = new();
+	// Case-insensitive read map carrying BOTH the pinned token and the raw member name (legacy form).
+	private static readonly Dictionary<string, T> _fromWire = new(StringComparer.OrdinalIgnoreCase);
+
+	static EnumWireMap()
+	{
+		var type = typeof(T);
+		foreach (var name in Enum.GetNames<T>())
+		{
+			var value = Enum.Parse<T>(name);
+			var token = type.GetField(name)?
+				.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()?.Name ?? name;
+
+			_toWire[value] = token;
+			_fromWire[token] = value;
+			// Member name registered as a read fallback (TryAdd never overrides an explicit token key).
+			_fromWire.TryAdd(name, value);
+		}
+	}
+
+	public static string ToWire(T value)
+		=> _toWire.TryGetValue(value, out var token) ? token : value.ToString();
+
+	public static bool TryParse(string wire, out T value)
+	{
+		if (_fromWire.TryGetValue(wire, out value))
+		{
+			return true;
+		}
+
+		// Last-resort: numeric strings / composite flag values the name map does not carry.
+		return Enum.TryParse(wire, ignoreCase: true, out value);
 	}
 }
 
