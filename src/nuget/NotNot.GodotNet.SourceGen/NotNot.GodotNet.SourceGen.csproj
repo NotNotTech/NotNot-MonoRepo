@@ -25,7 +25,6 @@
 
 	<!--disable warnings for libraries in DEBUG-->
 	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
-		<WarningLevel>0</WarningLevel>
 	</PropertyGroup>
 
 	<!--LOCAL DEV NOTES:  To reference `.csproj`, not Nuget: Add ` OutputItemType="Analyzer" ReferenceOutputAssembly="false"` to the `ProjectReference`-->
