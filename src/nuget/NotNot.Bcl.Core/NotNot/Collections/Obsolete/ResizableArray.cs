@@ -78,7 +78,7 @@ namespace NotNot.Collections
 
 		/// <summary>
 		/// **Gets** the value at the specified index or uses **newCtor** to create and set it if the current value is default.
-		/// - Uses EqualityComparer<TItem>.Default to check if value equals **default(TItem)**.
+		/// - Uses EqualityComparer&lt;TItem&gt;.Default to check if value equals **default(TItem)**.
 		///   (For **reference types**, default is **null**.)
 		/// </summary>
 		public TItem GetOrSet(int index, Func<TItem> newCtor)

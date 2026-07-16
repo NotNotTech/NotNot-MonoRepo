@@ -756,7 +756,7 @@ public static partial class zz_Extensions_Task
 
 	}
 	/// <summary>
-	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// Converts a Task&lt;T&gt; to Task&lt;Maybe&lt;T&gt;&gt;, capturing any exceptions as Problems.
 	/// This enables fluent exception handling without try-catch blocks.
 	/// </summary>
 	/// <typeparam name="T">The type of the task result</typeparam>
@@ -764,7 +764,7 @@ public static partial class zz_Extensions_Task
 	/// <param name="memberName">The calling member name (auto-captured)</param>
 	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
 	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
-	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	/// <returns>A Maybe&lt;T&gt; containing either the successful result or a Problem</returns>
 	public static async Task<Maybe<T>> _ToMaybe<T>(
 	this Task<Maybe<T>> task,
 	[CallerMemberName] string memberName = "",
@@ -785,7 +785,7 @@ public static partial class zz_Extensions_Task
 #pragma warning restore NN_R005
 	}
 	/// <summary>
-	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// Converts a Task&lt;T&gt; to Task&lt;Maybe&lt;T&gt;&gt;, capturing any exceptions as Problems.
 	/// This enables fluent exception handling without try-catch blocks.
 	/// </summary>
 	/// <typeparam name="T">The type of the task result</typeparam>
@@ -793,7 +793,7 @@ public static partial class zz_Extensions_Task
 	/// <param name="memberName">The calling member name (auto-captured)</param>
 	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
 	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
-	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	/// <returns>A Maybe&lt;T&gt; containing either the successful result or a Problem</returns>
 	public static async Task<Maybe<T>> _ToMaybe<T>(
 	this ValueTask<Maybe<T>> task,
 	[CallerMemberName] string memberName = "",
@@ -814,15 +814,14 @@ public static partial class zz_Extensions_Task
 #pragma warning restore NN_R005
 	}
 	/// <summary>
-	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// Converts a Task to Task&lt;Maybe&gt;, capturing any exceptions as Problems.
 	/// This enables fluent exception handling without try-catch blocks.
 	/// </summary>
-	/// <typeparam name="T">The type of the task result</typeparam>
 	/// <param name="task">The task to convert</param>
 	/// <param name="memberName">The calling member name (auto-captured)</param>
 	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
 	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
-	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	/// <returns>A Maybe containing either the successful result or a Problem</returns>
 	public static async Task<Maybe> _ToMaybe(
 	this Task<Maybe> task,
 	[CallerMemberName] string memberName = "",
@@ -843,15 +842,14 @@ public static partial class zz_Extensions_Task
 #pragma warning restore NN_R005
 	}
 	/// <summary>
-	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// Converts a Task to Task&lt;Maybe&gt;, capturing any exceptions as Problems.
 	/// This enables fluent exception handling without try-catch blocks.
 	/// </summary>
-	/// <typeparam name="T">The type of the task result</typeparam>
 	/// <param name="task">The task to convert</param>
 	/// <param name="memberName">The calling member name (auto-captured)</param>
 	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
 	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
-	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	/// <returns>A Maybe containing either the successful result or a Problem</returns>
 	public static async Task<Maybe> _ToMaybe(
 	this ValueTask<Maybe> task,
 	[CallerMemberName] string memberName = "",
@@ -874,7 +872,7 @@ public static partial class zz_Extensions_Task
 
 
 	/// <summary>
-	/// Converts a Task<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// Converts a Task&lt;T&gt; to Task&lt;Maybe&lt;T&gt;&gt;, capturing any exceptions as Problems.
 	/// This enables fluent exception handling without try-catch blocks.
 	/// </summary>
 	/// <typeparam name="T">The type of the task result</typeparam>
@@ -882,7 +880,7 @@ public static partial class zz_Extensions_Task
 	/// <param name="memberName">The calling member name (auto-captured)</param>
 	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
 	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
-	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	/// <returns>A Maybe&lt;T&gt; containing either the successful result or a Problem</returns>
 	[return: NotNull]
 	public static async Task<Maybe<T>> _ToMaybe<T>(
 		this Task<T> task,
@@ -908,7 +906,7 @@ public static partial class zz_Extensions_Task
 	}
 
 	/// <summary>
-	/// Converts a ValueTask<T> to Task<Maybe<T>>, capturing any exceptions as Problems.
+	/// Converts a ValueTask&lt;T&gt; to Task&lt;Maybe&lt;T&gt;&gt;, capturing any exceptions as Problems.
 	/// This enables fluent exception handling without try-catch blocks.
 	/// </summary>
 	/// <typeparam name="T">The type of the task result</typeparam>
@@ -916,7 +914,7 @@ public static partial class zz_Extensions_Task
 	/// <param name="memberName">The calling member name (auto-captured)</param>
 	/// <param name="sourceFilePath">The calling source file (auto-captured)</param>
 	/// <param name="sourceLineNumber">The calling source line (auto-captured)</param>
-	/// <returns>A Maybe<T> containing either the successful result or a Problem</returns>
+	/// <returns>A Maybe&lt;T&gt; containing either the successful result or a Problem</returns>
 	[return: NotNull]
 	public static async Task<Maybe<T>> _ToMaybe<T>(
 		this ValueTask<T> valueTask,
@@ -939,7 +937,7 @@ public static partial class zz_Extensions_Task
 	}
 
 	/// <summary>
-	/// Converts a Task (non-generic) to Task<Maybe>, capturing any exceptions as Problems.
+	/// Converts a Task (non-generic) to Task&lt;Maybe&gt;, capturing any exceptions as Problems.
 	/// This enables fluent exception handling without try-catch blocks for void-returning async methods.
 	/// </summary>
 	/// <param name="task">The task to convert</param>
@@ -969,7 +967,7 @@ public static partial class zz_Extensions_Task
 	}
 
 	/// <summary>
-	/// Converts a ValueTask (non-generic) to Task<Maybe>, capturing any exceptions as Problems.
+	/// Converts a ValueTask (non-generic) to Task&lt;Maybe&gt;, capturing any exceptions as Problems.
 	/// This enables fluent exception handling without try-catch blocks for void-returning async methods.
 	/// </summary>
 	/// <param name="valueTask">The value task to convert</param>
@@ -1002,7 +1000,7 @@ public static partial class zz_Extensions_Task
 		[CallerMemberName] string memberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("task")] string valueTaskArgName = ""
+		[CallerArgumentExpression("valueTask")] string valueTaskArgName = ""
 		)
 	{
 		if (valueTask.HasValue)
@@ -1023,7 +1021,7 @@ public static partial class zz_Extensions_Task
 		[CallerMemberName] string sourceMemberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("task")] string valueTaskArgName = ""
+		[CallerArgumentExpression("valueTask")] string valueTaskArgName = ""
 		)
 	{
 		try
@@ -1073,7 +1071,7 @@ public static partial class zz_Extensions_Task
 		[CallerMemberName] string sourceMemberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("task")] string valueTaskArgName = ""
+		[CallerArgumentExpression("valueTask")] string valueTaskArgName = ""
 		)
 	{
 		try
@@ -1121,7 +1119,7 @@ public static partial class zz_Extensions_Task
 		[CallerMemberName] string sourceMemberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("task")] string valueTaskArgName = ""
+		[CallerArgumentExpression("valueTask")] string valueTaskArgName = ""
 		)
 	{
 		if (valueTask.HasValue)
@@ -1197,7 +1195,7 @@ public static partial class zz_Extensions_Task
 		[CallerMemberName] string sourceMemberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("task")] string valueTaskArgName = ""
+		[CallerArgumentExpression("valueTask")] string valueTaskArgName = ""
 		) where TValue : class
 	{
 		try
@@ -1247,7 +1245,7 @@ public static partial class zz_Extensions_Task
 		[CallerMemberName] string sourceMemberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("task")] string valueTaskArgName = ""
+		[CallerArgumentExpression("valueTask")] string valueTaskArgName = ""
 		) where TValue : class
 	{
 		if (valueTask.HasValue)
@@ -1328,7 +1326,7 @@ public static partial class zz_Extensions_Task
 		[CallerMemberName] string sourceMemberName = "",
 		[CallerFilePath] string sourceFilePath = "",
 		[CallerLineNumber] int sourceLineNumber = 0,
-		[CallerArgumentExpression("task")] string valueTaskArgName = ""
+		[CallerArgumentExpression("valueTask")] string valueTaskArgName = ""
 		)
 	{
 		try
@@ -1372,8 +1370,6 @@ public static partial class zz_Extensions_Task
 }
 
 
-/// <summary>
-///    Provides extension methods for task factories.
-///    coppied from Nito.AsyncEx but adding CancellationToken support
-/// </summary>
+//    Provides extension methods for task factories.
+//    coppied from Nito.AsyncEx but adding CancellationToken support
 

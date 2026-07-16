@@ -6,7 +6,6 @@ public static class KeyGen
 	/// creates an apiKey in the legacy pjsc-api format.  
 	/// <para>strongly prefer to use the non-legacy version in the future, as that is stronger</para>
 	/// </summary>
-	/// <param name="timestamp">if a timestamp should be used as start of key.  warning: this uses up 9 digits of the key.</param>
 	/// <param name="randomDigits">must be minimum 20 digits as there is a deterministic (timestamp) component</param>
 	/// <param name="digitGrouping"></param>
 	/// <returns></returns>

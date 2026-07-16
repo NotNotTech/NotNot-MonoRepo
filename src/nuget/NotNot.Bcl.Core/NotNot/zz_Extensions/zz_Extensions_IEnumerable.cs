@@ -60,7 +60,6 @@ public static class zz_Extensions_IEnumerable
 	///    create a clone of this iEnumerable as a list.  individual value's should inherits from IClonable, or be structs with
 	///    no references. (otherwise error)
 	/// </summary>
-	/// <typeparam name="TKey"></typeparam>
 	/// <typeparam name="TValue"></typeparam>
 	/// <param name="source"></param>
 	/// <returns></returns>

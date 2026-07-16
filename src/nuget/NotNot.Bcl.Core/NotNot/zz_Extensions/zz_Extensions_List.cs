@@ -167,7 +167,6 @@ public static class zz_Extensions_List
 	///    create a clone of this list.  individual value's should inherits from IClonable, or be structs with no references.
 	///    (otherwise error)
 	/// </summary>
-	/// <typeparam name="TKey"></typeparam>
 	/// <typeparam name="TValue"></typeparam>
 	/// <param name="source"></param>
 	/// <returns></returns>
@@ -292,10 +291,8 @@ public static class zz_Extensions_List
 	}
 }
 
-/// <summary>Extension methods for <see cref="TaskCompletionSource{TResult}" />.</summary>
-/// <threadsafety static="true" instance="false" />
-/// <remarks>
-///    from:
-///    https://github.com/tunnelvisionlabs/dotnet-threading/blob/3e99a9d13476a1e8224d81f282f3cedad143c1bc/Rackspace.Threading/TaskCompletionSourceExtensions.cs
-/// </remarks>
+// Extension methods for TaskCompletionSource{TResult}.
+// threadsafety: static=true, instance=false
+// from:
+// https://github.com/tunnelvisionlabs/dotnet-threading/blob/3e99a9d13476a1e8224d81f282f3cedad143c1bc/Rackspace.Threading/TaskCompletionSourceExtensions.cs
 

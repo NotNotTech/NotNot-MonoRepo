@@ -158,8 +158,6 @@ public static class zz_Extensions_Span
 			return true;
 		}
 
-		var isSorted = true;
-
 		ref var r_previous = ref target[0]!;
 		for (var i = 1; i < target.Length; i++)
 		{
@@ -193,8 +191,6 @@ public static class zz_Extensions_Span
 		{
 			return true;
 		}
-
-		var isSorted = true;
 
 		ref var r_previous = ref target[0]!;
 		for (var i = 1; i < target.Length; i++)

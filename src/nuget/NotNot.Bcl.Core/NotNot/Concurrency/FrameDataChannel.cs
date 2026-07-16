@@ -153,20 +153,20 @@ public class FrameDataChannel<T> : DisposeGuard
 	///    PRIVATE helper: wraps the queue with some simple validation logic (make sure count doesn't change when inside the
 	///    channel)
 	/// </summary>
-	/// <typeparam name="T"></typeparam>
-	private struct _FramePacketWrapper<T>
+	/// <typeparam name="TItem"></typeparam>
+	private struct _FramePacketWrapper<TItem>
 	{
-		private ConcurrentQueue<T> framePacket;
+		private ConcurrentQueue<TItem> framePacket;
 		private int queueCount;
 
 
-		public _FramePacketWrapper(ConcurrentQueue<T> framePacket)
+		public _FramePacketWrapper(ConcurrentQueue<TItem> framePacket)
 		{
 			this.framePacket = framePacket;
 			queueCount = framePacket.Count;
 		}
 
-		public ConcurrentQueue<T> getQueue()
+		public ConcurrentQueue<TItem> getQueue()
 		{
 			//__.GetLogger()._EzError(_frameVersion == currentFrameVersion,"race condition, frames do not match.  is this framePacket being used improperly?  use-after-enqueue or use-after-recycle");
 			VerifyPacket();

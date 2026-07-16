@@ -77,7 +77,5 @@ public static class zz_Extensions_HashSet
 }
 
 
-/// <summary>
-/// Extension methods for HttpContent to validate and deserialize Maybe<T> responses
-/// </summary>
+// Extension methods for HttpContent to validate and deserialize Maybe<T> responses
 

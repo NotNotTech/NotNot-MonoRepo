@@ -59,7 +59,6 @@ public static class zz_Extensions_JsonSerializerOptions
 		target.PropertyNamingPolicy = source.PropertyNamingPolicy;
 		target.DefaultIgnoreCondition = source.DefaultIgnoreCondition;
 		target.DefaultBufferSize = source.DefaultBufferSize;
-		target.IgnoreNullValues = source.IgnoreNullValues;
 		target.IgnoreReadOnlyProperties = source.IgnoreReadOnlyProperties;
 		target.IgnoreReadOnlyFields = source.IgnoreReadOnlyFields;
 		target.UnknownTypeHandling = source.UnknownTypeHandling;

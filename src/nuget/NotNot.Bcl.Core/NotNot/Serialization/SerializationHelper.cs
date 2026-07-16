@@ -403,7 +403,7 @@ public class SerializationHelper
 
 	/// <summary>
 	/// </summary>
-	/// <param name="token"></param>
+	/// <param name="element"></param>
 	/// <param name="discardMetaNodes">
 	///    TRUE useful to remove metadata nodes (starting with $) if ReferenceHandler.Preserve
 	///    option is used. not useful otherwise.
@@ -563,7 +563,7 @@ public class SerializationHelper
 	/// deserialize a json file using json5, which is less strict about json formatting
 	/// </summary>
 	/// <typeparam name="TJsonSerialized"></typeparam>
-	/// <param name="json5ResFilePath"></param>
+	/// <param name="json5String"></param>
 	/// <returns></returns>
 	public TJsonSerialized DeserializeJson5<TJsonSerialized>(string json5String)
 	{

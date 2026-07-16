@@ -124,7 +124,7 @@ public class ToMaybeExceptionCodeFixProvider : CodeFixProvider
     }
 
     /// <summary>
-    /// Wraps a return type with Maybe<>
+    /// Wraps a return type with Maybe&lt;&gt;
     /// </summary>
     private static TypeSyntax WrapReturnTypeWithMaybe(TypeSyntax returnType)
     {
@@ -207,7 +207,7 @@ public class ToMaybeExceptionCodeFixProvider : CodeFixProvider
     }
 
     /// <summary>
-    /// Wraps a type with NotNot.Maybe<>
+    /// Wraps a type with NotNot.Maybe&lt;&gt;
     /// </summary>
     private static TypeSyntax WrapTypeWithMaybe(TypeSyntax innerType)
     {

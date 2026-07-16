@@ -131,7 +131,7 @@ public static class zz_Extensions_Key_GoogleCloud_Datastore_V1
 	/// <summary>
 	/// returns entity.Key.Path.First().Kind;
 	/// </summary>
-	/// <param name="entity"></param>
+	/// <param name="key"></param>
 	/// <returns></returns>
 	public static string _Kind(this Google.Cloud.Datastore.V1.Key key)
 	{

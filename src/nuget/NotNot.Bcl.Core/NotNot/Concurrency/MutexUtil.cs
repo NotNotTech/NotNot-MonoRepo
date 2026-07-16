@@ -10,7 +10,7 @@ namespace NotNot;
 /// WHY: Ensure expensive or destructive initialization (eg database reset) runs exactly once per process cluster start
 /// while avoiding marker files (IO, cleanup concerns, race-on-filesystem, platform path issues).
 /// HOW:
-///   1. In-process fast path via ConcurrentDictionary<string, Lazy<Task>>
+///   1. In-process fast path via ConcurrentDictionary&lt;string, Lazy&lt;Task&gt;&gt;
 ///   2. Cross-process critical section via named Global mutex (Windows) / local name (other OS)
 ///   3. Completion signaled by a named EventWaitHandle (ManualReset) => subsequent processes skip init delegate.
 ///      - Pattern: if event already signaled BEFORE entering mutex => skip

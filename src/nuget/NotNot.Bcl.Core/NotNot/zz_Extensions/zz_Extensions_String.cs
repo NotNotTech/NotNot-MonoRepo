@@ -577,7 +577,7 @@ public static class zz_Extensions_String
 	///    returns true if string only contains <see cref="characters" /> from input paramaters.
 	/// </summary>
 	/// <param name="toEvaluate"></param>
-	/// <param name="characters"></param>
+	/// <param name="only"></param>
 	public static bool _ContainsOnly(this string toEvaluate, char only)
 	{
 		foreach (var c in toEvaluate)
@@ -977,8 +977,8 @@ public static class zz_Extensions_String
 	///    gets the string after the first instance of the given parameter
 	/// </summary>
 	/// <param name="value"></param>
-	/// <param name="right"></param>
-	/// <param name="fullIfRightMissing"></param>
+	/// <param name="left"></param>
+	/// <param name="fullIfLeftMissing"></param>
 	/// <returns></returns>
 	public static string _GetAfterFirst(this string value, string left, bool? fullIfLeftMissing = null)
 	{
@@ -1001,8 +1001,8 @@ public static class zz_Extensions_String
 	///    gets the string after the first instance of the given parameter
 	/// </summary>
 	/// <param name="value"></param>
-	/// <param name="right"></param>
-	/// <param name="fullIfRightMissing">if not set, will throw if missing</param>
+	/// <param name="left"></param>
+	/// <param name="fullIfLeftMissing">if not set, will throw if missing</param>
 	/// <returns></returns>
 	public static string _GetAfterFirst(this string value, char left, bool? fullIfLeftMissing = null)
 	{
@@ -1523,8 +1523,8 @@ public static class zz_Extensions_String
 	///    replace all instances of the given characters with the given value
 	/// </summary>
 	/// <param name="value"></param>
-	/// <param name="toReplace"></param>
-	/// <param name="newValue"></param>
+	/// <param name="charsToReplace"></param>
+	/// <param name="replacementChar"></param>
 	/// <returns></returns>
 	public static string _Replace(this string value, string charsToReplace, char? replacementChar,
 		StringComparison stringComparison = StringComparison.InvariantCultureIgnoreCase)
@@ -1643,7 +1643,7 @@ public static class zz_Extensions_String
 		return Regex.Matches(value, regexPattern, options);
 	}
 	/// <summary>
-	/// a string extension method that splits a long string into substrings of a fixed length, and returns all as a List<string>.   any remainder is also returned.
+	/// a string extension method that splits a long string into substrings of a fixed length, and returns all as a List&lt;string&gt;.   any remainder is also returned.
 	/// </summary>
 	public static List<string> _Split(this string str, int chunkSize)
 	{

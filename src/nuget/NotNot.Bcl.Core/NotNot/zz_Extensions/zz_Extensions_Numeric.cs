@@ -187,7 +187,7 @@ public static class zz_Extensions_Numeric
 	/// </summary>
 	/// <remarks>If the value is outside the range of Int32, an exception will be thrown. This method uses checked
 	/// conversion to ensure that overflows are detected.</remarks>
-	/// <typeparam name="T">The numeric type of the value to convert. Must implement the INumber<T> interface.</typeparam>
+	/// <typeparam name="T">The numeric type of the value to convert. Must implement the INumber&lt;T&gt; interface.</typeparam>
 	/// <param name="value">The numeric value to convert to an integer.</param>
 	/// <returns>A 32-bit signed integer representation of the specified value.</returns>
 	public static int _AsInt<T>(this T value) where T : INumber<T>

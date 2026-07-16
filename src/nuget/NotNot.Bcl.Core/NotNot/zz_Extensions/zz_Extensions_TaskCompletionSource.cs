@@ -57,7 +57,7 @@ public static class zz_Extensions_TaskCompletionSource
 	///       If <paramref name="task" /> is in the <see cref="TaskStatus.Canceled" /> state,
 	///       the <see cref="TaskCompletionSource{TResult}" /> is transitioned to the
 	///       <see cref="TaskStatus.Canceled" /> state using the
-	///       <see cref="TaskCompletionSource{TResult}.SetCanceled" /> method.
+	///       <see cref="TaskCompletionSource{TResult}.SetCanceled()" /> method.
 	///    </para>
 	/// </remarks>
 	/// <typeparam name="TSource">Specifies the result type of the source <see cref="Task{TResult}" />.</typeparam>
@@ -165,7 +165,7 @@ public static class zz_Extensions_TaskCompletionSource
 	///       If <paramref name="task" /> is in the <see cref="TaskStatus.Canceled" /> state,
 	///       the <see cref="TaskCompletionSource{TResult}" /> is transitioned to the
 	///       <see cref="TaskStatus.Canceled" /> state using the
-	///       <see cref="TaskCompletionSource{TResult}.SetCanceled" /> method.
+	///       <see cref="TaskCompletionSource{TResult}.SetCanceled()" /> method.
 	///    </para>
 	/// </remarks>
 	/// <typeparam name="TResult">Specifies the result type of the <see cref="TaskCompletionSource{TResult}" />.</typeparam>
@@ -236,7 +236,7 @@ public static class zz_Extensions_TaskCompletionSource
 	///       If <paramref name="task" /> is in the <see cref="TaskStatus.Canceled" /> state,
 	///       the <see cref="TaskCompletionSource{TResult}" /> is transitioned to the
 	///       <see cref="TaskStatus.Canceled" /> state using the
-	///       <see cref="TaskCompletionSource{TResult}.TrySetCanceled" /> method.
+	///       <see cref="TaskCompletionSource{TResult}.TrySetCanceled()" /> method.
 	///    </para>
 	/// </remarks>
 	/// <typeparam name="TSource">Specifies the result type of the source <see cref="Task{TResult}" />.</typeparam>
@@ -320,7 +320,7 @@ public static class zz_Extensions_TaskCompletionSource
 	///       If <paramref name="task" /> is in the <see cref="TaskStatus.Canceled" /> state,
 	///       the <see cref="TaskCompletionSource{TResult}" /> is transitioned to the
 	///       <see cref="TaskStatus.Canceled" /> state using the
-	///       <see cref="TaskCompletionSource{TResult}.TrySetCanceled" /> method.
+	///       <see cref="TaskCompletionSource{TResult}.TrySetCanceled()" /> method.
 	///    </para>
 	/// </remarks>
 	/// <typeparam name="TResult">Specifies the result type of the <see cref="TaskCompletionSource{TResult}" />.</typeparam>

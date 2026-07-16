@@ -211,14 +211,6 @@ public partial class Frame ////node graph setup and execution
 					activeNodes.Add(nodeState);
 
 
-					static async Task taskRunner(SimNode node, NodeFrameState nodeState, Frame _this)
-					{
-						var _task = node.DoUpdate(_this, nodeState);
-						await _task;
-						doneUpdateTask_Helper(_task, nodeState);
-						//return _task;
-					}
-
 					if (node is IIgnoreUpdate)
 					{
 						//node has no update loop, it's done immediately.
@@ -286,7 +278,7 @@ public partial class Frame ////node graph setup and execution
 				{
 					await Task.WhenAny(currentTasks).WaitAsync(__.Async.CancelAfter(TimeSpan.FromSeconds(2)));
 				}
-				catch (TimeoutException ex)
+				catch (TimeoutException)
 				{
 					__.AssertIfNot(false);
 					__.GetLogger()._EzErrorThrow<SimStormException>(DebuggerInfo.IsPaused,
@@ -400,7 +392,7 @@ public partial class Frame ////node graph setup and execution
 		{
 			await Task.WhenAll(currentTasks).WaitAsync(TimeSpan.FromSeconds(2));
 		}
-		catch (TimeoutException ex)
+		catch (TimeoutException)
 		{
 			__.GetLogger()._EzErrorThrow<SimStormException>(DebuggerInfo.IsPaused,
 				"SimPipeline appears deadlocked, as no executing task has completed in less than 2 seconds.");

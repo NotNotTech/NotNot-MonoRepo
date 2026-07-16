@@ -502,7 +502,7 @@ public partial class LoLoRoot
    /// <summary>
    /// throw an Exception if expectedCondition is false
    /// </summary>
-   /// <param name="expectedCondition"></param>
+   /// <param name="message"></param>
    /// <exception cref="NotImplementedException"></exception>
    [DoesNotReturn]
    public Exception Throw(string? message = null, [CallerMemberName] string sourceMemberName = "",
@@ -516,7 +516,7 @@ public partial class LoLoRoot
    /// <summary>
    /// throw an Exception if expectedCondition is false
    /// </summary>
-   /// <param name="expectedCondition"></param>
+   /// <param name="_expectedCondition"></param>
    /// <exception cref="NotImplementedException"></exception>
    public void ThrowIfNot([DoesNotReturnIf(false)] bool? _expectedCondition, string? message = null, [CallerMemberName] string sourceMemberName = "",
       [CallerFilePath] string sourceFilePath = "",
@@ -560,7 +560,7 @@ public partial class LoLoRoot
    /// <summary>
    /// Log, assert, throw throw an Exception.
    /// </summary>
-   /// <param name="expectedCondition"></param>
+   /// <param name="ex"></param>
    [DoesNotReturn]
    public Exception Throw(Exception ex, [CallerMemberName] string sourceMemberName = "",
       [CallerFilePath] string sourceFilePath = "",
@@ -934,8 +934,6 @@ public partial class LoLoRoot
    ///    logger used when DI Services are not set.  (see .GetLogger() logic below)
    /// </summary>
    internal ILogger? _DiMissingConsoleLoggerFallback;
-
-   private bool _hasWarnedServicesMissing;
 
    private ConcurrentDictionary<string, object> _knownLoggerTypes = new();
 

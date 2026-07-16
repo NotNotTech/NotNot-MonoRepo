@@ -140,7 +140,7 @@ public static class zz_Extensions_Array
 	/// <summary>
 	///    quickly clears an array
 	/// </summary>
-	/// <param name="?"></param>
+	/// <param name="array"></param>
 	public static void _Clear(this Array array)
 	{
 		array._Clear(0, array.Length);

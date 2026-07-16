@@ -7,6 +7,7 @@ namespace NotNot.Collections.Specialized;
 ///    used so that this is a partial view of the master list.
 /// </summary>
 /// <typeparam name="TPartialView"></typeparam>
+/// <typeparam name="TBackingMaster"></typeparam>
 public class PartialViewList<TPartialView, TBackingMaster> : IList<TPartialView> where TPartialView : TBackingMaster
 {
 	private IList<TPartialView> _PartialViewStorage;

@@ -474,7 +474,7 @@ public static class zz_Extensions_ILogger
          ex.Source = $"{sourceMemberName}:{sourceFilePath}:{sourceLineNumber}";
          throw ex;
       }
-      catch (Exception e)
+      catch (Exception)
       {
          throw new LoLoDiagnosticsException(message._FormatAppendArgs(objToLog0, objToLog1, objToLog2, objToLog0Name, objToLog1Name, objToLog2Name)
             + $"(Could not create {typeof(TException).Name}, creating LoLoDiagnosticsException instead)"

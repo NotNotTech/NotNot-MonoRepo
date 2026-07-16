@@ -346,8 +346,6 @@ public static class zz_Extensions_Dictionary
 	//	}
 }
 
-/// <summary>
-///    The included numeric extension methods utilize experimental CLR behavior to allow generic numerical operations.
-///    Might work great, might have hidden perf costs?
-/// </summary>
+//    The included numeric extension methods utilize experimental CLR behavior to allow generic numerical operations.
+//    Might work great, might have hidden perf costs?
 

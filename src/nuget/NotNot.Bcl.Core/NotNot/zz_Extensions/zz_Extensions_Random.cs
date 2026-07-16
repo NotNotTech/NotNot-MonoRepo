@@ -97,7 +97,6 @@ public static class zz_Extensions_Random
 	///    <para>note: this includes whiteSpace</para>
 	/// </summary>
 	/// <param name="random"></param>
-	/// <param name="onlyLowerAscii">true to return a printable ASCII character in the "lower" range (less than 127)</param>
 	/// <returns></returns>
 	public static char _NextChar(this Random random, bool symbolsOrWhitespace = false, bool unicodeOkay = false)
 	{
@@ -149,7 +148,6 @@ public static class zz_Extensions_Random
 	///    <para>note: this includes whiteSpace</para>
 	/// </summary>
 	/// <param name="random"></param>
-	/// <param name="onlyLowerAscii">true to return a printable ASCII character in the "lower" range (less than 127)</param>
 	/// <returns></returns>
 	public static string _NextString(this Random random, int length, bool symbolsOrWhitespace = false,
 		bool unicodeOkay = false)

@@ -41,12 +41,12 @@ using NotNot.Diagnostics;
 public static class zz_Extensions_HttpContent
 {
 	/// <summary>
-	/// Validates that HttpContent can be deserialized as Maybe<T> and throws descriptive errors if not
+	/// Validates that HttpContent can be deserialized as Maybe&lt;T&gt; and throws descriptive errors if not
 	/// </summary>
-	/// <typeparam name="T">The expected inner type of Maybe<T></typeparam>
+	/// <typeparam name="T">The expected inner type of Maybe&lt;T&gt;</typeparam>
 	/// <param name="content">The HTTP response content</param>
-	/// <returns>The deserialized Maybe<T> if successful</returns>
-	/// <exception cref="InvalidOperationException">Thrown with descriptive message if content cannot be deserialized as Maybe<T></exception>
+	/// <returns>The deserialized Maybe&lt;T&gt; if successful</returns>
+	/// <exception cref="InvalidOperationException">Thrown with descriptive message if content cannot be deserialized as Maybe&lt;T&gt;</exception>
 	public static async Task<Maybe<T>> _DeserializeMaybe<T>(this HttpContent content)
 	{
 		__.NotNull(content, "HttpContent cannot be null");

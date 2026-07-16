@@ -666,9 +666,9 @@ public struct BitFlags32<TFlagsEnum> where TFlagsEnum : struct, Enum
 
 
 	/// <summary>
-	/// Implicitly converts a BitFlags<T> instance to the enum type T.
+	/// Implicitly converts a BitFlags&lt;T&gt; instance to the enum type T.
 	/// </summary>
-	/// <param name="flags">The BitFlags<T> instance to convert.</param>
+	/// <param name="flags">The BitFlags&lt;T&gt; instance to convert.</param>
 	/// <returns>The enum representation of the flags.</returns>
 	public static implicit operator TFlagsEnum(BitFlags32<TFlagsEnum> flags)
 	{
@@ -676,19 +676,19 @@ public struct BitFlags32<TFlagsEnum> where TFlagsEnum : struct, Enum
 	}
 
 	/// <summary>
-	/// Implicitly converts an enum of type T to a BitFlags<T> instance.
+	/// Implicitly converts an enum of type T to a BitFlags&lt;T&gt; instance.
 	/// </summary>
 	/// <param name="enumValue">The enum value to convert.</param>
-	/// <returns>A new BitFlags<T> instance representing the enum value.</returns>
+	/// <returns>A new BitFlags&lt;T&gt; instance representing the enum value.</returns>
 	public static implicit operator BitFlags32<TFlagsEnum>(TFlagsEnum enumValue)
 	{
 		return new BitFlags32<TFlagsEnum>(EnumToUInt32(ref enumValue));
 	}
 
 	/// <summary>
-	/// Implicitly converts a BitFlags<T> instance to an int.
+	/// Implicitly converts a BitFlags&lt;T&gt; instance to an int.
 	/// </summary>
-	/// <param name="flags">The BitFlags<T> instance to convert.</param>
+	/// <param name="flags">The BitFlags&lt;T&gt; instance to convert.</param>
 	/// <returns>The int representation of the flags.</returns>
 	public static implicit operator int(BitFlags32<TFlagsEnum> flags)
 	{
@@ -696,10 +696,10 @@ public struct BitFlags32<TFlagsEnum> where TFlagsEnum : struct, Enum
 	}
 
 	/// <summary>
-	/// Implicitly converts an int to a BitFlags<T> instance.
+	/// Implicitly converts an int to a BitFlags&lt;T&gt; instance.
 	/// </summary>
 	/// <param name="value">The int value to convert.</param>
-	/// <returns>A new BitFlags<T> instance representing the int value.</returns>
+	/// <returns>A new BitFlags&lt;T&gt; instance representing the int value.</returns>
 	public static implicit operator BitFlags32<TFlagsEnum>(int value)
 	{
 		return new BitFlags32<TFlagsEnum>((uint)value);
