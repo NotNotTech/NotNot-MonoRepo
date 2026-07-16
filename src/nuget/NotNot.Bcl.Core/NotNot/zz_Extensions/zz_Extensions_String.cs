@@ -200,7 +200,7 @@ public static class zz_Extensions_String
 	}
 
 
-	public static string _FormatAppendArgs(this string message,
+	public static string _FormatAppendArgs(this string? message,
 		object? objToLog0 = null, object? objToLog1 = null, object? objToLog2 = null,
 		[CallerArgumentExpression("objToLog0")] string? objToLog0Name = null,
 		[CallerArgumentExpression("objToLog1")] string? objToLog1Name = null,
@@ -208,6 +208,7 @@ public static class zz_Extensions_String
 		string joinString = "\n\t"
 	)
 	{
+		message ??= "";
 		//store all (objToLog,objToLogName) pairs in a list, discarding any pairs with an objToLogName of "null"
 		//create a finalLogMessage combining the message with the names from each pair, showing the values from each pair      
 		//pass the finalLogMessage and all the values to the Microsoft.Extensions.Logging.ILogger.Log method
@@ -283,7 +284,7 @@ public static class zz_Extensions_String
 				//}
 				else
 				{
-					argValue = argValue.ToString()._Replace("[", '(')._Replace("]", ')');
+					argValue = (argValue.ToString() ?? "")._Replace("[", '(')._Replace("]", ')');
 				}
 
 				message += $"{joinString}{argName} : {argValue}";
@@ -455,7 +456,7 @@ public static class zz_Extensions_String
 	//   return defaultIfNullOrInvalid;
 	//}
 
-	public static T _ToNumber<T>(this string? value, T defaultIfNullOrInvalid = default, IFormatProvider? formatProvider = default) where T : INumber<T>
+	public static T _ToNumber<T>(this string? value, T defaultIfNullOrInvalid = default!, IFormatProvider? formatProvider = default) where T : INumber<T>
 	{
 		formatProvider ??= CultureInfo.InvariantCulture;
 		if (T.TryParse(value, formatProvider, out var result))
@@ -483,7 +484,7 @@ public static class zz_Extensions_String
 	/// 		var utf8Bytes = value.ToBytes(Encoding.UTF8);
 	/// 	</code>
 	/// </example>
-	public static byte[] _ToBytes(this string value, Encoding encoding = null, bool withPreamble = false)
+	public static byte[] _ToBytes(this string value, Encoding? encoding = null, bool withPreamble = false)
 	{
 		encoding = encoding ?? Encoding.UTF8;
 		if (withPreamble)
@@ -618,7 +619,7 @@ public static class zz_Extensions_String
 	///    Determines whether the specified string is null or empty.
 	/// </summary>
 	/// <param name="value">The string value to check.</param>
-	public static bool _IsNullOrEmpty(this string value)
+	public static bool _IsNullOrEmpty([NotNullWhen(false)] this string? value)
 	{
 		return string.IsNullOrEmpty(value);
 	}
@@ -665,7 +666,8 @@ public static class zz_Extensions_String
 	/// <remarks>
 	///    Proposed by Rene Schulte
 	/// </remarks>
-	public static string _SetMaxLength(this string value, int maxLength, bool avoidEllipsis=false)
+	[return: NotNullIfNotNull(nameof(value))]
+	public static string? _SetMaxLength(this string? value, int maxLength, bool avoidEllipsis=false)
 	{
 		var useEllipsis = !avoidEllipsis && maxLength > 3;
 		if (value == null || value.Length <= maxLength)
@@ -690,7 +692,8 @@ public static class zz_Extensions_String
 	/// <summary>
 	/// truncate string if too long, ending with `...` if truncation occurs and maxLength is > 3
 	/// </summary>
-	public static string _SetMaxLengthPostEllipsis(this string value, int maxLength)
+	[return: NotNullIfNotNull(nameof(value))]
+	public static string? _SetMaxLengthPostEllipsis(this string? value, int maxLength)
 	{
 		var useEllipsis = maxLength > 3;
 		if (value == null || value.Length <= maxLength)
@@ -710,7 +713,8 @@ public static class zz_Extensions_String
 	/// <summary>
 	/// truncate string if too long, preceeding by `...` if truncation occurs and maxLength is > 3
 	/// </summary>
-	public static string _SetMaxLengthPreEllipsis(this string value, int maxLength)
+	[return: NotNullIfNotNull(nameof(value))]
+	public static string? _SetMaxLengthPreEllipsis(this string? value, int maxLength)
 	{
 		var useEllipsis = maxLength > 3;
 		if (value == null || value.Length <= maxLength)
@@ -1031,7 +1035,8 @@ public static class zz_Extensions_String
 	{
 		var xPos = value.IndexOf(right, StringComparison.Ordinal);
 		__.ThrowIfNot(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
-		return xPos == -1 ? fullIfRightMissing.Value ? value : string.Empty : value.Substring(0, xPos);
+		// Guarded: ThrowIfNot above ensures HasValue when xPos == -1.
+		return xPos == -1 ? fullIfRightMissing!.Value ? value : string.Empty : value.Substring(0, xPos);
 	}
 
 	/// <summary>
@@ -1044,7 +1049,8 @@ public static class zz_Extensions_String
 	{
 		var xPos = value.IndexOf(right);
 		__.ThrowIfNot(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
-		return xPos == -1 ? fullIfRightMissing.Value ? value : string.Empty : value.Substring(0, xPos);
+		// Guarded: ThrowIfNot above ensures HasValue when xPos == -1.
+		return xPos == -1 ? fullIfRightMissing!.Value ? value : string.Empty : value.Substring(0, xPos);
 	}
 
 	/// <summary>
@@ -1058,7 +1064,8 @@ public static class zz_Extensions_String
 	{
 		var xPos = value.LastIndexOf(right, StringComparison.Ordinal);
 		__.ThrowIfNot(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
-		return xPos == -1 ? fullIfRightMissing.Value ? value : string.Empty : value.Substring(0, xPos);
+		// Guarded: ThrowIfNot above ensures HasValue when xPos == -1.
+		return xPos == -1 ? fullIfRightMissing!.Value ? value : string.Empty : value.Substring(0, xPos);
 	}
 
 	/// <summary>
@@ -1072,7 +1079,8 @@ public static class zz_Extensions_String
 	{
 		var xPos = value.LastIndexOf(right);
 		__.ThrowIfNot(xPos != -1 || fullIfRightMissing.HasValue, "search string not found");
-		return xPos == -1 ? fullIfRightMissing.Value ? value : string.Empty : value.Substring(0, xPos);
+		// Guarded: ThrowIfNot above ensures HasValue when xPos == -1.
+		return xPos == -1 ? fullIfRightMissing!.Value ? value : string.Empty : value.Substring(0, xPos);
 	}
 
 	/// <summary>
@@ -1208,7 +1216,8 @@ public static class zz_Extensions_String
 			Array.ForEach(charactersToRemove, c => result = result._Remove(c.ToString()));
 		}
 
-		return result;
+		// result is seeded from non-null value and _Remove returns non-null; captured-lambda flow can't prove it.
+		return result!;
 	}
 
 	/// <summary>
@@ -1220,7 +1229,8 @@ public static class zz_Extensions_String
 	public static string _Remove(this string value, params string[] strings)
 	{
 		__.GetLogger()._EzError(value is not null);
-		return strings.Aggregate(value, (current, c) => current.Replace(c, string.Empty));
+		// Seed is non-null value; Replace returns non-null, so the accumulator stays non-null.
+		return strings.Aggregate(value, (current, c) => current!.Replace(c, string.Empty));
 		//var result = value;
 		//if (!string.IsNullOrEmpty(result) && removeStrings != null)
 		//  Array.ForEach(removeStrings, s => result = result.Replace(s, string.Empty));
@@ -1230,7 +1240,7 @@ public static class zz_Extensions_String
 
 	/// <summary>Finds out if the specified string contains null, empty or consists only of white-space characters</summary>
 	/// <param name="value">The input string</param>
-	public static bool _IsNullOrWhiteSpace(this string value)
+	public static bool _IsNullOrWhiteSpace(this string? value)
 	{
 		if (!string.IsNullOrEmpty(value))
 		{
@@ -1252,7 +1262,8 @@ public static class zz_Extensions_String
 	/// </summary>
 	/// <param name="camelCaseSentence"></param>
 	/// <returns></returns>
-	public static string _ToAcronym(this string camelCaseSentence)
+	[return: NotNullIfNotNull(nameof(camelCaseSentence))]
+	public static string? _ToAcronym(this string? camelCaseSentence)
 	{
 		__.GetLogger()._EzError(camelCaseSentence is not null);
 		if (camelCaseSentence == null)
@@ -1769,7 +1780,7 @@ public static class zz_Extensions_String
 			{
 				if (!isWhitespace && includeWhitespace)
 				{
-					sb.Append(whiteSpace.Value);
+					sb.Append(whiteSpace!.Value);
 				}
 
 				isWhitespace = true;
@@ -1780,7 +1791,7 @@ public static class zz_Extensions_String
 
 		if (includeWhitespace)
 		{
-			return toReturn.Trim(whiteSpace.Value);
+			return toReturn.Trim(whiteSpace!.Value);
 		}
 
 		return toReturn;

@@ -71,7 +71,7 @@ public static class EmailNormalizer
 	/// <param name="email"></param>
 	/// <param name="settings"></param>
 	/// <returns></returns>
-	public static MailAddress Normalize(MailAddress email, NormalizerSettings settings = null)
+	public static MailAddress Normalize(MailAddress email, NormalizerSettings? settings = null)
 	{
 		settings = settings ?? DefaultSettings;
 

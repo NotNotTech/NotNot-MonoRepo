@@ -283,7 +283,7 @@ public struct BitFlags32
 	/// </summary>
 	/// <param name="obj">The object to compare with.</param>
 	/// <returns>True if the object is a BitFlags instance with the same flags, false otherwise.</returns>
-	public override bool Equals(object obj) => obj is BitFlags32 other && Equals(other);
+	public override bool Equals(object? obj) => obj is BitFlags32 other && Equals(other);
 
 	/// <summary>
 	/// Returns the hash code for this instance.
@@ -627,7 +627,7 @@ public struct BitFlags32<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// </summary>
 	/// <param name="obj">The object to compare with.</param>
 	/// <returns>True if the object is a BitFlags instance with the same flags, false otherwise.</returns>
-	public override bool Equals(object obj) => obj is BitFlags32<TFlagsEnum> other && Equals(other);
+	public override bool Equals(object? obj) => obj is BitFlags32<TFlagsEnum> other && Equals(other);
 
 	/// <summary>
 	/// Returns the hash code for this instance.

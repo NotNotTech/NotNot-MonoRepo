@@ -89,6 +89,10 @@ public static class AssemblyReflectionHelper
 		{
 			var current = targetAssemblies[i];
 			var name = current.FullName;
+			if (name is null)
+			{
+				continue;
+			}
 			var removeResults = removeMatcher.Match(name);
 			if (removeResults.HasMatches)
 			{

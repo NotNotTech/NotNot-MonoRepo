@@ -47,7 +47,7 @@ public static class zz_Extensions_Dictionary
 	/// <typeparam name="TValue"></typeparam>
 	/// <param name="source"></param>
 	/// <returns></returns>
-	public static Dictionary<TKey, TValue> _Clone<TKey, TValue>(this Dictionary<TKey, TValue> source)
+	public static Dictionary<TKey, TValue> _Clone<TKey, TValue>(this Dictionary<TKey, TValue> source) where TKey : notnull
 	{
 		//try to clone all values
 		var toReturn = new Dictionary<TKey, TValue>(source.Count());
@@ -65,7 +65,7 @@ public static class zz_Extensions_Dictionary
 		return toReturn;
 	}
 
-	public static RentedMem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source)
+	public static RentedMem<(TKey key, TValue value)> _CopyToMem<TKey, TValue>(this Dictionary<TKey, TValue> source) where TKey : notnull
 	{
 		var toReturn = RentedMem<(TKey key, TValue value)>.Allocate(source.Count);
 		var span = toReturn.GetSpan();
@@ -91,7 +91,8 @@ public static class zz_Extensions_Dictionary
 	{
 		if (dict.TryGetValue(key, out var baseValue))
 		{
-			value = (TDerived)baseValue;
+			// Guarded: TryGetValue returned true, so baseValue is populated (non-null).
+			value = (TDerived)baseValue!;
 			return true;
 		}
 
@@ -108,7 +109,8 @@ public static class zz_Extensions_Dictionary
 	{
 		if (dict.Remove(key, out var baseValue))
 		{
-			value = (TDerived)baseValue;
+			// Guarded: Remove returned true, so baseValue is populated (non-null).
+			value = (TDerived)baseValue!;
 			return true;
 		}
 
@@ -260,7 +262,7 @@ public static class zz_Extensions_Dictionary
 		return ((TDerived)value!);
 	}
 
-	public static bool _TryRemove<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key, out TValue value)
+	public static bool _TryRemove<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key, [MaybeNullWhen(false)] out TValue value)
 		where TKey : notnull
 	{
 		var toReturn = dict.TryGetValue(key, out value);

@@ -28,7 +28,7 @@ public class ReflectHelper
 		Type objectType = obj.GetType();
 
 		// Get the method info for the specified method name
-		MethodInfo methodInfo = objectType.GetMethod(methodName);
+		MethodInfo? methodInfo = objectType.GetMethod(methodName);
 
 		// If methodInfo is null, the method does not exist
 		if (methodInfo == null)

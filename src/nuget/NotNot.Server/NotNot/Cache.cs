@@ -63,7 +63,8 @@ public class Cache<TValue> : IDiSingletonService //, IAutoInitialize //Scrutor b
 		var maybeValue = _fusionCache.TryGet<TValue>(key);
 		if (maybeValue.HasValue)
 		{
-			value = maybeValue.Value;
+			// Guarded: HasValue is true, so a value was cached.
+			value = maybeValue.Value!;
 			return true;
 		}
 		else

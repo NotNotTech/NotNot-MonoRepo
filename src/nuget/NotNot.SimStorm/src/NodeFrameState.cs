@@ -14,7 +14,8 @@ public class NodeFrameState
 	/// </summary>
 	public List<NodeFrameState> _activeChildren = new();
 
-	public NodeFrameState _parent;
+	// Late-init: set when this frame-state is attached into the frame hierarchy.
+	public NodeFrameState _parent = null!;
 
 	/// <summary>
 	///    nodes that this node must run after
@@ -23,7 +24,7 @@ public class NodeFrameState
 
 	internal TimeSpan _updateHierarchyTime;
 
-	internal Stopwatch _updateStopwatch;
+	internal Stopwatch _updateStopwatch = null!;
 	//{
 	//	get => _updateTcs.Task;
 	//}
@@ -34,7 +35,7 @@ public class NodeFrameState
 	public TimeSpan _updateTime = TimeSpan.Zero;
 
 	/// <summary> the target node </summary>
-	public SimNode _node { get; init; }
+	public required SimNode _node { get; init; }
 
 	//public TaskCompletionSource _updateTcs { get; init; } = new();
 	public FrameStatus _status { get; set; } = FrameStatus.SCHEDULED;
@@ -42,7 +43,7 @@ public class NodeFrameState
 	/// <summary>
 	///    the current state of the node's update.
 	/// </summary>
-	public Task UpdateTask { get; set; }
+	public Task UpdateTask { get; set; } = null!;
 
 	public override string ToString()
 	{

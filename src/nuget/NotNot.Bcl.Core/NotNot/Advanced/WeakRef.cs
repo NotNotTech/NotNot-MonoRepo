@@ -4,6 +4,7 @@
 // [!!] See the LICENSE.md file in the project root for more info. 
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace NotNot.Advanced;
@@ -20,6 +21,7 @@ namespace NotNot.Advanced;
 public struct WeakRef<T> where T : class
 {
 	/// <summary>
+	///    the GCHandle backing this weak reference to the tracked object.
 	/// </summary>
 	/// <remarks>
 	///    how weak ref works: http://reedcopsey.com/2009/07/08/systemweakreference-internals-and-side-effects/
@@ -46,7 +48,7 @@ public struct WeakRef<T> where T : class
 
 	public bool IsAlive => _handle.IsAllocated;
 
-	public bool TryGetTarget(out T obj)
+	public bool TryGetTarget([MaybeNullWhen(false)] out T obj)
 	{
 		obj = _handle.Target as T;
 		return obj is not null;

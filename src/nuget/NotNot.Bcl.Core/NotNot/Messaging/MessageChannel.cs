@@ -87,7 +87,7 @@ public class MessageChannel<TMessage> where TMessage : struct
 	///    removes any inactive references, and optionally removes a subscriber on-demand.
 	/// </summary>
 	/// <param name="subToRemove"></param>
-	private void CleanSubs(ConcurrentQueue<TMessage> subToRemove = null)
+	private void CleanSubs(ConcurrentQueue<TMessage>? subToRemove = null)
 	{
 		if (Monitor.TryEnter(
 				 _cleanLock)) //only 1 clean needs to ever execute at a time.  if others request it, they can skip.

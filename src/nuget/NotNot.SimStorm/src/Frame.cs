@@ -430,7 +430,8 @@ public partial class Frame ////node graph setup and execution
 /// </summary>
 public partial class Frame : DisposeGuard //general setup
 {
-	public SimManager _manager;
+	// Late-init via FromPool factory before the frame executes.
+	public SimManager _manager = null!;
 
 	public List<FixedTimestepNode> _slowRunningNodes = new();
 	public TimeStats _stats;
@@ -456,19 +457,20 @@ public partial class Frame : DisposeGuard //general setup
 
 	protected override void OnDispose(bool managedDisposing)
 	{
-		_manager = null;
+		// Teardown: release references after dispose.
+		_manager = null!;
 		_stats = default;
 		_allNodesInFrame.Clear();
-		_allNodesInFrame = null;
+		_allNodesInFrame = null!;
 		_allNodesToProcess.Clear();
-		_allNodesToProcess = null;
+		_allNodesToProcess = null!;
 		_frameStates.Clear();
-		_frameStates = null;
-		_priorFrame = null;
+		_frameStates = null!;
+		_priorFrame = null!;
 		_readRequestsRemaining.Clear();
-		_readRequestsRemaining = null;
+		_readRequestsRemaining = null!;
 		_writeRequestsRemaining.Clear();
-		_writeRequestsRemaining = null;
+		_writeRequestsRemaining = null!;
 
 
 		base.OnDispose(managedDisposing);
@@ -477,7 +479,8 @@ public partial class Frame : DisposeGuard //general setup
 
 public partial class Frame //resource locking
 {
-	private Frame _priorFrame;
+	// Late-init: set during frame chaining.
+	private Frame _priorFrame = null!;
 
 	/// <summary>
 	///    track what reads are remaining for this frame.   used so next frame writes will not start until these are empty.

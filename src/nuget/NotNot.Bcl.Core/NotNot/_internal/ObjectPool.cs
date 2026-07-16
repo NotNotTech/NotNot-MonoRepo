@@ -75,7 +75,8 @@ public class ObjectPool : IDisposeGuard
 #if CHECKED
 				_disposeGuard.Dispose();
 #endif
-				Value = null;
+				// Teardown: value returned to pool; wrapper is disposed and not reused.
+				Value = null!;
 			}
 		}
 	}
@@ -151,7 +152,7 @@ public class ObjectPool : IDisposeGuard
 		_arrayStore = null!;
 
 		_clearDelegateCache.Clear();
-		_clearDelegateCache = null;
+		_clearDelegateCache = null!;
 	}
 	public bool IsDisposed { get; private set; } = false;
 

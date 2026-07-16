@@ -99,7 +99,7 @@ public static class zz_Extensions_IList
 	public static T _GetOrCreate<T>(this IList<T> list, Func<T, bool> findPredicate,
 		Func<T> createFunc)
 	{
-		T value;
+		T? value;
 		if (list._TryGet(findPredicate, out value))
 		{
 			return value;

@@ -119,13 +119,13 @@ public static class zz_Extensions_ByteArray
 	///    Note that ASCII does not include a preamble, so will always fail.  use .<see cref="ToUnicodeString" />
 	///    (Encoding.ASCII) explicitly if you have ascii text
 	/// </remarks>   
-	public static bool _TryConvertToStringWithPreamble(this byte[] input, out string output, int start = 0,
+	public static bool _TryConvertToStringWithPreamble(this byte[] input, [MaybeNullWhen(false)] out string output, int start = 0,
 		int? count = null)
 	{
 		count = count ?? input.Length - start;
 
-		Encoding encoding = null;
-		byte[] preamble = null;
+		Encoding? encoding = null;
+		byte[]? preamble = null;
 		foreach (var possibleEncoding in possibleEncodings)
 		{
 			//var potentialEncoding = encodingInfo.GetEncoding();
@@ -148,7 +148,8 @@ public static class zz_Extensions_ByteArray
 			return false;
 		}
 
-		output = encoding.GetString(input, start + preamble.Length, count.Value - preamble.Length);
+		// preamble is set on every loop iteration; reaching here (encoding != null) guarantees it ran.
+		output = encoding.GetString(input, start + preamble!.Length, count.Value - preamble.Length);
 
 		return true;
 	}

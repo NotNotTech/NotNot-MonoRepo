@@ -40,9 +40,10 @@ using NotNot.Diagnostics;
 
 public static class zz_Extensions_IServiceProvider
 {
-	public static T _GetService<T>(this IServiceProvider serviceProvider)
+	public static T? _GetService<T>(this IServiceProvider serviceProvider)
 	{
-		return (T)serviceProvider.GetService(typeof(T));
+		// GetService returns null when the service is not registered.
+		return (T?)serviceProvider.GetService(typeof(T));
 	}
 }
 

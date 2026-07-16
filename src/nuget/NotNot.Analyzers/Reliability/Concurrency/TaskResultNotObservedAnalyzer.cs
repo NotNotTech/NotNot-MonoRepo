@@ -98,8 +98,8 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
         var genericValueTaskType = context.Compilation.GetTypeByMetadataName(typeof(ValueTask<>).FullName);
 
         // Check if the type is constructed from Task<T> or ValueTask<T>
-        return (genericTaskType != null && type.ConstructedFrom.Equals(genericTaskType)) ||
-                  (genericValueTaskType != null && type.ConstructedFrom.Equals(genericValueTaskType));
+        return (genericTaskType != null && SymbolEqualityComparer.Default.Equals(type.ConstructedFrom, genericTaskType)) ||
+                  (genericValueTaskType != null && SymbolEqualityComparer.Default.Equals(type.ConstructedFrom, genericValueTaskType));
     }
 
     /// <summary>

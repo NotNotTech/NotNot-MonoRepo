@@ -68,7 +68,7 @@ public static class zz_Extensions_MemberInfo
 		throw _Expected(propertyOrField);
 	}
 	private static ArgumentOutOfRangeException _Expected(MemberInfo propertyOrField) => new(nameof(propertyOrField), "Expected a property or field, not " + propertyOrField);
-	public static object _GetMemberValue(this MemberInfo propertyOrField, object target) => propertyOrField switch
+	public static object? _GetMemberValue(this MemberInfo propertyOrField, object target) => propertyOrField switch
 	{
 		PropertyInfo property => property.GetValue(target, null),
 		FieldInfo field => field.GetValue(target),

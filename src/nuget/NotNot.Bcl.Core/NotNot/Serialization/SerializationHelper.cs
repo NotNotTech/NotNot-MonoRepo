@@ -61,7 +61,7 @@ public class SerializationHelper
 #pragma warning disable NN_R005 // Disposal cleanup must continue despite individual converter failures
 					catch (Exception ex)
 					{
-						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex.Message}");
+						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex}");
 					}
 #pragma warning restore NN_R005
 				}
@@ -70,7 +70,8 @@ public class SerializationHelper
 			{
 				_logJsonOptions.Converters.Clear();
 			}
-			_logJsonOptions = null;
+			// Teardown: release after dispose; _isDisposed guards against post-dispose reuse.
+			_logJsonOptions = null!;
 		}
 
 		//if (SerializationHelper._roundtripJsonOptions is not null)
@@ -86,7 +87,7 @@ public class SerializationHelper
 #pragma warning disable NN_R005 // Disposal cleanup must continue despite individual converter failures
 					catch (Exception ex)
 					{
-						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex.Message}");
+						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex}");
 					}
 #pragma warning restore NN_R005
 				}
@@ -95,7 +96,8 @@ public class SerializationHelper
 			{
 				_roundtripJsonOptions.Converters.Clear();
 			}
-			_roundtripJsonOptions = null;
+			// Teardown: release after dispose; _isDisposed guards against post-dispose reuse.
+			_roundtripJsonOptions = null!;
 		}
 	}
 
@@ -164,7 +166,7 @@ public class SerializationHelper
 			new ObjConverter<StackTrace>(value => value.GetFrames()),
 			new ObjConverter<IntPtr>(value => value.ToInt64().ToString("x8")),
 			new ObjConverter<StackFrame>(value =>
-				$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
+				$"at {value.GetMethod()?.Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
 			//new ObjConverter<StackFrame>((value) => $"{value.ToString()}\n"),
 			new ObjConverter<Delegate>(value => $"[delegate: {value.Method?.DeclaringType?.Name}.{value.Method?.Name}]"),
 			new JsonStringEnumConverter(),
@@ -197,7 +199,7 @@ public class SerializationHelper
 			new ObjConverter<Type>(value => value.FullName),
 			new ObjConverter<StackTrace>(value => value.GetFrames()),
 			new ObjConverter<StackFrame>(value =>
-				$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
+				$"at {value.GetMethod()?.Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
 
 		},
 
@@ -226,7 +228,7 @@ public class SerializationHelper
 	/// </summary>
 	/// <param name="obj"></param>
 	/// <returns></returns>
-	public object ToLogPoCo(object obj)
+	public object? ToLogPoCo(object obj)
 	{
 		try
 		{
@@ -389,7 +391,7 @@ public class SerializationHelper
 	///    via
 	///    https://stackoverflow.com/questions/5546142/how-do-i-use-json-net-to-deserialize-into-nested-recursive-dictionary-and-list
 	/// </summary>
-	public object JsonToPoCo(string json)
+	public object? JsonToPoCo(string json)
 	{
 		using var document = JsonDocument.Parse(json, new JsonDocumentOptions
 		{
@@ -402,6 +404,7 @@ public class SerializationHelper
 	}
 
 	/// <summary>
+	///    recursively convert a <see cref="JsonElement" /> into a plain CLR object (POCO) graph.
 	/// </summary>
 	/// <param name="element"></param>
 	/// <param name="discardMetaNodes">
@@ -409,7 +412,7 @@ public class SerializationHelper
 	///    option is used. not useful otherwise.
 	/// </param>
 	/// <returns></returns>
-	private object JsonElementToPoCo(JsonElement element, bool discardMetaNodes = false)
+	private object? JsonElementToPoCo(JsonElement element, bool discardMetaNodes = false)
 	{
 		switch (element.ValueKind)
 		{
@@ -419,7 +422,7 @@ public class SerializationHelper
 					{
 						// When discardMetaNodes is false, convert all properties to dictionary
 						// without special handling - this matches the original behavior
-						var dict = new Dictionary<string, object>();
+						var dict = new Dictionary<string, object?>();
 
 						foreach (var prop in element.EnumerateObject())
 						{
@@ -432,7 +435,7 @@ public class SerializationHelper
 					{
 						// When discardMetaNodes is true, we have special handling for $values
 						// and filter out $ prefixed properties
-						var dict = new Dictionary<string, object>();
+						var dict = new Dictionary<string, object?>();
 
 						foreach (var prop in element.EnumerateObject())
 						{
@@ -458,7 +461,7 @@ public class SerializationHelper
 
 			case JsonValueKind.Array:
 				{
-					var list = new List<object>();
+					var list = new List<object?>();
 					foreach (var item in element.EnumerateArray())
 					{
 						list.Add(JsonElementToPoCo(item, discardMetaNodes));
@@ -591,7 +594,8 @@ internal class NumberHandlingConverter : JsonConverter<double>
 	{
 		if (reader.TokenType == JsonTokenType.String)
 		{
-			string value = reader.GetString();
+			// Guarded: TokenType == String guarantees GetString() is non-null.
+			string value = reader.GetString()!;
 			return value.ToLower() switch
 			{
 				"infinity" => double.PositiveInfinity,
@@ -641,7 +645,8 @@ internal class CaseInsensitiveEnumConverter : JsonConverterFactory
 	public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
 	{
 		var converterType = typeof(CaseInsensitiveEnumConverter<>).MakeGenericType(typeToConvert);
-		return (JsonConverter)Activator.CreateInstance(converterType);
+		// Activator.CreateInstance on a concrete closed-generic type never returns null.
+		return (JsonConverter)Activator.CreateInstance(converterType)!;
 	}
 }
 
@@ -654,7 +659,8 @@ internal class CaseInsensitiveEnumConverter<T> : JsonConverter<T> where T : stru
 			throw new JsonException();
 		}
 
-		string enumValue = reader.GetString();
+		// Guarded: TokenType checked == String above, so GetString() is non-null.
+		string enumValue = reader.GetString()!;
 		if (Enum.TryParse(enumValue, ignoreCase: true, out T result))
 		{
 			return result;

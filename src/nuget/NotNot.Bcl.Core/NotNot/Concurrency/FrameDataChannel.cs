@@ -5,6 +5,7 @@
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 namespace NotNot.Concurrency;
 
@@ -27,6 +28,7 @@ public class FrameDataChannel<T> : DisposeGuard
 	private object _writeLock = new();
 
 	/// <summary>
+	///    create a new FrameDataChannel, retaining up to <paramref name="maxFrames" /> frames of buffered data.
 	/// </summary>
 	/// <param name="maxFrames">
 	///    how many simulation frames worth of data to keep, if the reader systems don't process them in a timely fashion.
@@ -126,7 +128,7 @@ public class FrameDataChannel<T> : DisposeGuard
 		return dequeuedPacket.getQueue();
 	}
 
-	public bool TryReadFrame(out ConcurrentQueue<T> framePacket)
+	public bool TryReadFrame([MaybeNullWhen(false)] out ConcurrentQueue<T> framePacket)
 	{
 		if (_recycleChannel.TryRead(out var queueWrapper))
 		{
@@ -176,7 +178,8 @@ public class FrameDataChannel<T> : DisposeGuard
 		public void VerifyPacket()
 		{
 			__.GetLogger()._EzError(framePacket != null, "disposed or not initalized");
-			__.GetLogger()._EzError(framePacket.Count == queueCount,
+			// framePacket asserted non-null on the line above; _EzError is a debug assert the compiler can't read as a flow guard.
+			__.GetLogger()._EzError(framePacket!.Count == queueCount,
 				"race condition, queue count at dequeue time does not match count when created.  is this framePacket being used improperly?  use-after-enqueue or use-after-recycle");
 		}
 

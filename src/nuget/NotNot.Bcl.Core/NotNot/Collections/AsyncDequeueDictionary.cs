@@ -72,9 +72,9 @@ where TKey : notnull
 	{
 		_AssertNotDisposed();
 
-		while (keyQueue.TryDequeue(out TKey key))
+		while (keyQueue.TryDequeue(out TKey? key))
 		{
-			if (dictionary.TryRemove(key, out TValue value))
+			if (dictionary.TryRemove(key, out TValue? value))
 			{
 				pair = new KeyValuePair<TKey, TValue>(key, value);
 #if DEBUG
@@ -123,7 +123,7 @@ where TKey : notnull
 
 	}
 
-	public bool TryGet(TKey key, out TValue value)
+	public bool TryGet(TKey key, [MaybeNullWhen(false)] out TValue value)
 	{
 		_AssertNotDisposed();
 

@@ -54,7 +54,12 @@ public static class zz_Extensions_Assembly
 	/// </summary>
 	public static string _GetGitHash(this Assembly assembly)
 	{
-		var info = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+		// GetCustomAttribute returns null when the attribute is absent (no GitVersion): return "?" per contract.
+		var info = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+		if (string.IsNullOrWhiteSpace(info))
+		{
+			return "?";
+		}
 
 		var hash = @".*\.Sha\.([a-z\d]*).*"._ToRegex()._FirstMatch(info);
 		if (string.IsNullOrWhiteSpace(hash))

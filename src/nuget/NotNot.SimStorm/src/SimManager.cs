@@ -128,22 +128,24 @@ public partial class SimManager : DisposeGuard //tree management
 		//dispose entire hirearchy
 		root.Dispose();
 		_nodeRegistry.Clear();
-		_nodeRegistry = null;
-		root = null;
+		// Teardown: release references after dispose.
+		_nodeRegistry = null!;
+		root = null!;
 		_resourceLocks.Clear();
-		_resourceLocks = null;
+		_resourceLocks = null!;
 		_frame?.Dispose();
-		_frame = null;
+		_frame = null!;
 		_priorFrameTask?.Dispose();
-		_priorFrameTask = null;
+		_priorFrameTask = null!;
 		base.OnDispose(managedDisposing);
 	}
 }
 
 public partial class SimManager //thread execution
 {
-	private Frame _frame;
-	private Task _priorFrameTask;
+	// Late-init during the frame execution lifecycle.
+	private Frame _frame = null!;
+	private Task _priorFrameTask = null!;
 
 	/// <summary>
 	///    stores current locks of all resources used by SimNodes.   This central location is needed for coordination of frame

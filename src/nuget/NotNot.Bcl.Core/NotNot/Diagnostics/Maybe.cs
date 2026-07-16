@@ -172,7 +172,8 @@ public record class Maybe<TValue> : IMaybe
 			__.AssertNotNull(Problem, "Problem is null, but IsSuccess is false.  This is a bug.");
 			throw Problem.ToException();
 		}
-		return _Value;
+		// _Value is non-null when IsSuccess is true (guarded above).
+		return _Value!;
 	}
 
 	/// <summary>
@@ -354,7 +355,8 @@ public record class Maybe<TValue> : IMaybe
 		Maybe<TNew> toReturn;
 		if (IsSuccess)
 		{
-			toReturn = Maybe<TNew>.Success(func(_Value), memberName, sourceFilePath, sourceLineNumber);
+			// _Value is non-null when IsSuccess is true (guarded above).
+			toReturn = Maybe<TNew>.Success(func(_Value!), memberName, sourceFilePath, sourceLineNumber);
 		}
 		else
 		{

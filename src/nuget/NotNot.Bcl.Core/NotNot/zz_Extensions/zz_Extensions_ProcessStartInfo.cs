@@ -68,6 +68,10 @@ public static class zz_Extensions_ProcessStartInfo
 
 		using (var process = Process.Start(startInfo))
 		{
+			if (process is null)
+			{
+				throw new InvalidOperationException($"Process.Start returned null for '{startInfo.FileName}'.");
+			}
 			string output = await process.StandardOutput.ReadToEndAsync();
 			string[] lines = output.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
 

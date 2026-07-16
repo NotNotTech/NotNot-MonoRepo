@@ -284,7 +284,7 @@ public struct BitFlags256
 	/// </summary>
 	/// <param name="obj">The object to compare with.</param>
 	/// <returns>True if the object is a BitFlags256 instance with the same flags, false otherwise.</returns>
-	public override bool Equals(object obj) => obj is BitFlags256 other && Equals(other);
+	public override bool Equals(object? obj) => obj is BitFlags256 other && Equals(other);
 
 	/// <summary>
 	/// Returns the hash code for this instance.

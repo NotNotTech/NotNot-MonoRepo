@@ -149,7 +149,7 @@ public partial class LoLoRoot
    public void AssertIfNot(bool? _expectedCondition, string? message = "", object? objToLog0 = null, object? objToLog1 = null,
       object? objToLog2 = null, [CallerMemberName] string sourceMemberName = "",
            [CallerFilePath] string sourceFilePath = "",
-                [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_expectedCondition")] string expectedConditionName = "",
+                [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_expectedCondition")] string? expectedConditionName = "",
       [CallerArgumentExpression("objToLog0")]
       string? objToLog0Name = "null",
       [CallerArgumentExpression("objToLog1")]
@@ -847,7 +847,8 @@ public partial class LoLoRoot
 
 
       SerializationHelper.Dispose();
-      SerializationHelper = null;
+      // Teardown: release the reference after dispose; _isDisposed guards against post-dispose reuse.
+      SerializationHelper = null!;
 
       // Only dispose if we OWN it (our fallback), NOT if borrowed from DI
       lock (_factoryLock)
@@ -861,7 +862,8 @@ public partial class LoLoRoot
       }
 
       pool.Dispose();
-      pool = null;
+      // Teardown: release the reference after dispose; _isDisposed guards against post-dispose reuse.
+      pool = null!;
       NotNot._internal.StaticPool._storage.Dispose();
 
 		_isDisposed = true;
@@ -877,13 +879,15 @@ public partial class LoLoRoot
 /// </summary>
 public class FallbackConsoleFormatter : ConsoleFormatter
 {
+   private readonly object _writeLock = new();
+
    public FallbackConsoleFormatter() : base("fallback")
    {
    }
 
-   public override void Write<TState>(in LogEntry<TState> logEntry, IExternalScopeProvider scopeProvider, TextWriter textWriter)
+   public override void Write<TState>(in LogEntry<TState> logEntry, IExternalScopeProvider? scopeProvider, TextWriter textWriter)
    {
-      lock (this)
+      lock (_writeLock)
       {
          var originalColor = Console.ForegroundColor;
          try

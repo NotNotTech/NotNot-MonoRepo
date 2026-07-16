@@ -133,7 +133,7 @@ public static class zz_Extensions_Exception
 		return false;
 	}
 
-	public static string _ToUserFriendlyString(this Exception e)
+	public static string _ToUserFriendlyString(this Exception? e)
 	{
 		if (e == null) return string.Empty;
 
@@ -150,7 +150,7 @@ public static class zz_Extensions_Exception
 		var st = new StackTrace(e, true); // 'true' captures file info
 
 		// Get the first stack frame with file info
-		StackFrame frame = st.GetFrames()?.FirstOrDefault(f => f.GetFileLineNumber() > 0) ?? st.GetFrame(0);
+		StackFrame? frame = st.GetFrames()?.FirstOrDefault(f => f.GetFileLineNumber() > 0) ?? st.GetFrame(0);
 
 		string sourceMember = frame?.GetMethod()?.Name ?? "Unknown";
 		string sourceFilePath = frame?.GetFileName() ?? "Unknown";

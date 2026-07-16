@@ -101,7 +101,11 @@ public static class zz_Extensions_Type
 		var bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
 		var fieldInfo = type.GetField(fieldName, bindingFlags);
-		return (T)fieldInfo.GetValue(instance);
+		if (fieldInfo == null)
+		{
+			throw new ArgumentException($"No field named '{fieldName}' found on type '{type.FullName}'.", nameof(fieldName));
+		}
+		return (T)fieldInfo.GetValue(instance)!;
 	}
 
 	/// <summary>
@@ -128,14 +132,14 @@ public static class zz_Extensions_Type
 		var propertyInfo = type.GetProperty(memberName, bindingFlags);
 		if (propertyInfo != null)
 		{
-			return (T)propertyInfo.GetValue(instance);
+			return (T)propertyInfo.GetValue(instance)!;
 		}
 
 		// If not a property, try to find a field with the given name
 		var fieldInfo = type.GetField(memberName, bindingFlags);
 		if (fieldInfo != null)
 		{
-			return (T)fieldInfo.GetValue(instance);
+			return (T)fieldInfo.GetValue(instance)!;
 		}
 
 		// If we reach here, no matching property or field was found
@@ -290,11 +294,12 @@ public static class zz_Extensions_Type
 		// Handle null result for value types
 		if (result == null && typeof(TResult).IsValueType)
 		{
-			return default;
+			// Guarded: TResult is a value type here, so default(TResult) is non-null.
+			return default!;
 		}
 
 		// Cast to the expected return type
-		return (TResult)result;
+		return (TResult)result!;
 	}
 
 	//[Conditional("DEBUG")]
@@ -327,7 +332,7 @@ public static class zz_Extensions_Type
 		//#endif
 #if DEBUG
 
-		ObfuscationAttribute obf;
+		ObfuscationAttribute? obf;
 		if (memberInfo._TryGetAttribute(out obf))
 		{
 			if (obf.Exclude)
@@ -350,7 +355,7 @@ public static class zz_Extensions_Type
 			return false;
 		}
 
-		ObfuscationAttribute attribute;
+		ObfuscationAttribute? attribute;
 		return memberInfo._TryGetAttribute(out attribute, noInherit: true);
 
 		//foreach (var attribute in memberInfo.GetCustomAttributes(false))
@@ -418,7 +423,8 @@ public static class zz_Extensions_Type
 				{
 					//if (attribute is TAttribute)
 					{
-						attributeFound = attribute as TAttribute;
+						// attribute came from GetCustomAttributes(typeof(TAttribute)), so it is a TAttribute.
+						attributeFound = (TAttribute)attribute;
 						return true;
 					}
 				}
@@ -510,7 +516,8 @@ public static class zz_Extensions_Type
 	public static T _CreateInstance<T>(this Type type, params object[] constructorParameters)
 	{
 		var instance = Activator.CreateInstance(type, constructorParameters);
-		return (T)instance;
+		// Activator.CreateInstance on a concrete type returns non-null (or throws).
+		return (T)instance!;
 	}
 
 	/// <summary>
@@ -586,7 +593,8 @@ public static class zz_Extensions_Type
 	{
 		var constructedType = genericType.MakeGenericType(typeArguments);
 		var instance = Activator.CreateInstance(constructedType);
-		return instance as T;
+		// The constructed type is T closed over typeArguments; CreateInstance returns non-null.
+		return (instance as T)!;
 	}
 
 	//public static bool _IsUnmanagedStruct(this Type type)

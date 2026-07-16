@@ -100,7 +100,7 @@ public static class zz_Extensions_TaskCompletionSource
 				break;
 
 			case TaskStatus.Faulted:
-				taskCompletionSource.SetException(task.Exception.InnerExceptions);
+				taskCompletionSource.SetException(task.Exception!.InnerExceptions);
 				break;
 
 			case TaskStatus.Canceled:
@@ -131,7 +131,7 @@ public static class zz_Extensions_TaskCompletionSource
 				break;
 
 			case TaskStatus.Faulted:
-				taskCompletionSource.SetException(task.Exception.InnerExceptions);
+				taskCompletionSource.SetException(task.Exception!.InnerExceptions);
 				break;
 
 			case TaskStatus.Canceled:
@@ -263,7 +263,7 @@ public static class zz_Extensions_TaskCompletionSource
 				return taskCompletionSource.TrySetResult(task.Result);
 
 			case TaskStatus.Faulted:
-				return taskCompletionSource.TrySetException(task.Exception.InnerExceptions);
+				return taskCompletionSource.TrySetException(task.Exception!.InnerExceptions);
 
 			case TaskStatus.Canceled:
 				return taskCompletionSource.TrySetCanceled();
@@ -281,7 +281,7 @@ public static class zz_Extensions_TaskCompletionSource
 				return taskCompletionSource.TrySetResult();
 
 			case TaskStatus.Faulted:
-				return taskCompletionSource.TrySetException(task.Exception.InnerExceptions);
+				return taskCompletionSource.TrySetException(task.Exception!.InnerExceptions);
 
 			case TaskStatus.Canceled:
 				return taskCompletionSource.TrySetCanceled();
@@ -346,7 +346,7 @@ public static class zz_Extensions_TaskCompletionSource
 				return taskCompletionSource.TrySetResult(result);
 
 			case TaskStatus.Faulted:
-				return taskCompletionSource.TrySetException(task.Exception.InnerExceptions);
+				return taskCompletionSource.TrySetException(task.Exception!.InnerExceptions);
 
 			case TaskStatus.Canceled:
 				return taskCompletionSource.TrySetCanceled();
@@ -368,7 +368,7 @@ public static class zz_Extensions_TaskCompletionSource
 		switch (task.Status)
 		{
 			case TaskStatus.Faulted:
-				taskCompletionSource.SetException(task.Exception.InnerExceptions);
+				taskCompletionSource.SetException(task.Exception!.InnerExceptions);
 				break;
 
 			case TaskStatus.Canceled:
@@ -388,7 +388,7 @@ public static class zz_Extensions_TaskCompletionSource
 		switch (task.Status)
 		{
 			case TaskStatus.Faulted:
-				taskCompletionSource.SetException(task.Exception.InnerExceptions);
+				taskCompletionSource.SetException(task.Exception!.InnerExceptions);
 				break;
 
 			case TaskStatus.Canceled:

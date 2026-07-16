@@ -284,7 +284,7 @@ public static class zz_Extensions_IEnumerable
 	}
 
 
-	public static TResult _Max<TSource, TResult>(this IEnumerable<TSource> values, Func<TSource, TResult> selector, TResult defaultValue = default)
+	public static TResult _Max<TSource, TResult>(this IEnumerable<TSource> values, Func<TSource, TResult> selector, TResult defaultValue = default!)
 		where TResult : IMinMaxValue<TResult>, IComparisonOperators<TResult, TResult, bool>
 	{
 
@@ -308,7 +308,7 @@ public static class zz_Extensions_IEnumerable
 
 		return toReturn;
 	}
-	public static TResult _Min<TSource, TResult>(this IEnumerable<TSource> values, Func<TSource, TResult> selector, TResult defaultValue = default)
+	public static TResult _Min<TSource, TResult>(this IEnumerable<TSource> values, Func<TSource, TResult> selector, TResult defaultValue = default!)
 		where TResult : IMinMaxValue<TResult>, IComparisonOperators<TResult, TResult, bool>
 	{
 

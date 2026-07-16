@@ -92,7 +92,7 @@ internal class AppSettingsGen : IncrementalGenerator
 					string version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
 									?? Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyVersionAttribute>()?.Version.ToString()
 									?? Assembly.GetExecutingAssembly().GetName().ToString();
-					if (version?.IndexOf("+") > 0)
+					if (version.IndexOf("+") > 0)
 					{
 						version = version.Substring(0, version.IndexOf("+"));
 					}

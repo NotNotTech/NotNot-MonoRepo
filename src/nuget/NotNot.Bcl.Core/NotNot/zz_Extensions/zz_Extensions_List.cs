@@ -81,11 +81,12 @@ public static class zz_Extensions_List
 
 	public static T _PickRandom<T>(this IList<T> target, Random? randomInstance = null)
 	{
-		randomInstance ??= _rand.Value;
+		// _rand's factory always creates a non-null Random per thread.
+		randomInstance ??= _rand.Value!;
 		return target[randomInstance.Next(target.Count)];
 	}
 
-	public static bool _TryRemoveRandom<T>(this IList<T> target, out T value)
+	public static bool _TryRemoveRandom<T>(this IList<T> target, [MaybeNullWhen(false)] out T value)
 	{
 		if (target.Count == 0)
 		{
@@ -96,7 +97,8 @@ public static class zz_Extensions_List
 		var index = -1;
 		//lock (_rand)
 		{
-			index = _rand.Value.Next(0, target.Count);
+			// _rand's factory always creates a non-null Random per thread.
+			index = _rand.Value!.Next(0, target.Count);
 		}
 
 		value = target[index];
@@ -144,7 +146,7 @@ public static class zz_Extensions_List
 		}
 	}
 
-	public static bool _TryTakeLast<T>(this IList<T> target, out T value)
+	public static bool _TryTakeLast<T>(this IList<T> target, [MaybeNullWhen(false)] out T value)
 	{
 		if (target.Count == 0)
 		{
@@ -199,8 +201,9 @@ public static class zz_Extensions_List
 	/// <param name="target"></param>
 	public static void _ExpandAndSet<T>(this IList<T> target, int index, T value)
 	{
+		// Intentional: pad the list with default(T) up to the target index.
 		while (target.Count <= index)
-			target.Add(default);
+			target.Add(default!);
 
 		target[index] = value;
 	}
@@ -217,7 +220,7 @@ public static class zz_Extensions_List
 	/// <param name="target"></param>
 	/// <param name="other"></param>
 	/// <returns></returns>
-	public static bool _ContainsIdential<T>(this List<T> target, List<T> other)
+	public static bool _ContainsIdential<T>(this List<T> target, List<T>? other)
 	{
 		__.GetLogger()._EzError(other is not null && target is not null);
 		if (other == null || target.Count != other.Count)

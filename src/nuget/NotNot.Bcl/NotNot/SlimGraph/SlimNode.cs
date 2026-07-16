@@ -26,11 +26,11 @@ public abstract partial class SlimNode : DisposeGuard
 	protected bool IsRoot { get; init; }
 	public bool IsInitialized { get; private set; }
 
-	public virtual SlimNode Parent { get; private set; }
+	public virtual SlimNode? Parent { get; private set; }
 
 	protected internal IServiceProvider MsDIServices => RootNode.MsDIContainer.Services;
 
-	private RootNode _rootNode;
+	private RootNode? _rootNode;
 	/// <summary>
 	/// quick access to the rootNode, eg for root specific features like time, or global services
 	/// <para>will be null until attached to node graph</para>
@@ -45,7 +45,8 @@ public abstract partial class SlimNode : DisposeGuard
 				_rootNode = Parent?.RootNode!;
 				_rootNode._NotNull("should be setable unless adding when not attached to node graph.  disable this assert if that's the case");
 			}
-			return _rootNode;
+			// _NotNull above asserts _rootNode is populated by the time we return.
+			return _rootNode!;
 		}
 		protected set
 		{
@@ -53,7 +54,7 @@ public abstract partial class SlimNode : DisposeGuard
 		}
 	}
 
-	private List<SlimNode> _children;
+	private List<SlimNode>? _children;
 	public bool HasChildren => _children is not null && _children.Count > 0;
 
 	protected CancellationToken _lifecycleCt;
@@ -100,6 +101,10 @@ public abstract partial class SlimNode : DisposeGuard
 	protected virtual async ValueTask OnInitialize()
 	{
 		IsInitialized = true;
+		if (_children is null)
+		{
+			return;
+		}
 		using var copy = _children._MemoryOwnerCopy();
 		foreach (var child in copy)
 		{
@@ -137,6 +142,10 @@ public abstract partial class SlimNode : DisposeGuard
 		__.AssertIfNot(IsDisposed is false);
 		_callCounter++;
 
+		if (_children is null)
+		{
+			return;
+		}
 		using var copy = _children._MemoryOwnerCopy();
 		foreach (var child in copy)
 		{

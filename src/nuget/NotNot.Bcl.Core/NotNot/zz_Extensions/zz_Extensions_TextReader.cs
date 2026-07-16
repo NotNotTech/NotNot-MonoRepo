@@ -64,7 +64,7 @@ public static class zz_Extensions_TextReader
 	/// </remarks>
 	public static IEnumerable<string> _IterateLines(this TextReader reader)
 	{
-		string line = null;
+		string? line = null;
 		while ((line = reader.ReadLine()) != null)
 			yield return line;
 	}

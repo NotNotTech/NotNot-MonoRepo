@@ -40,7 +40,7 @@ using NotNot.Diagnostics;
 
 public static class zz_Extensions_ConcurrentDictionary
 {
-	public static bool _TryRemoveIf<TKey, TValue>(this ConcurrentDictionary<TKey, TValue> source, TKey key, Func<TKey, TValue, bool> removeIfTrue)
+	public static bool _TryRemoveIf<TKey, TValue>(this ConcurrentDictionary<TKey, TValue> source, TKey key, Func<TKey, TValue, bool> removeIfTrue) where TKey : notnull
 	{
 		if (source.TryGetValue(key, out var val))
 		{

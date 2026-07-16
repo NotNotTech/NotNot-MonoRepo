@@ -60,7 +60,11 @@ public abstract class SimpleChannel<T>
 		}
 		finally
 		{
-			await _tcs.Task;
+			// _tcs may still be null if LockAsync/setup threw before it was assigned; nothing to await in that case.
+			if (_tcs != null)
+			{
+				await _tcs.Task;
+			}
 		}
 	}
 

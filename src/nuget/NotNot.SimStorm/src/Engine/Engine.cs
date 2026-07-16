@@ -18,7 +18,8 @@ namespace NotNot.SimStorm.Engine;
 
 public class Engine : DisposeGuard
 {
-	private SimManager _simManager;
+	// Initialized in Initialize(); guarded by IsInitialized before use.
+	private SimManager _simManager = null!;
 
 	public ILogger _log = __.GetLogger<Engine>();
 	public RootNode RootNode => _simManager.root;
@@ -82,7 +83,7 @@ public class Engine : DisposeGuard
 		Updater?.Dispose();
 
 		_simManager?.Dispose();
-		_simManager = null;
+		_simManager = null!;
 
 
 		base.OnDispose(managedDisposing);
@@ -93,8 +94,8 @@ public interface IUpdatePump : IDisposable
 {
 	public Task MainThread { get; }
 	public bool ShouldStop { get; set; }
-	public event Func<TimeSpan, ValueTask> OnUpdate;
-	public event Func<ValueTask> OnRunningLate;
+	public event Func<TimeSpan, ValueTask>? OnUpdate;
+	public event Func<ValueTask>? OnRunningLate;
 
 	//void StopUiThread()
 	public Task Stop();
@@ -110,15 +111,16 @@ public class HeadlessUpdater : DisposeGuard, IUpdatePump
 	public TimeSpan AvgElapsed { get; private set; } = TimeSpan.FromMilliseconds(1);
 	//System.Threading.SemaphoreSlim runningLock = new(1);
 
-	public event Func<TimeSpan, ValueTask> OnUpdate;
+	public event Func<TimeSpan, ValueTask>? OnUpdate;
 
 	/// <summary>
 	/// never called in headless updater
 	/// </summary>
-	public event Func<ValueTask> OnRunningLate;
+	public event Func<ValueTask>? OnRunningLate;
 
 
-	public Task MainThread { get; private set; }
+	// Assigned in Start(); null until the update loop begins.
+	public Task MainThread { get; private set; } = null!;
 
 	public void Start()
 	{

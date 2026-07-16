@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
 namespace NotNot.Concurrency;
@@ -26,8 +27,9 @@ public class RecycleChannel<T> : DisposeGuard
 	/// <summary>
 	///    a helper to create new data items.  These helpers are needed because we allow custom generic data items, so we don't
 	///    know their interface.
+	///    <para>Nulled in OnDispose to release the reference; only invoked on non-disposed paths (guarded by the IsDisposed check in WriteAndSwap).</para>
 	/// </summary>
-	public Func<T> _newFactory;
+	public Func<T>? _newFactory;
 
 
 	/// <summary>
@@ -71,12 +73,15 @@ public class RecycleChannel<T> : DisposeGuard
 			if (_channel.Writer.TryWrite(toEnqueue))
 			{
 				//something to return
-				if (_recycled.TryDequeue(out recycled))
+				if (_recycled.TryDequeue(out var dequeued))
 				{
+					// TryDequeue returned true, so dequeued is a real item (non-null for reference T).
+					recycled = dequeued!;
 					return;
 				}
 
-				recycled = _newFactory();
+				// not disposed here (IsDisposed checked above), so _newFactory is non-null.
+				recycled = _newFactory!();
 				return;
 			}
 
@@ -91,7 +96,8 @@ public class RecycleChannel<T> : DisposeGuard
 				else
 				{
 					//a consumer thread may have depleted our channel
-					toReturn = _newFactory();
+					// not disposed here (IsDisposed checked above), so _newFactory is non-null.
+					toReturn = _newFactory!();
 				}
 
 				var result = _channel.Writer.TryWrite(toEnqueue);
@@ -147,7 +153,7 @@ public class RecycleChannel<T> : DisposeGuard
 	/// </summary>
 	/// <param name="freshValue"></param>
 	/// <returns></returns>
-	public bool TryRead(out T freshValue)
+	public bool TryRead([MaybeNullWhen(false)] out T freshValue)
 	{
 		return _channel.Reader.TryRead(out freshValue);
 	}

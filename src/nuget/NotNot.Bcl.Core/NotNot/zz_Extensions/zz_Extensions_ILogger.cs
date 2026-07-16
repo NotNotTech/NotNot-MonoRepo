@@ -109,7 +109,7 @@ public static class zz_Extensions_ILogger
             //sanitize message to avoid serilog errors
             {
                //__.Assert(message?.Contains('{') is false, "serilog throws errors if braces are in message");
-               message = message._Replace("{}", '_');
+               message = (message ?? string.Empty)._Replace("{}", '_');
             }
 
             //add callsite to output message/args
@@ -467,7 +467,7 @@ public static class zz_Extensions_ILogger
          message += $"\n\ttags:[{string.Join(", ", tags)}]";
       }
 
-      TException ex = null;
+      TException? ex = null;
       try
       {
          ex = typeof(TException)._CreateInstance<TException>($"ERROR_THROW({conditionName}) {message}");

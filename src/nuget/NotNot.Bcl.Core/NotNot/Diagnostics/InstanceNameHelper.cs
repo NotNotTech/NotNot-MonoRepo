@@ -55,7 +55,7 @@ public static class InstanceNameHelper
 	public static string CreateNameFull<T>()
 	{
 		var type = typeof(T);
-		var name = type.FullName;
+		var name = type.FullName ?? type.Name;
 		lock (_countTracker)
 		{
 			ref var r_counter = ref _countTracker._GetValueRefOrAddDefault_Unsafe(name, out _);

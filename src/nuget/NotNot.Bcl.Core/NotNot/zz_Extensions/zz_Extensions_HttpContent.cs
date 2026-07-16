@@ -108,7 +108,7 @@ public static class zz_Extensions_HttpContent
 				// Ignore read errors for error message building
 			}
 
-			__.Throw($"Content not Maybe<{typeof(T).Name}> - Unexpected error: {ex.Message}. Content is: {contentText}");
+			__.Throw($"Content not Maybe<{typeof(T).Name}> - Unexpected error: {ex}. Content is: {contentText}");
 		}
 #pragma warning restore NN_R005, NN_R006
 
@@ -177,7 +177,7 @@ public static class zz_Extensions_HttpContent
 				// Ignore read errors for error message building
 			}
 
-			__.Throw($"Content not `Maybe` - Unexpected error: {ex.Message}. Content is: {contentText}");
+			__.Throw($"Content not `Maybe` - Unexpected error: {ex}. Content is: {contentText}");
 		}
 #pragma warning restore NN_R005, NN_R006
 

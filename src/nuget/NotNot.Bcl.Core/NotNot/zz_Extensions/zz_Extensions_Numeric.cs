@@ -150,7 +150,7 @@ public static class zz_Extensions_Numeric
 		return T.Min(value, other);
 	}
 
-	public static bool _TryParse<T>(this string toParse, out T value) where T : IFloatingPoint<T>
+	public static bool _TryParse<T>(this string toParse, [MaybeNullWhen(false)] out T value) where T : IFloatingPoint<T>
 	{
 		return T.TryParse(toParse, null, out value);
 

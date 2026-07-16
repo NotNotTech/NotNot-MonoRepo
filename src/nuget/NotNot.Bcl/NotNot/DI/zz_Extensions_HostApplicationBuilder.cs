@@ -29,7 +29,7 @@ public static class zz_Extensions_HostApplicationBuilder
 	/// <para>example of the assembly name that will be matched against:  "Cleartrix.Cloud.WebApi, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"</para></param>
 	/// <returns></returns>
 	public static async Task _NotNotEzSetup(this IHostApplicationBuilder builder, CancellationToken ct, IEnumerable<Assembly>? scanAssemblies = null
-		, IEnumerable<string>? scanIgnore = null, Action<IConfiguration, LoggerConfiguration> extraLoggerConfig = null)
+		, IEnumerable<string>? scanIgnore = null, Action<IConfiguration, LoggerConfiguration>? extraLoggerConfig = null)
 	{
 		await _NotNotUtils_ConfigureLogging(builder, ct, extraLoggerConfig);
 
@@ -45,7 +45,7 @@ public static class zz_Extensions_HostApplicationBuilder
 
 
 
-	internal static async Task _NotNotUtils_ConfigureLogging(this IHostApplicationBuilder builder, CancellationToken ct, Action<IConfiguration, LoggerConfiguration> extraLoggerConfig = null)
+	internal static async Task _NotNotUtils_ConfigureLogging(this IHostApplicationBuilder builder, CancellationToken ct, Action<IConfiguration, LoggerConfiguration>? extraLoggerConfig = null)
 	{
 
 		//config logging

@@ -53,6 +53,9 @@ namespace NotNot.Advanced
 				BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
+		/// <summary>
+		///    create a strongly-typed delegate that invokes a generic instance method resolved by name and generic type arguments.
+		/// </summary>
 		/// <example>
 		/// <code>
 		/// var invoker = OpenGenericMethodExecutor.CreateInvoker&lt;Action&lt;ComponentDataPartition, Span&lt;SlotHandle&gt;&gt;&gt;(

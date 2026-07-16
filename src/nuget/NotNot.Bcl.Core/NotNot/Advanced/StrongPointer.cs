@@ -33,7 +33,8 @@ public record struct StrongPointer<T> : IDisposable, IComparable<StrongPointer<T
 	public static StrongPointer<T> Alloc(T target)
 	{
 		__.AssertIfNot(target != null, "Cannot create StrongPointer to null target");
-		__.AssertIfNot(!target.IsDisposed, "Cannot create StrongPointer to already-disposed target");
+		// target != null asserted on the line above; assert is [Conditional] so the compiler can't infer the flow state.
+		__.AssertIfNot(!target!.IsDisposed, "Cannot create StrongPointer to already-disposed target");
 
 		var slotHandle = _store.AllocValue(ref target);
 

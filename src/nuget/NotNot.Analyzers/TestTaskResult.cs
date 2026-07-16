@@ -45,7 +45,7 @@ public class TestTaskResult
         // This should NOT trigger error: result is used in condition
         if (await DoSomethingAsync())
         {
-            var tmp = "Task returned true";
+            _ = "Task returned true";
 
         }
     }

@@ -51,10 +51,10 @@ public class TestHelper
 
    //private ITestOutputHelper _testOutputHelper;
    [Obsolete("use InitTest() without parameters, likely no longer needed for xunit?")]
-   private object _testOutputHelper;
+   private object? _testOutputHelper;
 
    [Obsolete("use InitTest() without parameters, likely no longer needed for xunit?")]
-   IEnumerable<string> _ignoreOutputRegex;
+   IEnumerable<string>? _ignoreOutputRegex;
 
    //  /// <summary>
    //  /// each XUnit test run (class constructor) should invoke this  to enable console output
@@ -162,7 +162,7 @@ public class TestHelper
       try
       {
          var completeMsg = $"{prefix}{" "._Repeat(padding)}{msg}";
-         foreach (var ignore in _ignoreOutputRegex)
+         foreach (var ignore in _ignoreOutputRegex ?? Enumerable.Empty<string>())
          {
             if (ignore._ToRegex().IsMatch(completeMsg))
             {

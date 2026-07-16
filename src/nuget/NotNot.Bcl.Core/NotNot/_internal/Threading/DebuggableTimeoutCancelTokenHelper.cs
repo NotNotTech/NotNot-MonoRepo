@@ -57,7 +57,7 @@ public static class DebuggableTimeoutCancelTokenHelper
 
 	private class _CancelPair
 	{
-		public CancellationTokenSource cts;
+		public required CancellationTokenSource cts;
 		public TimeSpan delayRemaining;
 	}
 

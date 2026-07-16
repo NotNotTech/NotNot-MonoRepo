@@ -64,7 +64,8 @@ public abstract class SmartEnum<TEnum> where TEnum : SmartEnum<TEnum>
 
 		var b = obj as TEnum;
 
-		return Name == b.Name;
+		// GetType() == obj.GetType() checked above and this is a TEnum, so the cast succeeds (b is non-null).
+		return Name == b!.Name;
 	}
 
 	public override int GetHashCode()

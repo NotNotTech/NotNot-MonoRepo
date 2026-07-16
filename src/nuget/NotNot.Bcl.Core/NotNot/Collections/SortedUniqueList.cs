@@ -122,7 +122,7 @@ public class SortedUniqueList<T> : IEnumerable<T>
 			_originalComparer = originalComparer;
 		}
 
-		public int Compare(TItem x, TItem y)
+		public int Compare(TItem? x, TItem? y)
 		{
 			return _originalComparer.Compare(y, x);
 		}

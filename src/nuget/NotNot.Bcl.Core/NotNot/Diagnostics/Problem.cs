@@ -705,6 +705,10 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 				{
 					SerializeException(writer, exception);
 				}
+				else if (extension.Value is null)
+				{
+					writer.WriteNullValue();
+				}
 				else
 				{
 					//roundtrip in case errors, which would cause the entire write to fail if we did it directly on the `writer` object.
@@ -715,7 +719,7 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 #pragma warning disable NN_R005 // Serialization must not crash for logging
 			catch (Exception ex)
 			{
-				writer.WriteStringValue($"ERROR_SERIALIZING:{ex.Message}");
+				writer.WriteStringValue($"ERROR_SERIALIZING:{ex}");
 			}
 #pragma warning restore NN_R005
 		}

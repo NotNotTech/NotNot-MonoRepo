@@ -50,7 +50,7 @@ namespace NotNot.Diagnostics;
 /// </example>
 public class PerfSpikeWatch
 {
-	private string _caller;
+	private string? _caller;
 
 	private int _lapCount;
 	private Percentiles<TimeSpan> _lastPollPercentiles;

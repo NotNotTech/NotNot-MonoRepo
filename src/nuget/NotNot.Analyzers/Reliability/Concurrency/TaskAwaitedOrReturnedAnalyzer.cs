@@ -114,8 +114,8 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
             if (expressionType != null &&
                 taskTypeSymbols.Any(taskTypeSymbol =>
                     taskTypeSymbol != null &&
-                    (expressionType.Equals(taskTypeSymbol) ||
-                     (expressionType.IsGenericType && expressionType.ConstructedFrom.Equals(taskTypeSymbol)))))
+                    (SymbolEqualityComparer.Default.Equals(expressionType, taskTypeSymbol) ||
+                     (expressionType.IsGenericType && SymbolEqualityComparer.Default.Equals(expressionType.ConstructedFrom, taskTypeSymbol)))))
             {
                 return true;
             }
@@ -127,8 +127,8 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
                 if (conditionalType != null &&
                     taskTypeSymbols.Any(taskTypeSymbol =>
                         taskTypeSymbol != null &&
-                        (conditionalType.Equals(taskTypeSymbol) ||
-                         (conditionalType.IsGenericType && conditionalType.ConstructedFrom.Equals(taskTypeSymbol)))))
+                        (SymbolEqualityComparer.Default.Equals(conditionalType, taskTypeSymbol) ||
+                         (conditionalType.IsGenericType && SymbolEqualityComparer.Default.Equals(conditionalType.ConstructedFrom, taskTypeSymbol)))))
                 {
                     return true;
                 }
@@ -185,7 +185,7 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
                     var variableType =
                        context.SemanticModel.GetTypeInfo(variable.Initializer.Value).Type as INamedTypeSymbol;
                     // Check if the variable type is in the task type symbols.
-                    return taskTypeSymbols.Any(taskTypeSymbol => variableType.ConstructedFrom.Equals(taskTypeSymbol));
+                    return taskTypeSymbols.Any(taskTypeSymbol => SymbolEqualityComparer.Default.Equals(variableType.ConstructedFrom, taskTypeSymbol));
                 }
                 catch
                 {

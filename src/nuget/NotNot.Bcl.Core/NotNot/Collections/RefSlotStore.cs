@@ -543,7 +543,8 @@ public class RefSlotStore<T> : IDisposeGuard
 
 			// Update tracking structures
 			_allocTracker[index] = toReturn;
-			_data[index] = default;
+			// free/newly-allocated slots intentionally hold default(T) (see _data remarks: free slots may hold garbage/default).
+			_data[index] = default!;
 
 			// Verify allocation succeeded
 			__.DebugAssertIfNot(_allocTracker[index].IsAllocated);
@@ -679,7 +680,7 @@ public class RefSlotStore<T> : IDisposeGuard
 			InsertSorted(slot.Index);
 
 			_allocTracker[slot.Index] = default; // Clear the slot's handle
-			_data[slot.Index] = default; // Clear the slot's data
+			_data[slot.Index] = default!; // Clear the slot's data (free slots intentionally hold default(T))
 
 			// Update _lastOccupiedSlotIndex if we freed the last occupied slot
 			if (slot.Index == _lastOccupiedSlotIndex)
@@ -752,12 +753,13 @@ public class RefSlotStore<T> : IDisposeGuard
 			}
 
 			IsDisposed = true;
+			// Nulled only here in Dispose, under _lock, after IsDisposed=true; all access paths are IsDisposed-guarded, so no post-dispose deref occurs.
 			_allocTracker.Clear();
-			_allocTracker = null;
+			_allocTracker = null!;
 			_data._Clear();
-			_data = null;
+			_data = null!;
 			_freeSlots.Clear();
-			_freeSlots = null;
+			_freeSlots = null!;
 		}
 	}
 
@@ -889,7 +891,7 @@ public class RefSlotStore<T> : IDisposeGuard
 
 				// Move data and handle (not a swap - toSlot is free)
 				_data[freeIndex] = _data[lastAllocIndex];
-				_data[lastAllocIndex] = default;
+				_data[lastAllocIndex] = default!; // vacated slot intentionally holds default(T)
 
 				_allocTracker[freeIndex] = toSlot;
 				_allocTracker[lastAllocIndex] = default;

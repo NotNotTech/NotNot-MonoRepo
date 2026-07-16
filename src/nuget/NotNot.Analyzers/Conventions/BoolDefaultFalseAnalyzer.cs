@@ -122,7 +122,7 @@ public sealed class BoolDefaultFalseAnalyzer : DiagnosticAnalyzer
 			+ "Fix options: (1) Rename to express the inverse condition (Skip*, Omit*, Disable*, Suppress*, No*) so default 'false' matches intent. "
 			+ "(2) Private/protected/private-protected fields and properties are exempt automatically — only public, internal, and protected-internal members on the API surface are enforced. "
 			+ "(3) Annotate with [NotNot.Bcl.Diagnostics.CodeStyleBypass] for narrowly documented exceptions. No exception to avoid refactor cost, choose LONG_TERM_BIAS and conformist api style"
-			+ "AGENT NUDGE: No bypass to avoid test/doc/caller refactor cost — CONSUMER_COST_ZERO_WEIGHT_TENET"
+			+ "AGENT NUDGE: No bypass to avoid test/doc/caller refactor cost — CONSUMER_COST_ZERO_WEIGHT_TENET."
 		,
 		category: "CodeStyle",
 		defaultSeverity: DiagnosticSeverity.Error,

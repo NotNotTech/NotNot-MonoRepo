@@ -234,7 +234,7 @@ public static class zz_Extensions_DateTime
 	/// <param name="date">The date.</param>
 	/// <param name="cultureInfo">The culture to determine the first weekday of a week.</param>
 	/// <returns>The first day of the week</returns>
-	public static DateTime _GetFirstDayOfWeek(this DateTime date, CultureInfo cultureInfo)
+	public static DateTime _GetFirstDayOfWeek(this DateTime date, CultureInfo? cultureInfo)
 	{
 		cultureInfo = cultureInfo ?? CultureInfo.CurrentCulture;
 
@@ -263,7 +263,7 @@ public static class zz_Extensions_DateTime
 	/// <param name="date">The date.</param>
 	/// <param name="cultureInfo">The culture to determine the first weekday of a week.</param>
 	/// <returns>The first day of the week</returns>
-	public static DateTime _GetLastDayOfWeek(this DateTime date, CultureInfo cultureInfo)
+	public static DateTime _GetLastDayOfWeek(this DateTime date, CultureInfo? cultureInfo)
 	{
 		return date._GetFirstDayOfWeek(cultureInfo).AddDays(6);
 	}
@@ -296,7 +296,7 @@ public static class zz_Extensions_DateTime
 	/// 		var thisWeeksMonday = DateTime.Now.GetWeekday(DayOfWeek.Monday);
 	/// 	</code>
 	/// </example>
-	public static DateTime _GetWeeksWeekday(this DateTime date, DayOfWeek weekday, CultureInfo cultureInfo)
+	public static DateTime _GetWeeksWeekday(this DateTime date, DayOfWeek weekday, CultureInfo? cultureInfo)
 	{
 		var firstDayOfWeek = date._GetFirstDayOfWeek(cultureInfo);
 		return firstDayOfWeek._GetNextWeekday(weekday);

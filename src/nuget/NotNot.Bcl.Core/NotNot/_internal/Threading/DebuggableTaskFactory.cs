@@ -11,6 +11,7 @@
 // [!!] See the LICENSE.md file in the project root for more info. 
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
+using System.Diagnostics.CodeAnalysis;
 using NotNot.Concurrency.Advanced;
 
 namespace NotNot._internal.Threading;
@@ -49,9 +50,12 @@ public class DebuggableTaskFactory
 	/// </summary>
 	public TaskFactory Factory { get; private set; }
 
+	private readonly object _resetLock = new();
+
+	[MemberNotNull(nameof(Factory))]
 	public void ResetScheduler(TaskScheduler? scheduler = null)
 	{
-		lock (this)
+		lock (_resetLock)
 		{
 			var oldFactory = Factory;
 

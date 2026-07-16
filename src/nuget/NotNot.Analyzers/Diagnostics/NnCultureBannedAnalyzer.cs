@@ -28,7 +28,7 @@ public sealed class NnCultureBannedAnalyzer : DiagnosticAnalyzer
 
 	private static readonly DiagnosticDescriptor Rule = new(
 		DiagnosticId,
-		title: "Direct CultureInfo API use is banned; inject ICultureProvider or annotate [AllowCultureApi].",
+		title: "Direct CultureInfo API use is banned; inject ICultureProvider or annotate [AllowCultureApi]",
 		messageFormat: "'{0}' is banned outside [AllowCultureApi]-annotated scopes. Inject ICultureProvider for localization reads; add [AllowCultureApi(reason)] to the enclosing member or type for intentional uses.",
 		category: "NotNot_Architecture",
 		defaultSeverity: DiagnosticSeverity.Error,
