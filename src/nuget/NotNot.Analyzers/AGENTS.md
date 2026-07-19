@@ -284,3 +284,16 @@ Rejects either canonical Microsoft `AddHostedService<T>()` overload when `T` is 
 2. Add to `SupportedSuppressions` array
 3. Implement detection in `ReportSuppressions`
 4. Prefer tree traversal over semantic model for performance
+
+## Analyzer packaging pattern (RS1038 triple split)
+
+RS1038 fires when an analyzer/generator assembly references `Microsoft.CodeAnalysis.Workspaces`. Keep the three roles in three projects:
+
+- **Impl** (`NotNot.Analyzers`): analyzers/generators ONLY. NO Workspaces reference. `IncludeBuildOutput=false`, no pack.
+- **`.CodeFixes`**: the `CodeFixProvider`s. References Workspaces + `System.Composition` as `PrivateAssets=all`; `ProjectReference` → impl (`ReferenceOutputAssembly=true`). No pack.
+- **`.Package`** (pack-only aggregator): `PackageId` = the impl's name (preserves the consumer package id); packs BOTH dlls to `analyzers/dotnet/cs`; `SuppressDependenciesWhenPacking=true` (IDE host supplies Workspaces/Composition via MEF).
+
+Rules:
+- NEVER add a `Microsoft.CodeAnalysis.Workspaces` reference to an analyzer/generator IMPL project — that re-introduces RS1038.
+- New codefix providers go in the `.CodeFixes` project, never the impl.
+- A consumer wanting IDE quick-fixes needs a SECOND `ProjectReference` to `.CodeFixes` with `OutputItemType=Analyzer ReferenceOutputAssembly=false` — the analyzer reference alone gives diagnostics but not fixes.
