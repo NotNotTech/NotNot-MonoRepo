@@ -162,7 +162,7 @@ public class ForeachKeyConventionAnalyzer : DiagnosticAnalyzer
 	/// if it's a recognized identity property.
 	/// Returns the non-identity property name, or null if the expression is acceptable.
 	/// </summary>
-	private static string FindNonIdentityProperty(string expr)
+	private static string? FindNonIdentityProperty(string expr)
 	{
 		// Simple identifier (no dot) — likely a field/variable, not a member access chain
 		if (expr.IndexOf('.') < 0)

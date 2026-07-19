@@ -35,6 +35,20 @@
 		<PackageReference Include="System.Composition" Version="10.0.0" PrivateAssets="all" />
 	</ItemGroup>
 
+	<!-- Development-time analyzers (for this project only) — parity with NotNot.Analyzers.csproj so
+	     the code-fix providers get the same dev-time scrutiny (EPC12, banned-API, Roslynator). -->
+	<ItemGroup>
+		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.0.0-1.25277.114" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.8.2-beta.1" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
 	<!-- Build tools -->
 	<ItemGroup>
 		<PackageReference Include="MinVer" Version="6.1.0-beta.1" PrivateAssets="all">

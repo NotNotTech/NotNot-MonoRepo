@@ -540,7 +540,10 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 		// `Add{L}<T>()`              → service=impl=T
 		// `Add{L}<TService, TImpl>()` → service=TService, impl=TImpl
 		// Any other shape (non-generic `Add{L}(typeof(...), typeof(...))` or open generics) → skip.
-		if (!TryResolveGenericTypes(targetMethod, out var implType))
+		// `|| implType is null` narrows implType to non-null for the remainder of the method (NN_DI_001
+		// /002/005 dereference it); TryResolveGenericTypes only returns true with implType set, so the
+		// null arm is unreachable — it exists solely to satisfy NRT without a [NotNullWhen] annotation.
+		if (!TryResolveGenericTypes(targetMethod, out var implType) || implType is null)
 		{
 			return;
 		}
@@ -562,7 +565,7 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 		// nothing without the assembly opting in). NN_DI_001 is INTENTIONALLY excluded — a lifetime
 		// mismatch between an explicit Add{L} and the type's own marker is a correctness bug about the
 		// developer's stated intent regardless of scan eligibility, so it fires everywhere.
-		var implInScanAssembly = DiAnalyzerHelpers.HasAutoDiScanAssemblyAttribute(implType?.ContainingAssembly);
+		var implInScanAssembly = DiAnalyzerHelpers.HasAutoDiScanAssemblyAttribute(implType.ContainingAssembly);
 
 		// ── NN_DI_001 — Lifetime mismatch ─────────────────────────────────────
 		if (hasMarker
@@ -928,6 +931,9 @@ public sealed class DiMarkerEnforcementAnalyzer : DiagnosticAnalyzer
 	/// </remarks>
 	private static bool TryResolveGenericTypes(IMethodSymbol method, out INamedTypeSymbol? implType)
 	{
+		// NOTE: this method returns true ONLY with implType set non-null; the single caller pairs the
+		// `!TryResolveGenericTypes(...)` bail with an `implType is null` check to narrow for NRT. A
+		// [NotNullWhen(true)] annotation is unavailable here (netstandard2.0, no PolySharp reference).
 		implType = null;
 
 		var typeArgs = method.TypeArguments;

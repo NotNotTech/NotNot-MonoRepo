@@ -206,9 +206,12 @@ public sealed class CadenceUnconditionalRenderAnalyzer : DiagnosticAnalyzer
 
 			ReportIfUnconditionalStateHasChanged(context, callbackBody);
 		}
-		catch (Exception)
+		catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
 		{
-			// Semantic resolution may fail on incomplete/erroneous code — fail silent (no diagnostic).
+			// Expected: callback-body resolution drives the semantic model, which throws
+			// ArgumentException (node from a mismatched tree) or InvalidOperationException
+			// (speculative/operation-model resolution) on incomplete/erroneous code — fail silent
+			// (no diagnostic). Any other exception escapes as a visible AD0001 (fail-fast).
 		}
 	}
 
@@ -233,9 +236,12 @@ public sealed class CadenceUnconditionalRenderAnalyzer : DiagnosticAnalyzer
 
 			ReportIfUnconditionalStateHasChanged(context, whileStatement.Statement);
 		}
-		catch (Exception)
+		catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
 		{
-			// Semantic resolution may fail — fail silent.
+			// Expected: PeriodicTimer-loop analysis drives the semantic model, which throws
+			// ArgumentException (node from a mismatched tree) or InvalidOperationException
+			// (speculative/operation-model resolution) on incomplete/erroneous code — fail silent.
+			// Any other exception escapes as a visible AD0001 (fail-fast).
 		}
 	}
 

@@ -126,8 +126,9 @@ public class RefPrefixMustBeRefCodeFixProvider : CodeFixProvider
 		}
 		catch (Exception ex)
 		{
-			// Renamer may fail in edge cases (incomplete code, generated code, etc.)
-			System.Diagnostics.Debug.WriteLine($"NN_C002 CodeFix: Renamer failed for '{identifierToken.ValueText}': {ex.Message}");
+			// Renamer may fail in edge cases (incomplete code, generated code, etc.). Log the full
+			// exception (type + stack), not just Message — Message alone loses the fault site.
+			System.Diagnostics.Debug.WriteLine($"NN_C002 CodeFix: Renamer failed for '{identifierToken.ValueText}': {ex}");
 			return document.Project.Solution;
 		}
 	}

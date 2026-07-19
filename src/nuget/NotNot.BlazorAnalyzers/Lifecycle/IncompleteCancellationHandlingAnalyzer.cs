@@ -81,9 +81,13 @@ public class IncompleteCancellationHandlingAnalyzer : DiagnosticAnalyzer
 			if (AllJsInteropCallsSafeWrapped(context, tryStatement.Block))
 				return;
 		}
-		catch (System.Exception)
+		catch (System.Exception ex) when (ex is System.ArgumentException or System.InvalidOperationException)
 		{
-			// Safe-wrapper check uses semantic model which may fail — proceed with reporting
+			// Expected: the safe-wrapper check drives semantic-model resolution, which throws
+			// ArgumentException (node from a mismatched tree) or InvalidOperationException
+			// (speculative/operation-model resolution) on incomplete/erroneous code. Proceed with
+			// reporting rather than crash the compilation; any other exception escapes as a visible
+			// AD0001 (fail-fast — not silently swallowed).
 		}
 
 		context.ReportDiagnostic(Diagnostic.Create(Rule, firstJsDisconnectedCatch.GetLocation()));

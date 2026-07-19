@@ -98,10 +98,13 @@ public class JsInteropIncompleteHandlingAnalyzer : DiagnosticAnalyzer
 			if (AllJsInteropCallsSafeWrapped(context, tryStatement.Block))
 				return;
 		}
-		catch (System.Exception)
+		catch (System.Exception ex) when (ex is System.ArgumentException or System.InvalidOperationException)
 		{
-			// Semantic model failed — skip JS-interop gate (fail-open: may produce
-			// false positives on non-JS code, but won't miss JS interop defects)
+			// Expected: the JS-interop gate drives semantic-model resolution, which throws
+			// ArgumentException (node from a mismatched tree) or InvalidOperationException
+			// (speculative/operation-model resolution) on incomplete/erroneous code. Skip the gate
+			// (fail-open: may produce false positives on non-JS code, but won't miss JS interop
+			// defects); any other exception escapes as a visible AD0001 (fail-fast — not swallowed).
 		}
 
 		bool handlesCancellation = false;

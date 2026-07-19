@@ -147,10 +147,12 @@ internal static partial class XRayMetadata
                     jsonBuilder.Append('}');
                 }
 
-                // Text content
-                if (!string.IsNullOrEmpty(element.Text))
+                // Text content. Pattern-match narrows element.Text to non-null for EscapeJson
+                // (the netstandard2.0 ref assemblies lack the [NotNullWhen(false)] annotation on
+                // string.IsNullOrEmpty, so a plain IsNullOrEmpty check does not satisfy NRT).
+                if (element.Text is { Length: > 0 } elementText)
                 {
-                    jsonBuilder.Append(",\"text\":\"").Append(EscapeJson(element.Text)).Append('"');
+                    jsonBuilder.Append(",\"text\":\"").Append(EscapeJson(elementText)).Append('"');
                 }
 
                 // Conditional depth (used in scoring penalty: -3 per level)
