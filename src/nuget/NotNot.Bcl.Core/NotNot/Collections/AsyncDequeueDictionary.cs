@@ -62,7 +62,8 @@ where TKey : notnull
 	public bool TryDequeue(TKey key, [NotNullWhen(true)] out TValue? value)
 	{
 		_AssertNotDisposed();
-		if (dictionary.TryRemove(key, out value))
+		// TValue is unconstrained, so TryRemove does not prove non-null; honor [NotNullWhen(true)] with an explicit check.
+		if (dictionary.TryRemove(key, out value) && value is not null)
 		{
 			return true;
 		}

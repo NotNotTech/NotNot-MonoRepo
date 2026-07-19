@@ -191,31 +191,6 @@ public static class zz_Extensions_HttpContent
 
 		// This should never be reached due to the throws above, but satisfies compiler
 		throw new InvalidOperationException("Unreachable code");
-
-
-
-		/////////////////////////////////////////
-		var maybeOpResult = await content._DeserializeMaybe<OperationResult>();
-
-		if (maybeOpResult.IsSuccess)
-		{
-			if (maybeOpResult.Value == OperationResult.Success)
-			{
-				// If the operation was successful, return a success Maybe
-				return Maybe.SuccessResult(maybeOpResult.TraceId.SourceMemberName, maybeOpResult.TraceId.SourceFile, maybeOpResult.TraceId.SourceLineNumber);
-			}
-			else
-			{
-				var problem = Problem.FromEx(new InvalidOperationException($"Operation failed with non-maybe result: {maybeOpResult.Value}"),
-					maybeOpResult.TraceId.SourceMemberName, maybeOpResult.TraceId.SourceFile, maybeOpResult.TraceId.SourceLineNumber);
-				return new Maybe(problem, maybeOpResult.TraceId.SourceMemberName, maybeOpResult.TraceId.SourceFile, maybeOpResult.TraceId.SourceLineNumber);
-			}
-		}
-		else
-		{
-			// If we have an error, return it directly
-			return new Maybe(maybeOpResult.Problem, maybeOpResult.TraceId.SourceMemberName, maybeOpResult.TraceId.SourceFile, maybeOpResult.TraceId.SourceLineNumber);
-		}
 	}
 }
 

@@ -25,7 +25,8 @@ public static class Mem
 	/// </summary>
 	public static EphermialMem<T> Wrap<T>(ArraySegment<T> backingStore)
 	{
-		return new EphermialMem<T>(MemBackingStorageType.Array, backingStore.Array, backingStore.Offset, backingStore.Count);
+		// backingStore.Array is null only for a default(ArraySegment); callers here wrap a real array/segment.
+		return new EphermialMem<T>(MemBackingStorageType.Array, backingStore.Array!, backingStore.Offset, backingStore.Count);
 	}
 
 	/// <summary>
@@ -125,7 +126,8 @@ public static class Mem
 	public static RentedMem<T> Clone<T>(HashSet<T> hashset)
 	{
 		var toReturn = Mem.Rent<T>(hashset.Count);
-		hashset.CopyTo(toReturn.DangerousGetArray().Array);
+		// toReturn is a freshly rented array, so DangerousGetArray().Array is non-null.
+		hashset.CopyTo(toReturn.DangerousGetArray().Array!);
 		return toReturn;
 	}
 
@@ -193,10 +195,13 @@ public readonly struct Mem<T>
 	/// </summary>
 	internal readonly int _segmentCount;
 
+#if CHECKED
 	/// <summary>
-	/// used if the backing storage is a list, to ensure it's not modified
+	/// used if the backing storage is a list, to ensure it's not modified.
+	/// <para>CHECKED-only: assigned in the ctor and read in GetSpan() only under #if CHECKED.</para>
 	/// </summary>
 	private readonly int _listLength;
+#endif
 
 	/// <summary>
 	/// Represents an empty view with zero elements
@@ -280,6 +285,7 @@ public readonly struct Mem<T>
 		var rawSpan = _GetRawSpan();
 
 #if CHECKED
+		// CHECKED-only immutability guard; _listLength is a CHECKED-only field (declared + assigned under #if CHECKED).
 		switch (_backingStorageType)
 		{
 			case MemBackingStorageType.List:

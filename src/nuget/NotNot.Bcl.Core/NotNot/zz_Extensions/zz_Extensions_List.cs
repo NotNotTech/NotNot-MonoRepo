@@ -223,7 +223,7 @@ public static class zz_Extensions_List
 	public static bool _ContainsIdential<T>(this List<T> target, List<T>? other)
 	{
 		__.GetLogger()._EzError(other is not null && target is not null);
-		if (other == null || target.Count != other.Count)
+		if (target is null || other is null || target.Count != other.Count)
 		{
 			return false;
 		}

@@ -50,10 +50,10 @@ public class TestHelper
    }
 
    //private ITestOutputHelper _testOutputHelper;
-   [Obsolete("use InitTest() without parameters, likely no longer needed for xunit?")]
+   // Still live: read by Write(), cleared by DisposeTest(). No replacement member exists (InitTest() does not set these),
+   // so [Obsolete] was inaccurate and has been removed rather than migrated.
    private object? _testOutputHelper;
 
-   [Obsolete("use InitTest() without parameters, likely no longer needed for xunit?")]
    IEnumerable<string>? _ignoreOutputRegex;
 
    //  /// <summary>

@@ -127,7 +127,7 @@ public unsafe struct PercentileSampler800<T> where T : unmanaged, IComparable<T>
 ///    https://www.dynatrace.com/news/blog/why-averages-suck-and-percentiles-are-great/
 /// </remarks>
 /// <typeparam name="T"></typeparam>
-public struct Percentiles<T> where T : IComparable<T>
+public struct Percentiles<T> where T : notnull, IComparable<T>
 {
 	/// <summary>
 	///    how many samples were present on the input data
@@ -173,7 +173,17 @@ public struct Percentiles<T> where T : IComparable<T>
 	{
 		if (samples.Length == 0)
 		{
-			this = default;
+			// Empty-sample sentinel: all percentiles are the default. sampleCount stays 0 so consumers can detect
+			// "no data". default! is truthful here — for value-type T it is the zero value; for reference-type T the
+			// struct is an all-default sentinel that callers guard by checking sampleCount before reading percentiles.
+			sampleCount = 0;
+			p0 = default!;
+			p5 = default!;
+			p25 = default!;
+			p50 = default!;
+			p75 = default!;
+			p95 = default!;
+			p100 = default!;
 			return;
 		}
 

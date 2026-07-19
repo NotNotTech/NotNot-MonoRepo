@@ -1230,7 +1230,7 @@ public static class zz_Extensions_String
 	{
 		__.GetLogger()._EzError(value is not null);
 		// Seed is non-null value; Replace returns non-null, so the accumulator stays non-null.
-		return strings.Aggregate(value, (current, c) => current!.Replace(c, string.Empty));
+		return strings.Aggregate(value, (current, c) => current!.Replace(c, string.Empty))!;
 		//var result = value;
 		//if (!string.IsNullOrEmpty(result) && removeStrings != null)
 		//  Array.ForEach(removeStrings, s => result = result.Replace(s, string.Empty));

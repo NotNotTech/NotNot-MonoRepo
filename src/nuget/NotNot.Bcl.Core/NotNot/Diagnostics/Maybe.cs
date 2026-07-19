@@ -703,7 +703,8 @@ public class MaybeGenericJsonConverter<T> : JsonConverter<Maybe<T>>
 					//result = Maybe<T>.Success(value!);
 					result = new Maybe<T>(value!)
 					{
-						TraceId = traceId,
+						// A serialized Maybe always round-trips its TraceId; the non-nullable property contract holds.
+						TraceId = traceId!,
 						IntentSummary = intentSummary,
 					};
 				}
@@ -716,7 +717,8 @@ public class MaybeGenericJsonConverter<T> : JsonConverter<Maybe<T>>
 
 					result = new Maybe<T>(problem)
 					{
-						TraceId = traceId,
+						// A serialized Maybe always round-trips its TraceId; the non-nullable property contract holds.
+						TraceId = traceId!,
 						IntentSummary = intentSummary,
 					};
 

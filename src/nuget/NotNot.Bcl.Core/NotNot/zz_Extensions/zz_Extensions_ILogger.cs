@@ -641,7 +641,7 @@ public static class zz_Extensions_ILogger
    /// </summary>
    [DebuggerNonUserCode]
    [DebuggerHidden]
-   [DoesNotReturn]
+   // NOT [DoesNotReturn]: this helper returns early when condition==true (no kill needed); it only fails-fast when the condition is false.
    private static void _KillHelper(this ILogger logger, LogLevel level, bool condition, string? message = null, Exception? innerException = null,
       [CallerArgumentExpression("condition")]
       string? conditionName = null,

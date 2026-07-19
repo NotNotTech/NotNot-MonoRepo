@@ -84,8 +84,8 @@ public record TraceId
 			var current = From;
 			while (current is not null && loop < 4)
 			{
-				toReturn = $"{From.SourceFile}:{From.SourceLineNumber}>" + toReturn;
-				current = From.From;
+				toReturn = $"{current.SourceFile}:{current.SourceLineNumber}>" + toReturn;
+				current = current.From;
 				loop++;
 			}
 			if (loop == 4 && current is not null)

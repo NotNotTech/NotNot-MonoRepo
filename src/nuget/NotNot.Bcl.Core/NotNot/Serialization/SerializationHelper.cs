@@ -44,7 +44,6 @@ public class SerializationHelper
 		if (_isDisposed is true)
 		{
 			throw new ObjectDisposedException("SerializationHelper", "Dispose() already called");
-			return;
 		}
 		_isDisposed = true;
 
@@ -568,7 +567,7 @@ public class SerializationHelper
 	/// <typeparam name="TJsonSerialized"></typeparam>
 	/// <param name="json5String"></param>
 	/// <returns></returns>
-	public TJsonSerialized DeserializeJson5<TJsonSerialized>(string json5String)
+	public TJsonSerialized? DeserializeJson5<TJsonSerialized>(string json5String)
 	{
 
 		//dotnet, doesn't support unquoted keys

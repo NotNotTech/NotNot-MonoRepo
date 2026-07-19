@@ -156,13 +156,16 @@ IFusionCache _fusionCache
 		return _fusionCache.CreateEntryOptions(setupAction, duration);
 	}
 
-	public async ValueTask<TValue?> GetOrSetAsync<TValue>(string key, Func<FusionCacheFactoryExecutionContext<TValue>, CancellationToken, Task<TValue?>> factory, MaybeValue<TValue?> failSafeDefaultValue = new MaybeValue<TValue?>(), FusionCacheEntryOptions? options = null,
+	// These factory-based overloads forward directly to FusionCache; their generics match FusionCache's non-null TValue
+	// (only the wrapper RETURN stays nullable to reflect a cache miss). This avoids nullability variance at the boundary
+	// with no in-repo callers affected.
+	public async ValueTask<TValue?> GetOrSetAsync<TValue>(string key, Func<FusionCacheFactoryExecutionContext<TValue>, CancellationToken, Task<TValue>> factory, MaybeValue<TValue> failSafeDefaultValue = new MaybeValue<TValue>(), FusionCacheEntryOptions? options = null,
 		CancellationToken token = new CancellationToken())
 	{
 		return await _fusionCache.GetOrSetAsync(key, factory, failSafeDefaultValue, options, token);
 	}
 
-	public TValue? GetOrSet<TValue>(string key, Func<FusionCacheFactoryExecutionContext<TValue>, CancellationToken, TValue?> factory, MaybeValue<TValue?> failSafeDefaultValue = new MaybeValue<TValue?>(), FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
+	public TValue? GetOrSet<TValue>(string key, Func<FusionCacheFactoryExecutionContext<TValue>, CancellationToken, TValue> factory, MaybeValue<TValue> failSafeDefaultValue = new MaybeValue<TValue>(), FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
 		return _fusionCache.GetOrSet(key, factory, failSafeDefaultValue, options, token);
 	}

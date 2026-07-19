@@ -532,19 +532,23 @@ public static class zz_Extensions_Type
 	public static bool _IsBaseType(this Type type, Type checkingType)
 	{
 		__.GetLogger()._EzError(type is not null);
-		while (type != typeof(object))
+		// Walk up the base-type chain. Type.BaseType is null for interfaces and for System.Object,
+		// so a null here means we've reached the top of the chain: break (a `continue` would spin forever
+		// because the loop variable never advances past null).
+		Type? current = type;
+		while (current != typeof(object))
 		{
-			if (type == null)
+			if (current is null)
 			{
-				continue;
+				break;
 			}
 
-			if (type == checkingType)
+			if (current == checkingType)
 			{
 				return true;
 			}
 
-			type = type.BaseType;
+			current = current.BaseType;
 		}
 
 		return false;
@@ -562,20 +566,24 @@ public static class zz_Extensions_Type
 	public static bool _IsSubclassOfRawGeneric(this Type generic, Type toCheck)
 	{
 		__.GetLogger()._EzError(generic is not null);
-		while (toCheck != typeof(object))
+		// Walk up the base-type chain. Type.BaseType is null for interfaces and for System.Object,
+		// so a null here means we've reached the top of the chain: break (a `continue` would spin forever
+		// because the loop variable never advances past null).
+		Type? current = toCheck;
+		while (current != typeof(object))
 		{
-			if (toCheck == null)
+			if (current is null)
 			{
-				continue;
+				break;
 			}
 
-			var cur = toCheck.IsGenericType ? toCheck.GetGenericTypeDefinition() : toCheck;
+			var cur = current.IsGenericType ? current.GetGenericTypeDefinition() : current;
 			if (generic == cur)
 			{
 				return true;
 			}
 
-			toCheck = toCheck.BaseType;
+			current = current.BaseType;
 		}
 
 		return false;
