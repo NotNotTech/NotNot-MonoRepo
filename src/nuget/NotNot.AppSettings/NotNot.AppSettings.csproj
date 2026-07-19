@@ -24,7 +24,7 @@
 
 	<ItemGroup>
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<PackageReference Include="SourceGenerator.Foundations" Version="2.0.13" PrivateAssets="all" />
+		<PackageReference Include="SourceGenerator.Foundations" Version="2.0.16" PrivateAssets="all" />
 		<PackageReference Include="System.Text.Json" Version="10.0.0" PrivateAssets="all" />
 	</ItemGroup>
 

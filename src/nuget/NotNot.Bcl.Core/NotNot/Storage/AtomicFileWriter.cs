@@ -149,7 +149,13 @@ public static class AtomicFileWriter
 		gate.Wait();
 		try
 		{
-			for (var attempt = 1; ; attempt++)
+			// NOTE: `while (true)` (not `for (var attempt = 1; ; attempt++)`): an empty-condition
+			// for-loop NRE-crashes ParallelHelper's PH_P008 analyzer (surfaced as AD0001), which
+			// silently disables that rule for the whole compilation when the enclosing method is async.
+			// The sync siblings mirror the async form for consistency + latent-async safety. `attempt`
+			// is hoisted above and incremented at the loop tail so the retry count is IDENTICAL.
+			var attempt = 1;
+			while (true)
 			{
 				var tempPath = MakeTempPath(full);
 				try
@@ -170,6 +176,7 @@ public static class AtomicFileWriter
 					TryDelete(tempPath);
 					throw;
 				}
+				attempt++;
 			}
 		}
 		finally
@@ -199,7 +206,12 @@ public static class AtomicFileWriter
 		await gate.WaitAsync(ct).ConfigureAwait(false);
 		try
 		{
-			for (var attempt = 1; ; attempt++)
+			// `while (true)` (not empty-condition `for`): see WriteAtomicCore — an empty-condition
+			// for-loop NRE-crashes ParallelHelper's PH_P008 analyzer (AD0001) in async methods,
+			// silently disabling the rule for the whole compilation. `attempt` is hoisted + tail-
+			// incremented so the retry count is IDENTICAL to the original for-loop.
+			var attempt = 1;
+			while (true)
 			{
 				var tempPath = MakeTempPath(full);
 				try
@@ -221,6 +233,7 @@ public static class AtomicFileWriter
 					TryDelete(tempPath);
 					throw;
 				}
+				attempt++;
 			}
 		}
 		finally
@@ -267,7 +280,13 @@ public static class AtomicFileWriter
 		ArgumentNullException.ThrowIfNull(finalPath);
 		ArgumentNullException.ThrowIfNull(contents);
 
-		for (var attempt = 1; ; attempt++)
+		// `while (true)` (not empty-condition `for`): see WriteAtomicCore — an empty-condition
+		// for-loop NRE-crashes ParallelHelper's PH_P008 analyzer (AD0001) in async methods, silently
+		// disabling the rule for the whole compilation; the sync siblings mirror the form for
+		// consistency + latent-async safety. `attempt` is hoisted + tail-incremented so the retry
+		// count is IDENTICAL to the original for-loop.
+		var attempt = 1;
+		while (true)
 		{
 			try
 			{
@@ -287,6 +306,7 @@ public static class AtomicFileWriter
 				// Jitter derives from BackoffMs (up to +100% of the base) so it tracks the backoff base with no duplicated literal.
 				Thread.Sleep(BackoffMs(attempt) + Random.Shared.Next(0, BackoffMs(attempt)));
 			}
+			attempt++;
 		}
 	}
 
