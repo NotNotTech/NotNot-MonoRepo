@@ -11,6 +11,7 @@
 using NotNot.Diagnostics;
 using NotNot.SimStorm._scratch.Ecs.Allocation;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 using NotNot.Advanced;
 using NotNot.Collections.SpanLike;
@@ -71,7 +72,8 @@ public class World : SystemBase
 public class FrameDataChannelSlim<TFramePacket> : ISystemField where TFramePacket : FramePacketBase, new()
 {
 	private Channel<TFramePacket> _channel;
-	public TFramePacket CurrentFrameData;
+	// Late-init: assigned in ISystemField.OnInitialize (and re-seeded each OnUpdate) before any read.
+	public TFramePacket CurrentFrameData = null!;
 	public ConcurrentQueue<TFramePacket> recycled = new();
 
 	public FrameDataChannelSlim(int maxFrames)
@@ -132,11 +134,12 @@ public class FrameDataChannelSlim<TFramePacket> : ISystemField where TFramePacke
 			"race condition failed.   still being written as we are prepping for read by async systems");
 
 		//ready next (current frame starting)
-		if (!recycled.TryDequeue(out CurrentFrameData))
+		if (!recycled.TryDequeue(out var nextFrameData))
 		{
-			CurrentFrameData = new TFramePacket();
+			nextFrameData = new TFramePacket();
 		}
 
+		CurrentFrameData = nextFrameData;
 		CurrentFrameData.Initialize();
 	}
 
@@ -157,7 +160,7 @@ public class FrameDataChannelSlim<TFramePacket> : ISystemField where TFramePacke
 	/// </summary>
 	/// <param name="toRecycle"></param>
 	/// <returns></returns>
-	public async ValueTask<TFramePacket> Read(TFramePacket toRecycle = null)
+	public async ValueTask<TFramePacket> Read(TFramePacket? toRecycle = null)
 	{
 		//recycle done frame
 		if (toRecycle != null)
@@ -198,8 +201,9 @@ public class FrameDataChannelSlim<TFramePacket> : ISystemField where TFramePacke
 /// </summary>
 public abstract class System : SystemBase
 {
-	public EntityManager entityManager;
-	public World world;
+	// Late-init: assigned in OnRegister; only valid while registered (nulled in OnUnregister).
+	public EntityManager entityManager = null!;
+	public World world = null!;
 
 	protected override void OnRegister()
 	{
@@ -224,8 +228,8 @@ public abstract class System : SystemBase
 
 	protected override void OnUnregister()
 	{
-		world = null;
-		entityManager = null;
+		world = null!;
+		entityManager = null!;
 
 		base.OnUnregister();
 	}
@@ -236,7 +240,8 @@ public abstract class System : SystemBase
 /// </summary>
 public partial class EntityManager : SystemBase //init / setup
 {
-	public AccessGuard _accessGuard;
+	// Late-init: assigned in OnInitialize before the manager processes any frame.
+	public AccessGuard _accessGuard = null!;
 	public EntityRegistry _entityRegistry = new();
 
 	protected override ValueTask OnInitialize()
@@ -248,7 +253,7 @@ public partial class EntityManager : SystemBase //init / setup
 	protected override void OnDispose(bool managedDisposing)
 	{
 		_lookup.Dispose();
-		_lookup = null;
+		_lookup = null!;
 		//_archetypes.Clear();
 		//_archetypes = null;
 		base.OnDispose(managedDisposing);
@@ -327,14 +332,14 @@ public partial class EntityManager //archetype management
 		public void Dispose()
 		{
 			_archetypes.Clear();
-			_archetypes = null;
+			_archetypes = null!;
 			foreach (var (hash, list) in _storage)
 			{
 				list.Clear();
 			}
 
 			_storage.Clear();
-			_storage = null;
+			_storage = null!;
 		}
 
 		public void Add(Archetype archetype)
@@ -395,7 +400,7 @@ public partial class EntityManager //archetype management
 			return checkHash;
 		}
 
-		public bool TryGetArchetype(HashSet<Type> componentTypes, out Archetype archetype)
+		public bool TryGetArchetype(HashSet<Type> componentTypes, [MaybeNullWhen(false)] out Archetype archetype)
 		{
 			//__.ERROR.AssertOnce(false, "todo: change List of componentTypes to something better performant");
 			var checkHash = GetCheckHash(componentTypes);
@@ -538,8 +543,8 @@ public partial class EntityManager //entity creation
 			//find archetype and delte for it then call callback
 			var pageSpan = accessTokens.Slice(pageStartIndex, pageLength);
 
-			//all owners are archetypes, so leap of faith cast
-			var archetype = pageSpan[0].GetOwner() as Archetype;
+			//all owners are archetypes, so direct cast (fail-fast on mismatch)
+			var archetype = (Archetype)pageSpan[0].GetOwner();
 			//let archetype invoke the required callback function
 			archetype.DoDeleteEntities_Phase0(pageSpan, doneCallback, pageSpan[0].GetPage());
 		}
@@ -672,7 +677,7 @@ public class QueryOptions
 	///    be sure that added archetypes have all TComponents you may request in <see cref="EntityQuery.SelectRange" />
 	///    otherwise an exception will be thrown
 	/// </remarks>
-	public Action<List<Archetype>> custom;
+	public Action<List<Archetype>>? custom;
 
 	/// <summary>
 	///    Disables the automatic requery when archetypes are added to the world.
@@ -881,8 +886,8 @@ public class EntityQuery
 				for (var i = 0; i < entityMetaCol.Count; i++)
 				{
 					helperCallback(
-						entityMetaCol[i] as Chunk<EntityMetadata>
-						, page.GetColumn<TC1>()[i] as Chunk<TC1>
+						(Chunk<EntityMetadata>)entityMetaCol[i]
+						, (Chunk<TC1>)page.GetColumn<TC1>()[i]
 					);
 				}
 			}
@@ -930,9 +935,9 @@ public class EntityQuery
 				for (var i = 0; i < entityMetaCol.Count; i++)
 				{
 					helperCallback(
-						entityMetaCol[i] as Chunk<EntityMetadata>
-						, page.GetColumn<TC1>()[i] as Chunk<TC1>
-						, page.GetColumn<TC2>()[i] as Chunk<TC2>
+						(Chunk<EntityMetadata>)entityMetaCol[i]
+						, (Chunk<TC1>)page.GetColumn<TC1>()[i]
+						, (Chunk<TC2>)page.GetColumn<TC2>()[i]
 					);
 				}
 			}
@@ -981,10 +986,10 @@ public class EntityQuery
 				for (var i = 0; i < entityMetaCol.Count; i++)
 				{
 					helperCallback(
-						entityMetaCol[i] as Chunk<EntityMetadata>
-						, page.GetColumn<TC1>()[i] as Chunk<TC1>
-						, page.GetColumn<TC2>()[i] as Chunk<TC2>
-						, page.GetColumn<TC3>()[i] as Chunk<TC3>
+						(Chunk<EntityMetadata>)entityMetaCol[i]
+						, (Chunk<TC1>)page.GetColumn<TC1>()[i]
+						, (Chunk<TC2>)page.GetColumn<TC2>()[i]
+						, (Chunk<TC3>)page.GetColumn<TC3>()[i]
 					);
 				}
 			}
@@ -1033,11 +1038,11 @@ public class EntityQuery
 				for (var i = 0; i < entityMetaCol.Count; i++)
 				{
 					helperCallback(
-						entityMetaCol[i] as Chunk<EntityMetadata>
-						, page.GetColumn<TC1>()[i] as Chunk<TC1>
-						, page.GetColumn<TC2>()[i] as Chunk<TC2>
-						, page.GetColumn<TC3>()[i] as Chunk<TC3>
-						, page.GetColumn<TC4>()[i] as Chunk<TC4>
+						(Chunk<EntityMetadata>)entityMetaCol[i]
+						, (Chunk<TC1>)page.GetColumn<TC1>()[i]
+						, (Chunk<TC2>)page.GetColumn<TC2>()[i]
+						, (Chunk<TC3>)page.GetColumn<TC3>()[i]
+						, (Chunk<TC4>)page.GetColumn<TC4>()[i]
 					);
 				}
 			}
@@ -1169,9 +1174,10 @@ public partial class Archetype : DisposeGuard //initialization
 
 
 	public HashSet<Type> _componentTypes;
-	public EntityManager _entityManager;
+	// Late-init: both assigned in Initialize() before the archetype is used.
+	public EntityManager _entityManager = null!;
 
-	private EntityRegistry _entityRegistry;
+	private EntityRegistry _entityRegistry = null!;
 
 	public Archetype(string name, HashSet<Type> componentTypes)
 	{
@@ -1215,7 +1221,7 @@ public partial class Archetype : DisposeGuard //initialization
 		}
 
 		_pages.Clear();
-		_pages = null;
+		_pages = null!;
 
 		base.OnDispose(managedDisposing);
 	}

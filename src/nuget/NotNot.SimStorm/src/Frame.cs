@@ -179,7 +179,7 @@ public partial class Frame ////node graph setup and execution
 
 		__.GetLogger()._EzInfo(SimNode._DEBUG_PRINT_TRACE != true,
 			$"[[[[[=================------- {_stats._frameId} -------=================]]]]]");
-		while (_allNodesToProcess?.Count > 0 || currentTasks.Count > 0)
+		while (_allNodesToProcess.Count > 0 || currentTasks.Count > 0)
 		{
 			outerWhileCount++;
 			var DEBUG_startedThisPass = 0;

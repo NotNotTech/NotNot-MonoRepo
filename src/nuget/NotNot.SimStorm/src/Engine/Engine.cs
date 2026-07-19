@@ -151,10 +151,18 @@ public class HeadlessUpdater : DisposeGuard, IUpdatePump
 
 				if (AvgElapsed > lastElapsed * 2)
 				{
-					await OnRunningLate();
+					var onRunningLate = OnRunningLate;
+					if (onRunningLate is not null)
+					{
+						await onRunningLate();
+					}
 				}
 				//Console.WriteLine($" ======================== {loop} ({Math.Round(TimeSpan.FromTicks(lastElapsed).TotalMilliseconds,1)}ms) ============================================== ");
-				await OnUpdate(lastElapsed);
+				var onUpdate = OnUpdate;
+				if (onUpdate is not null)
+				{
+					await onUpdate(lastElapsed);
+				}
 				//Console.WriteLine($"last Elapsed = {lastElapsed}");
 
 

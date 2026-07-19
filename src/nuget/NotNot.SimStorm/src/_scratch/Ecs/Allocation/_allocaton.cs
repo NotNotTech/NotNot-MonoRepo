@@ -576,7 +576,7 @@ public partial class Page //unit test
 
 
 		//};
-		page.Initialize(null, entityRegistry);
+		page.Initialize(new _TEST_FakeOwner(), entityRegistry);
 
 
 		var entityCount = __.Random.Next(0, 1000);
@@ -851,7 +851,7 @@ public partial class Page //ATOM logic
 			{
 				//make atomId
 				var helperType = typeof(AtomHelper<>).MakeGenericType(type);
-				var helper = Activator.CreateInstance(helperType) as AtomHelper;
+				var helper = (AtomHelper)Activator.CreateInstance(helperType)!;
 				var newAtomId = helper.GetId();
 				lock (_typeLookup)
 				{
@@ -974,9 +974,10 @@ public partial class Page : IDisposable //init logic
 	/// <summary>
 	///    the archetype.  abstracted as <see cref="IPageOwner" /> for Seperation of Concerns (SoC)
 	/// </summary>
-	public IPageOwner _owner;
+	// Late-init: both assigned in Initialize() before the page is used.
+	public IPageOwner _owner = null!;
 
-	public EntityRegistry _entityRegistry;
+	public EntityRegistry _entityRegistry = null!;
 
 	//public static int _pageId_GlobalCounter;
 	//public static Dictionary<int, Page> _GLOBAL_LOOKUP = new();
@@ -1041,9 +1042,9 @@ public partial class Page : IDisposable //init logic
 	/// </summary>
 	public int Count => _entityLookup.Count;
 
-	public SharedComponentGroup SharedComponents { get; init; }
+	public SharedComponentGroup? SharedComponents { get; init; }
 
-	public Page(bool autoPack, int chunkSize, HashSet<Type> componentTypes, SharedComponentGroup partitionGroup)
+	public Page(bool autoPack, int chunkSize, HashSet<Type> componentTypes, SharedComponentGroup? partitionGroup)
 	{
 		AutoPack = autoPack;
 		//_entityRegistry = entityRegistry;
@@ -1080,7 +1081,8 @@ public partial class Page : IDisposable //init logic
 			_atomIdsUsed.Add(atomId);
 			while (_columnStorage.Count() <= atomId)
 			{
-				_columnStorage.Add(null);
+				// sparse: unused atomId slots hold null; readers guard with `!= null`.
+				_columnStorage.Add(null!);
 			}
 
 			__.GetLogger()._EzErrorThrow<SimStormException>(_columnStorage[atomId] == null);
@@ -1158,7 +1160,8 @@ public partial class Page : IDisposable //init logic
 			}
 
 			columnList.Clear();
-			columns[atomId] = null;
+			// sparse: freed atomId slot reset to null; readers guard with `!= null`.
+			columns[atomId] = null!;
 		}
 #if CHECKED
 		foreach (var columnList in columns)
@@ -1168,12 +1171,12 @@ public partial class Page : IDisposable //init logic
 #endif
 
 		columns.Clear();
-		_columnStorage = null;
+		_columnStorage = null!;
 		_free.Clear();
-		_free = null;
+		_free = null!;
 		_entityLookup.Clear();
-		_entityLookup = null;
-		_entityRegistry = null;
+		_entityLookup = null!;
+		_entityRegistry = null!;
 		_GLOBAL_LOOKUP.FreeSlot(_pageId);
 		__.GetLogger()._EzErrorThrow<SimStormException>(_GLOBAL_LOOKUP.Span.Length <= _pageId || _GLOBAL_LOOKUP.Span[_pageId] == null);
 		_pageId = -1;
@@ -1205,7 +1208,7 @@ public partial class Page //column / component type management
 
 		__CHECKED_INTERNAL_VerifyPageAccessToken(ref pageToken);
 		var column = GetColumn<T>();
-		return column[pageToken.slotRef.chunkIndex] as Chunk<T>;
+		return (Chunk<T>)column[pageToken.slotRef.chunkIndex];
 	}
 
 	public ref T GetComponentRef<T>(ref AccessToken pageToken)
@@ -1238,7 +1241,7 @@ public partial class Page //column / component type management
 			return false;
 		}
 
-		var chunk = column[slot.chunkIndex] as Chunk<EntityMetadata>;
+		var chunk = (Chunk<EntityMetadata>)column[slot.chunkIndex];
 		metadata = chunk.UnsafeArray[slot.slotIndex];
 		return true;
 	}
@@ -1248,8 +1251,7 @@ public partial class Page //column / component type management
 	{
 		var atomId = Atom.GetId<T>();
 		var chunk =
-			_GLOBAL_LOOKUP.Span[pageToken.pageId]._GetColumnsSpan()[atomId]._AsSpan()[pageToken.slotRef.chunkIndex]
-				as Chunk<T>;
+			(Chunk<T>)_GLOBAL_LOOKUP.Span[pageToken.pageId]._GetColumnsSpan()[atomId]._AsSpan()[pageToken.slotRef.chunkIndex];
 		return ref chunk.UnsafeArray[pageToken.slotRef.slotIndex];
 	}
 
@@ -1292,7 +1294,7 @@ public partial class Page //column / component type management
 	protected internal ref T _UNCHECKED_GetComponent<T>(ref SlotRef slot)
 	{
 		//var atomId = Atom.GetId<T>();
-		return ref (GetColumn<T>()._AsSpan()[slot.chunkIndex] as Chunk<T>).UnsafeArray[slot.slotIndex];
+		return ref ((Chunk<T>)GetColumn<T>()._AsSpan()[slot.chunkIndex]).UnsafeArray[slot.slotIndex];
 	}
 
 	/// <summary>
@@ -1319,7 +1321,7 @@ public partial class Page //chunk management logic
 			var columns = _GetColumnsSpan();
 			var atomId = Atom.GetId(type);
 			var chunkType = typeof(Chunk<>).MakeGenericType(type);
-			var chunk = Activator.CreateInstance(chunkType) as Chunk;
+			var chunk = (Chunk)Activator.CreateInstance(chunkType)!;
 			//chunk.Initialize(_nextSlotTracker.chunkSize, _nextSlotTracker.nextAvailable.GetChunkLookupId(_pageId));
 			chunk.Initialize(_nextSlotTracker.chunkSize, this, _nextSlotTracker.nextAvailable.chunkIndex);
 
@@ -1347,8 +1349,9 @@ public partial class Page //chunk management logic
 			var columns = _GetColumnsSpan();
 			var atomId = Atom.GetId(type);
 			var result = columns[atomId]._TryTakeLast(out var chunk);
-			__.GetLogger()._EzErrorThrow<SimStormException>(result && chunk._count == 0);
-			chunk.Dispose();
+			// _TryTakeLast returns non-null chunk when result==true (guaranteed by the throw below).
+			__.GetLogger()._EzErrorThrow<SimStormException>(result && chunk!._count == 0);
+			chunk!.Dispose();
 			__.GetLogger()._EzError(columns[atomId].Count - 1 == _nextSlotTracker.nextAvailable.chunkIndex,
 				"somehow our column allocations is out of step with our next free tracking.");
 		}
@@ -1370,8 +1373,9 @@ public partial class Page //alloc/free/pack logic
 	/// <summary>
 	///    entities registered with this page.
 	///    <para>
-	///       OBSOLETE: kind of expensive any maybe not so helpful?   can access all entities via entityRegistry, or all
-	///       this page entitites by enumerating it's Column{EntityMeta}
+	///       PERF NOTE: kind of expensive and maybe not so helpful.  Alternatively, all entities can be accessed via
+	///       entityRegistry, or all this page's entities by enumerating its Column{EntityMeta}.  This lookup remains the
+	///       live storage backing Page allocation/free/pack and CheckIsValid until that migration happens.
 	///    </para>
 	/// </summary>
 	/// <remarks>
@@ -1380,8 +1384,6 @@ public partial class Page //alloc/free/pack logic
 	///       callers, allowing packing.
 	///    </para>
 	/// </remarks>
-	[Obsolete(
-		"kind of expensive any maybe not so helpful?   can access all entities via entityRegistry, or all this page entitites by enumerating it's Column<EntityMeta>")]
 	public Dictionary<ulong, AccessToken> _entityLookup = new();
 
 	/// <summary>
@@ -2005,7 +2007,7 @@ public record struct EntityMetadata
 	/// <summary>
 	///    obtain the SharedComponents, common for this page
 	/// </summary>
-	public SharedComponentGroup SharedComponents => accessToken.GetPage().SharedComponents;
+	public SharedComponentGroup? SharedComponents => accessToken.GetPage().SharedComponents;
 
 
 	/// <summary>
@@ -2261,7 +2263,8 @@ public class Chunk<TComponent> : Chunk
 	///    this is an array obtained by a object pool (cache).  It is longer than actually needed.  Do not use the extra slots.
 	///    always get length from _storage or Span
 	/// </summary>
-	public TComponent[] UnsafeArray;
+	// Late-init: assigned in Initialize() before any slot access; reset to null in Dispose().
+	public TComponent[] UnsafeArray = null!;
 
 #if CHECKED
 	private DisposeGuard _disposeCheck = new();
@@ -2287,7 +2290,8 @@ public class Chunk<TComponent> : Chunk
 		//	__.GetLogger()._EzErrorThrow<SimStormException>(result);
 		//}
 		__.GetLogger()._EzCheckedThrow<SimStormException>(_GLOBAL_LOOKUP[pageId][chunkIndex] == this, "ref mismatch");
-		_GLOBAL_LOOKUP[pageId][chunkIndex] = null;
+		// sparse: freed chunk slot reset to null; readers guard/verify before use.
+		_GLOBAL_LOOKUP[pageId][chunkIndex] = null!;
 
 		pageId = -1;
 		pageVersion = -1;
@@ -2295,8 +2299,8 @@ public class Chunk<TComponent> : Chunk
 
 
 		//our page.FreeLastChunk code checks count.   we don't want to check count here because of cases like game shutdown
-		//__.GetLogger()._EzErrorThrow<SimStormException>(_count == 0); 
-		UnsafeArray = null;
+		//__.GetLogger()._EzErrorThrow<SimStormException>(_count == 0);
+		UnsafeArray = null!;
 		_storageRaw.Dispose();
 		_storageRaw = default;
 	}
@@ -2372,8 +2376,8 @@ public class Chunk<TComponent> : Chunk
 		//	return;
 		//}
 
-		//clear the slot
-		UnsafeArray[pageToken.slotRef.slotIndex] = default;
+		//clear the slot (default! : clearing a storage slot, intentional even when TComponent is a reference type)
+		UnsafeArray[pageToken.slotRef.slotIndex] = default!;
 	}
 
 	public unsafe ref TComponent GetWriteRef(AccessToken pageToken)

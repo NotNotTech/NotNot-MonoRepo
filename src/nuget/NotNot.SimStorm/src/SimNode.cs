@@ -205,7 +205,7 @@ public abstract partial class SimNode //tree logic
 	///    </para>
 	///    <para>but it's usually better to just have a reference to the parent, and call parent.AddChild() instead</para>
 	/// </summary>
-	public string ParentName
+	public string? ParentName
 	{
 		get
 		{
