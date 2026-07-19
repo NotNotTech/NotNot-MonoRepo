@@ -32,4 +32,5 @@ NN_R006 | Reliability | Error | EmptyCatchBlockAnalyzer, [Documentation](https:/
 NN_R007 | Reliability | Error | HandRolledAtomicFileWriteAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_R007)
 NN_R008 | Reliability | Error | DirectFileAppendAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_R008)
 NN_R009 | Reliability | Error | PeriodicTimerDisposalRaceAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_R009)
+NN_R010 | Performance | Error | ContextAwareTaskAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_R010)
 NOTNOT001 | Reliability | Error | DestructorExceptionSafetyAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NOTNOT001)

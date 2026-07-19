@@ -18,7 +18,7 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
     /// <summary>
     /// Diagnostic for potentially blocking async calls in UI contexts
     /// </summary>
-    public const string UiBlockingDiagnosticId = "NN_R003";
+    public const string UiBlockingDiagnosticId = "NN_R010";
 
 
     private static readonly DiagnosticDescriptor UiBlockingRule = new(
@@ -47,7 +47,7 @@ public sealed class ContextAwareTaskAnalyzer : DiagnosticAnalyzer
 
     private static void AnalyzeAwaitExpression(SyntaxNodeAnalysisContext context)
     {
-        using var _ = AnalyzerPerformanceTracker.StartTracking("NN_R003", "AnalyzeAwaitExpression");
+        using var _ = AnalyzerPerformanceTracker.StartTracking(UiBlockingDiagnosticId, "AnalyzeAwaitExpression");
 
         var awaitExpression = (AwaitExpressionSyntax)context.Node;
         var semanticModel = context.SemanticModel;

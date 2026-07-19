@@ -52,6 +52,9 @@ public sealed class NnTokensGenerator : IIncrementalGenerator
         @"(?<![\w-])--(?<name>nns-[a-z0-9]+(?:-[a-z0-9]+)*)\s*:\s*(?<value>[^;{}]+?)\s*;",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    /// <summary>Wires the incremental pipeline that harvests <c>--nns-*</c> token declarations from
+    /// authority CSS and emits the generated token metadata (gated by the
+    /// <c>NnTokensGeneratorEnabled</c> build property).</summary>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Opt-out via AnalyzerConfig (set NnTokensGeneratorEnabled=false to disable).

@@ -123,7 +123,8 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 		DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
 		description: LDDD002_Description,
-		helpLinkUri: HelpBase + "nn_lddd_002");
+		helpLinkUri: HelpBase + "nn_lddd_002",
+		customTags: WellKnownDiagnosticTags.CompilationEnd);
 
 	// ── NN_LDDD_004 — Entity Framework DbContext referenced in Shared/Client code ────
 
@@ -199,7 +200,8 @@ public sealed class LdddAssemblyFenceAnalyzer : DiagnosticAnalyzer
 		DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
 		description: ABMCS001_Description,
-		helpLinkUri: HelpBase + "nn_abmcs_001");
+		helpLinkUri: HelpBase + "nn_abmcs_001",
+		customTags: WellKnownDiagnosticTags.CompilationEnd);
 
 	// ── NN_ABMCS_004 — Entity Framework DbContext in Shared/Client code (alias of NN_LDDD_004) ──
 

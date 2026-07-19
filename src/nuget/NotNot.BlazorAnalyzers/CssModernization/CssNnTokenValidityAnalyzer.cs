@@ -87,7 +87,7 @@ public sealed class CssNnTokenValidityAnalyzer : DiagnosticAnalyzer
         "bare var(--{0}) references design token --{0}, declared in no authority CSS "
             + "(nn-design.css / nn-colors.css) — fix the token name, or add a fallback: var(--{0}, <value>). "
             + "Runtime-injected token the analyzer cannot see? add a same-line "
-            + "/* nnb_css013:allow-unknown-token: <reason> */ marker. (NNB_CSS013)",
+            + "/* nnb_css013:allow-unknown-token: <reason> */ marker. (NNB_CSS013).",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "A BARE var(--nns-*) reference (no fallback) to a token declared in neither authority "
             + "CSS file silently resolves to nothing — no compiler error, no browser error, no fallback. The "
@@ -98,7 +98,8 @@ public sealed class CssNnTokenValidityAnalyzer : DiagnosticAnalyzer
             + "inert unless an authority CSS file is registered as an AdditionalFile (producer-scoped). "
             + "Per-file opt-out: nnb_css013:allow-unknown-token: <reason>. Kill-switch: "
             + "<CssAnalyzerEnabled>false</CssAnalyzerEnabled>.",
-        helpLinkUri: HelpBase + "NNB_CSS013");
+        helpLinkUri: HelpBase + "NNB_CSS013",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     // ── Regex patterns ────────────────────────────────────────────────────
 

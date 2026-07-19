@@ -282,25 +282,84 @@ public sealed class AppSettingsCodeDefaultAnalyzer : DiagnosticAnalyzer
 		// initializer) cannot live in static JSON — mirroring the inline `?? Compute()` exemption — so it stays
 		// silent (no Error-severity false positive on a non-relocatable value).
 		if (field.IsStatic && field.IsReadOnly)
-			return HasConstantInitializer(field, model, ct);
+			return HasConstantInitializer(field, ct);
 
 		return false;
 	}
 
 	/// <summary>
 	/// True iff the <c>static readonly</c> <paramref name="field"/> has a SOURCE field-initializer whose value
-	/// is a compile-time constant (a literal or <c>const</c> reference). A computed initializer, a static-ctor
-	/// assignment (no field-initializer), or a metadata field with no visible source returns <c>false</c> —
-	/// conservatively exempt so an Error-severity diagnostic never fires on a non-relocatable computed default.
+	/// is a compile-time constant (a literal — optionally a leading unary <c>-</c>/<c>+</c> on a numeric literal —
+	/// or a reference to a <c>const</c> member). A computed initializer, a static-ctor assignment (no
+	/// field-initializer), or a metadata field with no visible source returns <c>false</c> — conservatively exempt
+	/// so an Error-severity diagnostic never fires on a non-relocatable computed default.
 	/// </summary>
-	private static bool HasConstantInitializer(IFieldSymbol field, SemanticModel model, CancellationToken ct)
+	/// <remarks>
+	/// Determines constant-ness from the initializer SYNTAX plus SYMBOL-level lookups (no
+	/// <c>Compilation.GetSemanticModel</c>, RS1030-clean): the field's initializer may live in a different syntax
+	/// tree than the analyzed coalesce node, and obtaining that tree's model inside a syntax-node action is exactly
+	/// the RS1030 hazard. A literal is constant by construction; a reference to another member is constant iff that
+	/// member resolves (by name, on the field's containing type or its bases) to a <c>const</c> field. This covers
+	/// the same cases the prior <c>GetConstantValue</c> check accepted (literal · const reference) and rejects the
+	/// same computed cases.
+	/// </remarks>
+	private static bool HasConstantInitializer(IFieldSymbol field, CancellationToken ct)
 	{
 		foreach (var syntaxRef in field.DeclaringSyntaxReferences)
 		{
 			if (syntaxRef.GetSyntax(ct) is VariableDeclaratorSyntax { Initializer.Value: { } initializer })
 			{
-				var initializerModel = model.Compilation.GetSemanticModel(initializer.SyntaxTree);
-				return initializerModel.GetConstantValue(initializer, ct).HasValue;
+				return IsCompileTimeConstantInitializer(initializer, field.ContainingType);
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// True iff <paramref name="initializer"/> is a compile-time constant: a literal (optionally a leading unary
+	/// <c>-</c>/<c>+</c> on a numeric literal), or a simple-name / member-access that resolves — by identifier name,
+	/// against <paramref name="ownerType"/> and its base types — to a <c>const</c> field. Resolved from syntax and
+	/// symbol members only (no semantic model for the initializer's tree, RS1030-clean).
+	/// </summary>
+	private static bool IsCompileTimeConstantInitializer(ExpressionSyntax initializer, INamedTypeSymbol? ownerType)
+	{
+		var expr = initializer;
+
+		// Allow a leading unary +/- on a numeric literal (e.g. `= -1`).
+		if (expr is PrefixUnaryExpressionSyntax unary
+			&& (unary.IsKind(SyntaxKind.UnaryMinusExpression) || unary.IsKind(SyntaxKind.UnaryPlusExpression)))
+		{
+			expr = unary.Operand;
+		}
+
+		// A literal initializer is a compile-time constant by construction.
+		if (expr is LiteralExpressionSyntax literal)
+		{
+			return literal.Kind() is SyntaxKind.NumericLiteralExpression
+				or SyntaxKind.StringLiteralExpression
+				or SyntaxKind.CharacterLiteralExpression
+				or SyntaxKind.TrueLiteralExpression
+				or SyntaxKind.FalseLiteralExpression;
+		}
+
+		// A reference to another member (simple name `Foo` or member-access `Type.Foo`) is a compile-time constant
+		// iff the referenced identifier resolves to a `const` field on the field's containing type or a base type.
+		var referencedName = expr switch
+		{
+			IdentifierNameSyntax id => id.Identifier.ValueText,
+			MemberAccessExpressionSyntax member => member.Name.Identifier.ValueText,
+			_ => null,
+		};
+		if (referencedName is null)
+			return false;
+
+		for (var type = ownerType; type is not null; type = type.BaseType)
+		{
+			foreach (var member in type.GetMembers(referencedName))
+			{
+				if (member is IFieldSymbol { IsConst: true })
+					return true;
 			}
 		}
 

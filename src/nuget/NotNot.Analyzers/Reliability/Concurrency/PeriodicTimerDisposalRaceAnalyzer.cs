@@ -99,10 +99,16 @@ public class PeriodicTimerDisposalRaceAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
+        context.RegisterSymbolStartAction(AnalyzeNamedTypeStart, SymbolKind.NamedType);
     }
 
-    private static void AnalyzeNamedType(SymbolAnalysisContext context)
+    /// <summary>
+    /// Per-type entry point. Collects the type's PeriodicTimer-typed members, then registers per-invocation
+    /// syntax-node actions (each supplies a cached <see cref="SemanticModel"/> via the framework — no
+    /// <c>Compilation.GetSemanticModel</c> call, RS1030-clean) that accumulate the two decisive conditions,
+    /// and a symbol-end action that reports any member satisfying both.
+    /// </summary>
+    private static void AnalyzeNamedTypeStart(SymbolStartAnalysisContext context)
     {
         using var _ = AnalyzerPerformanceTracker.StartTracking(DiagnosticId, "AnalyzeNamedType");
 
@@ -132,51 +138,55 @@ public class PeriodicTimerDisposalRaceAnalyzer : DiagnosticAnalyzer
 
         if (candidates.Count == 0) return;
 
-        // Walk the type's declaration syntax for the two decisive invocations, resolving receivers semantically.
+        // Accumulate the two decisive conditions across per-invocation syntax-node callbacks. Concurrent
+        // execution is enabled, so guard the shared sets with a lock.
+        var gate = new object();
         var waited = new HashSet<ISymbol>(SymbolEqualityComparer.Default);            // condition (b)
         var disposedInDisposal = new HashSet<ISymbol>(SymbolEqualityComparer.Default); // condition (c)
 
-        foreach (var syntaxRef in namedType.DeclaringSyntaxReferences)
+        context.RegisterSyntaxNodeAction(nodeContext =>
         {
-            if (syntaxRef.GetSyntax(context.CancellationToken) is not TypeDeclarationSyntax typeDecl) continue;
-            var model = context.Compilation.GetSemanticModel(typeDecl.SyntaxTree);
+            var invocation = (InvocationExpressionSyntax)nodeContext.Node;
+            if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess) return;
+            var calledName = memberAccess.Name.Identifier.ValueText;
+            if (calledName != "WaitForNextTickAsync" && calledName != "Dispose") return;
 
-            foreach (var invocation in typeDecl.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            // Resolve the RECEIVER (e.g. `_timer` in `_timer.WaitForNextTickAsync(ct)`, or `this._timer`) to a
+            // collected field/property symbol. nodeContext.SemanticModel is the cached model for this tree.
+            var receiverSymbol = nodeContext.SemanticModel
+                .GetSymbolInfo(memberAccess.Expression, nodeContext.CancellationToken).Symbol;
+            if (receiverSymbol is null) return;
+
+            var match = candidates.FirstOrDefault(
+                c => SymbolEqualityComparer.Default.Equals(c, receiverSymbol));
+            if (match is null) return;
+
+            if (calledName == "WaitForNextTickAsync")
             {
-                if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess) continue;
-                var calledName = memberAccess.Name.Identifier.ValueText;
-                if (calledName != "WaitForNextTickAsync" && calledName != "Dispose") continue;
-
-                // Resolve the RECEIVER (e.g. `_timer` in `_timer.WaitForNextTickAsync(ct)`,
-                // or `this._timer`) to a collected field/property symbol.
-                var receiverSymbol = model.GetSymbolInfo(memberAccess.Expression, context.CancellationToken).Symbol;
-                if (receiverSymbol is null) continue;
-
-                var match = candidates.FirstOrDefault(
-                    c => SymbolEqualityComparer.Default.Equals(c, receiverSymbol));
-                if (match is null) continue;
-
-                if (calledName == "WaitForNextTickAsync")
-                {
-                    waited.Add(match);
-                }
-                else if (IsInsideDisposalMethod(invocation))
-                {
-                    disposedInDisposal.Add(match);
-                }
+                lock (gate) { waited.Add(match); }
             }
-        }
+            else if (IsInsideDisposalMethod(invocation))
+            {
+                lock (gate) { disposedInDisposal.Add(match); }
+            }
+        }, SyntaxKind.InvocationExpression);
 
-        // Report each member satisfying ALL THREE conditions, at its declaration.
-        foreach (var candidate in candidates)
+        context.RegisterSymbolEndAction(endContext =>
         {
-            if (!waited.Contains(candidate) || !disposedInDisposal.Contains(candidate)) continue;
+            // Report each member satisfying ALL THREE conditions, at its declaration.
+            foreach (var candidate in candidates)
+            {
+                lock (gate)
+                {
+                    if (!waited.Contains(candidate) || !disposedInDisposal.Contains(candidate)) continue;
+                }
 
-            var location = candidate.Locations.FirstOrDefault(l => l.IsInSource);
-            if (location is null) continue;
+                var location = candidate.Locations.FirstOrDefault(l => l.IsInSource);
+                if (location is null) continue;
 
-            context.ReportDiagnostic(Diagnostic.Create(Rule, location, candidate.Name));
-        }
+                endContext.ReportDiagnostic(Diagnostic.Create(Rule, location, candidate.Name));
+            }
+        });
     }
 
     /// <summary>

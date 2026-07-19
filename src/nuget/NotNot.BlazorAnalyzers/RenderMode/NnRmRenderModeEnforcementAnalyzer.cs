@@ -111,7 +111,8 @@ public sealed class NnRmRenderModeEnforcementAnalyzer : DiagnosticAnalyzer
 		DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
 		description: RM001_Description,
-		helpLinkUri: HelpBase + "nn_rm_001");
+		helpLinkUri: HelpBase + "nn_rm_001",
+		customTags: WellKnownDiagnosticTags.CompilationEnd);
 
 	// ── Detection regex ─────────────────────────────────────────────────────────
 

@@ -73,7 +73,7 @@ public class GoodAsyncPatterns
     }
 
     /// <summary>
-    /// ✅ UI code with proper patterns - minimal NN_R003 violations
+    /// ✅ UI code with proper patterns - minimal NN_R010 violations
     /// </summary>
     public async Task UiCodeBestPractices()
     {

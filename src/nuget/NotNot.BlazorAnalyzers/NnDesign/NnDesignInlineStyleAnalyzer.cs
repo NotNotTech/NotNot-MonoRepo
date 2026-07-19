@@ -100,7 +100,8 @@ public sealed class NnDesignInlineStyleAnalyzer : DiagnosticAnalyzer
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
 		description: Description,
-		helpLinkUri: HelpBase + "nnb044");  // lowercase anchor — GitHub slugifies
+		helpLinkUri: HelpBase + "nnb044",  // lowercase anchor — GitHub slugifies
+		customTags: WellKnownDiagnosticTags.CompilationEnd);
 
 	// ── Regex patterns ────────────────────────────────────────────────────
 

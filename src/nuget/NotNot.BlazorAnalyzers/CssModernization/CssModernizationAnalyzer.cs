@@ -161,12 +161,16 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
 
     // ── DiagnosticAnalyzer overrides ────────────────────────────────────
 
+    /// <summary>The eight CSS-modernization rules this analyzer reports (NNB_CSS001–007 plus the
+    /// NNB_CSS010 viewport-unit rule).</summary>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         ImmutableArray.Create(
             RuleNoImportant, RuleNoPrefersColorScheme, RuleNoHardcodedRgba,
             RuleNoNestingInScoped, RuleNoContentVisibility, RuleNoLinkLayer, RuleNoHasInScoped,
             RuleNoViewportUnits);
 
+    /// <summary>Registers a compilation-end action that scans registered CSS <c>AdditionalText</c>
+    /// files; no generated C# is analyzed.</summary>
     public override void Initialize(AnalysisContext context)
     {
         // No generated C# code analysis needed — we scan AdditionalTexts only

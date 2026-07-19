@@ -92,7 +92,7 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             + "a Layout Contract mode (Fill / MaxHeight / data-nns-fill); (3) only if genuinely intended, "
             + "add a per-file nnb_css011:allow-reachin comment. Relocating the CSS between a .razor.css "
             + "::deep rule and an inline <style> block is NOT a fix — both are the same violation. "
-            + "(NNB_CSS011)",
+            + "(NNB_CSS011).",
         Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
         description: "Tier A/B govern Nn* PARAMETERS; this governs consumer CSS. A consumer-authored CSS "
             + "declaration must never land on an Nn* element, regardless of delivery — internal-class "
@@ -112,7 +112,8 @@ public sealed class CssNnConsumerClassAnalyzer : DiagnosticAnalyzer
             + "Class=\"@expr\" (not literal-matchable, both deliveries); @media/@supports-nested rules "
             + "(top-level @-blocks are skipped, both deliveries); inline Style= attribute (owned by "
             + "NNB044).",
-        helpLinkUri: HelpBase + "NNB_CSS011");
+        helpLinkUri: HelpBase + "NNB_CSS011",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     // ── Regex patterns ────────────────────────────────────────────────────
 

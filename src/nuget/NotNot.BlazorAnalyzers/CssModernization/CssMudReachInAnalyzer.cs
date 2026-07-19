@@ -69,7 +69,7 @@ public sealed class CssMudReachInAnalyzer : DiagnosticAnalyzer
             + "by NnDesign — its '.mud-*' classes are private implementation detail. Use the NnDesign "
             + "wrapper's published contract (e.g. NnTabs trigger-sizing default / FillPanels / per-panel "
             + "data-nn-fill, NnContentSection params) or style your OWN element instead of reaching into "
-            + "'.mud-*' internals. If no wrapper contract covers the need, file an NnDesign-gap. (NNB_CSS009)",
+            + "'.mud-*' internals. If no wrapper contract covers the need, file an NnDesign-gap. (NNB_CSS009).",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "MudBlazor '.mud-*' classes are the private DOM of the primitive layer that NnDesign "
             + "wraps. A consumer that restyles one (the rightmost/subject selector being a '.mud-*' class — "
@@ -85,7 +85,8 @@ public sealed class CssMudReachInAnalyzer : DiagnosticAnalyzer
             + "'.mud-*'), Pages/Samples/** + NnDesignSamples/**, samples CSS, global theme CSS. Per-file "
             + "opt-out: nnb_css009:allow-reachin: <reason>. Kill-switch: "
             + "<CssAnalyzerEnabled>false</CssAnalyzerEnabled>.",
-        helpLinkUri: HelpBase + "NNB_CSS009");
+        helpLinkUri: HelpBase + "NNB_CSS009",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     // ── Regex patterns ────────────────────────────────────────────────────
 

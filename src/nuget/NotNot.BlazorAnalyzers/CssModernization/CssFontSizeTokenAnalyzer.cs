@@ -74,7 +74,7 @@ public sealed class CssFontSizeTokenAnalyzer : DiagnosticAnalyzer
         "font-size literal duplicates an --nns-font-size-* design token — use the token",
         "font-size literal '{0}' equals design token --nns-font-size-{1}; replace with "
             + "var(--nns-font-size-{1}). Intentional off-ladder or icon-glyph size? keep the literal and "
-            + "add a same-line /* nnb_css012:allow-fontsize-literal: <reason> */ marker. (NNB_CSS012)",
+            + "add a same-line /* nnb_css012:allow-fontsize-literal: <reason> */ marker. (NNB_CSS012).",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "A font-size value that restates an --nns-font-size-* token value silently detaches "
             + "from scale retuning: when the token ladder is re-tuned the literal stays frozen. The scale "
@@ -85,7 +85,8 @@ public sealed class CssFontSizeTokenAnalyzer : DiagnosticAnalyzer
             + "construction), or on inline style= attributes (owned by NNB044). Fix: use "
             + "var(--nns-font-size-<step>). Per-file opt-out: nnb_css012:allow-fontsize-literal: <reason>. "
             + "Kill-switch: <CssAnalyzerEnabled>false</CssAnalyzerEnabled>.",
-        helpLinkUri: HelpBase + "NNB_CSS012");
+        helpLinkUri: HelpBase + "NNB_CSS012",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     // ── Regex patterns ────────────────────────────────────────────────────
 

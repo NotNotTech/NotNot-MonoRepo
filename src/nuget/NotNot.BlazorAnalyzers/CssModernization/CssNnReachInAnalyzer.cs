@@ -68,7 +68,7 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
         "Consumer CSS restyles NnDesign internal class '{0}'. Style your OWN element (optionally "
             + "gated on a published NnDesign state like html.nns-chord-revealed) or use the wrapper's "
             + "public parameter/component (e.g. NnContentSection.MaxHeight / NoHeaderBorder, "
-            + "NnContentSectionGroup) instead of reaching into '.nns-*' internals. (NNB_CSS008)",
+            + "NnContentSectionGroup) instead of reaching into '.nns-*' internals. (NNB_CSS008).",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "An NnDesign wrapper's internal '.nns-*' classes are private implementation detail. "
             + "A consumer that restyles one (the rightmost/subject selector being an '.nns-*' class — "
@@ -80,7 +80,8 @@ public sealed class CssNnReachInAnalyzer : DiagnosticAnalyzer
             + "Exempt: NnDesign's own producer CSS / NotNot.BlazorDesign internals, Pages/Samples/** + "
             + "NnDesignSamples/**, samples CSS, global theme CSS. Per-file opt-out: "
             + "nnb_css008:allow-reachin: <reason>. Kill-switch: <CssAnalyzerEnabled>false</CssAnalyzerEnabled>.",
-        helpLinkUri: HelpBase + "NNB_CSS008");
+        helpLinkUri: HelpBase + "NNB_CSS008",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     // ── Regex patterns ────────────────────────────────────────────────────
 

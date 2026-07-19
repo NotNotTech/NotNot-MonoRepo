@@ -75,7 +75,8 @@ public sealed class NnSampleSectionIdUniquenessAnalyzer : DiagnosticAnalyzer
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
 		description: Description,
-		helpLinkUri: HelpBase + "nnb047");  // lowercase anchor — GitHub slugifies
+		helpLinkUri: HelpBase + "nnb047",  // lowercase anchor — GitHub slugifies
+		customTags: WellKnownDiagnosticTags.CompilationEnd);
 
 	/// <summary>
 	/// Matches an <c>&lt;NnSampleSection ... Id="literal" ...&gt;</c> opening tag and captures the

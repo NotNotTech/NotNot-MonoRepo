@@ -14,6 +14,8 @@ namespace NotNot.BlazorAnalyzers.Lifecycle;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class IncompleteCancellationHandlingAnalyzer : DiagnosticAnalyzer
 {
+	/// <summary>The diagnostic ID (NNB012) reported when a catch handles JSDisconnectedException but
+	/// not TaskCanceledException/OperationCanceledException.</summary>
 	public const string DiagnosticId = "NNB012";
 
 	private static readonly LocalizableString Title = "JS interop catch handles JSDisconnectedException but not TaskCanceledException";
@@ -30,6 +32,7 @@ public class IncompleteCancellationHandlingAnalyzer : DiagnosticAnalyzer
 		DiagnosticSeverity.Error, isEnabledByDefault: true, description: Description,
 		helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers#{DiagnosticId}");
 
+	/// <summary>The single NNB012 rule this analyzer reports.</summary>
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
 
 	private static readonly string[] JsInteropMethodNames =
@@ -38,6 +41,7 @@ public class IncompleteCancellationHandlingAnalyzer : DiagnosticAnalyzer
 	private static readonly string[] SafeWrapperMethodNames =
 		{ "_WaitIgnoreCancel", "_WaitIgnoreCancelOrNull" };
 
+	/// <summary>Registers a syntax-node action over <c>try</c> statements to inspect their catch clauses.</summary>
 	public override void Initialize(AnalysisContext context)
 	{
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);

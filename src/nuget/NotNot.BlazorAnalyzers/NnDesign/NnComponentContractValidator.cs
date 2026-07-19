@@ -54,6 +54,8 @@ public static class NnComponentContractValidator
     /// <summary>One contract divergence between the schema and the live producer artifacts.</summary>
     public sealed class ContractDrift
     {
+        /// <summary>Creates a drift record for <paramref name="component"/> classified as
+        /// <paramref name="kind"/> with human-readable <paramref name="detail"/>.</summary>
         public ContractDrift(string component, DriftKind kind, string detail)
         {
             Component = component;
@@ -70,12 +72,14 @@ public static class NnComponentContractValidator
         /// <summary>Human-readable specifics (the offending param/slot/mode name + direction).</summary>
         public string Detail { get; }
 
+        /// <summary>Renders the drift as <c>[component] kind: detail</c> for diagnostic messages.</summary>
         public override string ToString() => $"[{Component}] {Kind}: {Detail}";
     }
 
     /// <summary>A parsed schema block for ONE component.</summary>
     public sealed class ComponentSchema
     {
+        /// <summary>Creates a schema block from the parsed declared component contract.</summary>
         public ComponentSchema(
             string component,
             string razorPath,
@@ -92,17 +96,25 @@ public static class NnComponentContractValidator
             Slots = slots;
         }
 
+        /// <summary>The component name this schema block declares.</summary>
         public string Component { get; }
+        /// <summary>The <c>razor:</c> path of the live producer artifact the schema is checked against.</summary>
         public string RazorPath { get; }
+        /// <summary>The declared Tier-A parameter names (excludes Tier-B style/class params).</summary>
         public ImmutableArray<string> TierAParams { get; }
+        /// <summary>The declared <c>data-nns-fill</c> modes the component supports.</summary>
         public ImmutableArray<string> DataNnFillModes { get; }
+        /// <summary>The fill modes exempt from the supporting-CSS-hook requirement.</summary>
         public ImmutableHashSet<string> CssExemptModes { get; }
+        /// <summary>The declared <c>RenderFragment</c> slot names.</summary>
         public ImmutableArray<string> Slots { get; }
     }
 
     /// <summary>The Tier-A parameter surface + slot surface parsed from a live <c>.razor</c> component.</summary>
     public sealed class LiveComponentSurface
     {
+        /// <summary>Creates the live surface from the Tier-A parameter and slot names parsed from the
+        /// producer <c>.razor</c> component.</summary>
         public LiveComponentSurface(ImmutableArray<string> tierAParams, ImmutableArray<string> slots)
         {
             TierAParams = tierAParams;

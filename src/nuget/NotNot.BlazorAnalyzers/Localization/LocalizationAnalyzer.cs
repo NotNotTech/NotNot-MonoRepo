@@ -39,7 +39,8 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
         description: "User-facing strings in Razor markup should use the @L[\"key\"] localization "
             + "pattern instead of hardcoded text. This enables translation and locale-aware display.",
-        helpLinkUri: HelpBase + DiagnosticId);
+        helpLinkUri: HelpBase + DiagnosticId,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     // ── Razor directive prefixes to skip ─────────────────────────────────
 
@@ -117,9 +118,12 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
 
     // ── DiagnosticAnalyzer overrides ──────────────────────────────────────
 
+    /// <summary>The single NNB014 rule (hardcoded user-facing string) this analyzer reports.</summary>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         ImmutableArray.Create(Rule);
 
+    /// <summary>Registers a compilation-end action that scans <c>.razor</c> <c>AdditionalText</c> markup
+    /// for hardcoded user-facing strings that should route through <c>@L["..."]</c>.</summary>
     public override void Initialize(AnalysisContext context)
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);

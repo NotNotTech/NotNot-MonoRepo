@@ -18,6 +18,9 @@ namespace NotNot.BlazorAnalyzers.XRay;
 [Generator(LanguageNames.CSharp)]
 public class XRayMetadataGenerator : IIncrementalGenerator
 {
+    /// <summary>Wires the incremental pipeline that parses <c>.razor</c> files and emits the
+    /// <c>XRayMetadata.g.cs</c> element-to-line JSON (gated by the <c>XRayGeneratorEnabled</c>
+    /// build property).</summary>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Check for opt-out via AnalyzerConfig (set XRayGeneratorEnabled = false to disable)

@@ -78,7 +78,8 @@ public sealed class NnDesignMudBlazorPolicyAnalyzer : DiagnosticAnalyzer
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
 		description: Description,
-		helpLinkUri: HelpBase + "nnb022");  // lowercase anchor — GitHub slugifies (SME M3)
+		helpLinkUri: HelpBase + "nnb022",  // lowercase anchor — GitHub slugifies (SME M3)
+		customTags: WellKnownDiagnosticTags.CompilationEnd);
 
 	// ── Regex patterns ────────────────────────────────────────────────────
 

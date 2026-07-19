@@ -43,7 +43,7 @@ public class ForeachKeyConventionAnalyzer : DiagnosticAnalyzer
 		"NNB040",
 		"@key should use an identity property (.Id) or explicit composite key",
 		"@key uses '.{0}' which may not be unique across sibling elements. "
-			+ "Use a property like .Id or an explicit composite key @key=\"@($\"...\")\" to prevent duplicate key crashes. (NNB040)",
+			+ "Use a property like .Id or an explicit composite key @key=\"@($\"...\")\" to prevent duplicate key crashes. (NNB040).",
 		Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
 		description: "Blazor @key values must be unique among sibling elements. Using non-identity "
 			+ "properties (e.g., .CursorOffset, .Index, .Offset) risks duplicate keys when items come "
@@ -53,9 +53,12 @@ public class ForeachKeyConventionAnalyzer : DiagnosticAnalyzer
 
 	// ── DiagnosticAnalyzer overrides ────────────────────────────────────
 
+	/// <summary>The single NNB040 rule (non-identity <c>@key</c> value) this analyzer reports.</summary>
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
 		ImmutableArray.Create(RuleKeyNotIdentity);
 
+	/// <summary>Registers a compilation-end action that scans <c>.razor</c> <c>AdditionalText</c> files
+	/// for <c>@key</c> attributes bound to non-identity member accesses.</summary>
 	public override void Initialize(AnalysisContext context)
 	{
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
