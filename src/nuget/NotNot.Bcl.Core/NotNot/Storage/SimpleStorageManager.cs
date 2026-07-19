@@ -344,7 +344,10 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 		}
 
 		var cancelTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		using var ctReg = ct.Register(static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true), cancelTcs);
+		// await using: CancellationTokenRegistration.DisposeAsync guarantees the (trivial TrySetResult)
+		// callback has completed before disposal returns. Sync Dispose() could return while the callback
+		// still races on another thread; the async form is the correct shape here (method already async).
+		await using var ctReg = ct.Register(static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true), cancelTcs);
 		var completed = await Task.WhenAny(task, cancelTcs.Task).ConfigureAwait(false);
 		if (ReferenceEquals(completed, task))
 		{

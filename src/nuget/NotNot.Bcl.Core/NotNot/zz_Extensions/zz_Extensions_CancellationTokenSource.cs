@@ -700,9 +700,12 @@ public static partial class zz_Extensions_Task
 			_SyncWait(task, timeout);
 		}
 #pragma warning disable NN_R005, NN_R006 // Method designed to swallow all exceptions
-		catch (Exception)
+		catch (Exception ex)
 		{
-			// Method contract: swallow all exceptions
+			// Method contract: swallow ALL exceptions (the "NoExceptions" suffix is the API promise),
+			// so this catch cannot be narrowed or rethrown. Observe-not-silence: log the swallowed
+			// exception so a failed wait stays diagnosable instead of vanishing (fail-fast doctrine).
+			__.GetLogger()._EzError(false, "_SyncWaitNoExceptions: swallowed exception per method contract", ex);
 		}
 #pragma warning restore NN_R005, NN_R006
 

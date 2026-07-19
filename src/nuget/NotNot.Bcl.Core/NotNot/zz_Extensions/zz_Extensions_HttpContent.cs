@@ -103,9 +103,13 @@ public static class zz_Extensions_HttpContent
 			{
 				contentText = await content.ReadAsStringAsync();
 			}
-			catch (Exception)
+			catch (Exception readEx)
 			{
-				// Ignore read errors for error message building
+				// Best-effort second read while building a diagnostic message — the content may be
+				// already-consumed/disposed. Observe-not-silence: surface the FULL read-failure
+				// exception (type + message + stack) in the error text instead of dropping it
+				// silently (fail-fast doctrine).
+				contentText = $"Unable to read content: {readEx}";
 			}
 
 			__.Throw($"Content not Maybe<{typeof(T).Name}> - Unexpected error: {ex}. Content is: {contentText}");
@@ -172,9 +176,13 @@ public static class zz_Extensions_HttpContent
 			{
 				contentText = await content.ReadAsStringAsync();
 			}
-			catch (Exception)
+			catch (Exception readEx)
 			{
-				// Ignore read errors for error message building
+				// Best-effort second read while building a diagnostic message — the content may be
+				// already-consumed/disposed. Observe-not-silence: surface the FULL read-failure
+				// exception (type + message + stack) in the error text instead of dropping it
+				// silently (fail-fast doctrine).
+				contentText = $"Unable to read content: {readEx}";
 			}
 
 			__.Throw($"Content not `Maybe` - Unexpected error: {ex}. Content is: {contentText}");
