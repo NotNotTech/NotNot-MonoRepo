@@ -1,0 +1,98 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<Configurations>Debug;Release;DebugNuget</Configurations>
+
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<Deterministic>true</Deterministic>
+		<!-- Pack-only aggregator: no build output ships; only the referenced generator + code-fix dlls (and the
+		     hoisted generator run-time dependency dlls) are packed. -->
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<!-- Structural NU5128 fix: the pack has no lib/ assemblies and no dependency groups, so suppress the framework-assembly
+		     dependency emission rather than NoWarn-suppressing the diagnostic. -->
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<NoBuild>false</NoBuild>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="bin\**" />
+		<EmbeddedResource Remove="bin\**" />
+		<None Remove="bin\**" />
+	</ItemGroup>
+
+	<!-- Assembly versioning (drives the package version via MinVer tag prefix) -->
+	<ItemGroup>
+		<PackageReference Include="MinVer" Version="6.1.0-beta.1" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<!-- NuGet package metadata (moved verbatim from NotNot.GodotNet.SourceGen) -->
+	<PropertyGroup>
+		<PackageId>NotNot.GodotNet.SourceGen</PackageId>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<MinVerTagPrefix>NotNot.GodotNet.SourceGen-</MinVerTagPrefix>
+		<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+		<Title>NotNot.GodotNet.SourceGen</Title>
+		<Authors>Jason Swearingen</Authors>
+		<Copyright>Novaleaf</Copyright>
+		<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.GodotNet.SourceGen/</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
+		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageTags>AppSettings; Source Generator; Json; </PackageTags>
+		<Description>Automatically create strongly typed C# settings classes from AppSettings.json. Uses Source Generators. Includes a simple deserialization helper for when you are using Dependency Injection, or not.</Description>
+		<!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
+		<Version>0.0.0-0.invalidMinverProcess</Version>
+	</PropertyGroup>
+
+	<!-- Build-order-only references: the impl projects must build before this aggregator packs their outputs.
+	     ReferenceOutputAssembly=false keeps their assemblies out of THIS project's compile/lib. -->
+	<ItemGroup>
+		<ProjectReference Include="..\NotNot.GodotNet.SourceGen\NotNot.GodotNet.SourceGen.csproj" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="..\NotNot.GodotNet.SourceGen.CodeFixes\NotNot.GodotNet.SourceGen.CodeFixes.csproj" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<!-- Package assets: the generator + code-fix dlls into the analyzer path; icon + README at package root;
+	     .props + .targets into build/ (MSBuild integration: AdditionalFiles wiring + private-asset marking). -->
+	<ItemGroup>
+		<None Include="..\NotNot.GodotNet.SourceGen\bin\$(Configuration)\netstandard2.0\NotNot.GodotNet.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="..\NotNot.GodotNet.SourceGen.CodeFixes\bin\$(Configuration)\netstandard2.0\NotNot.GodotNet.SourceGen.CodeFixes.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png" Pack="True" PackagePath="\" />
+		<None Include="..\NotNot.GodotNet.SourceGen\README.md" Pack="True" PackagePath="\" />
+		<None Include="..\NotNot.GodotNet.SourceGen\NotNot.GodotNet.SourceGen.props" Pack="true" PackagePath="build" Visible="true" />
+		<None Include="..\NotNot.GodotNet.SourceGen\NotNot.GodotNet.SourceGen.targets" Pack="true" PackagePath="build" Visible="false" />
+	</ItemGroup>
+
+	<!--BS scaffolding needed for sourcegen to reference nuget packages, see: https://github.com/dotnet/roslyn/discussions/47517#discussioncomment-5787288
+	ALL the dlls in the package need to be referenced, not just the one you want to use (System.Text.Json) due to its dependencies.
+	These GeneratePathProperty PackageReferences resolve the $(PKG...) paths so the hoisted run-time dependency dlls can be packed
+	into analyzers/dotnet/cs alongside the generator dll (preserving the pre-split package's dependency-hoist design). -->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.0" GeneratePathProperty="true" PrivateAssets="all" />
+		<PackageReference Include="System.Buffers" Version="4.6.1" GeneratePathProperty="true" PrivateAssets="all" />
+		<PackageReference Include="System.Memory" Version="4.6.3" GeneratePathProperty="true" PrivateAssets="all" />
+		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" GeneratePathProperty="true" PrivateAssets="all" />
+		<PackageReference Include="System.Text.Encodings.Web" Version="10.0.0" GeneratePathProperty="true" PrivateAssets="all" />
+		<PackageReference Include="System.Text.Json" Version="10.0.0" GeneratePathProperty="true" PrivateAssets="all" />
+		<PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" GeneratePathProperty="true" PrivateAssets="all" />
+
+		<None Include="$(PKGSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(PKGMicrosoft_Bcl_AsyncInterfaces)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(PKGSystem_Buffers)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(PKGSystem_Memory)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(PKGSystem_Runtime_CompilerServices_Unsafe)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(PKGSystem_Text_Encodings_Web)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(PKGSystem_Threading_Tasks_Extensions)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	</ItemGroup>
+
+</Project>
