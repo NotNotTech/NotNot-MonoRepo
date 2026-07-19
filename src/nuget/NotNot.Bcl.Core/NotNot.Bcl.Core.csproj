@@ -100,6 +100,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\NotNot.Analyzers\NotNot.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="..\NotNot.Analyzers.CodeFixes\NotNot.Analyzers.CodeFixes.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 

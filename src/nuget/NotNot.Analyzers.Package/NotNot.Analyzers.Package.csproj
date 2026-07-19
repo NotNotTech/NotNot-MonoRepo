@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<Configurations>Debug;Release;DebugNuget</Configurations>
+
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<Deterministic>true</Deterministic>
+		<!-- Pack-only aggregator: no build output ships; only the referenced analyzer + code-fix dlls are packed. -->
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<!-- Structural NU5128 fix: the pack has no lib/ assemblies and no dependency groups, so suppress the framework-assembly
+		     dependency emission rather than NoWarn-suppressing the diagnostic. -->
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<NoBuild>false</NoBuild>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="bin\**" />
+		<EmbeddedResource Remove="bin\**" />
+		<None Remove="bin\**" />
+	</ItemGroup>
+
+	<!-- Assembly versioning (drives the package version via MinVer tag prefix) -->
+	<ItemGroup>
+		<PackageReference Include="MinVer" Version="6.1.0-beta.1" PrivateAssets="all">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<!-- NuGet package metadata (moved verbatim from NotNot.Analyzers) -->
+	<PropertyGroup>
+		<PackageId>NotNot.Analyzers</PackageId>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<MinVerTagPrefix>NotNot.Analyzers-</MinVerTagPrefix>
+		<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+		<Authors>Novaleaf</Authors>
+		<Copyright>$(Authors)</Copyright>
+		<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
+		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageTags>NotNot; Novaleaf; analyzers; roslyn; code-analysis</PackageTags>
+		<Description>Code analyzers for reliability and best practices in .NET applications</Description>
+		<Version>0.0.0-0.invalidMinverProcess</Version>
+	</PropertyGroup>
+
+	<!-- Build-order-only references: the impl projects must build before this aggregator packs their outputs.
+	     ReferenceOutputAssembly=false keeps their assemblies out of THIS project's compile/lib. -->
+	<ItemGroup>
+		<ProjectReference Include="..\NotNot.Analyzers\NotNot.Analyzers.csproj" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="..\NotNot.Analyzers.CodeFixes\NotNot.Analyzers.CodeFixes.csproj" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<!-- Package assets: the analyzer + code-fix dlls into the analyzer path; icon + README at package root. -->
+	<ItemGroup>
+		<None Include="..\NotNot.Analyzers\bin\$(Configuration)\netstandard2.0\NotNot.Analyzers.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="..\NotNot.Analyzers.CodeFixes\bin\$(Configuration)\netstandard2.0\NotNot.Analyzers.CodeFixes.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png" Pack="True" PackagePath="\" />
+		<None Include="..\NotNot.Analyzers\README.md" Pack="True" PackagePath="\" />
+	</ItemGroup>
+
+</Project>
