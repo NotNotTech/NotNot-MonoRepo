@@ -55,7 +55,11 @@ public class DebuggableAsyncHelper
 		var ct = CancelAfter(cancellationToken, duration);
 		var tcs = new TaskCompletionSource();
 		var ctr = tcs._SetFromCancellationToken(ct);
+		// FALSE_POSITIVE PH_P007: the cleanup continuation must be uncancellable — forwarding
+		// the token would leak the CancellationTokenRegistration on cancel.
+#pragma warning disable PH_P007
 		_ = tcs.Task.ContinueWith(async task => { ctr.Dispose(); });
+#pragma warning restore PH_P007
 		return tcs.Task;
 	}
 

@@ -85,9 +85,17 @@ public static class DebuggerInfo
 	private static void Dispose()
 	{
 		_cts.Cancel();
+		// FALSE_POSITIVE PH_P007: Dispose cancels then JOINS the worker; forwarding the
+		// already-cancelled token would abort the very join it is waiting on.
+#pragma warning disable PH_P007
 		_workerThreadTask._SyncWaitNoCancelExceptions();
+#pragma warning restore PH_P007
 	}
 
+	// ACCEPTED_BY_DESIGN PH_P008: debug-helper worker loop exits GRACEFULLY on cancellation;
+	// its only awaiter filters cancel exceptions (_SyncWaitNoCancelExceptions), so a thrown
+	// OperationCanceledException would be discarded anyway.
+#pragma warning disable PH_P008
 	private static async Task _workerThread()
 	{
 		var heartbeatSw = Stopwatch.StartNew();
@@ -115,6 +123,7 @@ public static class DebuggerInfo
 			}
 		}
 	}
+#pragma warning restore PH_P008
 
 	/// <summary>
 	///    helper to detect when a debugger is attached and actively stepping through code.

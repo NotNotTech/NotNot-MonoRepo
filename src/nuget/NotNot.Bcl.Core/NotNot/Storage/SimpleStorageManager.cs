@@ -202,6 +202,10 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 
 			await ReadCoreAsync(ct);
 
+			// FALSE_POSITIVE PH_P007: debouncer Timer-callback lambdas are deliberately decoupled
+			// from any single caller's CancellationToken — forwarding one caller's cancel would
+			// drop other callers' coalesced mutations.
+#pragma warning disable PH_P007
 			_writeDebouncer = new Debouncer(
 				async () =>
 				{
@@ -218,6 +222,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 					OnDataChanged?.Invoke();
 				},
 				(int)_options.ReadDebounce.TotalMilliseconds);
+#pragma warning restore PH_P007
 
 			_isInitialized = true;
 		}
@@ -282,8 +287,13 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// </remarks>
 	public Task<Maybe<TData>> UpdateAsync(Action<TData> mutator, CancellationToken ct = default)
 	{
+		// ACCEPTED_BY_DESIGN PH_S032: synchronous argument/state guards from a Task-returning
+		// method are this API's documented public contract (<exception> tags, standard BCL
+		// convention); Task.FromException would silently change throw-timing for every caller.
+#pragma warning disable PH_S032
 		if (!_isInitialized) throw new InvalidOperationException($"SimpleStorageManager<{typeof(TData).Name}> not initialized. Call InitializeAsync() first.");
 		if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
+#pragma warning restore PH_S032
 
 		var writeId = Guid.NewGuid();
 		var snapshot = GetDataSnapshot();
@@ -315,9 +325,12 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// <exception cref="ObjectDisposedException">Thrown if the manager has been disposed.</exception>
 	public Task<Maybe<TData>> SetDataAsync(TData newData, CancellationToken ct = default)
 	{
+		// ACCEPTED_BY_DESIGN PH_S032: same documented sync-guard contract as UpdateAsync.
+#pragma warning disable PH_S032
 		ArgumentNullException.ThrowIfNull(newData);
 		if (!_isInitialized) throw new InvalidOperationException($"SimpleStorageManager<{typeof(TData).Name}> not initialized. Call InitializeAsync() first.");
 		if (_isDisposed) throw new ObjectDisposedException(nameof(SimpleStorageManager<TData>));
+#pragma warning restore PH_S032
 
 		var writeId = Guid.NewGuid();
 		_writes.OnNext(new WriteEventStart<TData>(writeId, DateTimeOffset.UtcNow, newData));
@@ -751,6 +764,11 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 #pragma warning restore NN_R005
 		}
 
+		// FALSE_POSITIVE PH_B009: this teardown runs AFTER the locked _isDisposed=true snapshot;
+		// disposal is single-entry (locked double-check), so it is single-threaded by construction.
+		// The generation counters follow the class's lock-free Volatile/Interlocked protocol,
+		// which the monitor-lock-modeling analyzer does not recognize (same basis as PH_B010 below).
+#pragma warning disable PH_B009
 		// Dispose debouncers FIRST — prevents new callbacks from firing during flush
 		_writeDebouncer?.Dispose();
 		_readDebouncer?.Dispose();
@@ -761,6 +779,7 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 #pragma warning disable PH_B010 // Interlocked/Volatile provide the synchronization invariant for both counters.
 		if (_isInitialized && Volatile.Read(ref _dirtyGeneration) != Volatile.Read(ref _writtenGeneration))
 #pragma warning restore PH_B010
+#pragma warning restore PH_B009
 		{
 			try
 			{

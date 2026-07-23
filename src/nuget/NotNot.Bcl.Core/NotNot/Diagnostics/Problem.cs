@@ -98,6 +98,9 @@ public record class Problem
 	/// <summary>
 	/// exception thrown by Problem
 	/// </summary>
+	// ACCEPTED_BY_DESIGN RCS1194: construction is deliberately restricted to structured
+	// Problem values — the free-text/serialization exception ctors the rule wants are excluded.
+#pragma warning disable RCS1194
 	public class ProblemException : LoLoException
 	{
 		public ProblemException(Problem problem) : base(problem.Title + ":" + problem.Detail, problem.GetEx())
@@ -108,6 +111,7 @@ public record class Problem
 
 		public Problem Problem { get; }
 	}
+#pragma warning restore RCS1194
 
 	/// <summary>
 	/// general classification of the Problem

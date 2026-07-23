@@ -92,7 +92,12 @@ public class FrameDataChannel<T> : DisposeGuard
 		}
 		else
 		{
+			// FALSE_POSITIVE PH_P006: conditional-acquire (TryEnter, fail-loud debug branch above)
+			// vs blocking-acquire over ONE shared try/finally body requires the Monitor API;
+			// the lock statement cannot express this shape.
+#pragma warning disable PH_P006
 			Monitor.Enter(_writeLock);
+#pragma warning restore PH_P006
 		}
 
 		try

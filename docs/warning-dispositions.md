@@ -6,10 +6,9 @@
 
 ## (a) Policy
 
-- **Terminal metric = ZERO-UNDISPOSITIONED.** Every warning is either FIXED or listed here with a per-site OWN justification. The success criterion is zero *undispositioned* warnings — literal-zero is explicitly NOT the target.
-- **Blanket suppression is forbidden as a fix.** `NoWarn`, `#pragma warning disable`, and `[SuppressMessage]` are NOT used to reach the metric. (A pragma may appear at a site for an *unrelated* rule — see the SlotList / SimpleStorageManager notes — but is never the mechanism that dispositions a warning in this ledger.)
-- **The warnings listed here are INTENTIONALLY VISIBLE in build output.** They are the deliberate residual. Each is design-correct, and converting it to satisfy the analyzer would degrade behavior, break a public contract, or churn borrowed/dead code for no benefit. They are OWNed, not silenced.
-- **Expected residual: 26 warnings.** If a full Release compile reports a count other than 26, or a code/site not listed below, STOP and reconcile against this ledger before shipping — a new warning is a genuine finding, not noise.
+- **Terminal metric = ZERO-UNDISPOSITIONED.** Every warning is either FIXED or verified per-site and terminally dispositioned. The success criterion is zero *undispositioned* warnings.
+- **Disposition mechanism = SITE-SCOPED pragma + at-site justification comment** (policy updated 2026-07-23, user-ratified). Each of the 26 verified sites below now carries `#pragma warning disable {code}` with a `FALSE_POSITIVE` or `ACCEPTED_BY_DESIGN` justification comment. This keeps each rule LIVE for new violations while silencing only the verified site. Blanket suppression (`NoWarn`, file-scope pragma, `[SuppressMessage]` without site verification) remains forbidden as a fix.
+- **Expected residual in build output: 0 warnings** from the sites below. A full Release compile reporting ANY warning is a genuine finding: either a new site (fix or verify+disposition it) or a pragma drifted off its diagnostic (re-anchor it). This ledger remains the narrative record of each site's verification; the pragmas at the sites are the enforcement.
 
 ---
 
@@ -30,7 +29,7 @@ Every remaining distinct warning must map to a row in section (c). Zero UNDISPOS
 
 ## (c) Disposition table
 
-All 26 residual warnings are **OWN** (intentional-by-design). Paths are relative to the monorepo root; the three owning projects are `NotNot.Bcl.Core`, `NotNot.Bcl`, and `NotNot.SimStorm`.
+All 26 residual warnings are **OWN** (intentional-by-design), and as of 2026-07-23 each site carries a site-scoped pragma + justification comment (classification `FALSE_POSITIVE` = analyzer model factually wrong · `ACCEPTED_BY_DESIGN` = analyzer right, behavior verified-intentional). Paths are relative to the monorepo root; the three owning projects are `NotNot.Bcl.Core`, `NotNot.Bcl`, and `NotNot.SimStorm`.
 
 | Code | Count | Site(s) | Disposition |
 |---|---|---|---|

@@ -2229,7 +2229,11 @@ public class Chunk<TComponent> : Chunk
 	/// <summary>
 	///    find by pageId --> chunkIndex --> slotIndex
 	/// </summary>
+	// ACCEPTED_BY_DESIGN CS0618: replacing [Obsolete] ResizableArray requires migrating the
+	// ECS hot-path chunk store off .Span/.GetOrSet/.FreeSlot — behavior-risky, deliberately deferred.
+#pragma warning disable CS0618
 	public static ResizableArray<List<Chunk<TComponent>>> _GLOBAL_LOOKUP = new();
+#pragma warning restore CS0618
 
 
 	public RentedMem<TComponent> _storageRaw;
