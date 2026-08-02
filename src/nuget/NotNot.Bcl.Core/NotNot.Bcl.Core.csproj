@@ -17,7 +17,6 @@
 
 	<!--disable warnings for libraries in DEBUG-->
 	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
-		<WarningLevel>0</WarningLevel>
 	</PropertyGroup>
 
 
@@ -60,7 +59,9 @@
 	<ItemGroup>
 		<PackageReference Include="Ben.Demystifier" Version="0.4.1" />
 		<PackageReference Include="Blake3" Version="2.0.0" />
-		<PackageReference Include="codeessentials.AspNetCore.Diagnostics.Demystifier" Version="1.1.66" />
+		<!-- codeessentials.AspNetCore.Diagnostics.Demystifier removed: ASP.NET Core middleware
+		     that transitively provided Http.Abstractions v2.3.0, causing MSB3277 in WASM consumers.
+		     Replaced with explicit FrameworkReference below. Ben.Demystifier retained for exception demystification. -->
 		<PackageReference Include="codeessentials.Extensions.Logging.Demystifier" Version="1.1.66" />
 		<PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
 		<PackageReference Include="ErrorProne.NET.CoreAnalyzers" Version="0.8.2-beta.1">
@@ -82,7 +83,10 @@
 		</PackageReference>
 		<PackageReference Include="NewOrbit.CodeAnalysis.UtcTime" Version="1.0.2" />
 		<PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
-		<PackageReference Include="ParallelHelper" Version="3.6.1" />
+		<PackageReference Include="ParallelHelper" Version="3.6.1">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -98,8 +102,29 @@
 		<ProjectReference Include="..\NotNot.Analyzers\NotNot.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
+
 	<ItemGroup>
 	  <Folder Include="NotNot\Collections\OldBackup\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Shared-source from NotNot.AppSettings (netstandard2.0-compatible merge utility).
+		     Canonical location: ../NotNot.AppSettings/JsonMergeCore.cs.
+		     Compiled into this assembly as internal; generator project compiles the same file natively. -->
+		<Compile Include="..\NotNot.AppSettings\JsonMergeCore.cs" Link="NotNot\AppSettingsHelper\JsonMergeCore.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Expose internals to NotNot.AppSettings.Tests so tests can exercise the shared-source
+		     internal JsonMergeCore directly. The generator project (NotNot.AppSettings) already
+		     declares [InternalsVisibleTo("NotNot.AppSettings.Tests")] in AppSettingsGen.cs, but the
+		     tests resolve JsonMergeCore against NotNot.Bcl.Core's linked copy via the NotNot.Bcl
+		     ProjectReference, so NotNot.Bcl.Core must also expose internals. -->
+		<InternalsVisibleTo Include="NotNot.AppSettings.Tests" />
+		<!-- REQ-7: Expose internal test seam LoLoRoot._SetRuntimeEnvForTests to the VOW
+		     DevLeakGuard host-matrix tests. Replaces reflection on the compiler-generated
+		     <RuntimeEnv>k__BackingField with a supported internal API. -->
+		<InternalsVisibleTo Include="Novaleaf.VibeOverwatch.Tests" />
 	</ItemGroup>
 
 </Project>
