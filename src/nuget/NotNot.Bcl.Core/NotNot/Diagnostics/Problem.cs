@@ -5,7 +5,6 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Http;
 
 
 namespace NotNot;
@@ -99,6 +98,9 @@ public record class Problem
 	/// <summary>
 	/// exception thrown by Problem
 	/// </summary>
+	// ACCEPTED_BY_DESIGN RCS1194: construction is deliberately restricted to structured
+	// Problem values — the free-text/serialization exception ctors the rule wants are excluded.
+#pragma warning disable RCS1194
 	public class ProblemException : LoLoException
 	{
 		public ProblemException(Problem problem) : base(problem.Title + ":" + problem.Detail, problem.GetEx())
@@ -109,6 +111,7 @@ public record class Problem
 
 		public Problem Problem { get; }
 	}
+#pragma warning restore RCS1194
 
 	/// <summary>
 	/// general classification of the Problem
@@ -706,6 +709,10 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 				{
 					SerializeException(writer, exception);
 				}
+				else if (extension.Value is null)
+				{
+					writer.WriteNullValue();
+				}
 				else
 				{
 					//roundtrip in case errors, which would cause the entire write to fail if we did it directly on the `writer` object.
@@ -716,7 +723,7 @@ public class ProblemJsonConverter : JsonConverter<Problem>
 #pragma warning disable NN_R005 // Serialization must not crash for logging
 			catch (Exception ex)
 			{
-				writer.WriteStringValue($"ERROR_SERIALIZING:{ex.Message}");
+				writer.WriteStringValue($"ERROR_SERIALIZING:{ex}");
 			}
 #pragma warning restore NN_R005
 		}

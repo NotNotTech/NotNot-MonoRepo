@@ -23,15 +23,19 @@
 	<ItemGroup>
 		<None Remove="AppSettings.Development.json" />
 		<None Remove="appsettings.json" />
+		<None Remove="appsettings.Sample.json" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<Content Include="AppSettings.Development.json">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</Content>
-		<AdditionalFiles Include="appsettings.json">
+		<Content Include="appsettings.json">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</AdditionalFiles>
+		</Content>
+		<Content Include="appsettings.Sample.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -66,6 +70,17 @@
 			</PropertyGroup>
 		</Otherwise>
 	</Choose>
+
+	<!--
+		R1.3 workaround, root cause deferred (analyzer-ProjectReference auto-import is a NuGet-package
+		convention; OutputItemType="Analyzer" ProjectReference does not auto-import the referenced
+		project's build/*.props|*.targets — must be explicit-imported per consumer).
+		See NotNot.AppSettings/ReadMe.md "Consuming as ProjectReference Analyzer" for the pattern.
+	-->
+	<Import Project="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.props"
+	        Condition="'$(Configuration)'=='Debug'" />
+	<Import Project="..\..\nuget\NotNot.AppSettings\NotNot.AppSettings.targets"
+	        Condition="'$(Configuration)'=='Debug'" />
 
 	<!--make generated code public.  (default is internal)-->
 	<PropertyGroup>

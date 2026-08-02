@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -91,7 +92,7 @@ internal class AppSettingsGen : IncrementalGenerator
 					string version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
 									?? Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyVersionAttribute>()?.Version.ToString()
 									?? Assembly.GetExecutingAssembly().GetName().ToString();
-					if (version?.IndexOf("+") > 0)
+					if (version.IndexOf("+") > 0)
 					{
 						version = version.Substring(0, version.IndexOf("+"));
 					}
@@ -160,16 +161,27 @@ internal class AppSettingsGen : IncrementalGenerator
 			return toReturn;
 		}
 
-		Logger.Information("Processing source generation: rootNamespace=" + config.RootNamespace + ", appSettingsJsonSourceFiles.Count=" + config.CombinedSourceTexts.Count);
+		// DETERMINISTIC_ORDERING + DIAGNOSTIC_VISIBILITY: emit the sorted file list so build logs show
+		// exactly which appsettings*.json participated and in which merge order (REQ-3 closure, TDD §4.B2).
+		// `fileCount=N` token retained for any grep-based test backward-compat.
+		var sortedFileList = string.Join(", ", config.CombinedSourceTexts.Keys.OrderBy(p => p, System.StringComparer.Ordinal));
+		Logger.Information($"Processing source generation: rootNamespace={config.RootNamespace}, fileCount={config.CombinedSourceTexts.Count}, files=[{sortedFileList}]");
 
 
 
 		//merge into one big json
 		var allJsonDict = JsonMerger.MergeJsonFiles(config.CombinedSourceTexts);
+		var whitelistPolicy = ClientWhitelistPolicy.FromMergedJson(allJsonDict);
+		var appSettingsJson = RemoveGeneratorMetadataNodes(allJsonDict);
+		var clientSettingsJson = whitelistPolicy.HasWhitelist
+			? BuildClientSettingsJson(appSettingsJson, whitelistPolicy)
+			: appSettingsJson;
 
 		//generate classes for the entire json hiearchy
-		GenerateFilesWorker(toReturn, allJsonDict, "AppSettings", $"{config.StartingNamespace}", config);
+		GenerateFilesWorker(toReturn, appSettingsJson, "AppSettings", $"{config.StartingNamespace}", config);
+		GenerateFilesWorker(toReturn, clientSettingsJson, "_ClientAppSettings", $"{config.StartingNamespace}", config, whitelistPolicy);
 
+		AddClientSettingsAttributeShims(toReturn, config);
 		AddBinderShims(toReturn, config);
 
 		return toReturn;
@@ -193,14 +205,16 @@ internal class AppSettingsGen : IncrementalGenerator
 **/
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Memory;
 using System.CodeDom.Compiler;
+using System.Text.Json.Nodes;
 
 namespace {config.StartingNamespace}
 {{
 
 	/// <summary>
-	/// Strongly typed AppSettings.json, recreated every build. 
-	/// <para>You can use this directly, extend it (it's a partial class), 
+	/// Strongly typed AppSettings.json, recreated every build.
+	/// <para>You can use this directly, extend it (it's a partial class),
 	/// or get a populated instance of it via the <see cref=""AppSettingsBinder""/> DI service</para>
 	/// </summary>
 	{config.GenAccessModifier} partial class AppSettings
@@ -228,16 +242,88 @@ namespace {config.StartingNamespace}
 			_config.Bind(AppSettings);
 		}}
 
+		// ============================================================================================
+		// FACADE HELPERS (emitted once per consumer assembly; Phase D of Option C implementation).
+		// LoadDirect* methods are [Obsolete] and route through NotNot.AppSettingsHelper.JsonSettingsUtils
+		// (from NotNot.Bcl.Core) to share deep-merge + null-delete + array-REPLACE semantics with
+		// NotNot.Storage.SimpleStorageManager<T>. See TDD §4.D for the unification contract.
+		// ============================================================================================
+
 		/// <summary>
-		/// Manually construct an AppSettings from your appsettings.json files.
+		/// FACADE HELPER: walks a merged JsonNode into a flat colon-delimited dictionary suitable for
+		/// Microsoft.Extensions.Configuration.AddInMemoryCollection. Bridges unified-merge output to
+		/// IConfiguration.Bind (preserves ASP.NET Core binding semantics: env-var substitution,
+		/// enum parsing, nullability, type coercion).
+		/// </summary>
+		private static System.Collections.Generic.Dictionary<string, string?> _FlattenJson(global::System.Text.Json.Nodes.JsonNode? node, string prefix = """")
+		{{
+			var result = new System.Collections.Generic.Dictionary<string, string?>(System.StringComparer.OrdinalIgnoreCase);
+			if (node is not global::System.Text.Json.Nodes.JsonObject obj) return result;
+			foreach (var prop in obj)
+			{{
+				var key = string.IsNullOrEmpty(prefix) ? prop.Key : $""{{prefix}}:{{prop.Key}}"";
+				if (prop.Value is global::System.Text.Json.Nodes.JsonObject nested)
+				{{
+					foreach (var kvp in _FlattenJson(nested, key))
+					{{
+						result[kvp.Key] = kvp.Value;
+					}}
+				}}
+				else if (prop.Value is global::System.Text.Json.Nodes.JsonArray arr)
+				{{
+					// IConfiguration array convention: indexed keys ""Name:0"", ""Name:1"", ...
+					for (int i = 0; i < arr.Count; i++)
+					{{
+						var item = arr[i];
+						var arrKey = $""{{key}}:{{i}}"";
+						if (item is global::System.Text.Json.Nodes.JsonObject itemObj)
+						{{
+							foreach (var kvp in _FlattenJson(itemObj, arrKey))
+							{{
+								result[kvp.Key] = kvp.Value;
+							}}
+						}}
+						else
+						{{
+							result[arrKey] = item?.ToString();
+						}}
+					}}
+				}}
+				else
+				{{
+					result[key] = prop.Value?.ToString();
+				}}
+			}}
+			return result;
+		}}
+
+		/// <summary>
+		/// FACADE HELPER: binds a merged JsonNode to a new AppSettings instance via IConfiguration.Bind.
+		/// </summary>
+		private static AppSettings _BindMergedNode(global::System.Text.Json.Nodes.JsonNode? merged)
+		{{
+			var flat = _FlattenJson(merged);
+			var configBuilder = new ConfigurationBuilder();
+			configBuilder.AddInMemoryCollection(flat);
+			IConfigurationRoot configuration = configBuilder.Build();
+			var binder = new AppSettingsBinder(configuration);
+			return binder.AppSettings;
+		}}
+
+		/// <summary>
+		/// [Obsolete facade] Manually construct an AppSettings from your appsettings.json files.
+		/// Routes through the unified JSON merge core (deep-merge objects, REPLACE arrays,
+		/// null-literal DELETES key per RFC-7396) via <see cref=""LoadDirectFromStreams""/>.
+		/// <para>Prefer <c>NotNot.Storage.SimpleStorageManager&lt;T&gt;</c> (with an <c>IStorageAdapter</c> such as <c>FileStorageAdapter</c>) for new code that needs runtime load/save.</para>
 		/// <para>NOTE: This method is provided for non-DI users.  If you use DI, don't use this method.  Instead just register this class as a service.</para>
 		/// </summary>
 		/// <param name=""appSettingsLocation"">folder where to search for appsettings.json.  defaults to current app folder.</param>
 		/// <param name=""appSettingsFileNames"">lets you override the files to load up.  defaults to 'appsettings.json' and 'appsettings.{{DOTNET_ENVIRONMENT}}.json'</param>
 		/// <param name=""throwIfFilesMissing"">default is to silently ignore if any of the .json files are missing.</param>
 		/// <returns>your strongly typed appsettings with values from your .json loaded in</returns>
-		public static AppSettings LoadDirect(string? appSettingsLocation = null,IEnumerable<string>? appSettingsFileNames=null,bool throwIfFilesMissing=false )
-		{{      
+		[System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<T> for runtime settings load/save. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
+		public static AppSettings LoadDirect(string? appSettingsLocation = null, IEnumerable<string>? appSettingsFileNames = null, bool throwIfFilesMissing = false)
+		{{
 			//pick what .json files to load
 			if (appSettingsFileNames is null)
 			{{
@@ -245,7 +331,6 @@ namespace {config.StartingNamespace}
 				var env = System.Environment.GetEnvironmentVariable(""DOTNET_ENVIRONMENT"");
 				env ??= System.Environment.GetEnvironmentVariable(""ASPNETCORE_ENVIRONMENT"");
 				env ??= System.Environment.GetEnvironmentVariable(""ENVIRONMENT"");
-				//env ??= ""Development""; //default to ""Development
 				if (env is null)
 				{{
 					appSettingsFileNames = new[] {{ ""appsettings.json"" }};
@@ -256,124 +341,90 @@ namespace {config.StartingNamespace}
 				}}
 			}}
 
-			//build a config from the specified files
-			var builder = new ConfigurationBuilder();
-			if (appSettingsLocation != null)
+			// Resolve file paths to streams and delegate to LoadDirectFromStreams (unified merge core).
+			var streams = new System.Collections.Generic.List<Stream>();
+			try
 			{{
-				builder.SetBasePath(appSettingsLocation);
+				foreach (var fileName in appSettingsFileNames)
+				{{
+					var fullPath = appSettingsLocation != null ? Path.Combine(appSettingsLocation, fileName) : fileName;
+					if (File.Exists(fullPath))
+					{{
+						streams.Add(File.OpenRead(fullPath));
+					}}
+					else if (throwIfFilesMissing)
+					{{
+						throw new FileNotFoundException($""appsettings file not found: {{fullPath}}"", fullPath);
+					}}
+				}}
+				return LoadDirectFromStreams(streams);
 			}}
-			var optional = !throwIfFilesMissing;
-			foreach (var fileName in appSettingsFileNames)
-			{{         
-				builder.AddJsonFile(fileName, optional: optional, reloadOnChange: false); // Add appsettings.json
+			finally
+			{{
+				foreach (var s in streams) s.Dispose();
 			}}
-			IConfigurationRoot configuration = builder.Build();
-
-			//now finally get the appsettings we care about
-			var binder = new AppSettingsBinder(configuration);
-			return binder.AppSettings;
 		}}
 
 		/// <summary>
-		/// helper to create an AppSettings from a string containing your json
+		/// [Obsolete facade] Create an AppSettings from a single string of JSON.
+		/// Delegates to <see cref=""LoadDirectFromTexts""/>, which routes through the unified
+		/// JSON merge core (deep-merge, REPLACE arrays, null-delete per RFC-7396).
+		/// <para>Prefer <c>NotNot.Storage.SimpleStorageManager&lt;T&gt;</c> (with an <c>IStorageAdapter</c> such as <c>FileStorageAdapter</c>) for new code that needs runtime load/save.</para>
 		/// </summary>
-		/// <param name=""appSettingsJsonText""></param>
-		/// <returns></returns>
-		[System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadAsync() instead for save-capable settings."")]
+		/// <param name=""appSettingsJsonText"">The JSON text to bind.</param>
+		/// <returns>A strongly-typed AppSettings populated from the JSON text.</returns>
+		[System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<T> for runtime settings load/save. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
 		public static AppSettings LoadDirectFromText(string appSettingsJsonText)
 		{{
-		
-
-			//build a config from the specified files
-			var builder = new ConfigurationBuilder();
-
-			var configurationBuilder = new ConfigurationBuilder();
-
-			IConfigurationRoot configuration;
-			using (var stream = new MemoryStream())
-			{{
-				using (var writer = new StreamWriter(stream))
-				{{
-					writer.Write(appSettingsJsonText);
-					writer.Flush();
-					stream.Position = 0;
-					configurationBuilder.AddJsonStream(stream);
-
-
-
-					configuration = configurationBuilder.Build();
-				}}
-			}}
-
-
-			//now finally get the appsettings we care about
-			var binder = new AppSettingsBinder(configuration);
-			return binder.AppSettings;
+			// Single-text overload delegates to multi-text path for unified merge semantics.
+			return LoadDirectFromTexts(appSettingsJsonText);
 		}}
 
 		/// <summary>
-		/// helper to create an AppSettings from strings containing your json
+		/// [Obsolete facade] Create an AppSettings from multiple JSON text sources (merged layered, last-wins).
+		/// Converts each text to a MemoryStream and delegates to <see cref=""LoadDirectFromStreams""/>, which
+		/// routes through the unified JSON merge core (deep-merge objects, REPLACE arrays, null-literal
+		/// DELETES key per RFC-7396).
+		/// <para>Prefer <c>NotNot.Storage.SimpleStorageManager&lt;T&gt;</c> (with an <c>IStorageAdapter</c> such as <c>FileStorageAdapter</c>) for new code that needs runtime load/save.</para>
 		/// </summary>
-		/// <param name=""appSettingsJsonText""></param>
-		/// <returns></returns>
-		[System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadAsync() instead for save-capable settings."")]
+		/// <param name=""appSettingsJsonTexts"">JSON text sources, in ascending priority order (last wins).</param>
+		/// <returns>A strongly-typed AppSettings populated from the merged JSON.</returns>
+		[System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<T> for runtime settings load/save. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
 		public static AppSettings LoadDirectFromTexts(params string[] appSettingsJsonTexts)
 		{{
-
-			//build a config from the specified files
-			var configurationBuilder = new ConfigurationBuilder();
-
-			IConfigurationRoot RecursiveLoader(Queue<string> textsQueue)
+			// Convert each text to a MemoryStream and delegate to LoadDirectFromStreams (unified merge core).
+			var streams = new System.Collections.Generic.List<Stream>();
+			try
 			{{
-				using var stream = new MemoryStream();
-				using var writer = new StreamWriter(stream);
-
-				if (textsQueue.Count > 0)
+				foreach (var text in appSettingsJsonTexts)
 				{{
-					var appSettingsJsonText = textsQueue.Dequeue();
-					writer.Write(appSettingsJsonText);
-					writer.Flush();
-					stream.Position = 0;
-					configurationBuilder.AddJsonStream(stream);
-
-					return RecursiveLoader(textsQueue);
+					streams.Add(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text ?? string.Empty)));
 				}}
-				else
-				{{
-					return configurationBuilder.Build();
-				}}
+				return LoadDirectFromStreams(streams);
 			}}
-
-
-			var configuration = RecursiveLoader(new Queue<string>(appSettingsJsonTexts));
-
-
-			//now finally get the appsettings we care about
-			var binder = new AppSettingsBinder(configuration);
-			return binder.AppSettings;
+			finally
+			{{
+				foreach (var s in streams) s.Dispose();
+			}}
 		}}
 
-
-		 [System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadAsync() instead for save-capable settings."")]
-		 public static AppSettings LoadDirectFromStreams(List<Stream> appSettingsStreams)
-		 {{
-
-			 //build a config from the specified files
-			 var configurationBuilder = new ConfigurationBuilder();
-
-			 foreach (var stream in appSettingsStreams)
-			 {{
-				 configurationBuilder.AddJsonStream(stream);
-			 }}
-
-			 var configurationRoot = configurationBuilder.Build();
-
-			 //now finally get the appsettings we care about
-			 var binder = new AppSettingsBinder(configurationRoot);
-			 return binder.AppSettings;
-
-
-		 }}
+		/// <summary>
+		/// [Obsolete facade] Create an AppSettings from a list of streams containing your JSON.
+		/// CANONICAL FACADE — all other <c>LoadDirect*</c> overloads route through this method.
+		/// Routes through <c>NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync</c>
+		/// (unified merge core from <c>NotNot.Bcl.Core</c>) for deep-merge objects,
+		/// REPLACE-arrays, and null-literal DELETES key per RFC-7396 (REQ-4, REQ-7).
+		/// <para>Prefer <c>NotNot.Storage.SimpleStorageManager&lt;T&gt;</c> (with an <c>IStorageAdapter</c> such as <c>FileStorageAdapter</c>) for new code that needs runtime load/save.</para>
+		/// </summary>
+		/// <param name=""appSettingsStreams"">Streams to merge, in ascending priority order (last wins).</param>
+		/// <returns>A strongly-typed AppSettings populated from the merged streams.</returns>
+		[System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<T> for runtime settings load/save. LoadDirect* is preserved as a facade over the unified merge core; API signatures unchanged. Future versions may remove."", error: false)]
+		public static AppSettings LoadDirectFromStreams(List<Stream> appSettingsStreams)
+		{{
+			// Route through unified merge core (JsonSettingsUtils in NotNot.Bcl.Core).
+			var merged = global::NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync(appSettingsStreams).GetAwaiter().GetResult();
+			return _BindMergedNode(merged);
+		}}
 
 	}}
 
@@ -405,7 +456,7 @@ internal static class zz_AppSettingsExtensions_IConfiguration
     /// </summary>
     /// <param name=""configuration"">builder.Configuration</param>
     /// <param name=""ignoreCache"">true to recreate the AppSettings even if it's already been created</param>
-    [System.Obsolete(""Use AppSettingsManager<AppSettings>.LoadFromConfiguration() instead for consistent API."")]
+    [System.Obsolete(""Use NotNot.Storage.SimpleStorageManager<AppSettings> with a NotNot.Storage.IStorageAdapter (e.g. FileStorageAdapter) for runtime settings load/save."")]
     internal static {config.StartingNamespace}.AppSettings _AppSettings(this IConfiguration configuration, bool ignoreCache=false)
     {{
         if (ignoreCache == false && _cachedAppSettings is not null)
@@ -429,6 +480,280 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 		var source = SourceText.From(builder.ToString(), Encoding.UTF8);
 		toReturn.Add("_BinderShims.g.cs", source);
 
+	}
+
+	private void AddClientSettingsAttributeShims(Dictionary<string, SourceText> toReturn, AppSettingsGenConfig config)
+	{
+		var builder = new StringBuilder();
+		builder.Append(@$"
+#pragma warning disable
+/**
+ * This file is generated by the NotNot.AppSettings nuget package (v{config.NugetVersion}).
+ * Do not edit this file directly, instead edit the appsettings.json files and rebuild the project.
+ * `AddClientSettingsAttributeShims()` was called.
+**/
+
+using System;
+using System.CodeDom.Compiler;
+using System.Runtime.CompilerServices;
+
+namespace NotNot.AppSettings;
+
+[CompilerGenerated]
+[GeneratedCode(""{Assembly.GetExecutingAssembly().GetName().Name}"",""{Assembly.GetExecutingAssembly().GetName().Version.ToString()}"" )]
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
+public sealed class ClientReadAttribute : Attribute
+{{
+}}
+
+[CompilerGenerated]
+[GeneratedCode(""{Assembly.GetExecutingAssembly().GetName().Name}"",""{Assembly.GetExecutingAssembly().GetName().Version.ToString()}"" )]
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
+public sealed class ClientWriteLocalAttribute : Attribute
+{{
+}}
+
+[CompilerGenerated]
+[GeneratedCode(""{Assembly.GetExecutingAssembly().GetName().Name}"",""{Assembly.GetExecutingAssembly().GetName().Version.ToString()}"" )]
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
+public sealed class ClientWriteServerAttribute : Attribute
+{{
+}}
+");
+
+		toReturn["NotNot.AppSettings.ClientSettingsAttributes.g.cs"] = SourceText.From(builder.ToString(), Encoding.UTF8);
+	}
+
+	private enum ClientSettingAccess
+	{
+		None = 0,
+		ServerOnly,
+		ClientRead,
+		ClientWriteLocal,
+		ClientWriteServer,
+	}
+
+	private sealed class ClientWhitelistPolicy
+	{
+		private readonly Dictionary<string, ClientSettingAccess> _policies;
+
+		private ClientWhitelistPolicy(Dictionary<string, ClientSettingAccess> policies)
+		{
+			_policies = policies;
+		}
+
+		public bool HasWhitelist => _policies.Count > 0;
+
+		public static ClientWhitelistPolicy FromMergedJson(Dictionary<string, JsonElement> mergedJson)
+		{
+			if (!mergedJson.TryGetValue("NotNotAppSettings", out var metadataRoot)
+				|| metadataRoot.ValueKind != JsonValueKind.Object
+				|| !metadataRoot.TryGetProperty("whitelist", out var whitelistNode)
+				|| whitelistNode.ValueKind != JsonValueKind.Object)
+			{
+				return new ClientWhitelistPolicy(new Dictionary<string, ClientSettingAccess>(StringComparer.OrdinalIgnoreCase));
+			}
+
+			var policies = new Dictionary<string, ClientSettingAccess>(StringComparer.OrdinalIgnoreCase);
+			foreach (var entry in whitelistNode.EnumerateObject())
+			{
+				if (entry.Value.ValueKind != JsonValueKind.String)
+				{
+					continue;
+				}
+
+				var normalizedPath = NormalizePath(entry.Name);
+				if (TryParseAccess(entry.Value.GetString(), out var access))
+				{
+					policies[normalizedPath] = access;
+				}
+			}
+
+			return new ClientWhitelistPolicy(policies);
+		}
+
+		public ClientSettingAccess GetEffectiveAccess(string path)
+		{
+			if (!HasWhitelist)
+			{
+				return ClientSettingAccess.None;
+			}
+
+			var currentPath = NormalizePath(path);
+			while (!string.IsNullOrEmpty(currentPath))
+			{
+				if (_policies.TryGetValue(currentPath, out var access))
+				{
+					return access;
+				}
+
+				var separatorIndex = currentPath.LastIndexOf(':');
+				if (separatorIndex < 0)
+				{
+					break;
+				}
+
+				currentPath = currentPath.Substring(0, separatorIndex);
+			}
+
+			return ClientSettingAccess.ServerOnly;
+		}
+
+		public string? GetAttributeTypeName(string path)
+		{
+			if (!HasWhitelist)
+			{
+				return null;
+			}
+
+			return GetEffectiveAccess(path) switch
+			{
+				ClientSettingAccess.ClientRead => "global::NotNot.AppSettings.ClientReadAttribute",
+				ClientSettingAccess.ClientWriteLocal => "global::NotNot.AppSettings.ClientWriteLocalAttribute",
+				ClientSettingAccess.ClientWriteServer => "global::NotNot.AppSettings.ClientWriteServerAttribute",
+				_ => null,
+			};
+		}
+
+		private static bool TryParseAccess(string? value, out ClientSettingAccess access)
+		{
+			switch (value?.Trim())
+			{
+				case "ServerOnly":
+					access = ClientSettingAccess.ServerOnly;
+					return true;
+				case "ClientRead":
+					access = ClientSettingAccess.ClientRead;
+					return true;
+				case "ClientWriteLocal":
+					access = ClientSettingAccess.ClientWriteLocal;
+					return true;
+				case "ClientWriteServer":
+					access = ClientSettingAccess.ClientWriteServer;
+					return true;
+				default:
+					access = ClientSettingAccess.None;
+					return false;
+			}
+		}
+	}
+
+	private static Dictionary<string, JsonElement> RemoveGeneratorMetadataNodes(Dictionary<string, JsonElement> currentNode)
+	{
+		var filtered = new Dictionary<string, JsonElement>(currentNode.Count, StringComparer.Ordinal);
+		foreach (var kvp in currentNode)
+		{
+			if (string.Equals(kvp.Key, "NotNotAppSettings", StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			filtered[kvp.Key] = kvp.Value;
+		}
+
+		return filtered;
+	}
+
+	private static Dictionary<string, JsonElement> BuildClientSettingsJson(Dictionary<string, JsonElement> currentNode, ClientWhitelistPolicy whitelistPolicy, string currentPath = "")
+	{
+		var filtered = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+		var includedPropertyNames = new HashSet<string>(StringComparer.Ordinal);
+
+		foreach (var kvp in currentNode)
+		{
+			if (IsMetadataKey(kvp.Key))
+			{
+				continue;
+			}
+
+			var propertyPath = CombinePath(currentPath, kvp.Key);
+			var directAccess = whitelistPolicy.GetEffectiveAccess(propertyPath);
+			var includeDirectly = directAccess != ClientSettingAccess.ServerOnly;
+
+			if (kvp.Value.ValueKind == JsonValueKind.Object && !IsDictionaryTypeObject(kvp.Value))
+			{
+				var childNode = kvp.Value.Deserialize<Dictionary<string, JsonElement>>(JsonMerger._serializerOptions)!;
+				var filteredChild = BuildClientSettingsJson(childNode, whitelistPolicy, propertyPath);
+				if (includeDirectly || filteredChild.Count > 0)
+				{
+					filtered[kvp.Key] = JsonSerializer.SerializeToElement(filteredChild, JsonMerger._serializerOptions);
+					includedPropertyNames.Add(kvp.Key);
+				}
+			}
+			else if (includeDirectly)
+			{
+				filtered[kvp.Key] = kvp.Value;
+				includedPropertyNames.Add(kvp.Key);
+			}
+		}
+
+		foreach (var propertyName in includedPropertyNames)
+		{
+			if (currentNode.TryGetValue($"{propertyName}__min", out var minValue))
+			{
+				filtered[$"{propertyName}__min"] = minValue;
+			}
+			if (currentNode.TryGetValue($"{propertyName}__max", out var maxValue))
+			{
+				filtered[$"{propertyName}__max"] = maxValue;
+			}
+		}
+
+		if (filtered.Count > 0 && currentNode.TryGetValue("__type", out var typeValue))
+		{
+			filtered["__type"] = typeValue;
+		}
+
+		return filtered;
+	}
+
+	private static bool IsMetadataKey(string key)
+	{
+		return key.EndsWith("__min", StringComparison.Ordinal)
+			|| key.EndsWith("__max", StringComparison.Ordinal)
+			|| key == "__type";
+	}
+
+	private static bool IsDictionaryTypeObject(JsonElement value)
+	{
+		return value.ValueKind == JsonValueKind.Object
+			&& value.TryGetProperty("__type", out var typeMetaElm)
+			&& typeMetaElm.GetString() == "dictionary";
+	}
+
+	private static string NormalizePath(string path)
+	{
+		return path.Trim().Trim(':');
+	}
+
+	private static string CombinePath(string currentPath, string nextSegment)
+	{
+		return string.IsNullOrEmpty(currentPath) ? nextSegment : $"{currentPath}:{nextSegment}";
+	}
+
+	private static string GetGeneratedTypeName(string nodeName)
+	{
+		var trimmed = nodeName?.Trim() ?? string.Empty;
+		if (trimmed.Length == 0)
+		{
+			return "Unnamed";
+		}
+
+		var preserveLeadingUnderscore = trimmed.StartsWith("_", StringComparison.Ordinal);
+		var normalized = trimmed.TrimStart('_')._ConvertToAlphanumericCaps();
+		if (string.IsNullOrWhiteSpace(normalized))
+		{
+			normalized = "Unnamed";
+		}
+
+		return preserveLeadingUnderscore ? $"_{normalized}" : normalized;
+	}
+
+	private static string GetChildNamespace(string currentNamespace, string currentClassName)
+	{
+		return currentClassName.StartsWith("_", StringComparison.Ordinal)
+			? $"{currentNamespace}.{currentClassName}Types"
+			: $"{currentNamespace}._{currentClassName}";
 	}
 
 	/// <summary>
@@ -499,10 +824,10 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 	/// <summary>
 	/// generate files for the given json hierarchy, recursively calling itself for each child node
 	/// </summary>
-	protected void GenerateFilesWorker(Dictionary<string, SourceText> generatedSourceFiles, Dictionary<string, JsonElement> currentNode, string currentNodeName, string currentNamespace, AppSettingsGenConfig config)
+	private void GenerateFilesWorker(Dictionary<string, SourceText> generatedSourceFiles, Dictionary<string, JsonElement> currentNode, string currentNodeName, string currentNamespace, AppSettingsGenConfig config, ClientWhitelistPolicy? clientWhitelistPolicy = null, string currentPath = "")
 	{
 		//build currentNode into file
-		var currentClassName = currentNodeName._ConvertToAlphanumericCaps();
+		var currentClassName = GetGeneratedTypeName(currentNodeName);
 		var filename = $"{currentNamespace}.{currentClassName}.g.cs";
 
 		var fieldBuilder = new StringBuilder();
@@ -532,14 +857,41 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 		foreach (var kvp in currentNode)
 		{
 			// Skip metadata keys - they're not properties
-			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal))
+			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal) || kvp.Key == "__type")
 				continue;
 
 			var propertyName = kvp.Key._ConvertToAlphanumericCaps();
 			var fieldName = "_" + char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1);
-			var propertyNamespace = $"{currentNamespace}._{currentClassName}";
+			var propertyNamespace = GetChildNamespace(currentNamespace, currentClassName);
+			var propertyPath = CombinePath(currentPath, kvp.Key);
 			var valueType = GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config);
 			var isArray = kvp.Value.ValueKind == JsonValueKind.Array;
+
+			// Check for __type: "dictionary" convention on JSON objects
+			var isDictionaryType = false;
+			if (kvp.Value.ValueKind == JsonValueKind.Object
+				&& kvp.Value.TryGetProperty("__type", out var typeMetaElm)
+				&& typeMetaElm.GetString() == "dictionary")
+			{
+				// Unify value types of all non-metadata children
+				string? dictValueType = null;
+				foreach (var child in kvp.Value.EnumerateObject())
+				{
+					if (child.Name.StartsWith("__", StringComparison.Ordinal)) continue;
+					var childType = GetSourceTypeName(child.Value, propertyName, propertyNamespace, config);
+					if (dictValueType is null)
+						dictValueType = childType;
+					else if (dictValueType != childType)
+					{
+						dictValueType = "object";
+						break;
+					}
+				}
+				dictValueType ??= "string";
+				valueType = $"System.Collections.Generic.Dictionary<string, {dictValueType}>";
+				isDictionaryType = true;
+			}
+
 			if (isArray)
 			{
 				valueType += "[]";
@@ -549,16 +901,23 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 			fieldBuilder.Append($"   private {valueType}? {fieldName};\n");
 
 			// Check if this is a complex type (object/nested class) that can propagate callbacks
-			var isComplexType = kvp.Value.ValueKind == JsonValueKind.Object;
+			var isComplexType = kvp.Value.ValueKind == JsonValueKind.Object && !isDictionaryType;
 			var isArrayOfComplexType = isArray && !IsPrimitiveTypeName(GetSourceTypeName(kvp.Value, propertyName, propertyNamespace, config));
 
 			// Check for min/max metadata for this property
 			metadataLookup.TryGetValue(kvp.Key, out var propMeta);
 			var hasMin = propMeta.min.HasValue;
 			var hasMax = propMeta.max.HasValue;
-			var isNumericType = valueType == "int" || valueType == "long" || valueType == "double";
+			var isNumericType = valueType == "double";
 
 			// Generate property with change detection
+			var attributeTypeName = clientWhitelistPolicy?.GetAttributeTypeName(propertyPath);
+			if (!string.IsNullOrWhiteSpace(attributeTypeName))
+			{
+				propertyBuilder.Append($@"
+   [{attributeTypeName}]");
+			}
+
 			propertyBuilder.Append($@"
    public {valueType}? {propertyName}
    {{
@@ -571,41 +930,17 @@ internal static class zz_AppSettingsExtensions_IConfiguration
 			{
 				if (hasMin && hasMax)
 				{
-					// Clamp to both min and max
-					if (valueType == "int")
-						propertyBuilder.Append($@"
-         var clamped = Math.Max({(int)propMeta.min!}, Math.Min({(int)propMeta.max!}, value ?? {(int)propMeta.min!}));");
-					else if (valueType == "long")
-						propertyBuilder.Append($@"
-         var clamped = Math.Max({(long)propMeta.min!}L, Math.Min({(long)propMeta.max!}L, value ?? {(long)propMeta.min!}L));");
-					else
-						propertyBuilder.Append($@"
+					propertyBuilder.Append($@"
          var clamped = Math.Max({propMeta.min!}, Math.Min({propMeta.max!}, value ?? {propMeta.min!}));");
 				}
 				else if (hasMin)
 				{
-					// Clamp to min only
-					if (valueType == "int")
-						propertyBuilder.Append($@"
-         var clamped = Math.Max({(int)propMeta.min!}, value ?? {(int)propMeta.min!});");
-					else if (valueType == "long")
-						propertyBuilder.Append($@"
-         var clamped = Math.Max({(long)propMeta.min!}L, value ?? {(long)propMeta.min!}L);");
-					else
-						propertyBuilder.Append($@"
+					propertyBuilder.Append($@"
          var clamped = Math.Max({propMeta.min!}, value ?? {propMeta.min!});");
 				}
 				else // hasMax only
 				{
-					// Clamp to max only
-					if (valueType == "int")
-						propertyBuilder.Append($@"
-         var clamped = Math.Min({(int)propMeta.max!}, value ?? 0);");
-					else if (valueType == "long")
-						propertyBuilder.Append($@"
-         var clamped = Math.Min({(long)propMeta.max!}L, value ?? 0L);");
-					else
-						propertyBuilder.Append($@"
+					propertyBuilder.Append($@"
          var clamped = Math.Min({propMeta.max!}, value ?? 0.0);");
 				}
 
@@ -686,10 +1021,10 @@ using System.CodeDom.Compiler;
 namespace {interfaceNamespace};
 
 /// <summary>
-/// Interface for {currentClassName}. Use with AppSettingsManager for DispatchProxy-based change detection.
+/// Interface for {currentClassName}. Use with SimpleStorageManager and an IStorageAdapter for change detection.
 /// </summary>
 /// <remarks>
-/// <para>This interface enables the DispatchProxy workflow for settings change detection.</para>
+/// <para>This interface enables the SimpleStorageManager + IStorageAdapter workflow for settings change detection.</para>
 /// <para>Nested properties use concrete types (C# property invariance constraint).</para>
 /// </remarks>
 [CompilerGenerated]
@@ -700,13 +1035,36 @@ namespace {interfaceNamespace};
 		foreach (var kvp in currentNode)
 		{
 			// Skip metadata keys
-			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal))
+			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal) || kvp.Key == "__type")
 				continue;
 
 			var propName = kvp.Key._ConvertToAlphanumericCaps();
-			var propNamespace = $"{currentNamespace}._{currentClassName}";
+			var propNamespace = GetChildNamespace(currentNamespace, currentClassName);
 			var propType = GetSourceTypeName(kvp.Value, propName, propNamespace, config);
 			var isArray = kvp.Value.ValueKind == JsonValueKind.Array;
+
+			// Check for __type: "dictionary" convention
+			if (kvp.Value.ValueKind == JsonValueKind.Object
+				&& kvp.Value.TryGetProperty("__type", out var typeMetaElm)
+				&& typeMetaElm.GetString() == "dictionary")
+			{
+				string? dictValueType = null;
+				foreach (var child in kvp.Value.EnumerateObject())
+				{
+					if (child.Name.StartsWith("__", StringComparison.Ordinal)) continue;
+					var childType = GetSourceTypeName(child.Value, propName, propNamespace, config);
+					if (dictValueType is null)
+						dictValueType = childType;
+					else if (dictValueType != childType)
+					{
+						dictValueType = "object";
+						break;
+					}
+				}
+				dictValueType ??= "string";
+				propType = $"System.Collections.Generic.Dictionary<string, {dictValueType}>";
+			}
+
 			if (isArray)
 			{
 				propType += "[]";
@@ -764,18 +1122,22 @@ namespace {currentNamespace};
 		foreach (var kvp in currentNode)
 		{
 			// Skip metadata keys - they're not properties
-			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal))
+			if (kvp.Key.EndsWith("__min", StringComparison.Ordinal) || kvp.Key.EndsWith("__max", StringComparison.Ordinal) || kvp.Key == "__type")
 				continue;
 
-			var propertyNamespace = $"{currentNamespace}._{currentClassName}";
+			var propertyNamespace = GetChildNamespace(currentNamespace, currentClassName);
 			var jsonKind = kvp.Value.ValueKind;
 			var propertyName = kvp.Key._ConvertToAlphanumericCaps();
+			var propertyPath = CombinePath(currentPath, kvp.Key);
 			switch (jsonKind)
 			{
 				case JsonValueKind.Object:
 					{
+						// Skip dictionary-typed objects — they emit Dictionary<K,V>, not nested classes
+						if (kvp.Value.TryGetProperty("__type", out var typeElm) && typeElm.GetString() == "dictionary")
+							break;
 						var childNode = kvp.Value.Deserialize<Dictionary<string, JsonElement>>(JsonMerger._serializerOptions)!;
-						GenerateFilesWorker(generatedSourceFiles, childNode, propertyName, propertyNamespace, config);
+						GenerateFilesWorker(generatedSourceFiles, childNode, propertyName, propertyNamespace, config, clientWhitelistPolicy, propertyPath);
 					}
 					break;
 				case JsonValueKind.Array:
@@ -799,7 +1161,7 @@ namespace {currentNamespace};
 								{
 									JsonMerger.MergeJson(squashedChildren, child);
 								}
-								GenerateFilesWorker(generatedSourceFiles, squashedChildren, propertyName, propertyNamespace, config);
+								GenerateFilesWorker(generatedSourceFiles, squashedChildren, propertyName, propertyNamespace, config, clientWhitelistPolicy, propertyPath);
 								break;
 						}
 

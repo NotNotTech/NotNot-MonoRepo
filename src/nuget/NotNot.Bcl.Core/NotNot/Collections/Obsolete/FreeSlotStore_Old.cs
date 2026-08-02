@@ -152,7 +152,7 @@ namespace NotNot.Collections.obsolete
 					"slot is not allocated but trying to remove");
 #endif
 				_freeSlots.Push(slot); // **Mark slot as free**
-				_storage.Set(slot, default); // **Clear the slot's data**
+				_storage.Set(slot, default!); // **Clear the slot's data** (freed slots intentionally hold default(T))
 			}
 		}
 	}

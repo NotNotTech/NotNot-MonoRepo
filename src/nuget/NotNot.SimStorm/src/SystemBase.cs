@@ -15,7 +15,8 @@ public abstract class SystemBase : FixedTimestepNode
 	/// </summary>
 	private List<ISystemField> _fieldNodeChildren = new();
 
-	protected NodeFrameState _lastUpdateState;
+	// Assigned each update; late-init before first read.
+	protected NodeFrameState _lastUpdateState = null!;
 
 	/// <summary>
 	///    add a "Field" to this System.  SystemField get notified on Initialize/Update/Dispose and can be considered

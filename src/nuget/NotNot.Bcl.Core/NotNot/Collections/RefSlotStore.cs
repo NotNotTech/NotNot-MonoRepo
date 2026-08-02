@@ -165,7 +165,17 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// <para>For iteration, use <see cref="AllocatedLength"/> or <see cref="StorageCapacity"/> as the upper bound.</para>
 	/// </remarks>
 	/// <value>The number of currently allocated slots.</value>
-	public int Count => _allocTracker.Count - _freeSlots.Count;
+	public int Count
+	{
+		get
+		{
+			lock (_lock)
+			{
+				ThrowIfDisposedUnsafe();
+				return _allocTracker.Count - _freeSlots.Count;
+			}
+		}
+	}
 
 	/// <summary>
 	/// Gets the total length of allocated storage including both used and free slots.
@@ -176,7 +186,17 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// <para>Always less than or equal to <see cref="StorageCapacity"/>.</para>
 	/// </remarks>
 	/// <value>The number of slots that have been allocated at some point.</value>
-	public int AllocatedLength => _allocTracker.Count;
+	public int AllocatedLength
+	{
+		get
+		{
+			lock (_lock)
+			{
+				ThrowIfDisposedUnsafe();
+				return _allocTracker.Count;
+			}
+		}
+	}
 
 	/// <summary>
 	/// Gets the total capacity of the underlying storage arrays.
@@ -191,8 +211,12 @@ public class RefSlotStore<T> : IDisposeGuard
 	{
 		get
 		{
-			__.AssertIfNot(_allocTracker.Capacity == _data.Length, "internal error: capacity mismatch between alloc tracker and data array");
-			return _allocTracker.Capacity;
+			lock (_lock)
+			{
+				ThrowIfDisposedUnsafe();
+				__.AssertIfNot(_allocTracker.Capacity == _data.Length, "internal error: capacity mismatch between alloc tracker and data array");
+				return _allocTracker.Capacity;
+			}
 		}
 	}
 
@@ -219,7 +243,17 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// The allocator preferentially reuses the lowest-index free slot for cache locality.
 	/// </remarks>
 	/// <value>The number of free slots available for allocation.</value>
-	public int FreeCount => _freeSlots.Count;
+	public int FreeCount
+	{
+		get
+		{
+			lock (_lock)
+			{
+				ThrowIfDisposedUnsafe();
+				return _freeSlots.Count;
+			}
+		}
+	}
 
 	/// <summary>
 	/// Gets a value indicating whether this instance has been disposed.
@@ -263,6 +297,18 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// Uses the new .NET 9 Lock type for improved performance over object-based locking.
 	/// </remarks>
 	private readonly Lock _lock = new();
+
+	/// <summary>
+	/// Throws when the terminal disposed state has been reached.
+	/// The caller must hold <see cref="_lock"/> so the check and subsequent state access are atomic.
+	/// </summary>
+	private void ThrowIfDisposedUnsafe()
+	{
+		if (IsDisposed)
+		{
+			throw new ObjectDisposedException(nameof(RefSlotStore<T>));
+		}
+	}
 
 	/// <summary>
 	/// Provides unsafe access to the internal lock for advanced coordination scenarios.
@@ -497,7 +543,8 @@ public class RefSlotStore<T> : IDisposeGuard
 
 			// Update tracking structures
 			_allocTracker[index] = toReturn;
-			_data[index] = default;
+			// free/newly-allocated slots intentionally hold default(T) (see _data remarks: free slots may hold garbage/default).
+			_data[index] = default!;
 
 			// Verify allocation succeeded
 			__.DebugAssertIfNot(_allocTracker[index].IsAllocated);
@@ -541,6 +588,7 @@ public class RefSlotStore<T> : IDisposeGuard
 		// Thread-safe public version
 		lock (_lock)
 		{
+			ThrowIfDisposedUnsafe();
 			return _IsHandleAlive_Unsafe(slot);
 		}
 	}
@@ -632,7 +680,7 @@ public class RefSlotStore<T> : IDisposeGuard
 			InsertSorted(slot.Index);
 
 			_allocTracker[slot.Index] = default; // Clear the slot's handle
-			_data[slot.Index] = default; // Clear the slot's data
+			_data[slot.Index] = default!; // Clear the slot's data (free slots intentionally hold default(T))
 
 			// Update _lastOccupiedSlotIndex if we freed the last occupied slot
 			if (slot.Index == _lastOccupiedSlotIndex)
@@ -697,13 +745,22 @@ public class RefSlotStore<T> : IDisposeGuard
 	/// </remarks>
 	public void Dispose()
 	{
-		IsDisposed = true;
-		_allocTracker.Clear();
-		_allocTracker = null;
-		_data._Clear();
-		_data = null;
-		_freeSlots.Clear();
-		_freeSlots = null;
+		lock (_lock)
+		{
+			if (IsDisposed)
+			{
+				return;
+			}
+
+			IsDisposed = true;
+			// Nulled only here in Dispose, under _lock, after IsDisposed=true; all access paths are IsDisposed-guarded, so no post-dispose deref occurs.
+			_allocTracker.Clear();
+			_allocTracker = null!;
+			_data._Clear();
+			_data = null!;
+			_freeSlots.Clear();
+			_freeSlots = null!;
+		}
 	}
 
 	/// <summary>
@@ -719,6 +776,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	{
 		lock (_lock)
 		{
+			ThrowIfDisposedUnsafe();
 			return _lastOccupiedSlotIndex;
 		}
 	}
@@ -737,6 +795,7 @@ public class RefSlotStore<T> : IDisposeGuard
 	{
 		lock (_lock)
 		{
+			ThrowIfDisposedUnsafe();
 			for (int i = startIndex; i >= 0; i--)
 			{
 				if (i < _allocTracker.Count && _allocTracker[i].IsAllocated)
@@ -832,7 +891,7 @@ public class RefSlotStore<T> : IDisposeGuard
 
 				// Move data and handle (not a swap - toSlot is free)
 				_data[freeIndex] = _data[lastAllocIndex];
-				_data[lastAllocIndex] = default;
+				_data[lastAllocIndex] = default!; // vacated slot intentionally holds default(T)
 
 				_allocTracker[freeIndex] = toSlot;
 				_allocTracker[lastAllocIndex] = default;

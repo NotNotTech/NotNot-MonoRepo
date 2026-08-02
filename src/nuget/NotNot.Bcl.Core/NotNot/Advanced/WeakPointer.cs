@@ -6,6 +6,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using NotNot.Collections;
 
@@ -157,7 +158,7 @@ public record struct WeakPointer<T> : IDisposable where T : class
 		return target;
 	}
 
-	public bool TryGetTarget(out T target)
+	public bool TryGetTarget([MaybeNullWhen(false)] out T target)
 	{
 		this.AssertIsAlive();
 

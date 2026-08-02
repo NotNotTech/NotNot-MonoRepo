@@ -35,14 +35,30 @@
 		<!-- System.Text.Json for tests -->
 		<PackageReference Include="System.Text.Json" Version="10.0.0" />
 
-		<!-- Configuration for AppSettingsManager tests -->
+		<!-- Configuration for tests that bind merged JSON via IConfiguration (LoadDirect facade tests). -->
 		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- Reference NotNot.Bcl for AppSettingsManager and utilities -->
+		<!-- Reference NotNot.Bcl for JsonSettingsUtils + SimpleStorageManager + IStorageAdapter and related utilities. -->
 		<ProjectReference Include="..\NotNot.Bcl\NotNot.Bcl.csproj" />
+		<!-- Test-only library reference to the source generator. No OutputItemType="Analyzer" —
+		     we want normal assembly reference semantics for direct unit-testing of internal
+		     types (JsonMerger, JsonMergeCore). Analyzer packaging for downstream consumers is
+		     a NuGet-level concern (GeneratePackageOnBuild + PackagePath="analyzers/..." in
+		     NotNot.AppSettings.csproj). InternalsVisibleTo on AppSettingsGen.cs:14 opens
+		     internals to this test project.
+
+		     Aliases="appsettings_gen" disambiguates the CS0433 collision: NotNot.Bcl.Core
+		     link-compiles JsonMergeCore.cs as shared-source (Bcl.Core.csproj:112), and
+		     NotNot.AppSettings native-compiles the same file. Both assemblies would otherwise
+		     expose `NotNot.AppSettingsInternal.JsonMergeCore` in the default `global` alias.
+		     Routing the AppSettings assembly behind a named alias keeps existing
+		     JsonMergeCoreTests.cs resolving JsonMergeCore via Bcl.Core (default alias, unchanged),
+		     and MultiFileGeneratorTests.cs pulls JsonMerger explicitly via
+		     `extern alias appsettings_gen;` + `appsettings_gen::NotNot.AppSettingsInternal.JsonMerger`. -->
+		<ProjectReference Include="..\NotNot.AppSettings\NotNot.AppSettings.csproj" Aliases="appsettings_gen" />
 	</ItemGroup>
 
 	<PropertyGroup>

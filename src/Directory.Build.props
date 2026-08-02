@@ -1,0 +1,36 @@
+<Project>
+
+  <!--
+    Git provenance as reflection-readable assembly attributes — so every NotNot.* assembly carries proper
+    repo / commit / branch attribution when inspected. Applies to all projects under this src/ tree.
+
+    Versioning is unchanged: these projects already pin their version via MinVer (per-project, tag prefix
+    `$(AssemblyName)-`). GitVersion=false keeps GitInfo from also setting Version/PackageVersion.
+    GitThisAssembly=false disables GitInfo's ThisAssembly.Git.* source-constant generation (it leaks tokens
+    into @(Compile) under the Razor SDK) — we consume only GitInfo's computed $(Git*) MSBuild properties and
+    project them to AssemblyMetadata here (Razor-SDK-safe; standard assembly-attribute generation).
+  -->
+  <PropertyGroup>
+    <GitVersion>false</GitVersion>
+    <GitThisAssembly>false</GitThisAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GitInfo" Version="3.6.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="_VowEmitBuildMetadata"
+          DependsOnTargets="GitInfo"
+          BeforeTargets="GetAssemblyAttributes">
+    <ItemGroup>
+      <AssemblyMetadata Include="GitBranch"         Value="$(GitBranch)" />
+      <AssemblyMetadata Include="GitCommit"         Value="$(GitCommit)" />
+      <AssemblyMetadata Include="GitSha"            Value="$(GitSha)" />
+      <AssemblyMetadata Include="GitCommitDate"     Value="$(GitCommitDate)" />
+      <AssemblyMetadata Include="GitIsDirty"        Value="$(GitIsDirty)" />
+      <AssemblyMetadata Include="GitRepositoryUrl"  Value="$(GitRepositoryUrl)" />
+      <AssemblyMetadata Include="BuildTimestampUtc" Value="$([System.DateTime]::UtcNow.ToString('o'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

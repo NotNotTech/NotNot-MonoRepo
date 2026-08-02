@@ -13,7 +13,7 @@ public class Program
 			Console.WriteLine("NON-DI EXAMPLE");
 
 			var appSettings = AppSettingsBinder.LoadDirect();
-			Console.WriteLine(appSettings.Hello!.World);
+			Console.WriteLine(appSettings.Sample!.Hello!.World);
 
 		}
 		/////////
@@ -24,7 +24,7 @@ public class Program
 			builder.Services.AddSingleton<IAppSettingsBinder, AppSettingsBinder>();
 			var app = builder.Build();
 			var appSettings = app.Services.GetRequiredService<IAppSettingsBinder>().AppSettings;
-			Console.WriteLine(appSettings.Hello!.World);
+			Console.WriteLine(appSettings.Sample!.Hello!.World);
 		}
 	}
 }

@@ -72,8 +72,9 @@ public class LimitedConcurrencyLevelTaskScheduler : TaskScheduler
 							break;
 						}
 
-						// Get the next item from the queue
-						item = _tasks.First.Value;
+						// Get the next item from the queue.
+						// _tasks.Count != 0 checked above under the same lock, so First is non-null here.
+						item = _tasks.First!.Value;
 						_tasks.RemoveFirst();
 					}
 

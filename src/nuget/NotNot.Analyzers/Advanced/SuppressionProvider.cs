@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Composition;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -145,7 +144,10 @@ public sealed class NotNotDiagnosticSuppressor : DiagnosticSuppressor
             variableName = identifier.Identifier.ValueText;
         }
 
-        if (string.IsNullOrEmpty(variableName)) return false;
+        // Null-or-empty guard that also narrows `variableName` to non-null for the flow below
+        // (the netstandard2.0 ref assemblies lack the [NotNullWhen(false)] annotation on
+        // string.IsNullOrEmpty, so a plain IsNullOrEmpty call does not satisfy NRT).
+        if (variableName is not { Length: > 0 }) return false;
 
         // Find the containing invocation
         var invocation = argument.FirstAncestorOrSelf<InvocationExpressionSyntax>();
@@ -239,7 +241,10 @@ public sealed class NotNotDiagnosticSuppressor : DiagnosticSuppressor
             }
         }
 
-        if (string.IsNullOrEmpty(variableName)) return false;
+        // Null-or-empty guard that also narrows `variableName` to non-null for the flow below
+        // (the netstandard2.0 ref assemblies lack the [NotNullWhen(false)] annotation on
+        // string.IsNullOrEmpty, so a plain IsNullOrEmpty call does not satisfy NRT).
+        if (variableName is not { Length: > 0 }) return false;
 
         // Find the containing method/property body
         var containingMethod = diagnosticNode.FirstAncestorOrSelf<MethodDeclarationSyntax>();

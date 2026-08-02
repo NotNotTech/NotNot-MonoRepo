@@ -50,12 +50,12 @@ public class BadAsyncPatterns
     }
 
     /// <summary>
-    /// NN_R003: UI blocking patterns (in UI context)
+    /// NN_R010: UI blocking patterns (in UI context)
     /// </summary>
     public async Task UiBlockingExamples()
     {
         // ❌ May cause deadlock in UI context
-        await _httpClient.GetStringAsync("https://api.example.com"); // Will trigger NN_R003
+        await _httpClient.GetStringAsync("https://api.example.com"); // Will trigger NN_R010
         
         // ✅ Better approach
         // await _httpClient.GetStringAsync("https://api.example.com").ConfigureAwait(false);
@@ -102,7 +102,7 @@ public class BadAsyncPatterns
     public async Task MethodChainingExamples()
     {
         // ❌ ConfigureAwait not at the end
-        await GetDataAsync().ConfigureAwait(true); // NN_R003 (in UI context)
+        await GetDataAsync().ConfigureAwait(true); // NN_R010 (in UI context)
         
         // ❌ No ConfigureAwait in library
         await GetDataAsync().ContinueWith(t => t.Result.ToUpper()); // NN_R004
@@ -148,8 +148,8 @@ public class ExamplePage // Simulates a UI page class
         // This might be auto-suppressed as it's in an event handler
         DoWorkAsync(); // May not trigger NN_R001 due to suppression
         
-        // But this will still trigger NN_R003 due to UI context
-        await _httpClient.GetStringAsync("https://api.example.com"); // NN_R003
+        // But this will still trigger NN_R010 due to UI context
+        await _httpClient.GetStringAsync("https://api.example.com"); // NN_R010
     }
 
     private async Task DoWorkAsync()

@@ -42,7 +42,8 @@ public class DisposeGuard : IDisposeGuard
 	/// </summary>
 	public bool _suppress;
 
-	private List<string> CtorStackTrace { get; set; } //= "Callstack is only set in #DEBUG";
+	// Nullable: only assigned under #if DEBUG (in the ctor); in RELEASE it stays null and CtorStackTraceMsg handles the null case.
+	private List<string>? CtorStackTrace { get; set; } //= "Callstack is only set in #DEBUG";
 	private string CtorStackTraceMsg => (CtorStackTrace is null ? "CtorStackTrace is only set in #DEBUG" : string.Join("\n\t\t", CtorStackTrace));
 
 	public virtual void Dispose()
@@ -179,7 +180,9 @@ public class AsyncDisposeGuard : IAsyncDisposable
 
 
 	//private List<string> CtorStackTrace { get; set; } //= "Callstack is only set in #DEBUG";
-	private EnhancedStackTrace CtorStackTrace; //= "Callstack is only set in #DEBUG";
+	// Nullable auto-property: only assigned under #if DEBUG (in the ctor); in RELEASE it stays null and the finalizer's
+	// null-check handles it. Auto-property (not a field) so RELEASE builds don't emit CS0649 for the DEBUG-only assignment.
+	private EnhancedStackTrace? CtorStackTrace { get; set; } //= "Callstack is only set in #DEBUG";
 
 	public async ValueTask DisposeAsync()
 	{

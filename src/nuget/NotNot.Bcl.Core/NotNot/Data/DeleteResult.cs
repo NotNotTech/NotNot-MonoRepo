@@ -43,7 +43,7 @@ public enum UpsertResult
 {
 	Error,
 	/// <summary>
-	/// 
+	/// the item did not previously exist and was created
 	/// </summary>
 	Create,
 	/// <summary>

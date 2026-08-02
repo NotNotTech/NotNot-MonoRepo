@@ -6,7 +6,8 @@ namespace NotNot.Collections.Specialized;
 /// <typeparam name="T"></typeparam>
 public class AsyncQueueWorker<T>
 {
-	private Func<T, CancellationToken, Task> _dequeueWorker;
+	// Non-null from construction until the worker loop nulls it on cancellation shutdown (after which the loop exits).
+	private Func<T, CancellationToken, Task>? _dequeueWorker;
 	private AsyncQueue<T> _storage = new();
 	private Task _workerThread;
 
@@ -42,7 +43,8 @@ public class AsyncQueueWorker<T>
 			}
 
 			var item = await _storage.DequeueAsync(Ct);
-			await _dequeueWorker(item, Ct);
+			// only reached on the non-cancelled path; _dequeueWorker is only nulled in the cancellation branch above, which returns.
+			await _dequeueWorker!(item, Ct);
 		}
 	}
 }

@@ -407,3 +407,5 @@ FodyWeavers.xsd
 *.sln.iml
 src/NotNot.GodotDev/out.gdlog
 *.lscache
+**/bin-*/
+.vibeOverwatch/memory/

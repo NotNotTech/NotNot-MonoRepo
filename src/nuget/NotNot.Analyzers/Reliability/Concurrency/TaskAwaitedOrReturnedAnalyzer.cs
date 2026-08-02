@@ -114,8 +114,8 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
             if (expressionType != null &&
                 taskTypeSymbols.Any(taskTypeSymbol =>
                     taskTypeSymbol != null &&
-                    (expressionType.Equals(taskTypeSymbol) ||
-                     (expressionType.IsGenericType && expressionType.ConstructedFrom.Equals(taskTypeSymbol)))))
+                    (SymbolEqualityComparer.Default.Equals(expressionType, taskTypeSymbol) ||
+                     (expressionType.IsGenericType && SymbolEqualityComparer.Default.Equals(expressionType.ConstructedFrom, taskTypeSymbol)))))
             {
                 return true;
             }
@@ -127,8 +127,8 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
                 if (conditionalType != null &&
                     taskTypeSymbols.Any(taskTypeSymbol =>
                         taskTypeSymbol != null &&
-                        (conditionalType.Equals(taskTypeSymbol) ||
-                         (conditionalType.IsGenericType && conditionalType.ConstructedFrom.Equals(taskTypeSymbol)))))
+                        (SymbolEqualityComparer.Default.Equals(conditionalType, taskTypeSymbol) ||
+                         (conditionalType.IsGenericType && SymbolEqualityComparer.Default.Equals(conditionalType.ConstructedFrom, taskTypeSymbol)))))
                 {
                     return true;
                 }
@@ -181,11 +181,21 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
             {
                 try
                 {
+                    // A declarator without an initializer (e.g. `Task t;`) has no value to type — skip it.
+                    if (variable.Initializer is null)
+                    {
+                        return false;
+                    }
                     // Get the type of the variable.
                     var variableType =
                        context.SemanticModel.GetTypeInfo(variable.Initializer.Value).Type as INamedTypeSymbol;
+                    // Non-INamedTypeSymbol (or unresolved) initializer type can't be a constructed Task<T> — skip.
+                    if (variableType is null)
+                    {
+                        return false;
+                    }
                     // Check if the variable type is in the task type symbols.
-                    return taskTypeSymbols.Any(taskTypeSymbol => variableType.ConstructedFrom.Equals(taskTypeSymbol));
+                    return taskTypeSymbols.Any(taskTypeSymbol => SymbolEqualityComparer.Default.Equals(variableType.ConstructedFrom, taskTypeSymbol));
                 }
                 catch
                 {
@@ -358,9 +368,11 @@ public class TaskAwaitedOrReturnedAnalyzer : DiagnosticAnalyzer
         foreach (var invocation in methodInvocations)
         {
             // Get all argument identifiers in the current invocation
+            // (OfType filters to non-null IdentifierNameSyntax, narrowing for NRT — a plain
+            // `Select(as) + Where(!= null)` leaves the element type nullable to the compiler).
             var argumentIdentifiers = invocation.ArgumentList.Arguments
-                .Select(arg => arg.Expression as IdentifierNameSyntax)
-                .Where(id => id != null)
+                .Select(arg => arg.Expression)
+                .OfType<IdentifierNameSyntax>()
                 .Select(id => id.Identifier);
 
             // Check if any argument identifier matches the variable identifier

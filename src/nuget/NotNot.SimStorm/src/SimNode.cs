@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using NotNot.Collections.SpanLike;
 using NotNot.Diagnostics;
 using NotNot.SimStorm._scratch.Ecs;
@@ -71,7 +72,7 @@ public abstract partial class SimNode //update logic
 	/// <summary>
 	/// a hint to the dev, why the node was skipped.
 	/// </summary>
-	public string IsSkippedDebugReason { get; private set; }
+	public string? IsSkippedDebugReason { get; private set; }
 
 	/// <summary>
 	/// when a node is skipped for any reason (currently .IsDisabled, or FixedTimestepNode not at target FPS), it and it's children will be notified via this method.
@@ -171,15 +172,16 @@ public abstract partial class SimNode //tree logic
 {
 	public const bool _DEBUG_PRINT_TRACE = false;
 
-	private string _nameCached;
+	private string? _nameCached;
 
 
-	private string _parentNameCached;
+	private string? _parentNameCached;
 
 	public List<SimNode> children = new();
-	public SimManager manager;
+	// Late-init: set during Register; guarded by the node lifecycle before use.
+	public SimManager manager = null!;
 
-	public SimNode parent;
+	public SimNode parent = null!;
 
 	public string Name
 	{
@@ -203,7 +205,7 @@ public abstract partial class SimNode //tree logic
 	///    </para>
 	///    <para>but it's usually better to just have a reference to the parent, and call parent.AddChild() instead</para>
 	/// </summary>
-	public string ParentName
+	public string? ParentName
 	{
 		get
 		{
@@ -310,7 +312,7 @@ public abstract partial class SimNode //tree logic
 		return toReturn;
 	}
 
-	public bool FindNode(string name, out SimNode node)
+	public bool FindNode(string name, [MaybeNullWhen(false)] out SimNode node)
 	{
 		return manager._nodeRegistry.TryGetValue(name, out node);
 	}
@@ -370,7 +372,7 @@ public abstract partial class SimNode //tree logic
 		OnUnregister();
 		var result = manager._nodeRegistry.TryRemove(Name, out var self);
 		__.GetLogger()._EzErrorThrow<SimStormException>(result && self == this);
-		manager = null;
+		manager = null!;
 	}
 
 	/// <summary>
@@ -435,7 +437,7 @@ public abstract partial class SimNode //tree logic
 
 	private void Removed()
 	{
-		parent = null;
+		parent = null!;
 		HierarchyDepth = -1;
 		OnRemoved();
 	}

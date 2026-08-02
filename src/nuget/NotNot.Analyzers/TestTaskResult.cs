@@ -5,7 +5,7 @@ namespace LoLo.Analyzers.Reliability.Concurrency;
 
 /// <summary>
 /// Test class to verify the TaskResultNotObservedAnalyzer works correctly.
-/// This file should trigger NN_R002 errors for unobserved Task<T> results.
+/// This file should trigger NN_R002 errors for unobserved Task&lt;T&gt; results.
 /// </summary>
 public class TestTaskResult
 {
@@ -45,13 +45,13 @@ public class TestTaskResult
         // This should NOT trigger error: result is used in condition
         if (await DoSomethingAsync())
         {
-            var tmp = "Task returned true";
+            _ = "Task returned true";
 
         }
     }
 
     /// <summary>
-    /// This should NOT trigger any error: void Task (not Task<T>)
+    /// This should NOT trigger any error: void Task (not Task&lt;T&gt;)
     /// </summary>
     public async Task TestVoidTask()
     {
@@ -60,7 +60,7 @@ public class TestTaskResult
     }
 
     /// <summary>
-    /// This should trigger NN_R002 analyzer error: ValueTask<T> result not observed
+    /// This should trigger NN_R002 analyzer error: ValueTask&lt;T&gt; result not observed
     /// </summary>
     public async Task TestValueTaskNotObserved()
     {
@@ -69,7 +69,7 @@ public class TestTaskResult
     }
 
     /// <summary>
-    /// Returns a Task<bool> for testing
+    /// Returns a Task&lt;bool&gt; for testing
     /// </summary>
     private async Task<bool> DoSomethingAsync()
     {
@@ -86,7 +86,7 @@ public class TestTaskResult
     }
 
     /// <summary>
-    /// Returns a ValueTask<int> for testing
+    /// Returns a ValueTask&lt;int&gt; for testing
     /// </summary>
     private async ValueTask<int> DoValueTaskAsync()
     {

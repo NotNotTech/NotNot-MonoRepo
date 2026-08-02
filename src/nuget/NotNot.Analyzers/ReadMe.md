@@ -36,7 +36,7 @@ dotnet add package NotNot.Analyzers
 ## 🔍 Analyzer Rules
 
 ### NN_R001: Task should be awaited, assigned, or returned
-**Severity:** Error  
+**Severity:** Error
 **Category:** Reliability
 
 Detects fire-and-forget task patterns that can lead to unhandled exceptions.
@@ -53,7 +53,7 @@ return DoWorkAsync();       // Option 4: Return from method
 ```
 
 ### NN_R002: Task<T> result should be observed
-**Severity:** Error  
+**Severity:** Error
 **Category:** Reliability
 
 Ensures that Task<T> results are properly observed when awaited.
@@ -185,6 +185,237 @@ Ensures destructors (finalizers) wrap their logic in try/catch blocks to prevent
 - `__RethrowUnlessAppShutdownOrRelease()` balances safety and debuggability
 - Critical for resource management and application stability
 
+### NN_R005: Catch block must rethrow general exception
+**Severity:** Error | **Category:** Reliability
+
+Catch blocks catching `Exception`, `SystemException`, or bare `catch` must rethrow. Specific exception types can be swallowed.
+
+```csharp
+// ❌ Problematic
+catch (Exception ex) { Log(ex); }  // Logs but doesn't rethrow
+
+// ✅ Fixed
+catch (Exception ex) { __.DebugAssertOnce(ex); return fallback; }
+catch (Exception ex) { throw; }
+```
+
+### NN_R006: Empty catch block silently swallows exception
+**Severity:** Error  
+**Category:** Reliability
+
+Detects catch blocks with zero statements that silently swallow exceptions — any exception type. Complementary to NN_R005 which targets general exception types without rethrow.
+
+**Concurrency note**: Pre-checks (`File.Exists()`, `dict.ContainsKey()`) have TOCTOU races in concurrent scenarios. Atomic operations (`FileMode.CreateNew`, `ConcurrentDictionary.TryAdd`, DB unique constraints) legitimately need try/catch. The catch block is justified — but it still must not be empty.
+
+```csharp
+// ❌ Problematic — empty catch silently swallows
+catch (IOException)
+{
+    // File already exists (cross-process race) — skip
+}
+
+// ✅ Option 1: Avoid exceptions (non-concurrent only — TOCTOU race if concurrent)
+if (File.Exists(path)) return;
+
+// ✅ Option 2: Debug assertion (good for atomic race-condition catches)
+catch (IOException ex)
+{
+    __.DebugAssertOnce(ex);  // Visible in DEBUG, logged once, graceful in RELEASE
+}
+
+// ✅ Option 3: Logging (good for expected concurrent conflicts)
+catch (IOException ex)
+{
+    _logger.LogDebug(ex, "Atomic write conflict — file already exists");
+}
+```
+
+<a id="NN_R007"></a>
+### NN_R007: Hand-rolled atomic file write is not concurrency-safe
+**Severity:** Error
+**Category:** Reliability
+
+Detects a hand-rolled atomic file write — a write to a **deterministic** `.tmp` path followed by `File.Move(temp, final, overwrite: true)` — that lacks the unique-temp + per-path-serialization concurrency guard. Two correctness mechanisms are **both** required; removing either re-opens a race:
+
+1. **Unique temp name per writer** — on Windows the default `FileShare.Read` on a *shared* `.tmp` open makes the second same-path writer throw `ERROR_SHARING_VIOLATION`.
+2. **Per-final-path serialization of the entire write+rename** — concurrent `MoveFileEx`/`MOVEFILE_REPLACE_EXISTING` calls racing **one** destination are not mutually safe; the losing rename throws.
+
+```csharp
+// ❌ Flagged (fires at the File.Move) — deterministic temp + overwrite-rename, no concurrency guard
+var tempPath = filePath + ".tmp";          // deterministic concat ending in ".tmp"
+File.WriteAllText(tempPath, json);
+File.Move(tempPath, filePath, overwrite: true);
+
+// ✅ Option 1 (preferred): the sanctioned helper — unique temp + per-path lock + bounded retry
+NotNot.Storage.AtomicFileWriter.WriteAtomic(filePath, json);
+NotNot.Storage.AtomicFileWriter.WriteAtomic(filePath, lines);          // IEnumerable<string> overload (mirrors File.WriteAllLines)
+await NotNot.Storage.AtomicFileWriter.WriteAtomicAsync(filePath, json);
+
+// ✅ Option 2: if AtomicFileWriter is unavailable — UNIQUE temp AND serialize the write+rename per final path
+var tempPath = filePath + "." + Guid.NewGuid().ToString("N") + ".tmp"; // unique → silent
+//   ... PLUS a per-final-path lock around the WriteAllText + Move pair (unique name alone is insufficient)
+
+// ✅ Allowed (silent): no overwrite, or a direct final write
+File.Move(a, b);                            // not the temp-then-rename idiom
+File.WriteAllText(finalPath, json);         // no temp + Move — different concern
+```
+
+**Flagged**: `File.Move(temp, final, overwrite: true)` (the receiver resolves to `System.IO.File`; the third argument is the literal `true`, named `overwrite:` or positional) where `temp` resolves — to its single-method local declaration **or** inline — to a **deterministic** `+ ".tmp"` concat with **no** `Guid`/`Random`/`Ticks`/`GetRandomFileName`/`GetTempFileName` identifier anywhere in the concat tree.
+
+**Allowed**: `NotNot.Storage.AtomicFileWriter.WriteAtomic`/`WriteAtomicAsync` (its temp is minted via a method call, never a literal-bearing deterministic concat — not matched); a Guid/Random/Ticks-bearing **unique** temp (not deterministic); a plain `File.Move(a, b)` with no `overwrite: true`; a direct `File.WriteAllText(finalPath, ...)` with no temp + Move; a `temp` sourced from a method call (e.g. `MakeTempPath(x)`).
+
+**Preferred fix** (in order):
+1. Use `NotNot.Storage.AtomicFileWriter.WriteAtomic`/`WriteAtomicAsync` (unique temp + per-path lock + bounded retry). A `WriteAtomic(string finalPath, IEnumerable<string> lines, Encoding? = null)` overload mirrors `File.WriteAllLines`.
+2. If `AtomicFileWriter` is unavailable here, use a unique temp (`finalPath + Guid + ".tmp"`) **and** serialize the write+rename per final path — unique-name alone is insufficient.
+3. `#pragma warning disable NN_R007` / `.editorconfig` severity override only if the write is provably single-threaded **and** single-process for the file's lifetime.
+
+Complementary to NN_R001/NN_R002 (Task-concurrency) and NN_R005/NN_R006 (catch-reliability) on a disjoint axis — NN_R007 is the file-I/O concurrency-reliability rule.
+
+<a id="NN_R008"></a>
+### NN_R008: Direct file append has no cross-process retry
+**Severity:** Error
+**Category:** Reliability
+
+Detects a direct `System.IO.File` **append** — `File.AppendAllText`, `File.AppendAllLines`, or their async `AppendAllTextAsync`/`AppendAllLinesAsync` variants — to a final path, invoked **outside** `NotNot.Storage.AtomicFileWriter`. These APIs open the file with the default `FileShare.Read`: a **second OS process** appending the **same** file (e.g. a shared growing log) throws `IOException "being used by another process"` (Windows `ERROR_SHARING_VIOLATION`). An in-process `lock` cannot arbitrate a cross-process collision — each append is whole per call (`FileShare.Read` excludes concurrent writers), so the losing process must **retry** the transient lock.
+
+```csharp
+// ❌ Flagged (fires at the append) — no cross-process retry on a shared final path
+File.AppendAllText(finalPath, line);
+File.AppendAllLines(finalPath, lines);
+await File.AppendAllTextAsync(finalPath, line);
+
+// ✅ Option 1 (preferred): the sanctioned helper — bounded transient-lock retry
+NotNot.Storage.AtomicFileWriter.AppendWithRetry(finalPath, contents);
+
+// ✅ Option 2: if the intent is a full-file rewrite (not an append)
+NotNot.Storage.AtomicFileWriter.WriteAtomic(finalPath, json);
+
+// ✅ Allowed (silent): a direct full write, or the NN_R007 temp-then-rename idiom
+File.WriteAllText(finalPath, json);              // full write, not an append — out of scope
+File.Move(temp, finalPath, overwrite: true);     // NN_R007's domain, not NN_R008
+```
+
+**Flagged**: `File.AppendAllText`/`File.AppendAllLines`/`File.AppendAllTextAsync`/`File.AppendAllLinesAsync` where the invoked method's containing type resolves to `System.IO.File` (covers `File.`, `IO.File.`, fully-qualified, or an aliased import) AND the enclosing type is not `NotNot.Storage.AtomicFileWriter`.
+
+**Allowed**: `NotNot.Storage.AtomicFileWriter.AppendWithRetry` (the sanctioned helper — not a `System.IO.File` member, never matched); a `File.Append*` call **inside** `NotNot.Storage.AtomicFileWriter` itself (its `AppendWithRetry` legitimately calls `File.AppendAllText` internally — containing-type exemption); a direct `File.WriteAllText(finalPath, ...)` (full write, not an append — out of scope); `File.Move(temp, final, overwrite: true)` (the NN_R007 temp-then-rename domain).
+
+**Preferred fix** (in order):
+1. Use `NotNot.Storage.AtomicFileWriter.AppendWithRetry(path, contents)` — bounded transient-lock retry (reuses the AtomicFileWriter `IsTransient`/`BackoffMs`/`MaxAttempts` + jitter policy, rethrow-on-exhaustion).
+2. If the intent is a full-file rewrite rather than an append, use `NotNot.Storage.AtomicFileWriter.WriteAtomic`.
+3. `#pragma warning disable NN_R008` / `.editorconfig` severity override only if this append is provably single-process for the file's lifetime.
+
+Complementary to NN_R007 on a disjoint axis: NN_R007 = hand-rolled atomic full-file **rewrite** (deterministic temp + overwrite rename); NN_R008 = direct **append** (no temp, no Move). Together they form a gap-free file-I/O concurrency matrix — `AtomicFileWriter` is silent under both.
+
+<a id="NN_R009"></a>
+### NN_R009: Field PeriodicTimer disposed while WaitForNextTickAsync may be pending risks a shutdown-race exception
+**Severity:** Error
+**Category:** Reliability
+
+Detects a graceful-shutdown crash class: a **field/property** `System.Threading.PeriodicTimer` that is **both** polled via `WaitForNextTickAsync(...)` **and** disposed inside a disposal method (`Dispose()` / `Dispose(bool)` / `DisposeAsync()`). `WaitForNextTickAsync` is backed by a **single-consumer** `IValueTaskSource`: a tick firing at the same instant as **either** the `CancellationToken` cancel **or** `_timer.Dispose()` tears that shared source and throws `InvalidOperationException` from the `while (await ...)` loop condition — **outside** any per-tick try/catch — which faults the loop task, escapes an `OperationCanceledException`-only catch, and aborts the process (SIGABRT) on graceful shutdown. Passing a `CancellationToken` does **not** prevent it.
+
+```csharp
+// ❌ Flagged (fires at the field declaration) — a field PeriodicTimer polled AND disposed in a disposal method
+private readonly PeriodicTimer _timer = new(TimeSpan.FromSeconds(1));
+// ...
+while (await _timer.WaitForNextTickAsync(ct)) { }          // condition (b): polled
+// ...
+public async ValueTask DisposeAsync() { _timer.Dispose(); } // condition (c): disposed in a disposal method
+
+// ✅ Option 1 (preferred): a per-iteration Task.Delay loop — atomic TrySetResult/TrySetCanceled, race-safe; delete the timer field
+while (!ct.IsCancellationRequested)
+{
+    await Task.Delay(TimeSpan.FromSeconds(1), ct);
+}
+
+// ✅ Option 2: a `using var` LOCAL PeriodicTimer disposed by its scope AFTER the loop exits (no active wait at dispose)
+using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+while (await timer.WaitForNextTickAsync(ct)) { }
+
+// ✅ Allowed (silent): a field PeriodicTimer waited-on but never disposed, or disposed but never waited-on
+```
+
+**Flagged**: a field/property whose type resolves to `System.Threading.PeriodicTimer` where **all three** hold within the declaring type — (a) it is a field/property (not a `using var`/local), (b) `.WaitForNextTickAsync(...)` is invoked on it somewhere in the type, and (c) `.Dispose()` is invoked on it inside a disposal method (`Dispose()`/`Dispose(bool)`/`DisposeAsync()`). Reported at the field/property declaration; `{0}` = the member name.
+
+**Allowed**: a `using var`/local `PeriodicTimer` disposed after its loop exits (the safe pattern — never a member, never collected); the canonical fix (a `Task.Delay(interval, token)` loop with no PeriodicTimer); a field PeriodicTimer waited-on but never disposed (condition (c) unmet); a field PeriodicTimer disposed but never waited-on (condition (b) unmet).
+
+**Preferred fix** (in order):
+1. Replace the PeriodicTimer poll loop with a per-iteration `await Task.Delay(interval, token)` loop — the cheapest correct and strictly safer shape (atomic `TrySetResult`/`TrySetCanceled`) — and delete the timer field plus its `Dispose()`.
+2. If a timer is required, use a `using var` local disposed **after** the loop exits, so no wait is active at dispose.
+3. `#pragma warning disable NN_R009` / `.editorconfig` severity override only when disposal provably can never race a pending wait.
+
+Complementary to NN_R001/NN_R002 (Task-await) and NN_R007/NN_R008 (atomic-file-write) on a disjoint axis — NN_R009 is the timer-lifecycle concurrency-reliability rule.
+
+<a id="NN_C004"></a>
+### NN_C004: No code-side default for AppSettings options
+**Severity:** Error
+**Category:** CodeStyle
+
+Forbids a code-side default on a `NotNot.AppSettings`-generated settings option — i.e. `{settingsOption} ?? {literal/const}`. The generator makes `appsettings*.json` the **single source of truth** for settings defaults (every generated property is nullable `T?`). A code-side `?? <default>` is a *second, drifting copy* of a default that already lives in the JSON, and it **silently masks a missing/null config value** that should fail loud at startup rather than limp on a hardcoded fallback. Keep one default location (the JSON) and prefer fail-loud over fail-quiet.
+
+```csharp
+// ❌ Flagged (fires at the ?? operator) — settings.* is a [GeneratedCode("NotNot.AppSettings")] option
+var mruCapacity   = (int?)settings.ProjectionMruCapacity ?? 4;          // numeric literal
+var idleTtl       = (double?)settings.ProjectionIdleTtlMinutes ?? 10.0; // double literal
+var maxOpen       = (int?)settings.Sessions?.MaxOpenPty ?? Options.DefaultMaxOpenPty; // const (or constant-init static-readonly) field
+var name          = settings.Name ?? "vs-running";                     // non-empty string literal
+settings.ProjectionMruCapacity ??= 4;                                  // ??= coalesce-assignment also writes a default
+
+// ✅ Allowed
+var required      = (int?)settings.ProjectionMruCapacity ?? throw new InvalidOperationException("required"); // fail loud
+var computed      = (int?)settings.ProjectionMruCapacity ?? Environment.ProcessorCount; // computed — can't live in JSON
+var computedField = (int?)settings.ProjectionMruCapacity ?? Options.ComputedDefault;    // static-readonly w/ computed initializer — out of scope
+var fromFactory   = (int?)settings.ProjectionMruCapacity ?? Compute();  // method call — out of scope
+var normalized    = settings.Name ?? "";                               // empty/whitespace string — null-normalization
+var normalized2   = settings.Name ?? string.Empty;                     // string.Empty — null-normalization
+var local         = someLocal ?? 4;                                    // not a settings option
+```
+
+**Flagged**: `{member} ?? {default}` **or** `{member} ??= {default}` where the member's containing type carries `[System.CodeDom.Compiler.GeneratedCode("NotNot.AppSettings", ...)]` AND the right operand is a default-VALUE shape (a NON-EMPTY string literal, a numeric/bool/char literal — optionally a leading unary `-`/`+` on a numeric literal — a `const` field, or a `static readonly` field whose initializer is itself a compile-time constant). Casts, parentheses, and conditional-access on the left operand are stripped before resolving the member.
+
+**Allowed**: `?? throw` (the permitted required-no-default pattern); a non-settings left operand; a computed right operand (a method call, a property read such as `Environment.ProcessorCount`, or a `static readonly` field with a computed initializer — none can live in static JSON); an empty/whitespace-only string literal (`?? ""`, `?? "   "`) or `System.String.Empty` (`?? string.Empty`) — null-normalization, not a config default; `?? null` / `?? default`; and coalesce expressions inside generated `*.g.cs` files.
+
+**Preferred fix** (in order):
+1. Set the default in `appsettings*.json` and read the typed property directly (remove the `?? default`).
+2. If REQUIRED with no sensible default, fail loud with `?? throw`.
+3. If genuinely optional, branch on null as a real state.
+4. `#pragma warning disable NN_C004` / `.editorconfig` severity override only when a code-side default is genuinely intended.
+
+Complementary to NN_C003 (BoolDefaultFalse) on a disjoint axis: C003 = bool param default-false at *declaration*; C004 = no code-side default substitution at *consumption*. They never co-fire.
+
+<a id="nn_c005"></a>
+### NN_C005: No ServerOnly AppSettings read from client-reachable code
+**Severity:** Error
+**Category:** CodeStyle
+
+Forbids reading a `NotNot.AppSettings`-generated **ServerOnly** key from a `.Shared`/`.Client` (WASM-client-reachable) compilation. The generator prunes ServerOnly keys from the generated client snapshot (`_ClientAppSettings`), so the read is `null` on the client at runtime — and with `.Require()` **throws at bootstrap** (the NN_C004 reachability failure class). NN_C005 is the read-reachability companion to NN_C004's write-default rule.
+
+`.Shared` is a Razor Class Library that runs in **both** the server and the WASM client; `.Client` is client-only. Whitelisting is a **decision, not a reflex** — never whitelist a server-only secret just to silence the diagnostic, because that ships it to the client.
+
+```csharp
+// Generated by NotNot.AppSettings (appsettings*.json + NotNotAppSettings:whitelist):
+//   ClientKey → ClientRead (present in _ClientAppSettings)
+//   ServerKey → ServerOnly (pruned from _ClientAppSettings)
+//   var settings = app.Configuration.AppSettingsGen()...;   // the FULL AppSettings tree
+
+// ❌ Flagged (fires at the read) — inside a .Shared / .Client assembly:
+var token = settings.{|ServerKey|};                 // ServerOnly → null on the WASM client at runtime
+
+// ✅ Allowed:
+var name  = settings.ClientKey;                      // client-whitelisted (present in _ClientAppSettings)
+var key   = nameof(settings.ServerKey);              // no runtime dereference
+// ... the same `settings.ServerKey` read inside a .Server assembly — ServerOnly reads are legal server-side
+```
+
+**Flagged** (at the accessed-member identifier): `{settings}.{Key}` (or `{settings}?.{Key}`) where the containing type is a `NotNot.AppSettings`-generated FULL-tree type (`[GeneratedCode("NotNot.AppSettings", ...)]`, in the `.AppSettingsGen` `AppSettings` tree — not the `_ClientAppSettings` mirror) AND the corresponding path is absent from the generated `_ClientAppSettings` mirror (⇒ ServerOnly) AND the current assembly name ends with `.Shared` or `.Client`.
+
+**Allowed**: a read of a client-whitelisted key (present in `_ClientAppSettings`); the same read from a `.Server` assembly; a read of a non-`[GeneratedCode("NotNot.AppSettings")]` member; a read of the `_ClientAppSettings` mirror itself; `nameof(...)` (no runtime dereference); member access inside generated `*.g.cs` files; and compilations whose `_ClientAppSettings` mirror is not present (conservative — cannot prove ServerOnly).
+
+**Preferred fix** (the fix is a *decision*, not a reflex):
+1. If the client genuinely needs the value, whitelist it as `ClientRead` (or `ClientWriteLocal`/`ClientWriteServer`) under `NotNotAppSettings:whitelist` in `appsettings*.json`.
+2. If it is server-only/secret, move the read to a `.Server`-side type. **Do NOT whitelist server-only/secret config** — that exposes it to the client.
+3. `#pragma warning disable NN_C005` / `.editorconfig` severity override only if the code path provably never runs on the client.
+
+Complementary to NN_C004 (AppSettingsCodeDefault) on a disjoint axis: C004 = write-side `?? default` ban at *consumption*; C005 = read-side ServerOnly-reachability ban. They never co-fire.
 
 ## ⚙️ Configuration
 
@@ -198,6 +429,13 @@ dotnet_diagnostic.NN_R002.severity = error
 dotnet_diagnostic.NN_C001.severity = error
 dotnet_diagnostic.NN_C002.severity = error
 dotnet_diagnostic.NOTNOT001.severity = error
+dotnet_diagnostic.NN_R005.severity = error
+dotnet_diagnostic.NN_R006.severity = error
+dotnet_diagnostic.NN_R007.severity = error
+dotnet_diagnostic.NN_R008.severity = error
+dotnet_diagnostic.NN_R009.severity = error
+dotnet_diagnostic.NN_C004.severity = error
+dotnet_diagnostic.NN_C005.severity = error
 
 # Disable specific rules
 dotnet_diagnostic.NN_R003.severity = none
@@ -340,3 +578,160 @@ If referencing this project directly (not the nuget package) be sure to add ` Ou
 <ProjectReference Include="..\lib\NotNot.GodotNet.SourceGen\NotNot.GodotNet.SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 ```
 
+## Diagnostic Anchor Reservations
+
+The following anchor IDs are reserved for the DI marker-enforcement analyzer rule family
+(`NotNot.Analyzers/Architecture/DI/DiMarkerEnforcementAnalyzer.cs`). Per-rule documentation
+pages with these anchors are pending — referenced by `HelpLinkUri` on each diagnostic descriptor.
+
+<a id="nn_di_001"></a>
+### NN_DI_001 — DI lifetime mismatch with marker interface
+
+Fires on `Add{L}<T>()` / `TryAdd{L}<T>()` where `T` implements `IDi{L'}Service` with `L != L'`.
+Severity: **Error**. Documentation page pending.
+
+<a id="nn_di_002"></a>
+### NN_DI_002 — Redundant explicit DI registration
+
+Fires on `Add{L}<T>()` where `T` already implements `IDi{L}Service` (matched lifetime — auto-registration
+would handle the same wiring). Severity: **Warning**. Documentation page pending.
+
+<a id="nn_di_003"></a>
+### NN_DI_003 — Passthrough DI factory replaceable with marker interface
+
+Fires on `Add{L}<T>(sp => new T(sp.GetRequiredService<...>(), ...))` when `T` is project-defined and
+does not already implement a marker interface. Severity: **Info**. Documentation page pending.
+
+<a id="nn_di_004"></a>
+### NN_DI_004 — DI service marker conflicts with IHostedService
+
+Fires on a class symbol implementing both a marker interface and
+`Microsoft.Extensions.Hosting.IHostedService`. Severity: **Error**. Documentation page pending.
+
+<a id="nn_di_005"></a>
+### NN_DI_005 — Missing IDi{L}Service marker — class is auto-registration candidate
+
+Fires on `Add{L}<T>()` / `Add{L}<TService, TImpl>()` where the implementation type is project-internal,
+non-abstract, lacks any `IDi{L}Service` marker, and isn't covered by an existing carve-out
+(`TryAdd*`, third-party, interface-bridge factory, `[AutoDiBypass]`). Severity: **Info**.
+Documentation page pending.
+
+<a id="nn_di_006"></a>
+### NN_DI_006 — Hosted service has a required delegate constructor parameter DI cannot provide
+**Severity:** Error
+**Category:** Reliability
+
+Fires on a concrete `IHostedService` (directly, or via `BackgroundService`/a base) with EXACTLY one
+public instance constructor that has a **required** parameter of delegate type (`Func<>`/`Action<>`/a
+custom delegate). The NotNot Scrutor convention
+(`AddClasses(AssignableTo<IHostedService>()).AsSelfWithInterfaces()`) auto-registers every hosted
+service with constructor injection; delegate types are never DI-registered, so a required delegate
+parameter makes the `AsSelf` concrete registration **unconstructible** — the host crashes at
+`builder.Build()` (Dev `ValidateOnBuild`) or `Host.StartAsync` (Prod) **before any port binds**. Marker-
+independent: NN_DI_006 fires whether or not the type carries an `IDi{L}Service` marker (the proven crash
+type carries none). It is the gap-filling third rule of the hosted-service matrix (NN_DI_004 =
+marker+IHostedService conflict; NN_DI_005 = marker-absence; NN_DI_006 = ctor-unconstructibility).
+
+```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+
+// ❌ Flagged (fires at the class declaration) — required delegate ctor param, unconstructible under auto-registration
+public class CrashObserver : BackgroundService
+{
+    public CrashObserver(Func<string, CancellationToken, Task> purge) { /* ... */ }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+
+// ✅ Option 1 (preferred): inject a DI-registered abstraction instead of a raw delegate
+public interface ISessionReapPurger { Task PurgeAsync(string id, CancellationToken ct); }
+
+public class ReapObserver : BackgroundService
+{
+    public ReapObserver(ISessionReapPurger purger) { /* ... */ }   // DI resolves the registered interface
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+
+// ✅ Option 2 (only if a null delegate is a SAFE no-op): make the parameter optional with a default
+public class OptionalObserver : BackgroundService
+{
+    public OptionalObserver(Func<string, CancellationToken, Task>? purge = null) { /* DI passes null */ }
+    protected override Task ExecuteAsync(CancellationToken ct) => Task.CompletedTask;
+}
+
+// ✅ Allowed (silent): a plain class (not IHostedService) — never reaches the auto-registration scan
+public class ManualFactoryConsumer
+{
+    public ManualFactoryConsumer(Func<int> f) { /* constructed by a hand-written factory */ }
+}
+```
+
+**Flagged**: a concrete (non-abstract) class implementing `Microsoft.Extensions.Hosting.IHostedService`
+with EXACTLY one public instance constructor whose parameter list contains a parameter that has no
+explicit default value AND whose type is `TypeKind.Delegate`.
+
+**Allowed**: an optional-default delegate parameter (`Func<...>? f = null` — DI passes null); a required
+non-delegate parameter (a registered interface abstraction); a non-`IHostedService` class with a
+delegate ctor param (manual-factory pattern); an abstract `IHostedService` (not auto-registered as
+concrete); a type with zero or more-than-one public instance constructors (ambiguous — MS.DI
+greedy-resolution / `[ActivatorUtilitiesConstructor]` undecidable, conservative skip); and a type/assembly
+carrying `[AutoDiBypass]`.
+
+**Preferred fix** (the fix is a *decision*, not a reflex):
+1. Replace the delegate with a DI-registered abstraction — define a small interface implemented by the
+   providing service (e.g. `ISessionReapPurger` implemented by `VowSessionService`) and inject that.
+2. ONLY if a null delegate is a SAFE no-op for the auto-registered instance, make the parameter optional
+   with a default (`Func<...>? f = null`). NOT if absence silently disables required behavior.
+3. `[AutoDiBypass]` on the type, or `#pragma warning disable NN_DI_006` / `.editorconfig`
+   `dotnet_diagnostic.NN_DI_006.severity = none`, ONLY if the type is provably never
+   auto-registered / DI-constructed.
+
+<a id="nn_di_007"></a>
+### NN_DI_007 — Explicit hosted-service registration duplicates the auto-registration scan
+**Severity:** Error  
+**Category:** Reliability
+
+Fires on either canonical Microsoft `AddHostedService<T>()` overload when `T` is a public, concrete
+`IHostedService` **whose containing assembly carries `[assembly: NotNot.Bcl.Diagnostics.AutoDiScanAssembly]`**
+(and neither the type nor its assembly carries `[AutoDiBypass]`). Eligibility is the explicit
+`[AutoDiScanAssembly]` opt-in marker — NOT an assembly-name prefix. Only a marked assembly is scanned by
+the NotNot Scrutor convention (`AsSelfWithInterfaces`, singleton lifetime), so only there does a direct
+or factory `AddHostedService<T>` create a second registration path. The analyzer detects the marker by
+fully-qualified-name STRING match (`NotNot.Bcl.Diagnostics.AutoDiScanAssemblyAttribute` — each assembly
+attribute's class rendered via `ToDisplayString(FullyQualifiedFormat)`, `global::` stripped, compared with
+`string.Equals`), the SAME mechanism as `[AutoDiBypass]`, with no simple-name fallback. FQN-string matching
+needs no compilation-level symbol resolution, so it detects the marker on a referenced sibling assembly even
+when the declaring assembly is not visible to the consumer compilation — the cross-assembly case a
+`GetTypeByMetadataName` + `SymbolEqualityComparer` lookup silently missed. The canonical `AddHostedService`
+method is matched by cached `OriginalDefinition` symbol identity,
+so a same-named method on an unrelated type (even one declared in a `Microsoft.Extensions.DependencyInjection.*`
+namespace) stays silent.
+
+```csharp
+// In an assembly that opts into the AutoDI scan:
+[assembly: NotNot.Bcl.Diagnostics.AutoDiScanAssembly]
+
+// ❌ Flagged: Worker is already discovered by the NotNot hosted-service scan.
+services.AddHostedService<Worker>();
+services.AddHostedService(sp => new Worker(sp.GetRequiredService<IDependency>()));
+
+// ✅ Manual factory ownership is explicit and singular.
+[AutoDiBypass]
+public sealed class Worker : BackgroundService { /* ... */ }
+services.AddHostedService(sp => new Worker(sp.GetRequiredService<IDependency>()));
+```
+
+**Allowed:** hosted-service types in assemblies WITHOUT `[assembly: AutoDiScanAssembly]` (not scanned —
+including framework/package assemblies); non-public or abstract hosted-service types; types or assemblies
+carrying `[AutoDiBypass]` (higher precedence than the scan marker); and same-named methods that do not
+resolve to Microsoft's canonical `ServiceCollectionHostedServiceExtensions` `AddHostedService`
+`OriginalDefinition`.
+
+**Preferred fix:** remove the explicit registration. If custom factory construction or ordering is
+intentional, add `[AutoDiBypass]` so the composition root becomes the sole registration owner.
+
+**Runtime pairing:** the `AddNotNotDiServices` scanner uses the SAME marker. Its default-AppDomain path
+silently excludes unmarked assemblies; its explicit-`scanAssemblies` path FAILS FAST on any named
+assembly lacking the marker. `[AutoDiBypass]` excludes a marked assembly/type (higher precedence).

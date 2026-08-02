@@ -179,7 +179,7 @@ public partial class Frame ////node graph setup and execution
 
 		__.GetLogger()._EzInfo(SimNode._DEBUG_PRINT_TRACE != true,
 			$"[[[[[=================------- {_stats._frameId} -------=================]]]]]");
-		while (_allNodesToProcess?.Count > 0 || currentTasks.Count > 0)
+		while (_allNodesToProcess.Count > 0 || currentTasks.Count > 0)
 		{
 			outerWhileCount++;
 			var DEBUG_startedThisPass = 0;
@@ -210,14 +210,6 @@ public partial class Frame ////node graph setup and execution
 					nodeState._status = FrameStatus.RUNNING;
 					activeNodes.Add(nodeState);
 
-
-					static async Task taskRunner(SimNode node, NodeFrameState nodeState, Frame _this)
-					{
-						var _task = node.DoUpdate(_this, nodeState);
-						await _task;
-						doneUpdateTask_Helper(_task, nodeState);
-						//return _task;
-					}
 
 					if (node is IIgnoreUpdate)
 					{
@@ -286,7 +278,7 @@ public partial class Frame ////node graph setup and execution
 				{
 					await Task.WhenAny(currentTasks).WaitAsync(__.Async.CancelAfter(TimeSpan.FromSeconds(2)));
 				}
-				catch (TimeoutException ex)
+				catch (TimeoutException)
 				{
 					__.AssertIfNot(false);
 					__.GetLogger()._EzErrorThrow<SimStormException>(DebuggerInfo.IsPaused,
@@ -400,7 +392,7 @@ public partial class Frame ////node graph setup and execution
 		{
 			await Task.WhenAll(currentTasks).WaitAsync(TimeSpan.FromSeconds(2));
 		}
-		catch (TimeoutException ex)
+		catch (TimeoutException)
 		{
 			__.GetLogger()._EzErrorThrow<SimStormException>(DebuggerInfo.IsPaused,
 				"SimPipeline appears deadlocked, as no executing task has completed in less than 2 seconds.");
@@ -438,7 +430,8 @@ public partial class Frame ////node graph setup and execution
 /// </summary>
 public partial class Frame : DisposeGuard //general setup
 {
-	public SimManager _manager;
+	// Late-init via FromPool factory before the frame executes.
+	public SimManager _manager = null!;
 
 	public List<FixedTimestepNode> _slowRunningNodes = new();
 	public TimeStats _stats;
@@ -464,19 +457,20 @@ public partial class Frame : DisposeGuard //general setup
 
 	protected override void OnDispose(bool managedDisposing)
 	{
-		_manager = null;
+		// Teardown: release references after dispose.
+		_manager = null!;
 		_stats = default;
 		_allNodesInFrame.Clear();
-		_allNodesInFrame = null;
+		_allNodesInFrame = null!;
 		_allNodesToProcess.Clear();
-		_allNodesToProcess = null;
+		_allNodesToProcess = null!;
 		_frameStates.Clear();
-		_frameStates = null;
-		_priorFrame = null;
+		_frameStates = null!;
+		_priorFrame = null!;
 		_readRequestsRemaining.Clear();
-		_readRequestsRemaining = null;
+		_readRequestsRemaining = null!;
 		_writeRequestsRemaining.Clear();
-		_writeRequestsRemaining = null;
+		_writeRequestsRemaining = null!;
 
 
 		base.OnDispose(managedDisposing);
@@ -485,7 +479,8 @@ public partial class Frame : DisposeGuard //general setup
 
 public partial class Frame //resource locking
 {
-	private Frame _priorFrame;
+	// Late-init: set during frame chaining.
+	private Frame _priorFrame = null!;
 
 	/// <summary>
 	///    track what reads are remaining for this frame.   used so next frame writes will not start until these are empty.

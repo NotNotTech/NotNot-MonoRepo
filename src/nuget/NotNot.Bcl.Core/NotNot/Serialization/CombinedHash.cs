@@ -24,6 +24,7 @@ public unsafe struct CombinedHash : IComparable<CombinedHash>, IEquatable<Combin
 	private const ulong SALT_INCREMENT = ulong.MaxValue / SIZE;
 
 	/// <summary>
+	///    the accumulated hash value combining all inputs into a single ulong.
 	/// </summary>
 	private ulong _compressedHash;
 

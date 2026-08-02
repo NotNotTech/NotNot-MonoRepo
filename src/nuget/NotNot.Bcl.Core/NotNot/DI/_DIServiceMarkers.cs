@@ -47,7 +47,7 @@ public interface IDiAutoInitialize
 /// <summary>
 /// Helper DI service for letting LoLo automatically get a reference to services (<c>__.Services</c>).
 /// </summary>
-public class LoLoRunner(IServiceProvider _services) : IHostedLifecycleService, IDiAutoInitialize
+public class LoLoRunner : IHostedLifecycleService, IDiAutoInitialize
 {
 	public async Task StartAsync(CancellationToken cancellationToken) { }
 	public async Task StopAsync(CancellationToken cancellationToken) { }

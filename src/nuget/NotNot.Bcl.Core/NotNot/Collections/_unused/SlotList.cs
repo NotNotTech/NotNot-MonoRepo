@@ -35,11 +35,22 @@ public class SlotList<T> : IDisposable where T : class
 		}
 
 		IsDisposed = true;
+		// Dispose is a terminal operation and requires exclusive caller ownership. The
+		// allocation locks cannot protect disposal because their objects are cleared
+		// and released here; no operation is supported concurrently with Dispose.
+		// FALSE_POSITIVE PH_B009 (same basis as PH_B010 below): the lock objects (_storage,
+		// _freeSlots) are themselves the fields being cleared/nulled, so they cannot guard
+		// their own teardown; terminal disposal is externally serialized by contract.
+#pragma warning disable PH_B009
+#pragma warning disable PH_B010 // Terminal disposal is externally serialized, not part of the allocation lock protocol.
+		// Nulled only here in Dispose after IsDisposed=true; disposed instances are not reused, so no post-dispose deref occurs.
 		_storage.Clear();
-		_storage = null;
+		_storage = null!;
 		_freeSlots.Clear();
-		_freeSlots = null;
+		_freeSlots = null!;
 		_count = -1;
+#pragma warning restore PH_B010
+#pragma warning restore PH_B009
 	}
 
 	public int AllocSlot()
@@ -56,7 +67,7 @@ public class SlotList<T> : IDisposable where T : class
 			lock (_storage)
 			{
 				slot = _storage.Count;
-				_storage.Add(default);
+				_storage.Add(default!); // new slot initialized to default(T); overwritten on use
 				_count++;
 			}
 		}
@@ -80,7 +91,7 @@ public class SlotList<T> : IDisposable where T : class
 			lock (_storage)
 			{
 				_count--;
-				_storage[slot] = default;
+				_storage[slot] = default!; // freed slot intentionally cleared to default(T)
 
 
 				__.GetLogger()._EzError(_storage[slot] == default(T));

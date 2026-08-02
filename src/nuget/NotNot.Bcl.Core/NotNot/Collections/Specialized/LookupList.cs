@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 
 namespace NotNot.Collections.Specialized;
 
@@ -6,6 +7,7 @@ namespace NotNot.Collections.Specialized;
 ///    A list and dictionary combined:  list for fast iteration, dictionary for lookup.
 /// </summary>
 public class LookupList<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>>, ICollection, ICloneable
+	where TKey : notnull
 {
 	public Dictionary<TKey, TValue> Dictionary = new();
 	public List<KeyValuePair<TKey, TValue>> List = new();
@@ -41,7 +43,7 @@ public class LookupList<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>>,
 		return ((IEnumerable)List).GetEnumerator();
 	}
 
-	public bool TryGet(TKey key, out TValue value)
+	public bool TryGet(TKey key, [MaybeNullWhen(false)] out TValue value)
 	{
 		return Dictionary.TryGetValue(key, out value);
 	}

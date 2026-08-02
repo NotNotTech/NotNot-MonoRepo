@@ -24,7 +24,7 @@ public sealed class CollectionDebugView<T>
 {
 	public CollectionDebugView(IEnumerable<T>? collection)
 	{
-		_collection = Mem.Wrap(collection.ToArray());
+		_collection = Mem.Wrap(collection?.ToArray() ?? Array.Empty<T>());
 		//Items = collection?.ToArray();
 	}
 

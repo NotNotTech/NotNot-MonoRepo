@@ -50,9 +50,10 @@ public class AssertOnMsgSink : ILogEventSink
 				{
 					//var key = item.Key;
 					var value = item.Value;
-					if (item.Value._IsNullOrWhiteSpace() is false)
+					// Use the BCL null-check (NotNullWhen-annotated) so NRT proves `value` non-null for the Regex ctor.
+					if (!string.IsNullOrWhiteSpace(value))
 					{
-						patterns.Add(new Regex(item.Value, RegexOptions.Compiled | RegexOptions.NonBacktracking));
+						patterns.Add(new Regex(value, RegexOptions.Compiled | RegexOptions.NonBacktracking));
 					}
 				}
 			}

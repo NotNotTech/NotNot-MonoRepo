@@ -28,7 +28,6 @@ namespace NotNot.Advanced
 		/// <param name="declaringType">The type that declares the generic method definition.</param>
 		/// <param name="methodName">The name of the generic method definition to bind.</param>
 		/// <param name="genericTypeArguments">The type used to close the method's single generic argument.</param>
-		/// <param name="bindingFlags">Binding flags that control how the method lookup is performed.</param>
 		/// <returns>A delegate instance that invokes the resolved method.</returns>
 		/// <exception cref="ArgumentNullException">Thrown when <paramref name="declaringType"/> or <paramref name="genericTypeArguments"/> is <see langword="null"/>.</exception>
 		/// <exception cref="ArgumentException">Thrown when <paramref name="methodName"/> is missing or whitespace.</exception>
@@ -54,6 +53,9 @@ namespace NotNot.Advanced
 				BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, genericTypeArguments);
 		}
 
+		/// <summary>
+		///    create a strongly-typed delegate that invokes a generic instance method resolved by name and generic type arguments.
+		/// </summary>
 		/// <example>
 		/// <code>
 		/// var invoker = OpenGenericMethodExecutor.CreateInvoker&lt;Action&lt;ComponentDataPartition, Span&lt;SlotHandle&gt;&gt;&gt;(
@@ -172,7 +174,6 @@ namespace NotNot.Advanced
 		/// <typeparam name="TTarget">The concrete type that declares the method to bind.</typeparam>
 		/// <param name="methodName">The name of the method to bind.</param>
 		/// <param name="genericTypeArguments">The type that replaces the method's single generic parameter.</param>
-		/// <param name="flags">Binding flags used to locate the target method.</param>
 		/// <returns>An action that invokes the resolved method for an instance of <typeparamref name="TTarget"/>.</returns>
 		/// <example>
 		/// <code>
@@ -199,7 +200,6 @@ namespace NotNot.Advanced
 		/// <typeparam name="TResult">The return type produced by the method.</typeparam>
 		/// <param name="methodName">The target method name.</param>
 		/// <param name="genericTypeArguments">The concrete type that closes the method's generic parameter.</param>
-		/// <param name="flags">Binding flags used during method discovery.</param>
 		/// <returns>A function delegate that executes the closed generic method on an instance of <typeparamref name="TTarget"/>.</returns>
 		/// <example>
 		/// <code>

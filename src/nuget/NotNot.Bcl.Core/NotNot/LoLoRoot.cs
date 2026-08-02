@@ -101,7 +101,20 @@ public partial class LoLoRoot
    //}
 
    /// <summary> 
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    public bool AssertNotNull([NotNullWhen(true)] object? obj, string? message = null, [CallerArgumentExpression("obj")]
       string? objName = "null")
@@ -118,12 +131,25 @@ public partial class LoLoRoot
 
    /// <summary>
    /// logs message and triggers a breakpoint.  (also Prompts to attach a debugger if not already attached)
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    public void AssertIfNot(bool? _expectedCondition, string? message = "", object? objToLog0 = null, object? objToLog1 = null,
       object? objToLog2 = null, [CallerMemberName] string sourceMemberName = "",
            [CallerFilePath] string sourceFilePath = "",
-                [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_expectedCondition")] string expectedConditionName = "",
+                [CallerLineNumber] int sourceLineNumber = 0, [CallerArgumentExpression("_expectedCondition")] string? expectedConditionName = "",
       [CallerArgumentExpression("objToLog0")]
       string? objToLog0Name = "null",
       [CallerArgumentExpression("objToLog1")]
@@ -143,8 +169,17 @@ public partial class LoLoRoot
             finalMessage += $" tags:[{string.Join(", ", tags)}]";
          }
 
-         Debug.Assert(false, finalMessage);
-         _Debugger.LaunchOnce();
+         if (!Config.IsDebugAssertSuppressed)
+         {
+            Debug.Assert(false, finalMessage);
+            _Debugger.LaunchOnce();
+         }
+         else
+         {
+            Debug.WriteLine(finalMessage);
+            try { GetLogger(sourceFilePath)._EzWarn(finalMessage, sourceMemberName: sourceMemberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber); }
+            catch (Exception ex2) { __.DebugAssertOnce(ex2); /* logger best-effort; Debug.WriteLine is the always-available sink */ }
+         }
 
          if (TestHelper.isTestingActive)
          {
@@ -157,7 +192,20 @@ public partial class LoLoRoot
 
    /// <summary>
    /// logs message and triggers a breakpoint.  (also Prompts to attach a debugger if not already attached)
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    public void Assert(string? message = null, object? objToLog0 = null, object? objToLog1 = null,
       object? objToLog2 = null, [CallerMemberName] string sourceMemberName = "",
@@ -177,15 +225,37 @@ public partial class LoLoRoot
 
    /// <summary>
    /// logs message and triggers a breakpoint.  (also Prompts to attach a debugger if not already attached)
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    public void Assert(Exception ex, [CallerMemberName] string sourceMemberName = "",
       [CallerFilePath] string sourceFilePath = "",
       [CallerLineNumber] int sourceLineNumber = 0)
    {
       var finalMessage = ex.Message._FormatAppendArgs(sourceMemberName, sourceFilePath, sourceLineNumber);
-      Debug.Assert(false, finalMessage, ex._ToUserFriendlyString());
-      _Debugger.LaunchOnce();
+      if (!Config.IsDebugAssertSuppressed)
+      {
+         Debug.Assert(false, finalMessage, ex._ToUserFriendlyString());
+         _Debugger.LaunchOnce();
+      }
+      else
+      {
+         Debug.WriteLine($"{finalMessage}: {ex._ToUserFriendlyString()}");
+         try { GetLogger(sourceFilePath)._EzError(ex, finalMessage, sourceMemberName: sourceMemberName, sourceFilePath: sourceFilePath, sourceLineNumber: sourceLineNumber); }
+         catch (Exception ex2) { __.DebugAssertOnce(ex2); /* logger best-effort; Debug.WriteLine is the always-available sink */ }
+      }
 
       if (TestHelper.isTestingActive)
       {
@@ -209,7 +279,20 @@ public partial class LoLoRoot
    }
    /// <summary>
    /// if the expectedCondition is false, assert once per callsite+message.
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    public void AssertOnceIfNot(bool expectedCondition, string? message = null, [CallerMemberName] string sourceMemberName = "",
       [CallerFilePath] string sourceFilePath = "",
@@ -229,7 +312,20 @@ public partial class LoLoRoot
 
    /// <summary>
    /// if the expectedCondition is false, assert once per callsite+message.
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    public void AssertOnce(string? message = null, [CallerMemberName] string sourceMemberName = "",
       [CallerFilePath] string sourceFilePath = "",
@@ -245,7 +341,20 @@ public partial class LoLoRoot
 
    /// <summary>
    /// if the expectedCondition is false, assert once per callsite+message.
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    public void AssertOnce(Exception ex, [CallerMemberName] string sourceMemberName = "",
       [CallerFilePath] string sourceFilePath = "",
@@ -272,7 +381,20 @@ public partial class LoLoRoot
 
    /// <summary>
    /// assert, but only in DEBUG builds
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    [Conditional("DEBUG")]
    public void DebugAssertIfNot(bool expectedCondition, string? message = null, [CallerMemberName] string sourceMemberName = "",
@@ -284,7 +406,20 @@ public partial class LoLoRoot
 
    /// <summary>
    /// assert, but only in DEBUG builds
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    [Conditional("DEBUG")]
    public void DebugAssert(string? message = null, [CallerMemberName] string sourceMemberName = "",
@@ -297,7 +432,20 @@ public partial class LoLoRoot
 
    /// <summary>
    /// assert, but only in DEBUG builds
-   /// <para>IMPORTANT NOTE: execution will resume normally after an Assert</para>
+   /// <para>Behavior depends on <see cref="LoLoConfig.IsDebugAssertSuppressed"/>:
+   /// <list type="bullet">
+   ///   <item><b>Knob FALSE, Debug</b>: <c>Debug.Assert(false, ...)</c> runs (modal/break/abort)
+   ///         + <c>_Debugger.LaunchOnce()</c> runs (Debugger.Launch prompt). Default desktop dev experience.</item>
+   ///   <item><b>Knob FALSE, Release</b>: <c>Debug.Assert</c> stripped by <c>[Conditional("DEBUG")]</c>;
+   ///         <c>_Debugger.LaunchOnce()</c> still runs (NOT <c>[Conditional]</c>).</item>
+   ///   <item><b>Knob TRUE, Debug or Release</b>: skips both branches; logs to
+   ///         <c>Debug.WriteLine</c> + <c>GetLogger()._EzWarn/_EzError</c> and continues.</item>
+   /// </list>
+   /// In WASM Mono Debug-without-debugger, the knob-FALSE path triggers
+   /// <c>Environment.FailFast</c> which kills the tab — set knob TRUE in WASM Debug
+   /// bootstrap to recover. <c>DebugAssert*</c> helpers are themselves <c>[Conditional("DEBUG")]</c>
+   /// (stripped in Release entirely); other helpers (<c>Assert*</c>, <c>AssertIfNot</c>,
+   /// <c>AssertNotNull</c>, <c>AssertOnce*</c>) are always-on.</para>
    /// </summary>
    [Conditional("DEBUG")]
    public void DebugAssert(Exception ex, [CallerMemberName] string sourceMemberName = "",
@@ -354,7 +502,7 @@ public partial class LoLoRoot
    /// <summary>
    /// throw an Exception if expectedCondition is false
    /// </summary>
-   /// <param name="expectedCondition"></param>
+   /// <param name="message"></param>
    /// <exception cref="NotImplementedException"></exception>
    [DoesNotReturn]
    public Exception Throw(string? message = null, [CallerMemberName] string sourceMemberName = "",
@@ -368,7 +516,7 @@ public partial class LoLoRoot
    /// <summary>
    /// throw an Exception if expectedCondition is false
    /// </summary>
-   /// <param name="expectedCondition"></param>
+   /// <param name="_expectedCondition"></param>
    /// <exception cref="NotImplementedException"></exception>
    public void ThrowIfNot([DoesNotReturnIf(false)] bool? _expectedCondition, string? message = null, [CallerMemberName] string sourceMemberName = "",
       [CallerFilePath] string sourceFilePath = "",
@@ -412,7 +560,7 @@ public partial class LoLoRoot
    /// <summary>
    /// Log, assert, throw throw an Exception.
    /// </summary>
-   /// <param name="expectedCondition"></param>
+   /// <param name="ex"></param>
    [DoesNotReturn]
    public Exception Throw(Exception ex, [CallerMemberName] string sourceMemberName = "",
       [CallerFilePath] string sourceFilePath = "",
@@ -477,23 +625,36 @@ public partial class LoLoRoot
    {
       get
       {
-         if (field is not null)
+         if (_runtimeEnvBackingField is not null)
          {
-            return field;
+            return _runtimeEnvBackingField;
          }
 
 
-         field = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
-         return field;
+         _runtimeEnvBackingField = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+         return _runtimeEnvBackingField;
       }
       set
       {
-         if (field is not null && field != value)
+         if (_runtimeEnvBackingField is not null && _runtimeEnvBackingField != value)
          {
             throw new LoLoException("RuntimeEnv is already set, cannot set it again.  Use __.RuntimeEnv = \"Development\"; only once, at startup, otherwise let it be set by ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT envvars");
          }
-         field = value;
+         _runtimeEnvBackingField = value;
       }
+   }
+   private string? _runtimeEnvBackingField;
+
+   /// <summary>
+   /// Test-only helper to override <see cref="RuntimeEnv"/> without triggering the
+   /// "already set, cannot set again" guard in the property setter. Eliminates the
+   /// need for tests to reflect on a compiler-generated backing field. NOT for
+   /// production use — the scope-restore contract is the caller's responsibility.
+   /// </summary>
+   /// <param name="value">New value for RuntimeEnv, or null to reset to uncached state.</param>
+   internal void _SetRuntimeEnvForTests(string? value)
+   {
+      _runtimeEnvBackingField = value;
    }
    /// <summary>
    /// returns true if environment contains the string "production", eg: "PreProduction".  false otherwise
@@ -607,6 +768,43 @@ public partial class LoLoRoot
 
    public LoLoConfig Config { get; private set; }
 
+   /// <summary>
+   /// Override the <see cref="Config"/> with a new value. Idempotency-guarded:
+   /// the FIRST call always succeeds; subsequent calls succeed only if the new config
+   /// is structurally equal (record equality) to the already-set config — otherwise throws.
+   ///
+   /// <para>Design note: the <see cref="__"/> getter auto-creates <c>_instance</c> with a
+   /// default-constructed <see cref="LoLoConfig"/>, so <see cref="Config"/> is NEVER
+   /// null at the point of first <c>SetConfig</c> call. Idempotency is tracked via
+   /// the private <c>_configWasOverridden</c> flag, NOT by null-check on <c>Config</c>.</para>
+   ///
+   /// <para>MUST be called BEFORE any meaningful <c>__.Assert/__.AssertIfNot/__.DebugAssert*</c>
+   /// runs. Bootstrap callers (e.g., <c>Program.cs</c> in WASM, <c>[ModuleInitializer]</c> in
+   /// test assemblies) should <c>SetConfig</c> as the first <c>__</c>-touching statement.</para>
+   /// </summary>
+   /// <param name="config">New config; must NOT be null.</param>
+   /// <exception cref="ArgumentNullException">If <paramref name="config"/> is null.</exception>
+   /// <exception cref="LoLoException">If <c>SetConfig</c> was already called with a different
+   /// (non-structurally-equal) config.</exception>
+   public void SetConfig(LoLoConfig config)
+   {
+      ArgumentNullException.ThrowIfNull(config);
+      if (!_configWasOverridden)
+      {
+         Config = config;
+         _configWasOverridden = true;
+         return;
+      }
+      // Already overridden once — accept idempotent re-assertion (record structural equality).
+      if (Config == config)
+      {
+         return;
+      }
+      throw new LoLoException(
+         "LoLoRoot.SetConfig has already been called with a different LoLoConfig. " +
+         "Set config exactly ONCE during application bootstrap, before first meaningful `__.` access.");
+   }
+
 
    public SerializationHelper SerializationHelper = new();
 
@@ -634,6 +832,8 @@ public partial class LoLoRoot
 
    private bool _isDisposed;
 
+   private bool _configWasOverridden;
+
    /// <summary>
    /// helper to dispose static variables, used by test runners. Also use to cleanup for assembly unloading.  probably not needed otherwise.
    /// </summary>
@@ -647,7 +847,8 @@ public partial class LoLoRoot
 
 
       SerializationHelper.Dispose();
-      SerializationHelper = null;
+      // Teardown: release the reference after dispose; _isDisposed guards against post-dispose reuse.
+      SerializationHelper = null!;
 
       // Only dispose if we OWN it (our fallback), NOT if borrowed from DI
       lock (_factoryLock)
@@ -661,7 +862,8 @@ public partial class LoLoRoot
       }
 
       pool.Dispose();
-      pool = null;
+      // Teardown: release the reference after dispose; _isDisposed guards against post-dispose reuse.
+      pool = null!;
       NotNot._internal.StaticPool._storage.Dispose();
 
 		_isDisposed = true;
@@ -677,13 +879,15 @@ public partial class LoLoRoot
 /// </summary>
 public class FallbackConsoleFormatter : ConsoleFormatter
 {
+   private readonly object _writeLock = new();
+
    public FallbackConsoleFormatter() : base("fallback")
    {
    }
 
-   public override void Write<TState>(in LogEntry<TState> logEntry, IExternalScopeProvider scopeProvider, TextWriter textWriter)
+   public override void Write<TState>(in LogEntry<TState> logEntry, IExternalScopeProvider? scopeProvider, TextWriter textWriter)
    {
-      lock (this)
+      lock (_writeLock)
       {
          var originalColor = Console.ForegroundColor;
          try
@@ -735,8 +939,6 @@ public partial class LoLoRoot
    /// </summary>
    internal ILogger? _DiMissingConsoleLoggerFallback;
 
-   private bool _hasWarnedServicesMissing;
-
    private ConcurrentDictionary<string, object> _knownLoggerTypes = new();
 
    /// <summary>
@@ -760,7 +962,12 @@ public partial class LoLoRoot
             var fileInfo = new FileInfo(key);
             var toReturn = fileInfo.Name + fileInfo.Extension;
             //var toReturn = key._GetAfter(Path.DirectorySeparatorChar);
-            __.AssertIfNot(toReturn is not null);
+            if (toReturn is null)
+            {
+               throw new InvalidOperationException(
+                  "GetLogger: filename parsing returned null — extremely unexpected. " +
+                  "fileInfo.Name + fileInfo.Extension must not produce null.");
+            }
             return toReturn;
             ////////////  the following is brittle/doesn't work right so just returning the file name.
             //__.Assert("test");

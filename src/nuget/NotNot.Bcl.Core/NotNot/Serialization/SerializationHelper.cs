@@ -44,7 +44,6 @@ public class SerializationHelper
 		if (_isDisposed is true)
 		{
 			throw new ObjectDisposedException("SerializationHelper", "Dispose() already called");
-			return;
 		}
 		_isDisposed = true;
 
@@ -61,7 +60,7 @@ public class SerializationHelper
 #pragma warning disable NN_R005 // Disposal cleanup must continue despite individual converter failures
 					catch (Exception ex)
 					{
-						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex.Message}");
+						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex}");
 					}
 #pragma warning restore NN_R005
 				}
@@ -70,7 +69,8 @@ public class SerializationHelper
 			{
 				_logJsonOptions.Converters.Clear();
 			}
-			_logJsonOptions = null;
+			// Teardown: release after dispose; _isDisposed guards against post-dispose reuse.
+			_logJsonOptions = null!;
 		}
 
 		//if (SerializationHelper._roundtripJsonOptions is not null)
@@ -86,7 +86,7 @@ public class SerializationHelper
 #pragma warning disable NN_R005 // Disposal cleanup must continue despite individual converter failures
 					catch (Exception ex)
 					{
-						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex.Message}");
+						Debug.WriteLine($"_JsonObjectConverters.Unloading() Error disposing converter {converter.GetType().Name}: {ex}");
 					}
 #pragma warning restore NN_R005
 				}
@@ -95,7 +95,8 @@ public class SerializationHelper
 			{
 				_roundtripJsonOptions.Converters.Clear();
 			}
-			_roundtripJsonOptions = null;
+			// Teardown: release after dispose; _isDisposed guards against post-dispose reuse.
+			_roundtripJsonOptions = null!;
 		}
 	}
 
@@ -164,7 +165,7 @@ public class SerializationHelper
 			new ObjConverter<StackTrace>(value => value.GetFrames()),
 			new ObjConverter<IntPtr>(value => value.ToInt64().ToString("x8")),
 			new ObjConverter<StackFrame>(value =>
-				$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
+				$"at {value.GetMethod()?.Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
 			//new ObjConverter<StackFrame>((value) => $"{value.ToString()}\n"),
 			new ObjConverter<Delegate>(value => $"[delegate: {value.Method?.DeclaringType?.Name}.{value.Method?.Name}]"),
 			new JsonStringEnumConverter(),
@@ -197,7 +198,7 @@ public class SerializationHelper
 			new ObjConverter<Type>(value => value.FullName),
 			new ObjConverter<StackTrace>(value => value.GetFrames()),
 			new ObjConverter<StackFrame>(value =>
-				$"at {value.GetMethod().Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
+				$"at {value.GetMethod()?.Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
 
 		},
 
@@ -226,7 +227,7 @@ public class SerializationHelper
 	/// </summary>
 	/// <param name="obj"></param>
 	/// <returns></returns>
-	public object ToLogPoCo(object obj)
+	public object? ToLogPoCo(object obj)
 	{
 		try
 		{
@@ -389,7 +390,7 @@ public class SerializationHelper
 	///    via
 	///    https://stackoverflow.com/questions/5546142/how-do-i-use-json-net-to-deserialize-into-nested-recursive-dictionary-and-list
 	/// </summary>
-	public object JsonToPoCo(string json)
+	public object? JsonToPoCo(string json)
 	{
 		using var document = JsonDocument.Parse(json, new JsonDocumentOptions
 		{
@@ -402,14 +403,15 @@ public class SerializationHelper
 	}
 
 	/// <summary>
+	///    recursively convert a <see cref="JsonElement" /> into a plain CLR object (POCO) graph.
 	/// </summary>
-	/// <param name="token"></param>
+	/// <param name="element"></param>
 	/// <param name="discardMetaNodes">
 	///    TRUE useful to remove metadata nodes (starting with $) if ReferenceHandler.Preserve
 	///    option is used. not useful otherwise.
 	/// </param>
 	/// <returns></returns>
-	private object JsonElementToPoCo(JsonElement element, bool discardMetaNodes = false)
+	private object? JsonElementToPoCo(JsonElement element, bool discardMetaNodes = false)
 	{
 		switch (element.ValueKind)
 		{
@@ -419,7 +421,7 @@ public class SerializationHelper
 					{
 						// When discardMetaNodes is false, convert all properties to dictionary
 						// without special handling - this matches the original behavior
-						var dict = new Dictionary<string, object>();
+						var dict = new Dictionary<string, object?>();
 
 						foreach (var prop in element.EnumerateObject())
 						{
@@ -432,7 +434,7 @@ public class SerializationHelper
 					{
 						// When discardMetaNodes is true, we have special handling for $values
 						// and filter out $ prefixed properties
-						var dict = new Dictionary<string, object>();
+						var dict = new Dictionary<string, object?>();
 
 						foreach (var prop in element.EnumerateObject())
 						{
@@ -458,7 +460,7 @@ public class SerializationHelper
 
 			case JsonValueKind.Array:
 				{
-					var list = new List<object>();
+					var list = new List<object?>();
 					foreach (var item in element.EnumerateArray())
 					{
 						list.Add(JsonElementToPoCo(item, discardMetaNodes));
@@ -563,9 +565,9 @@ public class SerializationHelper
 	/// deserialize a json file using json5, which is less strict about json formatting
 	/// </summary>
 	/// <typeparam name="TJsonSerialized"></typeparam>
-	/// <param name="json5ResFilePath"></param>
+	/// <param name="json5String"></param>
 	/// <returns></returns>
-	public TJsonSerialized DeserializeJson5<TJsonSerialized>(string json5String)
+	public TJsonSerialized? DeserializeJson5<TJsonSerialized>(string json5String)
 	{
 
 		//dotnet, doesn't support unquoted keys
@@ -591,7 +593,8 @@ internal class NumberHandlingConverter : JsonConverter<double>
 	{
 		if (reader.TokenType == JsonTokenType.String)
 		{
-			string value = reader.GetString();
+			// Guarded: TokenType == String guarantees GetString() is non-null.
+			string value = reader.GetString()!;
 			return value.ToLower() switch
 			{
 				"infinity" => double.PositiveInfinity,
@@ -641,7 +644,8 @@ internal class CaseInsensitiveEnumConverter : JsonConverterFactory
 	public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
 	{
 		var converterType = typeof(CaseInsensitiveEnumConverter<>).MakeGenericType(typeToConvert);
-		return (JsonConverter)Activator.CreateInstance(converterType);
+		// Activator.CreateInstance on a concrete closed-generic type never returns null.
+		return (JsonConverter)Activator.CreateInstance(converterType)!;
 	}
 }
 
@@ -654,8 +658,11 @@ internal class CaseInsensitiveEnumConverter<T> : JsonConverter<T> where T : stru
 			throw new JsonException();
 		}
 
-		string enumValue = reader.GetString();
-		if (Enum.TryParse(enumValue, ignoreCase: true, out T result))
+		// Guarded: TokenType checked == String above, so GetString() is non-null.
+		string enumValue = reader.GetString()!;
+		// Resolve the attribute-pinned wire token first, then a case-insensitive member-name parse, so
+		// data written before the token was honored (raw PascalCase member names) still round-trips.
+		if (EnumWireMap<T>.TryParse(enumValue, out T result))
 		{
 			return result;
 		}
@@ -665,7 +672,54 @@ internal class CaseInsensitiveEnumConverter<T> : JsonConverter<T> where T : stru
 
 	public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
 	{
-		writer.WriteStringValue(value.ToString());
+		// Honor [JsonStringEnumMemberName] when a member pins a wire token; otherwise emit the member
+		// identifier — byte-identical to the historical value.ToString() for any enum that does not opt
+		// in, so no already-persisted enum changes wire form.
+		writer.WriteStringValue(EnumWireMap<T>.ToWire(value));
+	}
+}
+
+/// <summary>
+/// Per-enum-type wire-token map for <see cref="CaseInsensitiveEnumConverter{T}"/>: honors
+/// <see cref="JsonStringEnumMemberNameAttribute"/> on individual members while preserving the converter's
+/// case-insensitive read. Built once per closed <typeparamref name="T"/> (static ctor). A member without
+/// the attribute maps to its own identifier, so serialized output is byte-identical to the historical
+/// <c>value.ToString()</c> for any enum that does not opt into a pinned token.
+/// </summary>
+internal static class EnumWireMap<T> where T : struct, Enum
+{
+	private static readonly Dictionary<T, string> _toWire = new();
+	// Case-insensitive read map carrying BOTH the pinned token and the raw member name (legacy form).
+	private static readonly Dictionary<string, T> _fromWire = new(StringComparer.OrdinalIgnoreCase);
+
+	static EnumWireMap()
+	{
+		var type = typeof(T);
+		foreach (var name in Enum.GetNames<T>())
+		{
+			var value = Enum.Parse<T>(name);
+			var token = type.GetField(name)?
+				.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()?.Name ?? name;
+
+			_toWire[value] = token;
+			_fromWire[token] = value;
+			// Member name registered as a read fallback (TryAdd never overrides an explicit token key).
+			_fromWire.TryAdd(name, value);
+		}
+	}
+
+	public static string ToWire(T value)
+		=> _toWire.TryGetValue(value, out var token) ? token : value.ToString();
+
+	public static bool TryParse(string wire, out T value)
+	{
+		if (_fromWire.TryGetValue(wire, out value))
+		{
+			return true;
+		}
+
+		// Last-resort: numeric strings / composite flag values the name map does not carry.
+		return Enum.TryParse(wire, ignoreCase: true, out value);
 	}
 }
 

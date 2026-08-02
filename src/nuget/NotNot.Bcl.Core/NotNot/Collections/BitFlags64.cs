@@ -282,7 +282,7 @@ public struct BitFlags64
 	/// </summary>
 	/// <param name="obj">The object to compare with.</param>
 	/// <returns>True if the object is a BitFlags64 instance with the same flags, false otherwise.</returns>
-	public override bool Equals(object obj) => obj is BitFlags64 other && Equals(other);
+	public override bool Equals(object? obj) => obj is BitFlags64 other && Equals(other);
 
 	/// <summary>
 	/// Returns the hash code for this instance.
@@ -626,7 +626,7 @@ public struct BitFlags64<TFlagsEnum> where TFlagsEnum : struct, Enum
 	/// </summary>
 	/// <param name="obj">The object to compare with.</param>
 	/// <returns>True if the object is a BitFlags64 instance with the same flags, false otherwise.</returns>
-	public override bool Equals(object obj) => obj is BitFlags64<TFlagsEnum> other && Equals(other);
+	public override bool Equals(object? obj) => obj is BitFlags64<TFlagsEnum> other && Equals(other);
 
 	/// <summary>
 	/// Returns the hash code for this instance.
@@ -665,9 +665,9 @@ public struct BitFlags64<TFlagsEnum> where TFlagsEnum : struct, Enum
 
 
 	/// <summary>
-	/// Implicitly converts a BitFlags64<T> instance to the enum type T.
+	/// Implicitly converts a BitFlags64&lt;T&gt; instance to the enum type T.
 	/// </summary>
-	/// <param name="flags">The BitFlags64<T> instance to convert.</param>
+	/// <param name="flags">The BitFlags64&lt;T&gt; instance to convert.</param>
 	/// <returns>The enum representation of the flags.</returns>
 	public static implicit operator TFlagsEnum(BitFlags64<TFlagsEnum> flags)
 	{
@@ -675,19 +675,19 @@ public struct BitFlags64<TFlagsEnum> where TFlagsEnum : struct, Enum
 	}
 
 	/// <summary>
-	/// Implicitly converts an enum of type T to a BitFlags64<T> instance.
+	/// Implicitly converts an enum of type T to a BitFlags64&lt;T&gt; instance.
 	/// </summary>
 	/// <param name="enumValue">The enum value to convert.</param>
-	/// <returns>A new BitFlags64<T> instance representing the enum value.</returns>
+	/// <returns>A new BitFlags64&lt;T&gt; instance representing the enum value.</returns>
 	public static implicit operator BitFlags64<TFlagsEnum>(TFlagsEnum enumValue)
 	{
 		return new BitFlags64<TFlagsEnum>(EnumToUInt64(ref enumValue));
 	}
 
 	/// <summary>
-	/// Implicitly converts a BitFlags64<T> instance to a long.
+	/// Implicitly converts a BitFlags64&lt;T&gt; instance to a long.
 	/// </summary>
-	/// <param name="flags">The BitFlags64<T> instance to convert.</param>
+	/// <param name="flags">The BitFlags64&lt;T&gt; instance to convert.</param>
 	/// <returns>The long representation of the flags.</returns>
 	public static implicit operator long(BitFlags64<TFlagsEnum> flags)
 	{
@@ -695,10 +695,10 @@ public struct BitFlags64<TFlagsEnum> where TFlagsEnum : struct, Enum
 	}
 
 	/// <summary>
-	/// Implicitly converts a long to a BitFlags64<T> instance.
+	/// Implicitly converts a long to a BitFlags64&lt;T&gt; instance.
 	/// </summary>
 	/// <param name="value">The long value to convert.</param>
-	/// <returns>A new BitFlags64<T> instance representing the long value.</returns>
+	/// <returns>A new BitFlags64&lt;T&gt; instance representing the long value.</returns>
 	public static implicit operator BitFlags64<TFlagsEnum>(long value)
 	{
 		return new BitFlags64<TFlagsEnum>((ulong)value);

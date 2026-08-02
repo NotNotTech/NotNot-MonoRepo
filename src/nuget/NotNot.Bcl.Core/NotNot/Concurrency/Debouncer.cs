@@ -115,6 +115,7 @@ public sealed class Debouncer : IDisposable
 		{
 			// Expected during disposal - component may have been disposed
 			// between timer firing and callback execution
+			return;
 		}
 		// Async void timer callback MUST NOT propagate exceptions - they would crash the process.
 		// This is the correct pattern for fire-and-forget Timer callbacks.

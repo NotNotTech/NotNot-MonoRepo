@@ -9,7 +9,7 @@ using NotNot.Analyzers.Diagnostics;
 namespace NotNot.Analyzers.Reliability;
 
 /// <summary>
-/// Analyzer that prevents passing null to Maybe.Success<T>() as a preventive measure
+/// Analyzer that prevents passing null to Maybe.Success&lt;T&gt;() as a preventive measure
 /// to avoid potential null reference issues in Maybe monad usage.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -22,6 +23,9 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
     private const string Category = "CssModernization";
     private const string HelpBase =
         "https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers#";
+
+    /// <summary>Per-file opt-out marker for NNB_CSS010 — <c>nnb_css010:allow-viewport-unit: &lt;reason&gt;</c>.</summary>
+    private const string ViewportOptOutMarker = "nnb_css010:allow-viewport-unit";
 
     // ── Diagnostic Descriptors ──────────────────────────────────────────
 
@@ -95,6 +99,35 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
             + "outer selector but not the :has() argument, causing the selector to never match.",
         helpLinkUri: HelpBase + "NNB_CSS007");
 
+    /// <summary>NNB_CSS010: No viewport-relative units (vh/vw/vmin/vmax + d/s/l dynamic variants) in
+    /// consumer CSS declaration values or .razor attribute values (Error).</summary>
+    public static readonly DiagnosticDescriptor RuleNoViewportUnits = new(
+        "NNB_CSS010",
+        "Avoid viewport-relative units in consumer code",
+        "Viewport unit '{0}' sizes against the window, not the space the layout granted — inside the "
+            + "app shell it overflows the pane clip line (content hides under navbar/statusbar chrome). "
+            + "Fix, cheapest-correct-first: (1) section inside an NnContentSectionGroup that should take "
+            + "the remaining height → Fill=\"true\"; (2) box filling a bounded parent → height:100% or "
+            + "data-nn-fill=\"container\"; (3) genuine viewport-owned surface (portal dialog/overlay, "
+            + "standalone page outside the shell) → keep the unit and add a per-file "
+            + "'nnb_css010:allow-viewport-unit' comment stating why; (4) only if truly intended → "
+            + "dotnet_diagnostic.NNB_CSS010.severity in .editorconfig.",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "The smell is viewport-relative sizing in a container-bounded context — NOT big "
+            + "numbers or any specific property (fires property-agnostically on any declaration or "
+            + "attribute value). Inside the app shell (which reserves navbar + statusbar chrome), a "
+            + "viewport-sized box overflows the pane clip line and content is silently clipped. "
+            + "Sanctioned vocabulary: NnContentSection Fill=\"true\" (group remainder), height:100% / "
+            + "data-nn-fill=\"container\" (bounded parent), producer-tier data-nn-fill=\"viewport\" "
+            + "(genuine viewport surfaces). Portal overlays (dialogs/popups/reconnect modal) are the "
+            + "legitimate exception class — CORRECTLY viewport-relative; they get the per-file "
+            + "allow-comment, not silence. Dynamic Razor values (attribute value containing '@') are "
+            + "allowed. Exempt: NotNot.BlazorDesign producer internals, Pages/Samples/** + "
+            + "NnDesignSamples/**, samples/global-theme CSS (nn-design-samples.css, app.css), vendor "
+            + "files. Per-file opt-out: nnb_css010:allow-viewport-unit: <reason>. Kill-switch: "
+            + "<CssAnalyzerEnabled>false</CssAnalyzerEnabled>.",
+        helpLinkUri: HelpBase + "NNB_CSS010");
+
     // ── Regex Patterns ──────────────────────────────────────────────────
 
     /// <summary>Matches rgba(0,0,0,...) — black overlay pattern.</summary>
@@ -118,19 +151,26 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         @"<link\b[^>]*\blayer\s*=",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    /// <summary>Path segments identifying vendor/third-party files to skip.</summary>
-    private static readonly string[] VendorPathSegments =
-    {
-        "/lib/", "/node_modules/", "/xterm", "/prism", "/tiny-mde"
-    };
+    /// <summary>Matches a numeric viewport-relative unit token: <c>100vh</c>, <c>80vw</c>,
+    /// <c>0.5vmin</c>, dynamic variants <c>100dvh</c>/<c>svh</c>/<c>lvh</c> etc. Word-bounded so
+    /// identifiers (e.g. <c>divhole</c>, custom-property names) and bare unit mentions without a
+    /// number do not match.</summary>
+    private static readonly Regex ViewportUnitPattern = new(
+        @"\b\d+(?:\.\d+)?(?:d|s|l)?v(?:h|w|min|max)\b",
+        RegexOptions.Compiled);
 
     // ── DiagnosticAnalyzer overrides ────────────────────────────────────
 
+    /// <summary>The eight CSS-modernization rules this analyzer reports (NNB_CSS001–007 plus the
+    /// NNB_CSS010 viewport-unit rule).</summary>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         ImmutableArray.Create(
             RuleNoImportant, RuleNoPrefersColorScheme, RuleNoHardcodedRgba,
-            RuleNoNestingInScoped, RuleNoContentVisibility, RuleNoLinkLayer, RuleNoHasInScoped);
+            RuleNoNestingInScoped, RuleNoContentVisibility, RuleNoLinkLayer, RuleNoHasInScoped,
+            RuleNoViewportUnits);
 
+    /// <summary>Registers a compilation-end action that scans registered CSS <c>AdditionalText</c>
+    /// files; no generated C# is analyzed.</summary>
     public override void Initialize(AnalysisContext context)
     {
         // No generated C# code analysis needed — we scan AdditionalTexts only
@@ -144,7 +184,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
         // Opt-out: set <CssAnalyzerEnabled>false</CssAnalyzerEnabled> in project
-        if (IsOptedOut(context))
+        if (CssConsumerExemptions.IsOptedOut(context))
             return;
 
         foreach (var file in context.Options.AdditionalFiles)
@@ -157,7 +197,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeFile(CompilationAnalysisContext context, AdditionalText file)
     {
         var path = file.Path;
-        if (string.IsNullOrEmpty(path) || IsVendorFile(path))
+        if (string.IsNullOrEmpty(path) || CssConsumerExemptions.IsVendorFile(path))
             return;
 
         var sourceText = file.GetText(context.CancellationToken);
@@ -173,22 +213,25 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
 
         if (isGlobalCss)
         {
-            var comments = FindCssCommentRanges(text);
+            var comments = CssSelectorScanner.FindCssCommentRanges(text);
             CheckNoImportant(context, file, sourceText, text, comments);
             CheckNoPrefersColorScheme(context, file, sourceText, text, comments);
             CheckNoHardcodedRgba(context, file, sourceText, text, comments);
             CheckNoContentVisibility(context, file, sourceText, text, comments);
+            CheckNoViewportUnitsCss(context, file, sourceText, text, comments);
         }
         else if (isRazorCss)
         {
-            var comments = FindCssCommentRanges(text);
+            var comments = CssSelectorScanner.FindCssCommentRanges(text);
             CheckNoNestingAmpersand(context, file, sourceText, text, comments);
             CheckNoHasSelector(context, file, sourceText, text, comments);
             CheckNoContentVisibility(context, file, sourceText, text, comments);
+            CheckNoViewportUnitsCss(context, file, sourceText, text, comments);
         }
         else if (isRazor)
         {
             CheckNoLinkLayer(context, file, sourceText, text);
+            CheckNoViewportUnitsRazor(context, file, sourceText, text);
         }
     }
 
@@ -202,7 +245,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         int pos = 0;
         while ((pos = text.IndexOf("!important", pos, StringComparison.Ordinal)) >= 0)
         {
-            if (!IsInComment(comments, pos))
+            if (!CssSelectorScanner.IsInComment(comments, pos))
                 Report(ctx, file.Path, src, pos, "!important".Length, RuleNoImportant);
             pos += "!important".Length;
         }
@@ -216,7 +259,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         int pos = 0;
         while ((pos = text.IndexOf("prefers-color-scheme", pos, StringComparison.Ordinal)) >= 0)
         {
-            if (!IsInComment(comments, pos))
+            if (!CssSelectorScanner.IsInComment(comments, pos))
                 Report(ctx, file.Path, src, pos, "prefers-color-scheme".Length, RuleNoPrefersColorScheme);
             pos += "prefers-color-scheme".Length;
         }
@@ -237,7 +280,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
     {
         foreach (Match m in pattern.Matches(text))
         {
-            if (IsInComment(comments, m.Index))
+            if (CssSelectorScanner.IsInComment(comments, m.Index))
                 continue;
 
             // Skip if the line already uses light-dark() wrapping
@@ -258,7 +301,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         {
             // Capturing group 1 is the & character itself
             var amp = m.Groups[1];
-            if (IsInComment(comments, amp.Index))
+            if (CssSelectorScanner.IsInComment(comments, amp.Index))
                 continue;
 
             // & can appear legitimately inside url() strings
@@ -278,7 +321,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         int pos = 0;
         while ((pos = text.IndexOf("content-visibility", pos, StringComparison.OrdinalIgnoreCase)) >= 0)
         {
-            if (!IsInComment(comments, pos))
+            if (!CssSelectorScanner.IsInComment(comments, pos))
                 Report(ctx, file.Path, src, pos, "content-visibility".Length, RuleNoContentVisibility);
             pos += "content-visibility".Length;
         }
@@ -294,7 +337,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
 
         foreach (Match m in LinkLayerPattern.Matches(text))
         {
-            if (IsInComment(htmlComments, m.Index) || IsInComment(razorComments, m.Index))
+            if (CssSelectorScanner.IsInComment(htmlComments, m.Index) || CssSelectorScanner.IsInComment(razorComments, m.Index))
                 continue;
 
             Report(ctx, file.Path, src, m.Index, m.Length, RuleNoLinkLayer);
@@ -309,19 +352,153 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         int pos = 0;
         while ((pos = text.IndexOf(":has(", pos, StringComparison.Ordinal)) >= 0)
         {
-            if (!IsInComment(comments, pos))
+            if (!CssSelectorScanner.IsInComment(comments, pos))
                 Report(ctx, file.Path, src, pos, ":has(".Length, RuleNoHasInScoped);
             pos += ":has(".Length;
         }
     }
 
+    /// <summary>NNB_CSS010: viewport-relative units in global/scoped CSS declaration values.
+    /// Property-agnostic — the unit in a container-bounded context is the smell, not a specific
+    /// property. Skips matches inside CSS comments; whole file exempt via path bucket or the
+    /// per-file allow-comment.</summary>
+    private static void CheckNoViewportUnitsCss(
+        CompilationAnalysisContext ctx, AdditionalText file, SourceText src, string text,
+        List<(int Start, int End)> comments)
+    {
+        if (IsViewportUnitExempt(file.Path, text))
+            return;
+
+        foreach (Match m in ViewportUnitPattern.Matches(text))
+        {
+            if (CssSelectorScanner.IsInComment(comments, m.Index))
+                continue;
+
+            Report(ctx, file.Path, src, m.Index, m.Length, RuleNoViewportUnits, m.Value);
+        }
+    }
+
+    /// <summary>NNB_CSS010: viewport-relative units in .razor markup.
+    /// Scope discriminators: only matches INSIDE a quoted attribute value (<c>="..."</c> /
+    /// <c>='...'</c>) fire — prose/doc text mentioning a unit is silent; a value containing
+    /// <c>@</c> (Razor expression) is dynamic → allowed (mirrors NNB044's static-vs-dynamic
+    /// discriminator at text level); HTML and Razor comments are skipped.</summary>
+    private static void CheckNoViewportUnitsRazor(
+        CompilationAnalysisContext ctx, AdditionalText file, SourceText src, string text)
+    {
+        if (IsViewportUnitExempt(file.Path, text))
+            return;
+
+        var htmlComments = FindHtmlCommentRanges(text);
+        var razorComments = FindRazorCommentRanges(text);
+        var attributeValues = FindQuotedAttributeValueRanges(text);
+
+        foreach (Match m in ViewportUnitPattern.Matches(text))
+        {
+            if (CssSelectorScanner.IsInComment(htmlComments, m.Index) || CssSelectorScanner.IsInComment(razorComments, m.Index))
+                continue;
+
+            if (!TryGetEnclosingRange(attributeValues, m.Index, out var value))
+                continue;
+
+            // Dynamic-value skip: any '@' in the enclosing quoted value = Razor expression → allowed.
+            if (text.IndexOf('@', value.Start, value.End - value.Start) >= 0)
+                continue;
+
+            Report(ctx, file.Path, src, m.Index, m.Length, RuleNoViewportUnits, m.Value);
+        }
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────
 
-    private static bool IsOptedOut(CompilationAnalysisContext context)
+    /// <summary>NNB_CSS010 exemption: path buckets + per-file allow-comment
+    /// (<c>nnb_css010:allow-viewport-unit</c> anywhere in the file — portal overlays are the
+    /// legitimate class).</summary>
+    private static bool IsViewportUnitExempt(string filePath, string text)
     {
-        return context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
-                   .TryGetValue("build_property.CssAnalyzerEnabled", out var value) &&
-               string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
+        if (IsViewportUnitExemptPath(filePath))
+            return true;
+
+        return text.IndexOf(ViewportOptOutMarker, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    /// <summary>
+    /// Path-bucket exemption for NNB_CSS010 (conforms to CssMudReachInAnalyzer/NNB_CSS009's set):
+    /// the NnDesign producer legitimately owns sanctioned viewport sizing (nn-app-shell 100vh,
+    /// .nn-popup 90vw/85vh, data-nn-fill="viewport"); samples + global theme CSS are not consumer
+    /// layout code.
+    /// </summary>
+    private static bool IsViewportUnitExemptPath(string filePath)
+    {
+        var p = filePath.Replace('\\', '/');
+
+        if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (p.IndexOf("/NnDesignSamples/", StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (p.IndexOf("/Pages/Samples/", StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+
+        var fileName = Path.GetFileName(p);
+        return ViewportExemptFileNames.Contains(fileName);
+    }
+
+    /// <summary>File-name allow-list for NNB_CSS010 — samples CSS + global theme CSS
+    /// (mirrors NNB_CSS009).</summary>
+    private static readonly HashSet<string> ViewportExemptFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "nn-design-samples.css",
+        "app.css",
+    };
+
+    /// <summary>
+    /// Builds sorted ranges of quoted attribute VALUES in Razor markup: <c>="..."</c> / <c>='...'</c>
+    /// (value characters between, exclusive of, the quotes). Forward O(N) scan.
+    /// </summary>
+    private static List<(int Start, int End)> FindQuotedAttributeValueRanges(string text)
+    {
+        var ranges = new List<(int Start, int End)>();
+        var i = 0;
+        while (i < text.Length - 1)
+        {
+            if (text[i] == '=')
+            {
+                var j = i + 1;
+                while (j < text.Length && (text[j] == ' ' || text[j] == '\t'))
+                    j++;
+                if (j < text.Length && (text[j] == '"' || text[j] == '\''))
+                {
+                    var quote = text[j];
+                    var start = j + 1;
+                    var k = start;
+                    while (k < text.Length && text[k] != quote)
+                        k++;
+                    ranges.Add((start, k));
+                    i = k + 1;
+                    continue;
+                }
+            }
+            i++;
+        }
+        return ranges;
+    }
+
+    /// <summary>Finds the range containing <paramref name="position"/>; ranges sorted by start,
+    /// linear scan with early exit (mirrors <see cref="CssSelectorScanner.IsInComment"/>).</summary>
+    private static bool TryGetEnclosingRange(
+        List<(int Start, int End)> ranges, int position, out (int Start, int End) enclosing)
+    {
+        foreach (var r in ranges)
+        {
+            if (position >= r.Start && position < r.End)
+            {
+                enclosing = r;
+                return true;
+            }
+            if (r.Start > position) break;
+        }
+        enclosing = default;
+        return false;
     }
 
     private static void Report(
@@ -338,40 +515,6 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         ctx.ReportDiagnostic(args.Length > 0
             ? Diagnostic.Create(rule, location, args)
             : Diagnostic.Create(rule, location));
-    }
-
-    /// <summary>
-    /// Builds a sorted list of /* ... */ comment ranges for O(1)-per-lookup comment detection.
-    /// Single forward pass over the text — O(N) total.
-    /// </summary>
-    private static List<(int Start, int End)> FindCssCommentRanges(string text)
-    {
-        var ranges = new List<(int Start, int End)>();
-        int i = 0;
-        while (i < text.Length - 1)
-        {
-            if (text[i] == '/' && text[i + 1] == '*')
-            {
-                int start = i;
-                i += 2;
-                while (i < text.Length - 1)
-                {
-                    if (text[i] == '*' && text[i + 1] == '/')
-                    {
-                        i += 2;
-                        break;
-                    }
-                    i++;
-                }
-                // If no closing */ found, treat rest of file as comment
-                ranges.Add((start, i));
-            }
-            else
-            {
-                i++;
-            }
-        }
-        return ranges;
     }
 
     /// <summary>Builds sorted list of &lt;!-- ... --&gt; comment ranges in HTML/Razor text.</summary>
@@ -434,36 +577,7 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
         return ranges;
     }
 
-    /// <summary>
-    /// Checks if a character position falls within any comment range.
-    /// Ranges are sorted by start position; linear scan with early exit.
-    /// </summary>
-    private static bool IsInComment(List<(int Start, int End)> ranges, int position)
-    {
-        foreach (var (s, e) in ranges)
-        {
-            if (position >= s && position < e) return true;
-            if (s > position) break;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Determines if a file is a vendor/third-party CSS file that should be skipped.
-    /// Matches: *.min.css, paths containing /lib/, /node_modules/, /xterm, /prism, /tiny-mde.
-    /// </summary>
-    private static bool IsVendorFile(string filePath)
-    {
-        var normalized = filePath.Replace('\\', '/');
-
-        if (normalized.EndsWith(".min.css", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        foreach (var segment in VendorPathSegments)
-        {
-            if (normalized.IndexOf(segment, StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-        }
-        return false;
-    }
+    // ── Vendor / build-property / CSS-comment scaffolding lives in CssConsumerExemptions /
+    //    CssSelectorScanner (shared with the reach-in analyzers). HTML / Razor comment finders below are
+    //    NNB_CSS006/010-specific and stay local.
 }

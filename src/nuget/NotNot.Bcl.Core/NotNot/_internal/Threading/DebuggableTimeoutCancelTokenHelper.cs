@@ -17,7 +17,7 @@ public static class DebuggableTimeoutCancelTokenHelper
 {
 	public static void CancelAfter(CancellationTokenSource cts, TimeSpan timeout)
 	{
-		if (__.Config.IsCtsDebuggableCancelTimeoutEnabled is not true)
+		if (__.Config.IsCtsDebuggableCancelTimeoutDisabled is true)
 		{
 			cts.CancelAfter(timeout);
 
@@ -57,7 +57,7 @@ public static class DebuggableTimeoutCancelTokenHelper
 
 	private class _CancelPair
 	{
-		public CancellationTokenSource cts;
+		public required CancellationTokenSource cts;
 		public TimeSpan delayRemaining;
 	}
 
@@ -69,6 +69,10 @@ public static class DebuggableTimeoutCancelTokenHelper
 	///    a background thread that will cancel any CTS that has timed out.
 	/// </summary>
 	/// <returns></returns>
+	// ACCEPTED_BY_DESIGN PH_P008: worker loop exits GRACEFULLY on cancellation; its only
+	// awaiter filters cancel exceptions (_SyncWaitNoCancelExceptions), so a thrown
+	// OperationCanceledException would be discarded anyway.
+#pragma warning disable PH_P008
 	private static async Task _workerThread()
 	{
 		var sw = Stopwatch.StartNew();
@@ -121,6 +125,7 @@ public static class DebuggableTimeoutCancelTokenHelper
 		}
 		//_disposeCts.Token.ThrowIfCancellationRequested();
 	}
+#pragma warning restore PH_P008
 
 	private static Task? _workerThreadTask;
 	private static CancellationTokenSource _disposeCts = new();
@@ -167,7 +172,11 @@ public static class DebuggableTimeoutCancelTokenHelper
 			}
 
 
+			// FALSE_POSITIVE PH_P007: shutdown-join — Dispose cancels then JOINS the worker;
+			// forwarding the already-cancelled token would abort the join it is waiting on.
+#pragma warning disable PH_P007
 			_workerThreadTask?._SyncWaitNoCancelExceptions();
+#pragma warning restore PH_P007
 			_workerThreadTask?.Dispose();
 			_disposeCts?.Dispose();
 		}

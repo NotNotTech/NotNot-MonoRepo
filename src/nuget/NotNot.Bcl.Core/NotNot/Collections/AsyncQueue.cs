@@ -106,7 +106,8 @@ public class AsyncQueue<T> : IProducerConsumerCollection<T>, IReadOnlyCollection
 	{
 		var result = _storage.TryDequeue(out var item);
 		__.GetLogger()._EzError(result, "race condition?");
-		return item;
+		// only called after the semaphore is acquired, so a matching item is guaranteed present; result asserted above.
+		return item!;
 	}
 
 	public bool TryDequeue(out T? item)
@@ -141,7 +142,8 @@ public class AsyncQueue<T> : IProducerConsumerCollection<T>, IReadOnlyCollection
 		{
 			var result = _storage.TryDequeue(out var item);
 			__.GetLogger()._EzError(result, "race condition?");
-			span[i] = item;
+			// count items were confirmed present via the semaphore waits above; result asserted per iteration.
+			span[i] = item!;
 		}
 
 		return true;

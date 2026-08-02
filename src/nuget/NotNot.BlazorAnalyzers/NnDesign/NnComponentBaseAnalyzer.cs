@@ -30,14 +30,26 @@ public class NnComponentBaseAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor Rule = new(
         DiagnosticId,
         title: "NnDesign component must inherit NnComponentBase",
-        messageFormat: "Type '{0}' is a Blazor component in the NnDesign namespace but does not inherit from NnComponentBase",
+        messageFormat: "Type '{0}' is a Blazor component in the NnDesign namespace but does not inherit from NnComponentBase. " +
+            "Fix at EVERY partial declaration site: add '@inherits NnComponentBase' to the .razor file AND ': NnComponentBase' " +
+            "to the .razor.cs partial class — both partials must name the SAME base or CS0263 results (the Razor SDK compiles " +
+            "the .razor to a sibling partial whose base defaults to ComponentBase). A .razor with no code-behind needs only " +
+            "'@inherits'; a pure .cs component needs only the ': NnComponentBase' base clause. If the type genuinely requires a " +
+            "different base (e.g. ErrorBoundary), suppress NNB020 with a documented justification.",
         category: "NnDesign Convention",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "All Blazor components in the NotNot.BlazorDesign.NnDesign namespace must inherit from " +
             "NnComponentBase to ensure consistent behavior (CSS class composition, XRay instrumentation, " +
-            "parameter forwarding).",
+            "parameter forwarding). A Razor component with a code-behind is TWO partial declarations of the " +
+            "same class: the .razor (which the Razor SDK compiles to a partial whose base defaults to " +
+            "ComponentBase) and the .razor.cs partial. The base class must be declared on BOTH — " +
+            "'@inherits NnComponentBase' in the .razor AND ': NnComponentBase' on the .razor.cs partial. " +
+            "Declaring it on only one partial produces CS0263 (partial declarations must not specify different " +
+            "base classes). A code-behind-less .razor needs only '@inherits'; a pure .cs component needs only " +
+            "the base clause. If a component genuinely requires a different base (e.g. ErrorBoundary), suppress " +
+            "NNB020 with a documented justification.",
         helpLinkUri: $"https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers#{DiagnosticId}");
 
     /// <inheritdoc/>

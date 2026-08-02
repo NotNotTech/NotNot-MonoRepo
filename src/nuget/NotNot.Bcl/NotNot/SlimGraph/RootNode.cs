@@ -65,7 +65,6 @@ public class RootNode : SlimNode
 	/// <summary>
 	/// for internal use only, by SlimNode during .AddChild() if the child is marked as a singleton (ISingletonService)
 	/// </summary>
-	/// <typeparam name="TSingletonNode"></typeparam>
 	/// <param name="instance"></param>
 	internal void _DoRegisterSingleton(ISingletonNode instance)
 	{

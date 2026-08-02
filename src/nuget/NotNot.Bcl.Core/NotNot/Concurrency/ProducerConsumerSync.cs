@@ -17,7 +17,8 @@ using Nito.AsyncEx;
 /// <typeparam name="TValue"></typeparam>
 public class ProducerConsumerSync<TValue>
 {
-	private TValue _value;
+	// Unconstrained TValue held as a single sentinel value; reset to default(TValue) after each consume.
+	private TValue? _value;
 
 	AsyncAutoResetEvent _waitForProduce = new(false);
 	AsyncAutoResetEvent _waitForConsumeStarted = new(false);
@@ -29,7 +30,7 @@ public class ProducerConsumerSync<TValue>
 	{
 		ct = ct._Link(_cts.Token);
 
-		using (_waitForConsumeDoneGuard.Lock())
+		using (_waitForConsumeDoneGuard.Lock(ct))
 		{
 			_waitForConsumeDone.Wait(ct);
 		}
@@ -64,7 +65,7 @@ public class ProducerConsumerSync<TValue>
 			return;
 		}
 
-		using (_waitForConsumeDoneGuard.Lock())
+		using (_waitForConsumeDoneGuard.Lock(ct))
 		{
 			try
 			{
@@ -82,7 +83,8 @@ public class ProducerConsumerSync<TValue>
 	{
 		ct = ct._Link(_cts.Token);
 		await _waitForProduce.WaitAsync(ct);
-		var toReturn = this._value;
+		// _waitForProduce only signals after Produce() assigns _value, so it holds the produced value here.
+		var toReturn = this._value!;
 		this._value = default;
 		_waitForConsumeStarted.Set();
 		ct.ThrowIfCancellationRequested();

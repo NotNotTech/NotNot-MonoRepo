@@ -75,7 +75,8 @@ public class ObjectPool : IDisposeGuard
 #if CHECKED
 				_disposeGuard.Dispose();
 #endif
-				Value = null;
+				// Teardown: value returned to pool; wrapper is disposed and not reused.
+				Value = null!;
 			}
 		}
 	}
@@ -151,7 +152,7 @@ public class ObjectPool : IDisposeGuard
 		_arrayStore = null!;
 
 		_clearDelegateCache.Clear();
-		_clearDelegateCache = null;
+		_clearDelegateCache = null!;
 	}
 	public bool IsDisposed { get; private set; } = false;
 
@@ -366,13 +367,16 @@ public class ObjectPool : IDisposeGuard
 		{
 			clearAction?.Invoke(item);
 		}
-#pragma warning disable NN_R005 // Pool must swallow Clear() exceptions to prevent corruption
-		catch (Exception)
+#pragma warning disable NN_R005, NN_R006 // Pool must swallow Clear() exceptions to prevent corruption
+		catch (Exception ex)
 		{
-			// Swallow exceptions from Clear() to prevent pool corruption
-			// User's Clear() implementation issues should not crash the pool
+			// The user-supplied Clear() delegate may throw any exception type, so this catch
+			// cannot be narrowed. Swallowing it prevents pool corruption (a faulty Clear() must
+			// not crash the pool). Observe-not-silence: log the swallowed exception so a broken
+			// Clear() implementation stays visible instead of vanishing (fail-fast doctrine).
+			__.GetLogger()._EzError(false, "ObjectPool: user Clear() delegate threw; exception swallowed to protect the pool", ex);
 		}
-#pragma warning restore NN_R005
+#pragma warning restore NN_R005, NN_R006
 	}
 
 

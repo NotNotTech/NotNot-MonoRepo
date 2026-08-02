@@ -20,19 +20,203 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="$(Configuration.Contains('Debug'))">
-		<WarningLevel>0</WarningLevel>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<PackageReference Include="SourceGenerator.Foundations" Version="2.0.13" PrivateAssets="all" />
+		<PackageReference Include="SourceGenerator.Foundations" Version="2.0.16" PrivateAssets="all" />
 		<PackageReference Include="System.Text.Json" Version="10.0.0" PrivateAssets="all" />
 	</ItemGroup>
+
+	<!-- REQ-7 / Phase-5 H1 closure: the emitted `LoadDirect*` facade methods (AppSettingsGen.cs:418)
+	     call `NotNot.AppSettingsHelper.JsonSettingsUtils.MergeStreamsAsync` which lives in NotNot.Bcl.Core.
+	     Without this dependency declaration, package-only consumers who install just
+	     `NotNot.AppSettings` and use `AppSettingsBinder.LoadDirect()` get a compile error on the
+	     emitted-into-their-assembly LoadDirect* overloads.
+
+	     Strategy: post-process the generated .nuspec inside `GenerateNuspec` target to insert a
+	     `<dependency id="NotNot.Bcl.Core" />` element in the existing net10.0 dependency group
+	     (there isn't one — netstandard2.0 only — so we add a fresh net10.0 group). We do NOT use
+	     PackageReference because Bcl.Core's net10.0 assets poison the netstandard2.0 generator
+	     project's restore graph AND transitively the test project's compile graph (empirically
+	     verified during Phase-5 iteration 1). We do NOT use ProjectReference with
+	     ReferenceOutputAssembly=false because that suppresses .nuspec dep emission.
+
+	     Consumer TFM requirement: net10.0+ (matches Bcl.Core's TFM). netstandard2.0 consumers of
+	     `LoadDirect*` were never supported — the runtime path depends on `JsonNode.ParseAsync` +
+	     `await foreach` semantics only available on modern runtimes. -->
+	<Target Name="InjectBclCoreRuntimeDependency"
+	        AfterTargets="Pack"
+	        Condition="'$(IsPackable)' != 'false'">
+		<PropertyGroup>
+			<_BclCoreDepVersion Condition="'$(MinVerVersionOverride)' != ''">$(MinVerVersionOverride)</_BclCoreDepVersion>
+			<_BclCoreDepVersion Condition="'$(MinVerVersionOverride)' == '' And '$(PackageVersion)' != ''">$(PackageVersion)</_BclCoreDepVersion>
+			<_BclCoreDepVersion Condition="'$(_BclCoreDepVersion)' == ''">$(Version)</_BclCoreDepVersion>
+			<!-- EnsureTrailingSlash: PackageOutputPath overrides (e.g. CommonSettings.targets Release
+			     redirect) may lack a trailing slash; raw concatenation then produces a garbage path
+			     ("...\NotNot.AppSettingsNotNot.AppSettings.x.y.z.nupkg") while Pack itself writes via
+			     Path.Combine — false-negative Error on every Release build. -->
+			<_NupkgPath>$([MSBuild]::EnsureTrailingSlash('$(PackageOutputAbsolutePath)'))$(PackageId).$(PackageVersion).nupkg</_NupkgPath>
+			<_NupkgPathAlt>$([MSBuild]::EnsureTrailingSlash('$(OutputPath)'))$(PackageId).$(PackageVersion).nupkg</_NupkgPathAlt>
+		</PropertyGroup>
+		<ItemGroup>
+			<_CandidateNupkg Include="$(_NupkgPath)" Condition="Exists('$(_NupkgPath)')" />
+			<_CandidateNupkg Include="$(_NupkgPathAlt)" Condition="Exists('$(_NupkgPathAlt)') And '$(_NupkgPath)' != '$(_NupkgPathAlt)'" />
+		</ItemGroup>
+		<Message Text="InjectBclCoreRuntimeDependency: Nupkg candidates = @(_CandidateNupkg)" Importance="high" />
+		<!-- N1 hard-fail: if Pack emitted no nupkg at either expected location, this target cannot
+		     inject the runtime dep. Silent success here = shipping a broken package (H1 regression).
+		     Convert the "nothing to patch" case into a visible build error (VOWBUILD-class gate). -->
+		<Error Text="InjectBclCoreRuntimeDependency: no .nupkg found at expected paths '$(_NupkgPath)' or '$(_NupkgPathAlt)'. Post-Pack nuspec patch cannot run; the emitted package would ship WITHOUT NotNot.Bcl.Core dependency and consumers of LoadDirect* would fail at compile time."
+			Condition="'@(_CandidateNupkg)' == ''" />
+		<PatchNupkgWithBclCoreDep
+			NupkgPath="%(_CandidateNupkg.Identity)"
+			BclCoreVersion="$(_BclCoreDepVersion)"
+			Condition="'@(_CandidateNupkg)' != ''" />
+	</Target>
+
+	<!-- Inline task: opens the produced .nupkg (zip), reads and rewrites the embedded .nuspec
+	     to inject a net10.0 dependency group containing NotNot.Bcl.Core. Idempotent; safe if run
+	     multiple times. Runs after Pack only. No external tooling dependency. -->
+	<UsingTask TaskName="PatchNupkgWithBclCoreDep"
+	           TaskFactory="RoslynCodeTaskFactory"
+	           AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+		<ParameterGroup>
+			<NupkgPath ParameterType="System.String" Required="true" />
+			<BclCoreVersion ParameterType="System.String" Required="true" />
+		</ParameterGroup>
+		<Task>
+			<Using Namespace="System" />
+			<Using Namespace="System.IO" />
+			<Using Namespace="System.IO.Compression" />
+			<Using Namespace="System.Linq" />
+			<Using Namespace="System.Text" />
+			<Using Namespace="System.Xml.Linq" />
+			<Code Type="Fragment" Language="cs">
+<![CDATA[
+    // N1 hard-fail: the outer <Error> target-level gate already catches "no candidate nupkg".
+    // This inner guard is a defense-in-depth if the path handed to the task is unresolvable
+    // at exec time (race with a later clean, permission shift, etc). Previous behavior was
+    // Log.LogMessage(Low) + return true which silently shipped a broken package — convert to
+    // Log.LogError + return false to fail the build loudly.
+    if (!File.Exists(NupkgPath))
+    {
+        Log.LogError($"PatchNupkgWithBclCoreDep: nupkg not found at '{NupkgPath}' — cannot patch nuspec. The emitted package would ship WITHOUT NotNot.Bcl.Core dependency.");
+        return false;
+    }
+    using (var archive = ZipFile.Open(NupkgPath, ZipArchiveMode.Update))
+    {
+        var nuspecEntry = archive.Entries
+            .FirstOrDefault(e => e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase) && !e.FullName.Contains("/"));
+        if (nuspecEntry == null)
+        {
+            // N1 hard-fail: missing .nuspec inside the nupkg means Pack produced a
+            // structurally invalid package or the zip layout changed. Silent success here
+            // was the specific failure mode called out in Phase 5b review.
+            Log.LogError($"PatchNupkgWithBclCoreDep: no root-level .nuspec entry in '{NupkgPath}' — cannot inject NotNot.Bcl.Core dependency.");
+            return false;
+        }
+
+        XDocument doc;
+        using (var stream = nuspecEntry.Open())
+        {
+            doc = XDocument.Load(stream);
+        }
+
+        var ns = doc.Root.GetDefaultNamespace();
+        var metadata = doc.Root.Element(ns + "metadata");
+        if (metadata == null)
+        {
+            // N1 hard-fail: a .nuspec without <metadata> is malformed. Silent success shipped
+            // a broken package in prior behavior.
+            Log.LogError($"PatchNupkgWithBclCoreDep: .nuspec in '{NupkgPath}' has no <metadata> element — cannot inject NotNot.Bcl.Core dependency.");
+            return false;
+        }
+        var dependencies = metadata.Element(ns + "dependencies");
+        if (dependencies == null)
+        {
+            dependencies = new XElement(ns + "dependencies");
+            metadata.Add(dependencies);
+        }
+        var net10Group = dependencies.Elements(ns + "group")
+            .FirstOrDefault(g => (string)g.Attribute("targetFramework") == "net10.0");
+        if (net10Group == null)
+        {
+            net10Group = new XElement(ns + "group", new XAttribute("targetFramework", "net10.0"));
+            dependencies.Add(net10Group);
+        }
+        bool alreadyPresent = net10Group.Elements(ns + "dependency")
+            .Any(d => (string)d.Attribute("id") == "NotNot.Bcl.Core");
+        if (alreadyPresent)
+        {
+            Log.LogMessage(MessageImportance.Normal, "NotNot.Bcl.Core dep already present in nuspec — no-op");
+            return true;
+        }
+        net10Group.Add(new XElement(ns + "dependency",
+            new XAttribute("id", "NotNot.Bcl.Core"),
+            new XAttribute("version", BclCoreVersion),
+            new XAttribute("exclude", "Build,Analyzers")));
+
+        // Rewrite the entry: delete-and-recreate (ZipArchive can't truncate-in-place).
+        string entryName = nuspecEntry.FullName;
+        nuspecEntry.Delete();
+        var newEntry = archive.CreateEntry(entryName);
+        using (var writer = new StreamWriter(newEntry.Open(), new UTF8Encoding(true)))
+        {
+            writer.Write(doc.Declaration?.ToString() + Environment.NewLine ?? "");
+            writer.Write(doc.ToString());
+        }
+        Log.LogMessage(MessageImportance.High,
+            $"PatchNupkgWithBclCoreDep: injected NotNot.Bcl.Core@{BclCoreVersion} into {NupkgPath}");
+    }
+
+    // N1/N2 post-write re-verification (build-time artifact assertion): re-open the just-written
+    // nupkg, re-read the nuspec, and confirm the NotNot.Bcl.Core dependency is actually present in
+    // the net10.0 group. Closes the contract hole where the write could appear to succeed but emit
+    // a structurally broken package. This is the mechanical equivalent of the runtime artifact-level
+    // test (NupkgVerificationTests) — the test is defense-in-depth for CI pipelines that invoke Pack
+    // separately from test runs; this gate fires every single time Pack runs.
+    using (var verifyArchive = ZipFile.OpenRead(NupkgPath))
+    {
+        var verifyNuspec = verifyArchive.Entries
+            .FirstOrDefault(e => e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase) && !e.FullName.Contains("/"));
+        if (verifyNuspec == null)
+        {
+            Log.LogError($"PatchNupkgWithBclCoreDep post-write verification: no root .nuspec in '{NupkgPath}' after patch — archive may be corrupted.");
+            return false;
+        }
+        XDocument verifyDoc;
+        using (var verifyStream = verifyNuspec.Open())
+        {
+            verifyDoc = XDocument.Load(verifyStream);
+        }
+        var verifyNs = verifyDoc.Root.GetDefaultNamespace();
+        var verifyGroup = verifyDoc.Descendants(verifyNs + "group")
+            .FirstOrDefault(g => (string)g.Attribute("targetFramework") == "net10.0");
+        if (verifyGroup == null)
+        {
+            Log.LogError($"PatchNupkgWithBclCoreDep post-write verification: net10.0 dependency group missing from nuspec in '{NupkgPath}' after patch.");
+            return false;
+        }
+        var verifyDep = verifyGroup.Elements(verifyNs + "dependency")
+            .FirstOrDefault(d => (string)d.Attribute("id") == "NotNot.Bcl.Core");
+        if (verifyDep == null)
+        {
+            Log.LogError($"PatchNupkgWithBclCoreDep post-write verification: NotNot.Bcl.Core dependency not found in net10.0 group of nuspec in '{NupkgPath}' after patch.");
+            return false;
+        }
+        Log.LogMessage(MessageImportance.High,
+            $"PatchNupkgWithBclCoreDep post-write verification: NotNot.Bcl.Core@{(string)verifyDep.Attribute("version")} confirmed present in net10.0 group of '{NupkgPath}'.");
+    }
+]]>
+			</Code>
+		</Task>
+	</UsingTask>
 
 	<!-- standard nuget package details -->
 	<ItemGroup>
 		<None Include="..\..\..\meta\logos\[!!]-logos_red_cropped.png" Pack="True" PackagePath="\" />
-		<None Include=".\README.md" Pack="True" PackagePath="\" />
+		<None Include=".\ReadMe.md" Pack="True" PackagePath="\" />
 	</ItemGroup>
 
 	<PropertyGroup>
@@ -46,7 +230,7 @@
 		<PackageProjectUrl>https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/$(AssemblyName)/</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
 		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageReadmeFile>ReadMe.md</PackageReadmeFile>
 		<Version>0.0.0-0.invalidMinverProcess</Version>
 	</PropertyGroup>
 

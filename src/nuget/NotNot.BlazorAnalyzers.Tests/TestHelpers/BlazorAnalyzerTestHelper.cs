@@ -25,6 +25,7 @@ namespace Microsoft.AspNetCore.Components
         protected virtual Task OnParametersSetAsync() => Task.CompletedTask;
         protected virtual void OnAfterRender(bool firstRender) { }
         protected virtual Task OnAfterRenderAsync(bool firstRender) => Task.CompletedTask;
+        public virtual Task SetParametersAsync(ParameterView parameters) => Task.CompletedTask;
         protected virtual bool ShouldRender() => true;
         protected void StateHasChanged() { }
         protected Task InvokeAsync(Action workItem) => Task.CompletedTask;
@@ -80,6 +81,39 @@ namespace System.Text.Json
         public static T? Deserialize<T>(string json) => default;
         public static string Serialize<T>(T value) => string.Empty;
     }
+}
+
+// DI types for NNB015/016/017 analyzers
+namespace System
+{
+    public interface IServiceProvider
+    {
+        object GetService(System.Type serviceType);
+    }
+
+    public interface IAsyncDisposable
+    {
+        System.Threading.Tasks.ValueTask DisposeAsync();
+    }
+}
+
+namespace Microsoft.Extensions.DependencyInjection
+{
+    public static class ServiceProviderServiceExtensions
+    {
+        public static T GetService<T>(this System.IServiceProvider provider) => default;
+        public static T GetRequiredService<T>(this System.IServiceProvider provider) => default;
+        public static object GetService(this System.IServiceProvider provider, System.Type type) => default;
+        public static object GetRequiredService(this System.IServiceProvider provider, System.Type type) => default;
+    }
+}
+
+namespace Microsoft.AspNetCore.Components
+{
+    [System.AttributeUsage(System.AttributeTargets.Property)]
+    public class InjectAttribute : System.Attribute { }
+
+    public readonly struct ParameterView { }
 }
 ";
 }

@@ -9,8 +9,8 @@ using NotNot.Analyzers.Diagnostics;
 namespace NotNot.Analyzers.Architecture;
 
 /// <summary>
-/// Analyzer that detects redundant Maybe<T> reconstruction patterns where the result
-/// is already a Maybe<T> but is being unnecessarily deconstructed and reconstructed.
+/// Analyzer that detects redundant Maybe&lt;T&gt; reconstruction patterns where the result
+/// is already a Maybe&lt;T&gt; but is being unnecessarily deconstructed and reconstructed.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class DirectMaybeReturnAnalyzer : DiagnosticAnalyzer
@@ -82,7 +82,7 @@ public class DirectMaybeReturnAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Determines if a type is Maybe or Maybe<T> or wrapped in Task/ValueTask.
+    /// Determines if a type is Maybe or Maybe&lt;T&gt; or wrapped in Task/ValueTask.
     /// </summary>
     private static bool ReturnsMaybe(ITypeSymbol returnType)
     {

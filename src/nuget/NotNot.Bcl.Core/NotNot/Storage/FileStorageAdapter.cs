@@ -34,10 +34,8 @@ public sealed class FileStorageAdapter : IStorageAdapter
 		if (dir != null)
 			Directory.CreateDirectory(dir);
 
-		// Atomic write: write to temp file, then rename
-		var tempPath = _filePath + ".tmp";
-		await File.WriteAllTextAsync(tempPath, data, ct);
-		File.Move(tempPath, _filePath, overwrite: true);
+		// Concurrency-safe atomic write (unique temp + per-path serialization + bounded external-lock retry).
+		await AtomicFileWriter.WriteAtomicAsync(_filePath, data, ct: ct);
 	}
 
 	/// <inheritdoc/>

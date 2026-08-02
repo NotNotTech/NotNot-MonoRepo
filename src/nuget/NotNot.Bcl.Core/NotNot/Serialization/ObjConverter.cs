@@ -114,8 +114,9 @@ public class RoundtripObjConverter<T> : JsonConverter<T>, IDisposable
 
 	public void Dispose()
 	{
-		DoRead = null;
-		DoWrite = null;
+		// Teardown: release delegate references after dispose (converter is not reused post-dispose).
+		DoRead = null!;
+		DoWrite = null!;
 	}
 
 

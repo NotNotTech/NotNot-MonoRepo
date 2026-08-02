@@ -18,8 +18,9 @@ public class CustomTaskScheduler : TaskScheduler, IDisposable
 {
 	private static int _counter;
 	private readonly int _id = Interlocked.Increment(ref _counter);
-	private BlockingCollection<Task> taskQueue;
-	private Thread[] threads;
+	// taskQueue/threads/Name are always assigned by _Init, which the only constructor calls unconditionally.
+	private BlockingCollection<Task> taskQueue = null!;
+	private Thread[] threads = null!;
 
 	public CustomTaskScheduler(string name, int concurrency)
 	{
@@ -55,7 +56,7 @@ public class CustomTaskScheduler : TaskScheduler, IDisposable
 		}
 	}
 
-	public string Name { get; private set; }
+	public string Name { get; private set; } = null!;
 
 	public override int MaximumConcurrencyLevel => threads.Length;
 

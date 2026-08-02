@@ -23,6 +23,7 @@ public class Normalize
 		{
 			throw new ArgumentException("invalid email address", nameof(email));
 		}
-		return EmailNormalizer.Normalize(asMailAddress);
+		// Guarded: TryCreate sets asMailAddress non-null when result is true (checked above).
+		return EmailNormalizer.Normalize(asMailAddress!);
 	}
 }

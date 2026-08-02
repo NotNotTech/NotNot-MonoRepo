@@ -21,16 +21,17 @@ public class StripeServiceLayer(ILogger<StripeServiceLayer> _logger, IOptions<St
 	{
 		public string? StripeSecret { get; set; }
 	}
-	public StripeClient StripeClient { get; protected set; }
+	// Initialized in AutoInitialize (IDiAutoInitialize lifecycle guarantees it runs before use).
+	public StripeClient StripeClient { get; protected set; } = null!;
 
-	public CustomerService CustomerService { get; protected set; }
-	public SubscriptionService SubscriptionService { get; protected set; }
-	public ProductService ProductService { get; protected set; }
+	public CustomerService CustomerService { get; protected set; } = null!;
+	public SubscriptionService SubscriptionService { get; protected set; } = null!;
+	public ProductService ProductService { get; protected set; } = null!;
 
 	/// <summary>
 	/// https://stripe.com/docs/payments/payment-intents
 	/// </summary>
-	public PaymentIntentService PaymentIntentService { get; protected set; }
+	public PaymentIntentService PaymentIntentService { get; protected set; } = null!;
 	public async ValueTask AutoInitialize(IServiceProvider services, CancellationToken ct)
 	{
 		//any needed initialization can go here

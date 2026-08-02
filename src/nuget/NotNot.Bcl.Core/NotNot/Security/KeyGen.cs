@@ -6,7 +6,6 @@ public static class KeyGen
 	/// creates an apiKey in the legacy pjsc-api format.  
 	/// <para>strongly prefer to use the non-legacy version in the future, as that is stronger</para>
 	/// </summary>
-	/// <param name="timestamp">if a timestamp should be used as start of key.  warning: this uses up 9 digits of the key.</param>
 	/// <param name="randomDigits">must be minimum 20 digits as there is a deterministic (timestamp) component</param>
 	/// <param name="digitGrouping"></param>
 	/// <returns></returns>
@@ -70,9 +69,9 @@ public static class KeyGen
 	/// </summary>
 	/// <param name="randomDigits">must be minimum 15 digits as there is a deterministic (timestamp) component</param>
 	/// <param name="digitGrouping"></param>
-	/// <param name="timestamp">include a timestamp in the output to help reduce collisions</param>
+	/// <param name="omitTimestamp">default false (timestamp included to help reduce collisions). set true to omit the timestamp component (note: increases collision risk).</param>
 	/// <returns></returns>
-	public static string CreateApiKey(int randomDigits = 25, int? digitGrouping = 5, bool timestamp = true)
+	public static string CreateApiKey(int randomDigits = 25, int? digitGrouping = 5, bool omitTimestamp = false)
 	{
 		__.ThrowIfNot(randomDigits >= 15, "must be minimum 15 digits as there is a deterministic (timestamp) component");
 		//switch to base58 as it provides same protections as base32, but also uses capital letters
@@ -83,7 +82,7 @@ public static class KeyGen
 
 		// Convert strings and DateTime to byte arrays
 		var nowLong = now.ToBinary()._Swizzle(); //scatter timestamp significant bits, makes resulting key less obvious to have a deterministic component
-		byte[] nowBytes = timestamp ? BitConverter.GetBytes(nowLong) : [];
+		byte[] nowBytes = omitTimestamp ? [] : BitConverter.GetBytes(nowLong);
 		var genByteLength = randomDigits;
 		genByteLength -= nowBytes.Length;
 

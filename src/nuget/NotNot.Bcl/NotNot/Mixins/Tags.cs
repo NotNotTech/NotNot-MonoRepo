@@ -12,7 +12,7 @@ namespace NotNot.Mixins;
 
 public interface ITags
 {
-	TValue _GetTagOrDefault<TValue>(object key, TValue defaultValue = default);
+	TValue _GetTagOrDefault<TValue>(object key, TValue defaultValue = default!);
 	void _SetTag<TValue>(object key, TValue value);
 	bool _TryGetTag<TValue>(object key, out TValue value);
 	bool _TryRemoveTag(object key);
@@ -24,7 +24,7 @@ public class Tags : ITags
 	/// <summary>
 	/// arbitrary tags associated with this node.  (user defined key/value pairs)
 	/// </summary>
-	public Dictionary<object, object?> _tags;
+	public Dictionary<object, object?>? _tags;
 	/// <summary>
 	/// accessor for arbitrary tags associated with this node.  (user defined key/value pairs)
 	/// </summary>
@@ -41,7 +41,8 @@ public class Tags : ITags
 		}
 		if (_tags.TryGetValue(key, out var objValue))
 		{
-			value = (TValue)objValue;
+			// Guarded: TryGetValue returned true, so objValue is populated.
+			value = (TValue)objValue!;
 			return true;
 		}
 		value = default!;

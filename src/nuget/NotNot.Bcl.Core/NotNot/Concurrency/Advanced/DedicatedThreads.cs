@@ -43,7 +43,11 @@ internal static class DedicatedThreads
 				};
 				_tasks = new(new ConcurrentQueue<Task>());
 				_syncContext = new DedicatedThreadSynchronizationContext(this);
+				// ACCEPTED_BY_DESIGN PH_S007: borrowed sample-code TaskScheduler starts its worker
+				// in the ctor; a factory-start lifecycle redesign is disproportionate to the benefit.
+#pragma warning disable PH_S007
 				DedicatedThread.Start();
+#pragma warning restore PH_S007
 			}
 
 			public override int MaximumConcurrencyLevel => 1;
@@ -76,6 +80,7 @@ internal static class DedicatedThreads
 					}
 					catch (InvalidOperationException)
 					{
+						continue;
 					}
 				}
 			}

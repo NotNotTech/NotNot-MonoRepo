@@ -13,11 +13,14 @@ namespace NotNot.BlazorAnalyzers.XRay;
 /// <remarks>
 /// The generated XRayMetadata.g.cs contains:
 /// - Static JSON string with element-to-line mappings
-/// - Module Initializer that registers metadata with XRayRegistry on assembly load
+/// - Module Initializer that registers metadata with NotNot.Diagnostics.SourceMetadataRegistry on assembly load
 /// </remarks>
 [Generator(LanguageNames.CSharp)]
 public class XRayMetadataGenerator : IIncrementalGenerator
 {
+    /// <summary>Wires the incremental pipeline that parses <c>.razor</c> files and emits the
+    /// <c>XRayMetadata.g.cs</c> element-to-line JSON (gated by the <c>XRayGeneratorEnabled</c>
+    /// build property).</summary>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Check for opt-out via AnalyzerConfig (set XRayGeneratorEnabled = false to disable)
@@ -144,10 +147,12 @@ internal static partial class XRayMetadata
                     jsonBuilder.Append('}');
                 }
 
-                // Text content
-                if (!string.IsNullOrEmpty(element.Text))
+                // Text content. Pattern-match narrows element.Text to non-null for EscapeJson
+                // (the netstandard2.0 ref assemblies lack the [NotNullWhen(false)] annotation on
+                // string.IsNullOrEmpty, so a plain IsNullOrEmpty check does not satisfy NRT).
+                if (element.Text is { Length: > 0 } elementText)
                 {
-                    jsonBuilder.Append(",\"text\":\"").Append(EscapeJson(element.Text)).Append('"');
+                    jsonBuilder.Append(",\"text\":\"").Append(EscapeJson(elementText)).Append('"');
                 }
 
                 // Conditional depth (used in scoring penalty: -3 per level)
@@ -177,7 +182,7 @@ internal static partial class XRayMetadata
         sb.AppendLine("    [System.Runtime.CompilerServices.ModuleInitializer]");
         sb.AppendLine("    internal static void Register()");
         sb.AppendLine("    {");
-        sb.AppendLine($"        NotNot.BlazorComponents.XRay.XRayRegistry.Register(\"{EscapeJson(assemblyName)}\", Json);");
+        sb.AppendLine($"        NotNot.Diagnostics.SourceMetadataRegistry.Register(\"{EscapeJson(assemblyName)}\", Json);");
         sb.AppendLine("    }");
         sb.AppendLine("}");
 
@@ -202,12 +207,12 @@ internal static partial class XRayMetadata
         var normalized = fullPath.Replace('\\', '/');
 
         // PRIMARY: Find assembly name in path (most reliable)
-        // e.g., ".../NotNot.Cct.WebApp/NotNot/Cct/..." → "NotNot/Cct/..."
+        // e.g., ".../Novaleaf.VibeOverwatch.Server/Novaleaf/VibeOverwatch/..." → "Novaleaf/VibeOverwatch/..."
         // Handle both exact match and common naming patterns (with/without dots)
         var assemblyMarkers = new[]
         {
-            $"/{assemblyName}/",           // Exact: NotNot.Cct.WebApp
-            $"/{assemblyName.Replace(".", "")}/",  // No dots: NotNotCctWebApp
+            $"/{assemblyName}/",           // Exact: Novaleaf.VibeOverwatch.Server
+            $"/{assemblyName.Replace(".", "")}/",  // No dots: NovaleafVibeOverwatchServer
         };
 
         foreach (var marker in assemblyMarkers)
@@ -221,7 +226,8 @@ internal static partial class XRayMetadata
 
         // FALLBACK: Pattern-based heuristics for edge cases
         // NOTE: This path should rarely be hit when assembly name matches folder
-        var patterns = new[] { "/Features/", "/Pages/", "/Shared/", "/Layout/", "/Components/" };
+        // SSOT: XRayPathMarkers.SingleSegment (consumed here + by the NNB046 drift analyzer baseline).
+        var patterns = XRayPathMarkers.SingleSegment;
         foreach (var pattern in patterns)
         {
             var idx = normalized.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);

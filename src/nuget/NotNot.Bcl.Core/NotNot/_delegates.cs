@@ -32,8 +32,8 @@ public delegate void Action_RoSpan<TSpan, TArg>(ReadOnlySpan<TSpan> span, TArg a
 /// <summary>
 ///    action where all parameters are passed by reference
 /// </summary>
-/// <typeparam name="T1"></typeparam>
-/// <param name="val1"></param>
+/// <typeparam name="T"></typeparam>
+/// <param name="arg"></param>
 public delegate void Action_Ref<T>(ref T arg);
 
 public delegate void Action_Ref<T1, T2>(ref T1 arg1, ref T2 arg2);

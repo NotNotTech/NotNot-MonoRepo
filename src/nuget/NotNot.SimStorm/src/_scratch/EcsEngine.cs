@@ -11,7 +11,7 @@ public class EcsEngine : Engine.Engine
 
 	public Phase0_StateSync StateSync { get; set; } = new() { Name = "!!_StateSync" };
 
-	public World DefaultWorld { get; set; } = new() { Name = "!!_DefaultWorld" };
+	public World? DefaultWorld { get; set; } = new() { Name = "!!_DefaultWorld" };
 
 	public ContainerNode Rendering { get; } = new() { Name = "!!_Rendering", _updateAfter = { "!!_StateSync" } };
 	public ContainerNode Worlds { get; } = new() { Name = "!!_Worlds", _updateAfter = { "!!_Rendering" } };
@@ -41,7 +41,7 @@ public class EcsEngine : Engine.Engine
 	{
 		base.OnDispose(managedDisposing);
 
-		__.GetLogger()._EzErrorThrow<SimStormException>(DefaultWorld.IsDisposed,
+		__.GetLogger()._EzErrorThrow<SimStormException>(DefaultWorld?.IsDisposed ?? true,
 			"disposing simManager should have disposed all nodes inside");
 		DefaultWorld = null;
 	}

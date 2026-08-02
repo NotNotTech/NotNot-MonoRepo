@@ -16,7 +16,6 @@ public class DebugPrint : SimNode
 	//public DebugPrint(string name, SimManager manager, SimNode parent) : base(name, manager, parent)
 	//{
 	//}
-	private long avgMs = 0;
 	protected override async Task OnUpdate(Frame frame, NodeFrameState nodeState)
 	{
 		//if (frame._stats._frameId % 200 == 0)

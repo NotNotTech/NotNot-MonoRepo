@@ -10,7 +10,7 @@ namespace NotNot;
 /// WHY: Ensure expensive or destructive initialization (eg database reset) runs exactly once per process cluster start
 /// while avoiding marker files (IO, cleanup concerns, race-on-filesystem, platform path issues).
 /// HOW:
-///   1. In-process fast path via ConcurrentDictionary<string, Lazy<Task>>
+///   1. In-process fast path via ConcurrentDictionary&lt;string, Lazy&lt;Task&gt;&gt;
 ///   2. Cross-process critical section via named Global mutex (Windows) / local name (other OS)
 ///   3. Completion signaled by a named EventWaitHandle (ManualReset) => subsequent processes skip init delegate.
 ///      - Pattern: if event already signaled BEFORE entering mutex => skip
@@ -63,9 +63,9 @@ public static class MutexUtil
 		}
 		finally
 		{
-#pragma warning disable NN_R005 // Mutex may already be released - safe to ignore
+#pragma warning disable NN_R005, NN_R006 // Mutex may already be released - safe to ignore
 			try { mutex.ReleaseMutex(); } catch (ApplicationException) { /* Mutex not owned by this thread */ }
-#pragma warning restore NN_R005
+#pragma warning restore NN_R005, NN_R006
 		}
 	}
 }

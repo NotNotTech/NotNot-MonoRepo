@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Http;
 using NotNot.Data;
 using NotNot.Diagnostics;
 
@@ -57,7 +56,7 @@ public record class Maybe : Maybe<OperationResult>
 	/// </summary>
 	/// <param name="problem">The problem to convert.</param>
 	/// <returns>A <see cref="Maybe"/> instance representing the problem.</returns>
-	public static Maybe CastFrom(Problem problem)
+	public static new Maybe CastFrom(Problem problem)
 	{
 		var source = problem.DecomposeSource();
 		return new(problem, source.memberName, source.sourceFilePath, source.sourceLineNumber);
@@ -145,13 +144,10 @@ public record class Maybe : Maybe<OperationResult>
 /// <para>lite version adapted from NotNot.Server (asp)</para>
 /// <para>contains .Value or .Problem returned from api calls, and logic to help process/return from aspnetcore endpoints</para>
 /// <para>Needed because C# doesn't support true Monad. to handle results from api calls that might return your expected value, or a strongly-typed error.</para>
+/// <para>Represents the result of an operation that may succeed with a value or fail with a problem.</para>
 /// </summary>
 /// <typeparam name="TValue"></typeparam>
 [JsonConverter(typeof(MaybeGenericJsonConverter<>))]
-
-/// <summary>
-/// Represents the result of an operation that may succeed with a value or fail with a problem.
-/// </summary>
 public record class Maybe<TValue> : IMaybe
 {
 	/// <summary>
@@ -176,7 +172,8 @@ public record class Maybe<TValue> : IMaybe
 			__.AssertNotNull(Problem, "Problem is null, but IsSuccess is false.  This is a bug.");
 			throw Problem.ToException();
 		}
-		return _Value;
+		// _Value is non-null when IsSuccess is true (guarded above).
+		return _Value!;
 	}
 
 	/// <summary>
@@ -358,7 +355,8 @@ public record class Maybe<TValue> : IMaybe
 		Maybe<TNew> toReturn;
 		if (IsSuccess)
 		{
-			toReturn = Maybe<TNew>.Success(func(_Value), memberName, sourceFilePath, sourceLineNumber);
+			// _Value is non-null when IsSuccess is true (guarded above).
+			toReturn = Maybe<TNew>.Success(func(_Value!), memberName, sourceFilePath, sourceLineNumber);
 		}
 		else
 		{
@@ -596,18 +594,12 @@ public record class Maybe<TValue> : IMaybe
 /// Factory for creating JSON converters for generic Maybe&lt;T&gt; types
  /// </summary>
 public class MaybeJsonConverterFactory : JsonConverterFactory
-/// <summary>
-/// Determines whether the specified type can be converted by this factory.
-/// </summary>
-/// <param name="typeToConvert">The type to check.</param>
-/// <returns>True if the type is a generic Maybe&lt;&gt;; otherwise, false.</returns>
-/// <summary>
-/// Creates a JSON converter for the specified type.
-/// </summary>
-/// <param name="typeToConvert">The type to convert.</param>
-/// <param name="options">The serializer options.</param>
-/// <returns>A JSON converter for the specified type.</returns>
 {
+	/// <summary>
+	/// Determines whether the specified type can be converted by this factory.
+	/// </summary>
+	/// <param name="typeToConvert">The type to check.</param>
+	/// <returns>True if the type is a generic Maybe&lt;&gt;; otherwise, false.</returns>
 	public override bool CanConvert(Type typeToConvert)
 	{
 		//VIBE_CRITICAL: Exclude non-generic Maybe class to prevent circular dependency
@@ -618,6 +610,12 @@ public class MaybeJsonConverterFactory : JsonConverterFactory
 		return typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(Maybe<>);
 	}
 
+	/// <summary>
+	/// Creates a JSON converter for the specified type.
+	/// </summary>
+	/// <param name="typeToConvert">The type to convert.</param>
+	/// <param name="options">The serializer options.</param>
+	/// <returns>A JSON converter for the specified type.</returns>
 	public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
 	{
 		var valueType = typeToConvert.GetGenericArguments()[0];
@@ -653,7 +651,7 @@ public class MaybeNonGenericJsonConverter : JsonConverter<Maybe>
 }
 
 /// <summary>
-/// Typed JSON converter for Maybe<T>
+/// Typed JSON converter for Maybe&lt;T&gt;
 /// </summary>
 public class MaybeGenericJsonConverter<T> : JsonConverter<Maybe<T>>
 {
@@ -705,7 +703,8 @@ public class MaybeGenericJsonConverter<T> : JsonConverter<Maybe<T>>
 					//result = Maybe<T>.Success(value!);
 					result = new Maybe<T>(value!)
 					{
-						TraceId = traceId,
+						// A serialized Maybe always round-trips its TraceId; the non-nullable property contract holds.
+						TraceId = traceId!,
 						IntentSummary = intentSummary,
 					};
 				}
@@ -718,7 +717,8 @@ public class MaybeGenericJsonConverter<T> : JsonConverter<Maybe<T>>
 
 					result = new Maybe<T>(problem)
 					{
-						TraceId = traceId,
+						// A serialized Maybe always round-trips its TraceId; the non-nullable property contract holds.
+						TraceId = traceId!,
 						IntentSummary = intentSummary,
 					};
 

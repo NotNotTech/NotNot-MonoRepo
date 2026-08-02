@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--shared common .csproj settings-->
+	<Import Project="..\..\CommonSettings.targets" />
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+		<TestProjectType>Integration</TestProjectType>
+		<VSTestRunnerDotnetCLI>true</VSTestRunnerDotnetCLI>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Test framework (matches NotNot.AppSettings.Tests versions) -->
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="coverlet.collector" Version="6.0.4">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+
+		<!-- Fluent assertions for better test readability -->
+		<PackageReference Include="FluentAssertions" Version="8.8.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+		Build-order dependency on NotNot.AppSettings.Example. We DO want the assembly copied
+		into our bin (ReferenceOutputAssembly default = true) so we can Assembly.LoadFrom it
+		and reflect on the generated AppSettings type via System.Reflection. This is the
+		integration-proof mechanism: if the wildcard auto-glob (NotNot.AppSettings.targets:11-14)
+		regresses, the Sample property disappears from the generated AppSettings, and our
+		reflection check fails with a meaningful message.
+
+		Note: Example.csproj has a Choose block that uses ProjectReference for the source
+		generator only when Configuration=='Debug'. In Debug, Example builds correctly with
+		the local generator. In Release/other configurations, Example tries to consume the
+		NuGet package, which may not exist locally — keep this test running in Debug.
+		-->
+		<ProjectReference Include="..\..\example\NotNot.AppSettings.Example\NotNot.AppSettings.Example.csproj" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<!-- Suppress warnings about test project structure and disposal patterns -->
+		<NoWarn>$(NoWarn);NU1608;CA2000</NoWarn>
+	</PropertyGroup>
+
+</Project>

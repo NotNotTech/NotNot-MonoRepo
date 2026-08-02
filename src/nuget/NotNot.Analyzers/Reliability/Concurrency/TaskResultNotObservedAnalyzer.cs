@@ -52,7 +52,7 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    ///    Analyzes await expressions to detect when Task<T> results are not observed.
+    ///    Analyzes await expressions to detect when Task&lt;T&gt; results are not observed.
     /// </summary>
     /// <param name="context">The syntax node analysis context.</param>
     private void AnalyzeAwaitExpression(SyntaxNodeAnalysisContext context)
@@ -83,7 +83,7 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    ///    Determines if the awaited type is a generic Task<T> or ValueTask<T>.
+    ///    Determines if the awaited type is a generic Task&lt;T&gt; or ValueTask&lt;T&gt;.
     /// </summary>
     /// <param name="context">The syntax node analysis context.</param>
     /// <param name="type">The type to check.</param>
@@ -98,8 +98,8 @@ public class TaskResultNotObservedAnalyzer : DiagnosticAnalyzer
         var genericValueTaskType = context.Compilation.GetTypeByMetadataName(typeof(ValueTask<>).FullName);
 
         // Check if the type is constructed from Task<T> or ValueTask<T>
-        return (genericTaskType != null && type.ConstructedFrom.Equals(genericTaskType)) ||
-                  (genericValueTaskType != null && type.ConstructedFrom.Equals(genericValueTaskType));
+        return (genericTaskType != null && SymbolEqualityComparer.Default.Equals(type.ConstructedFrom, genericTaskType)) ||
+                  (genericValueTaskType != null && SymbolEqualityComparer.Default.Equals(type.ConstructedFrom, genericValueTaskType));
     }
 
     /// <summary>

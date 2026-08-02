@@ -94,7 +94,8 @@ public static class Decorate_AutoInit_ServiceRegistrationUpdater
 		services.Remove(serviceDescriptor);
 		services.Add(new ServiceDescriptor(serviceType, serviceProvider =>
 		{
-			var factory = (dynamic)Activator.CreateInstance(factoryType, serviceProvider, serviceDescriptor);
+			// Activator.CreateInstance on a concrete closed-generic type never returns null.
+			var factory = (dynamic)Activator.CreateInstance(factoryType, serviceProvider, serviceDescriptor)!;
 			return factory.Create();
 		}, serviceDescriptor.Lifetime));
 	}

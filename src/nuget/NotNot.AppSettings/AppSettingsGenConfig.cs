@@ -11,7 +11,8 @@ public class AppSettingsGenConfig
 	 public string? RootNamespace { get; set; }
 
 
-	 public string ProjectName { get; set; }
+	 //netstandard2.0: no `required` keyword; set via object initializer at every construction site
+	 public string ProjectName { get; set; } = null!;
 	 /// <summary>
 	 /// if false, the generated class will be internal
 	 /// <para>set from the MSBuild property {NotNot_AppSettings_GenPublic}true{/NotNot_AppSettings_GenPublic} from the consuming project .csproj file</para>
@@ -25,13 +26,13 @@ public class AppSettingsGenConfig
 	 /// <summary>
 	 /// the "sourceTexts" from the consuming project,
 	 /// </summary>
-	 public Dictionary<string, SourceText> CombinedSourceTexts { get; set; }
+	 public Dictionary<string, SourceText> CombinedSourceTexts { get; set; } = null!;
 
 
 	 /// <summary>
 	 /// nuget version of the generator, used only to add a comment to the generated code (for debugging)
 	 /// </summary>
-	 public string NugetVersion { get; set; }
+	 public string NugetVersion { get; set; } = null!;
 
 	 /// <summary>
 	 /// root namespace for all generated code

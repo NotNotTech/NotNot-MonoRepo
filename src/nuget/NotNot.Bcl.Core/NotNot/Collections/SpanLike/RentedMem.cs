@@ -35,7 +35,8 @@ namespace NotNot.Collections.SpanLike;
 /// </remarks>
 public readonly struct RentedMem<T> : IDisposable
 {
-	public static readonly RentedMem<T> Empty = new(MemBackingStorageType.Empty, null);
+	// Empty backing intentionally has no backing-storage object; Empty-typed instances never dereference _backingStorage (guarded by _backingStorageType).
+	public static readonly RentedMem<T> Empty = new(MemBackingStorageType.Empty, null!);
 
 	// Implicit conversion to Span - useful when assigning to Span variables or passing to Span parameters
 	public static implicit operator Span<T>(RentedMem<T> mem) => mem.GetSpan();
@@ -57,8 +58,8 @@ public readonly struct RentedMem<T> : IDisposable
 	/// Provides a guard object to ensure that resources are disposed of correctly when the containing object is disposed.
 	/// </summary>
 	/// <remarks>This field is used to help manage the disposal pattern and prevent resource leaks. It is only
-	/// included when the CHECKED compilation symbol is defined.</remarks>
-	private readonly DisposeGuard _disposeGuard;
+	/// included when the CHECKED compilation symbol is defined. Null for Empty-backed instances (nothing to dispose).</remarks>
+	private readonly DisposeGuard? _disposeGuard;
 #endif
 
 
@@ -143,7 +144,8 @@ public readonly struct RentedMem<T> : IDisposable
 #if CHECKED
 		if (allowGCReclaim)
 		{
-			toReturn._disposeGuard._suppress = true;
+			// non-Empty (MemoryOwner_Custom) backing, so the CHECKED ctor always assigned _disposeGuard.
+			toReturn._disposeGuard!._suppress = true;
 		}
 #endif
 		return toReturn;

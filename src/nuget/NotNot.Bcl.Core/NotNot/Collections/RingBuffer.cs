@@ -26,7 +26,7 @@ public class RingBuffer<T>
    /// <summary>
    /// Initializes a new SpanRingBuffer backed by the specified buffer.
    /// </summary>
-   /// <param name="buffer">The buffer to use for ring buffer storage. Caller must ensure buffer lifetime exceeds SpanRingBuffer usage.</param>
+   /// <param name="capacity">The capacity of the ring buffer storage. Caller must ensure buffer lifetime exceeds SpanRingBuffer usage.</param>
    /// <remarks>
    /// The buffer capacity determines the maximum ring buffer size. Attempts to enqueue beyond this capacity will throw.
    /// The buffer should typically be allocated via stackalloc for zero-allocation semantics.

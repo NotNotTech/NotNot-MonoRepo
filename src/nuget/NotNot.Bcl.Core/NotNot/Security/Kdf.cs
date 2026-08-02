@@ -55,7 +55,7 @@ public static class Kdf
 			////////so that when .Verify() is called, if the first 4 digits of input pwSha512 doesn't match the hash4,
 			////////we can reject and wait idle instead of computing the argon2 hash.
 			////////https://github.com/simonepri/phc-format
-			///
+			////////
 			////////var phcFormat = kdfHashedPassword.Split('$', StringSplitOptions.TrimEntries);
 			//////if (kdfHashedPassword.Contains("$hash4="))
 			//////{

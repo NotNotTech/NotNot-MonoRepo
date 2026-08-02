@@ -23,6 +23,7 @@ namespace NotNot.Collections.SpanLike;
 /// </summary>
 /// <remarks>
 /// <para>This is a ref struct (stack only usage) to encourage proper use (don't take references to it).  If you need a longer term reference, call <see cref="Pin"/></para>
+/// </remarks>
 /// <typeparam name="T">Element type</typeparam>
 public readonly ref struct EphermialMem<T>
 {

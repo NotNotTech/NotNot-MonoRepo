@@ -5,6 +5,7 @@
 // [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!] [!!]  [!!] [!!] [!!] [!!]
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 namespace NotNot.Concurrency;
 
@@ -27,6 +28,7 @@ public class FrameDataChannel<T> : DisposeGuard
 	private object _writeLock = new();
 
 	/// <summary>
+	///    create a new FrameDataChannel, retaining up to <paramref name="maxFrames" /> frames of buffered data.
 	/// </summary>
 	/// <param name="maxFrames">
 	///    how many simulation frames worth of data to keep, if the reader systems don't process them in a timely fashion.
@@ -90,7 +92,12 @@ public class FrameDataChannel<T> : DisposeGuard
 		}
 		else
 		{
+			// FALSE_POSITIVE PH_P006: conditional-acquire (TryEnter, fail-loud debug branch above)
+			// vs blocking-acquire over ONE shared try/finally body requires the Monitor API;
+			// the lock statement cannot express this shape.
+#pragma warning disable PH_P006
 			Monitor.Enter(_writeLock);
+#pragma warning restore PH_P006
 		}
 
 		try
@@ -126,7 +133,7 @@ public class FrameDataChannel<T> : DisposeGuard
 		return dequeuedPacket.getQueue();
 	}
 
-	public bool TryReadFrame(out ConcurrentQueue<T> framePacket)
+	public bool TryReadFrame([MaybeNullWhen(false)] out ConcurrentQueue<T> framePacket)
 	{
 		if (_recycleChannel.TryRead(out var queueWrapper))
 		{
@@ -153,20 +160,20 @@ public class FrameDataChannel<T> : DisposeGuard
 	///    PRIVATE helper: wraps the queue with some simple validation logic (make sure count doesn't change when inside the
 	///    channel)
 	/// </summary>
-	/// <typeparam name="T"></typeparam>
-	private struct _FramePacketWrapper<T>
+	/// <typeparam name="TItem"></typeparam>
+	private struct _FramePacketWrapper<TItem>
 	{
-		private ConcurrentQueue<T> framePacket;
+		private ConcurrentQueue<TItem> framePacket;
 		private int queueCount;
 
 
-		public _FramePacketWrapper(ConcurrentQueue<T> framePacket)
+		public _FramePacketWrapper(ConcurrentQueue<TItem> framePacket)
 		{
 			this.framePacket = framePacket;
 			queueCount = framePacket.Count;
 		}
 
-		public ConcurrentQueue<T> getQueue()
+		public ConcurrentQueue<TItem> getQueue()
 		{
 			//__.GetLogger()._EzError(_frameVersion == currentFrameVersion,"race condition, frames do not match.  is this framePacket being used improperly?  use-after-enqueue or use-after-recycle");
 			VerifyPacket();
@@ -176,7 +183,8 @@ public class FrameDataChannel<T> : DisposeGuard
 		public void VerifyPacket()
 		{
 			__.GetLogger()._EzError(framePacket != null, "disposed or not initalized");
-			__.GetLogger()._EzError(framePacket.Count == queueCount,
+			// framePacket asserted non-null on the line above; _EzError is a debug assert the compiler can't read as a flow guard.
+			__.GetLogger()._EzError(framePacket!.Count == queueCount,
 				"race condition, queue count at dequeue time does not match count when created.  is this framePacket being used improperly?  use-after-enqueue or use-after-recycle");
 		}
 

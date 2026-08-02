@@ -63,7 +63,8 @@ public class Cache<TValue> : IDiSingletonService //, IAutoInitialize //Scrutor b
 		var maybeValue = _fusionCache.TryGet<TValue>(key);
 		if (maybeValue.HasValue)
 		{
-			value = maybeValue.Value;
+			// Guarded: HasValue is true, so a value was cached.
+			value = maybeValue.Value!;
 			return true;
 		}
 		else
@@ -133,7 +134,6 @@ public class Cache(
 IFusionCache _fusionCache
 ) : IDiSingletonService
 {
-	private IFusionCache _fusionCacheImplementation;
 
 
 
@@ -148,117 +148,120 @@ IFusionCache _fusionCache
 
 	public void Dispose()
 	{
-		_fusionCacheImplementation.Dispose();
+		_fusionCache.Dispose();
 	}
 
 	public FusionCacheEntryOptions CreateEntryOptions(Action<FusionCacheEntryOptions>? setupAction = null, TimeSpan? duration = null)
 	{
-		return _fusionCacheImplementation.CreateEntryOptions(setupAction, duration);
+		return _fusionCache.CreateEntryOptions(setupAction, duration);
 	}
 
-	public async ValueTask<TValue?> GetOrSetAsync<TValue>(string key, Func<FusionCacheFactoryExecutionContext<TValue>, CancellationToken, Task<TValue?>> factory, MaybeValue<TValue?> failSafeDefaultValue = new MaybeValue<TValue?>(), FusionCacheEntryOptions? options = null,
+	// These factory-based overloads forward directly to FusionCache; their generics match FusionCache's non-null TValue
+	// (only the wrapper RETURN stays nullable to reflect a cache miss). This avoids nullability variance at the boundary
+	// with no in-repo callers affected.
+	public async ValueTask<TValue?> GetOrSetAsync<TValue>(string key, Func<FusionCacheFactoryExecutionContext<TValue>, CancellationToken, Task<TValue>> factory, MaybeValue<TValue> failSafeDefaultValue = new MaybeValue<TValue>(), FusionCacheEntryOptions? options = null,
 		CancellationToken token = new CancellationToken())
 	{
-		return await _fusionCacheImplementation.GetOrSetAsync(key, factory, failSafeDefaultValue, options, token);
+		return await _fusionCache.GetOrSetAsync(key, factory, failSafeDefaultValue, options, token);
 	}
 
-	public TValue? GetOrSet<TValue>(string key, Func<FusionCacheFactoryExecutionContext<TValue>, CancellationToken, TValue?> factory, MaybeValue<TValue?> failSafeDefaultValue = new MaybeValue<TValue?>(), FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
+	public TValue? GetOrSet<TValue>(string key, Func<FusionCacheFactoryExecutionContext<TValue>, CancellationToken, TValue> factory, MaybeValue<TValue> failSafeDefaultValue = new MaybeValue<TValue>(), FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		return _fusionCacheImplementation.GetOrSet(key, factory, failSafeDefaultValue, options, token);
+		return _fusionCache.GetOrSet(key, factory, failSafeDefaultValue, options, token);
 	}
 
 	public async ValueTask<TValue?> GetOrSetAsync<TValue>(string key, TValue? defaultValue, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		return await _fusionCacheImplementation.GetOrSetAsync(key, defaultValue, options, token: token);
+		return await _fusionCache.GetOrSetAsync(key, defaultValue, options, token: token);
 	}
 
 	public TValue? GetOrSet<TValue>(string key, TValue? defaultValue, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		return _fusionCacheImplementation.GetOrSet(key, defaultValue, options, token: token);
+		return _fusionCache.GetOrSet(key, defaultValue, options, token: token);
 	}
 
 	public async ValueTask<TValue?> GetOrDefaultAsync<TValue>(string key, TValue? defaultValue = default, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		return await _fusionCacheImplementation.GetOrDefaultAsync(key, defaultValue, options, token);
+		return await _fusionCache.GetOrDefaultAsync(key, defaultValue, options, token);
 	}
 
 	public TValue? GetOrDefault<TValue>(string key, TValue? defaultValue = default, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		return _fusionCacheImplementation.GetOrDefault(key, defaultValue, options, token);
+		return _fusionCache.GetOrDefault(key, defaultValue, options, token);
 	}
 
 	public async ValueTask<MaybeValue<TValue>> TryGetAsync<TValue>(string key, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		return await _fusionCacheImplementation.TryGetAsync<TValue>(key, options, token);
+		return await _fusionCache.TryGetAsync<TValue>(key, options, token);
 	}
 
 	public MaybeValue<TValue> TryGet<TValue>(string key, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		return _fusionCacheImplementation.TryGet<TValue>(key, options, token);
+		return _fusionCache.TryGet<TValue>(key, options, token);
 	}
 
 
 	public async ValueTask RemoveAsync(string key, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		await _fusionCacheImplementation.RemoveAsync(key, options, token);
+		await _fusionCache.RemoveAsync(key, options, token);
 	}
 
 	public void Remove(string key, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		_fusionCacheImplementation.Remove(key, options, token);
+		_fusionCache.Remove(key, options, token);
 	}
 
 	public async ValueTask ExpireAsync(string key, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		await _fusionCacheImplementation.ExpireAsync(key, options, token);
+		await _fusionCache.ExpireAsync(key, options, token);
 	}
 
 	public void Expire(string key, FusionCacheEntryOptions? options = null, CancellationToken token = new CancellationToken())
 	{
-		_fusionCacheImplementation.Expire(key, options, token);
+		_fusionCache.Expire(key, options, token);
 	}
 
 	public IFusionCache SetupDistributedCache(IDistributedCache distributedCache, IFusionCacheSerializer serializer)
 	{
-		return _fusionCacheImplementation.SetupDistributedCache(distributedCache, serializer);
+		return _fusionCache.SetupDistributedCache(distributedCache, serializer);
 	}
 
 	public IFusionCache RemoveDistributedCache()
 	{
-		return _fusionCacheImplementation.RemoveDistributedCache();
+		return _fusionCache.RemoveDistributedCache();
 	}
 
 	public IFusionCache SetupBackplane(IFusionCacheBackplane backplane)
 	{
-		return _fusionCacheImplementation.SetupBackplane(backplane);
+		return _fusionCache.SetupBackplane(backplane);
 	}
 
 	public IFusionCache RemoveBackplane()
 	{
-		return _fusionCacheImplementation.RemoveBackplane();
+		return _fusionCache.RemoveBackplane();
 	}
 
 	public void AddPlugin(IFusionCachePlugin plugin)
 	{
-		_fusionCacheImplementation.AddPlugin(plugin);
+		_fusionCache.AddPlugin(plugin);
 	}
 
 	public bool RemovePlugin(IFusionCachePlugin plugin)
 	{
-		return _fusionCacheImplementation.RemovePlugin(plugin);
+		return _fusionCache.RemovePlugin(plugin);
 	}
 
-	public string CacheName => _fusionCacheImplementation.CacheName;
+	public string CacheName => _fusionCache.CacheName;
 
-	public string InstanceId => _fusionCacheImplementation.InstanceId;
+	public string InstanceId => _fusionCache.InstanceId;
 
-	public FusionCacheEntryOptions DefaultEntryOptions => _fusionCacheImplementation.DefaultEntryOptions;
+	public FusionCacheEntryOptions DefaultEntryOptions => _fusionCache.DefaultEntryOptions;
 
-	public bool HasDistributedCache => _fusionCacheImplementation.HasDistributedCache;
+	public bool HasDistributedCache => _fusionCache.HasDistributedCache;
 
-	public bool HasBackplane => _fusionCacheImplementation.HasBackplane;
+	public bool HasBackplane => _fusionCache.HasBackplane;
 
-	public FusionCacheEventsHub Events => _fusionCacheImplementation.Events;
+	public FusionCacheEventsHub Events => _fusionCache.Events;
 }
 
 

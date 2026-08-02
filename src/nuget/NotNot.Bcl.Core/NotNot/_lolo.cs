@@ -50,11 +50,11 @@ public class TestHelper
    }
 
    //private ITestOutputHelper _testOutputHelper;
-   [Obsolete("use InitTest() without parameters, likely no longer needed for xunit?")]
-   private object _testOutputHelper;
+   // Still live: read by Write(), cleared by DisposeTest(). No replacement member exists (InitTest() does not set these),
+   // so [Obsolete] was inaccurate and has been removed rather than migrated.
+   private object? _testOutputHelper;
 
-   [Obsolete("use InitTest() without parameters, likely no longer needed for xunit?")]
-   IEnumerable<string> _ignoreOutputRegex;
+   IEnumerable<string>? _ignoreOutputRegex;
 
    //  /// <summary>
    //  /// each XUnit test run (class constructor) should invoke this  to enable console output
@@ -162,7 +162,7 @@ public class TestHelper
       try
       {
          var completeMsg = $"{prefix}{" "._Repeat(padding)}{msg}";
-         foreach (var ignore in _ignoreOutputRegex)
+         foreach (var ignore in _ignoreOutputRegex ?? Enumerable.Empty<string>())
          {
             if (ignore._ToRegex().IsMatch(completeMsg))
             {
@@ -177,19 +177,23 @@ public class TestHelper
       catch (InvalidOperationException)
       {
          // Test output helper may be disposed - safe to ignore
+         return;
       }
    }
 }
 
-public class LoLoConfig
+public record LoLoConfig
 {
    /// <summary>
-   ///    if set to true, can use the CancellationTokenSource._DebuggableCancelAfter()
-   ///    extension method for timeouts, and pausing in the debugger: won't cause
-   ///    the timeout to be triggered.
-   ///    <para>this is useful for stepping through code without timeouts expiring.</para>
+   ///    if set to true, DISABLES the CancellationTokenSource._DebuggableCancelAfter()
+   ///    extension method's debug-aware logic and falls back to the standard CancelAfter
+   ///    behavior. Default false: debug-aware logic is enabled; pausing in the debugger
+   ///    won't cause the timeout to be triggered.
+   ///    <para>The debug-aware mode is useful for stepping through code without timeouts
+   ///    expiring; set this to true if the debug-aware behavior interferes with your
+   ///    scenario.</para>
    /// </summary>
-   public bool IsCtsDebuggableCancelTimeoutEnabled { get; init; } = true;
+   public bool IsCtsDebuggableCancelTimeoutDisabled { get; init; } = false;
 
    /// <summary>
    ///    Set to true to force all tasks scheduled via `__.Async` to execute on a single thread.
@@ -198,4 +202,29 @@ public class LoLoConfig
    ///    periodically yield the thread by calling `await Task.Yield()`.
    /// </summary>
    public bool IsDebuggableTaskFactorySingleThreaded { get; init; } = false;
+
+   /// <summary>
+   ///    When TRUE, all <see cref="LoLoRoot.AssertIfNot"/> / <see cref="LoLoRoot.Assert(Exception, string, string, int)"/>
+   ///    paths skip the underlying <see cref="System.Diagnostics.Debug.Assert(bool, string)"/> AND
+   ///    <see cref="NotNot.Diagnostics.Advanced._Debugger.LaunchOnce"/> calls. Failure is still logged
+   ///    via <see cref="System.Diagnostics.Debug.WriteLine(string?)"/> and <see cref="LoLoRoot.GetLogger()"/>
+   ///    so the assertion event remains observable.
+   ///
+   ///    <para>Required TRUE in WASM Debug builds — otherwise <c>Debug.Assert(false, ...)</c> →
+   ///    <c>DebugProvider.Fail</c> → <c>FailCore</c> → <c>Environment.FailFast</c> kills the WASM tab
+   ///    (verified at iter2 retest 2026-05-07; see VibeDiagnostic 20260508-1130).</para>
+   ///
+   ///    <para>Recommended TRUE in test runners — replaces the legacy reflection workaround on
+   ///    <c>_Debugger._hasLaunched</c> (which only suppressed the desktop "Attach debugger?" modal
+   ///    and was a no-op for the Exception throw on <c>Debug.Assert</c>).</para>
+   ///
+   ///    <para>Default FALSE preserves current desktop-dev abort + debugger-prompt experience.
+   ///    The gate is RUNTIME-ONLY (no `#if DEBUG` wrap): in Release builds, the
+   ///    <c>Debug.Assert(false, ...)</c> body is stripped by <c>[Conditional("DEBUG")]</c>
+   ///    regardless of this flag, but <c>_Debugger.LaunchOnce()</c> is NOT
+   ///    <c>[Conditional]</c> and STILL runs in knob-FALSE Release. Set knob TRUE in
+   ///    Release to also suppress LaunchOnce while preserving Debug.WriteLine + Logger
+   ///    sinks for observability.</para>
+   /// </summary>
+   public bool IsDebugAssertSuppressed { get; init; } = false;
 }

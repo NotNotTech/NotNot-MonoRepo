@@ -93,7 +93,7 @@ internal static class zz_Extensions
 				{
 					 if (!isWhitespace && includeWhitespace)
 					 {
-						  sb.Append(whiteSpace.Value);
+						  sb.Append(whiteSpace!.Value);
 					 }
 
 					 isWhitespace = true;
@@ -106,7 +106,7 @@ internal static class zz_Extensions
 
 		  if (includeWhitespace)
 		  {
-				toReturn = toReturn.Trim(whiteSpace.Value);
+				toReturn = toReturn.Trim(whiteSpace!.Value);
 		  }
 		  if (toReturn.Length > 0)
 		  {

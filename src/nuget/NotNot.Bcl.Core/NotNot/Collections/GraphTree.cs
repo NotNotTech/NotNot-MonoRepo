@@ -702,9 +702,9 @@ public class GraphTree<TKey, TValue>
 				.ToHashSet();
 
 			// Assert equality
-			Debug.Assert(_childrenKeysMap.Count == rebuiltChildren.Count,
+			__.AssertIfNot(_childrenKeysMap.Count == rebuiltChildren.Count,
 				$"Children map count mismatch: incremental={_childrenKeysMap.Count}, rebuilt={rebuiltChildren.Count}");
-			Debug.Assert(_rootKeys.SetEquals(rebuiltRoots),
+			__.AssertIfNot(_rootKeys.SetEquals(rebuiltRoots),
 				$"Root keys mismatch: incremental={string.Join(",", _rootKeys)}, rebuilt={string.Join(",", rebuiltRoots)}");
 		}
 	}
