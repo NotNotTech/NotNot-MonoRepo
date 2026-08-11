@@ -117,6 +117,16 @@ public class CssNnReachInAnalyzerTests
         await VerifyCssAsync(css, path);
     }
 
+    [Fact]
+    public async Task D2_PathExempt_DesktopProducerCss_NoWarning()
+    {
+        var css = @"::deep .nns-toast {
+    inset: 1rem;
+}";
+        var path = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToast.razor.css";
+        await VerifyCssAsync(css, path);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // (e) BARE REACH-IN: .nns-content-section-header { border-bottom:none } → MUST warn.
     //     No ::deep; the subject IS the .nns-* class.

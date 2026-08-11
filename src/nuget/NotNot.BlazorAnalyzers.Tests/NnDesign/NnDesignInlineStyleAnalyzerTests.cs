@@ -157,6 +157,14 @@ public class NnDesignInlineStyleAnalyzerTests
 	}
 
 	[Fact]
+	public async Task PathExempt_DesktopProducerInternals_NoWarning()
+	{
+		var razor = @"<div style=""position: fixed"">toast</div>";
+		var path = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToast.razor";
+		await VerifyRazorAsync(razor, path);
+	}
+
+	[Fact]
 	public async Task PathExempt_NnDesignSamples_NoWarning()
 	{
 		var razor = @"<div style=""display:flex"">x</div>";

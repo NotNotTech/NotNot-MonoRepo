@@ -138,6 +138,16 @@ public class CssMudReachInAnalyzerTests
         await VerifyCssAsync(css, path);
     }
 
+    [Fact]
+    public async Task PathExempt_DesktopProducerCss_NoWarning()
+    {
+        var css = @"::deep .mud-snackbar {
+    max-width: 32rem;
+}";
+        var path = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToast.razor.css";
+        await VerifyCssAsync(css, path);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // PER-FILE OPT-OUT: nnb_css009:allow-reachin comment suppresses the warning.
     // ═══════════════════════════════════════════════════════════════════════

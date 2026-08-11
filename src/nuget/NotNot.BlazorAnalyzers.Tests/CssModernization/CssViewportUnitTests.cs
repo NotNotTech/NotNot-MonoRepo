@@ -185,6 +185,16 @@ public class CssViewportUnitTests
         await VerifyFileAsync(css, path);
     }
 
+    [Fact]
+    public async Task Negative_DesktopProducerPaths_Silent()
+    {
+        var cssPath = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToast.razor.css";
+        await VerifyFileAsync(@".ez-toast { max-width: 90vw; }", cssPath);
+
+        var razorPath = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToast.razor";
+        await VerifyFileAsync(@"<div style=""max-height:85vh"">toast</div>", razorPath);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // N6 — samples path bucket (.razor under Pages/Samples) → silent.
     // ═══════════════════════════════════════════════════════════════════════

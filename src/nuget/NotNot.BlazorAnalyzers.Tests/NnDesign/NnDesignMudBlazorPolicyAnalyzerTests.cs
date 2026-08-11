@@ -287,6 +287,23 @@ public static class StatusFormatHelper
 		await VerifyRazorAsync(razor, path);
 	}
 
+	[Fact]
+	public async Task T6b_NotNotBlazorDesignDesktopPaths_NoNNB022()
+	{
+		var razorPath = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToast.razor";
+		await VerifyRazorAsync(@"<MudText>Desktop producer</MudText>", razorPath);
+
+		var razorCsPath = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToast.razor.cs";
+		await VerifyRazorCsAsync(@"using MudBlazor;
+namespace NotNot.BlazorDesign.Desktop.NnDesign.Desktop.EzToast;
+public partial class EzToast { private Color _color = Color.Primary; }", razorCsPath);
+
+		var csPath = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToastOptions.cs";
+		await VerifyPlainCsAsync(@"using MudBlazor;
+namespace NotNot.BlazorDesign.Desktop.NnDesign.Desktop.EzToast;
+public sealed class EzToastOptions { public Color Color { get; init; } = Color.Primary; }", csPath);
+	}
+
 	// ═══════════════════════════════════════════════════════════════════════
 	// T7 — Diagnostic message contains the user-instructed verbatim phrase (AC7)
 	// ═══════════════════════════════════════════════════════════════════════

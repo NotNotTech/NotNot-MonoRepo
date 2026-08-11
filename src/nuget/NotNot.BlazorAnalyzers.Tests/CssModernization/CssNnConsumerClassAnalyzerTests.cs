@@ -309,6 +309,21 @@ build_property.CssAnalyzerEnabled = false
         await VerifyPairAsync(css, cssPath, razor, razorPath);
     }
 
+    [Fact]
+    public async Task K2_PathExempt_DesktopProducer_NoWarning()
+    {
+        var css = @"::deep .toast-root {
+    min-height: 80px;
+}";
+        var razor = @"<NnContentSection Class=""toast-root"">toast</NnContentSection>";
+        var cssPath = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToast.razor.css";
+        var razorPath = "/TestProject/NotNot.BlazorDesign.Desktop/NnDesign/Desktop/EzToast/EzToast.razor";
+
+        await VerifyPairAsync(css, cssPath, razor, razorPath);
+        await VerifyRazorAsync(@"<style>.toast-root{min-height:80px}</style>
+<NnContentSection Class=""toast-root"">toast</NnContentSection>", razorPath);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // (l) NEGATIVE: no paired .razor surfaced (only the .razor.css) → silent (cannot correlate).
     // ═══════════════════════════════════════════════════════════════════════

@@ -277,8 +277,9 @@ public sealed class NnDesignInlineStyleAnalyzer : DiagnosticAnalyzer
 
 		var p = filePath.Replace('\\', '/');
 
-		// The NnDesign producer / wrapper layer itself authors inline styles legitimately.
-		if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0)
+		// The NnDesign producer / wrapper layers author inline styles legitimately.
+		if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0 ||
+			p.IndexOf("/NotNot.BlazorDesign.Desktop/", StringComparison.OrdinalIgnoreCase) >= 0)
 			return true;
 		// Samples pages — canonical NnDesignSamples folder + generic Pages/Samples bucket.
 		if (p.IndexOf("/NnDesignSamples/", StringComparison.OrdinalIgnoreCase) >= 0)

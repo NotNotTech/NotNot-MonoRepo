@@ -56,9 +56,10 @@ internal static class CssConsumerExemptions
     }
 
     /// <summary>
-    /// Path-bucket exemption. Producer CSS / wrapper internals (<c>NotNot.BlazorDesign</c>) legitimately
-    /// DEFINE / restyle namespaced classes; samples (<c>NnDesignSamples/</c>, <c>Pages/Samples/</c>) +
-    /// global theme (the file-name allow-list) are not consumers reaching in.
+    /// Path-bucket exemption. Producer CSS / wrapper internals (<c>NotNot.BlazorDesign</c> and
+    /// <c>NotNot.BlazorDesign.Desktop</c>) legitimately DEFINE / restyle namespaced classes; samples
+    /// (<c>NnDesignSamples/</c>, <c>Pages/Samples/</c>) + global theme (the file-name allow-list) are not
+    /// consumers reaching in.
     /// </summary>
     public static bool IsExceptedPath(string filePath)
     {
@@ -67,8 +68,9 @@ internal static class CssConsumerExemptions
 
         var p = filePath.Replace('\\', '/');
 
-        // The NnDesign producer / wrapper layer itself legitimately defines/restyles namespaced classes.
-        if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0)
+        // The NnDesign producer / wrapper layers legitimately define/restyle namespaced classes.
+        if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            p.IndexOf("/NotNot.BlazorDesign.Desktop/", StringComparison.OrdinalIgnoreCase) >= 0)
             return true;
 
         // Samples pages — both the canonical NnDesignSamples folder and the generic Pages/Samples bucket.

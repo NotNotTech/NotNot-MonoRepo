@@ -432,7 +432,8 @@ public class CssModernizationAnalyzer : DiagnosticAnalyzer
     {
         var p = filePath.Replace('\\', '/');
 
-        if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0)
+        if (p.IndexOf("/NotNot.BlazorDesign/", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            p.IndexOf("/NotNot.BlazorDesign.Desktop/", StringComparison.OrdinalIgnoreCase) >= 0)
             return true;
         if (p.IndexOf("/NnDesignSamples/", StringComparison.OrdinalIgnoreCase) >= 0)
             return true;

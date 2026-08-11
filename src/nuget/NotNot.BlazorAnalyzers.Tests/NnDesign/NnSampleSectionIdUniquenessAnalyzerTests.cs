@@ -95,6 +95,19 @@ public class NnSampleSectionIdUniquenessAnalyzerTests
 	}
 
 	[Fact]
+	public async Task ComponentsPaths_NotExempt_DuplicateFiresInBoth()
+	{
+		var pathA = "/TestProject/NotNot.BlazorComponents/Pages/Samples/SampleA.razor";
+		var pathB = "/TestProject/NotNot.BlazorComponents/Pages/Samples/SampleB.razor";
+		var razorA = "<NnSampleSection Id=\"dup\">a</NnSampleSection>";
+		var razorB = "<NnSampleSection Id=\"dup\">b</NnSampleSection>";
+
+		await VerifyAsync(new[] { (pathA, razorA), (pathB, razorB) },
+			Dup("dup", 2, pathA, 1, IdCol, IdEndCol),
+			Dup("dup", 2, pathB, 1, IdCol, IdEndCol));
+	}
+
+	[Fact]
 	public async Task TripleDuplicate_ReportsCountThree_OnEach()
 	{
 		var razor =
