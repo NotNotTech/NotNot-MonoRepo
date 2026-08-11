@@ -32,6 +32,7 @@ using NotNot.Collections.Advanced;
 using NotNot.Collections.SpanLike;
 using NotNot.Data;
 using NotNot.Diagnostics;
+using NotNot.Templating;
 
 //using Xunit.Sdk;
 
@@ -1863,15 +1864,6 @@ public static class zz_Extensions_String
 	#region Template String Resolution
 
 	/// <summary>
-	/// Compiled regex for matching %key% placeholders in template strings.
-	/// Keys must start with letter or underscore, followed by letters, digits, underscores, or colons.
-	/// Colons enable prefixed keys like <c>%env:VARNAME%</c>.
-	/// </summary>
-	private static readonly Regex _templatePlaceholderPattern = new(
-		@"%([a-zA-Z_][a-zA-Z0-9_:]*)%",
-		RegexOptions.Compiled);
-
-	/// <summary>
 	/// Replaces %key% placeholders with values from resolver callback.
 	/// Keys are case-sensitive. Unresolved keys (callback returns null) are left unchanged.
 	/// </summary>
@@ -1879,6 +1871,11 @@ public static class zz_Extensions_String
 	/// <param name="resolver">Callback that receives key (without %) and returns replacement value, or null to leave unchanged</param>
 	/// <returns>Template with resolved placeholders</returns>
 	/// <exception cref="ArgumentNullException">Thrown when template or resolver is null</exception>
+	/// <remarks>
+	/// Sugar over <see cref="TemplateString"/>, which owns the grammar. This is the plain dialect: <c>?{…}</c>
+	/// conditional groups and the <c>\?{</c> / <c>\}</c> escapes are inert here. Use <see cref="TemplateString"/>
+	/// directly when you need the conditional dialect or the declined-key report.
+	/// </remarks>
 	/// <example>
 	/// <code>
 	/// var result = "Hello %name%!"._ResolveTemplate(key => key == "name" ? "World" : null);
@@ -1890,62 +1887,7 @@ public static class zz_Extensions_String
 		ArgumentNullException.ThrowIfNull(template);
 		ArgumentNullException.ThrowIfNull(resolver);
 
-		return _templatePlaceholderPattern.Replace(template, match =>
-		{
-			var key = match.Groups[1].Value;
-			return resolver(key) ?? match.Value;
-		});
-	}
-
-	/// <summary>
-	/// Replaces %key% placeholders with values from dictionary.
-	/// Keys are case-sensitive. Missing keys are left unchanged.
-	/// </summary>
-	/// <param name="template">The template string containing %key% placeholders</param>
-	/// <param name="values">Dictionary mapping keys to replacement values</param>
-	/// <returns>Template with resolved placeholders</returns>
-	/// <exception cref="ArgumentNullException">Thrown when template or values is null</exception>
-	/// <example>
-	/// <code>
-	/// var values = new Dictionary&lt;string, string&gt; { ["name"] = "World" };
-	/// var result = "Hello %name%!"._ResolveTemplate(values);
-	/// // result: "Hello World!"
-	/// </code>
-	/// </example>
-	public static string _ResolveTemplate(this string template, IReadOnlyDictionary<string, string> values)
-	{
-		ArgumentNullException.ThrowIfNull(template);
-		ArgumentNullException.ThrowIfNull(values);
-
-		return template._ResolveTemplate(key => values.TryGetValue(key, out var value) ? value : null);
-	}
-
-	/// <summary>
-	/// Replaces %key% placeholders with values from dictionary, with fallback resolver.
-	/// Resolution order: dictionary first, then fallback callback.
-	/// Keys are case-sensitive. Unresolved keys are left unchanged.
-	/// </summary>
-	/// <param name="template">The template string containing %key% placeholders</param>
-	/// <param name="values">Dictionary mapping keys to replacement values (checked first)</param>
-	/// <param name="fallback">Callback for keys not found in dictionary (checked second)</param>
-	/// <returns>Template with resolved placeholders</returns>
-	/// <exception cref="ArgumentNullException">Thrown when template, values, or fallback is null</exception>
-	/// <remarks>
-	/// Note: This differs from <see cref="TemplateString"/> class which checks callback FIRST.
-	/// Use this when dictionary is authoritative with callback as fallback.
-	/// Use <see cref="TemplateString"/> when callback should intercept/override dictionary values.
-	/// </remarks>
-	public static string _ResolveTemplate(
-		this string template,
-		IReadOnlyDictionary<string, string> values,
-		Func<string, string?> fallback)
-	{
-		ArgumentNullException.ThrowIfNull(template);
-		ArgumentNullException.ThrowIfNull(values);
-		ArgumentNullException.ThrowIfNull(fallback);
-
-		return template._ResolveTemplate(key =>
-			values.TryGetValue(key, out var value) ? value : fallback(key));
+		return new TemplateString { Template = template, OnResolveKey = resolver }.Resolve().Text;
 	}
 
 	#endregion

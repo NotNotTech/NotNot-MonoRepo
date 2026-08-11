@@ -165,6 +165,9 @@ await throttler.EventuallyOnce("api-call", () => CallApiAsync());
 - `EphemeralMemoryStorageAdapter`: In-memory adapter for tests / scratch scenarios.
 - `NoneStorageAdapter`: No-op adapter (read returns null, writes are dropped) for scenarios that want the manager API surface without persistence.
 
+### Templating (NotNot.Templating namespace)
+- `%key%` template grammar — `TemplateString` (single-pass substitution, opt-in `?{…}` conditional dialect) + `TemplateResolveResult` (text + declined keys). See [Templating/AGENTS.md](./NotNot/Templating/AGENTS.md) for detailed docs.
+
 ### Note on Mixins/Tags
 - `Tags` / `ITags` remain in **NotNot.Bcl** (not here) because `[Inline<Tags>]` source generator requires same-compilation source
 - See `CrossAssemblyLimitationTests` in NotNot.Mixins.Tests for details
