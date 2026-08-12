@@ -285,7 +285,7 @@ public sealed class LdddInjectAndCallAnalyzer : DiagnosticAnalyzer
 		"Novaleaf.VibeOverwatch.Shared.Infrastructure.VowDataStore",
 		"Novaleaf.VibeOverwatch.Shared.Infrastructure.VowSessionCommands",
 		"Novaleaf.VibeOverwatch.Shared.Infrastructure.Localization.ICultureProvider",
-		"Novaleaf.VibeOverwatch.Shared.Services.VowDashboardActions",
+		"Novaleaf.VibeOverwatch.Shared.Infrastructure.VowSessionWorkspaceActions",
 		"Novaleaf.VibeOverwatch.Shared.Services.INnTerminalHubConnection",
 		"Novaleaf.VibeOverwatch.Shared.Services.INnPerfMonitorService",
 		"Novaleaf.VibeOverwatch.Shared.Services.IBlazorTermClientMetrics",
