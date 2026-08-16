@@ -1322,6 +1322,95 @@ A bare `var(--nns-typo)` (no fallback) to a token declared in NO authority CSS s
 dotnet_diagnostic.NNB_CSS013.severity = suggestion
 ```
 
+### NNB048: Design-system component calls application-owned JavaScript
+
+**Severity:** Error
+
+The design system is referenced BY applications and cannot reference them back, so a global JS identifier is an inverted dependency: it resolves in the one host that happens to define that script and throws in every other, where the surrounding `catch` turns the failure into a silently missing feature with nothing in the build to say so.
+
+This is not hypothetical. A sidebar in the package called `vowShared.initSidebarResize` — defined in the consuming application — for a long time. Nothing failed loudly, because the only symptom was "resize does nothing" for a consumer that did not exist yet.
+
+```csharp
+// ❌ NNB048 fires — root global belongs to the host application
+await JS.InvokeVoidAsync("vowShared.initSidebarResize", options);
+
+// ❌ NNB048 fires — importing a module from outside the package
+await JS.InvokeAsync<IJSObjectReference>("import", "./js/app-helpers.js");
+
+// ✅ the preferred shape — module ships WITH the package
+var module = await JS.InvokeAsync<IJSObjectReference>(
+    "import", "./_content/NotNot.BlazorDesign/nnSidebarResize.js");
+await module.InvokeVoidAsync("attachResize", pane, handle, dotNetRef, options);
+
+// ✅ platform global — addresses the browser, not any application
+await JS.InvokeAsync<string>("localStorage.getItem", key);
+
+// ✅ package-owned global — registered by this package's own classic scripts
+await JS.InvokeVoidAsync("nnDesign.pageState.attach", dotNetRef);
+```
+
+**Classification is by ROOT global** (the text before the first dot), which is what makes the rule sound rather than merely strict:
+
+| Root | Verdict | Why |
+|------|---------|-----|
+| Browser-provided (`localStorage`, `navigator`, `eval`, …) | allowed | addresses the platform; no application involved |
+| `nn`-prefixed (`nnDesign`, `nnToast`, `nnBrowserNotification`) | allowed | registered by scripts that ship WITH the package |
+| anything else (`vowShared`, `myApp`, …) | **reported** | can only have come from the consuming application |
+
+Calls made ON an `IJSObjectReference` are unrestricted — the module path was already validated at its import, so the reference is trusted.
+
+**Detection** resolves the receiver for BOTH the instance and the reduced-extension call shape (`JS.InvokeVoidAsync(...)` compiles to the latter, so handling only the former would miss every real call site).
+
+**When NNB048 does NOT fire:**
+- The root global is browser-provided or `nn`-prefixed (table above).
+- The receiver is an `IJSObjectReference` rather than `IJSRuntime`.
+- The interop identifier is computed rather than constant — undecidable, and never reported.
+- The `import` module path is not a constant, so it cannot be checked.
+- The calling code is outside the `NotNot.BlazorDesign` namespace tree.
+
+A platform global missing from the allow-list should be **added to `BrowserNativeRoots`**, not suppressed — the list is the rule's soundness boundary and is meant to be extended.
+
+```csharp
+#pragma warning disable NNB048 // Documented reason: <why this host global is unavoidable here>
+await JS.InvokeVoidAsync("someHostGlobal.method", arg);
+#pragma warning restore NNB048
+```
+
+### NNB049: Per-instance accent fill emitted without its paired on-color
+
+**Severity:** Error
+
+A consumer picks the accent colour, so the ink drawn on it cannot be a constant. The palette feeding these pickers includes pure black, which means any fixed foreground — a role token, a theme default, a literal — eventually paints a colour on itself at 1:1 contrast and the text disappears.
+
+This is the defect class that passes everything else. The offending declaration was a legitimate, correctly spelled token on a component that satisfied every other analyzer. Nothing was malformed; the value was simply derived from the wrong thing — a per-ROLE constant standing in for a per-INSTANCE computation.
+
+```csharp
+// ❌ NNB049 fires — emits the fill, never derives the ink
+internal string? AccentStyle(TNode node) =>
+    $"--nns-hierarchy-project-guide-color:{NormalizeAccentColor(node)}";
+
+// ✅ fill and its on-color emitted together, both from the same value
+internal string? AccentStyle(TNode node)
+{
+    var color = NormalizeAccentColor(node);
+    var onColor = ContrastCalculator.PickOnColor(color);
+    return $"--nns-hierarchy-project-guide-color:{color};--nns-hierarchy-project-on-accent:{onColor}";
+}
+```
+
+**Scope, stated honestly.** The rule keys on the `-guide-color` convention (how the design system names a per-instance FILL) and requires the same method to call the on-color helper. It does NOT infer whether a colour is painted as a background — that is not statically decidable. It is therefore a **regression guard over fill properties following the convention**, not a general contrast proof. A stroke/frame accent (named `-color`, carrying no text) is correctly outside its reach.
+
+**When NNB049 does NOT fire:**
+- The method calls the on-color helper anywhere in its body.
+- No string literal in the method contains `-guide-color`.
+- The declaring type is outside the `NotNot.BlazorDesign` namespace tree.
+
+```csharp
+#pragma warning disable NNB049 // Documented reason: reads the property, does not paint it
+var current = ReadCustomProperty("--nns-hierarchy-project-guide-color");
+#pragma warning restore NNB049
+```
+
 ## Analyzer ID Registry (tested guard)
 
 The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s. This registry is the single source; the per-ID sections above point at it. A registry test (`AnalyzerIdRegistryTests`) asserts every ID below resolves to exactly one analyzer's `SupportedDiagnostics` descriptor (and the reverse — no implemented descriptor is unregistered), so prose IDs cannot drift from code (the failure mode that left "Planned: NNB022" stale while NNB022 was live).
@@ -1332,6 +1421,8 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB043 | `NnDesignTierBExposureAnalyzer` | Error | Producer `Nn*` component params |
 | NNB044 | `NnDesignInlineStyleAnalyzer` | Error | Consumer `.razor` static-literal inline `style=` |
 | NNB047 | `NnSampleSectionIdUniquenessAnalyzer` | Error | `.razor` `<NnSampleSection Id>` cross-file uniqueness |
+| NNB048 | `NnDesignJsPackageBoundaryAnalyzer` | Error | Producer JS interop identifier (constant only) |
+| NNB049 | `NnDesignAccentOnColorPairingAnalyzer` | Error | Producer method emitting a `-guide-color` fill property |
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nns-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 | NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
