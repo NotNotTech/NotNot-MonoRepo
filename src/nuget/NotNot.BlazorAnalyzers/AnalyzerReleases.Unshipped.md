@@ -27,6 +27,7 @@ NNB044 | NnDesign | Error | NnDesignInlineStyleAnalyzer, [Documentation](https:/
 NNB045 | Lifecycle | Error | TransitionGuardClaimAfterAwaitAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB045)
 NNB046 | Conventions | Warning | XRayMarkerSetDriftAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB046)
 NNB047 | NnDesign | Error | NnSampleSectionIdUniquenessAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB047)
+NNB050 | NnDesign | Error | NnModalSampleInliningAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#nnb050)
 NNB_CSS001 | CssModernization | Warning | CssModernizationAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB_CSS001)
 NNB_CSS002 | CssModernization | Warning | CssModernizationAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB_CSS002)
 NNB_CSS003 | CssModernization | Info | CssModernizationAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB_CSS003)

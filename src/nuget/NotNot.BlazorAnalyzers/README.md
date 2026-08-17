@@ -1411,6 +1411,71 @@ var current = ReadCustomProperty("--nns-hierarchy-project-guide-color");
 #pragma warning restore NNB049
 ```
 
+<a id="nnb050"></a>
+### NNB050: Modal-content subject rendered directly in its primary sample section
+
+**Severity:** Error
+
+**Category:** NnDesign
+
+The producer catalog is the authority for which sample entries demonstrate modal content. A catalog
+property marked with `[NnSampleModalContent(typeof(T))]` must keep the primary `NnSampleSection` focused
+on its committed projection and launch action. Rendering `<T>` directly in that matching section dumps the
+dialog content into the sample page instead of teaching the modal interaction.
+
+```csharp
+// Producer classification — the analyzer reads this relation; it does not maintain a second type map.
+[NnSampleModalContent(typeof(NnColorPicker))]
+public static NnSampleCatalogEntry NnColorPicker { get; } = ...;
+```
+
+```razor
+@* ❌ NNB050 fires — the marked primary section directly renders its modal-content subject *@
+<NnSampleSection Entry="@NnSampleCatalog.NnColorPicker">
+    <NnColorPicker @bind-Value="_hex" />
+</NnSampleSection>
+
+@* ✅ committed projection + trigger in the primary section *@
+<NnSampleSection Entry="@NnSampleCatalog.NnColorPicker">
+    <code>@_hex</code>
+    <NnButton OnClick="OpenPicker">Edit</NnButton>
+</NnSampleSection>
+
+@* ✅ the marked subject belongs in a companion dialog file *@
+<NnColorPicker @bind-Value="_workingHex" />
+```
+
+**Fix tiers (cheapest-correct-first):**
+
+1. Keep the committed value or swatch and its launch action in the marked primary section; move `<T>`
+   into a companion dialog component with a detached working copy.
+2. If the catalog relation is intentionally not modal content, remove or correct the producer marker.
+3. Only for an intentional, documented exception, use the shared NnDesign bypass or configure
+   `dotnet_diagnostic.NNB050.severity` in `.editorconfig`.
+
+**When NNB050 does NOT fire:**
+
+- The subject is in a companion file or outside the matching primary `NnSampleSection`.
+- The section is unmarked, including cross-cutting uses such as an `NnColorPicker` inside an `NnSaveState`
+  sample.
+- The primary section contains a trigger, committed projection, ordinary control, self-modalizing host,
+  or non-modal popup rather than the marked subject.
+- The opening tag is in an HTML/Razor comment, or the entry expression is not the supported direct form
+  `Entry="@NnSampleCatalog.Property"`.
+
+**Static boundary.** The analyzer resolves the marked catalog property and scans its primary section for
+direct subject opening tags, including tags nested under Razor conditionals. It does not infer whether an
+arbitrary callback opens a dialog, whether Apply/Cancel preserve the transaction, or whether the dialog has
+the required geometry. Those behaviors require runtime/browser evidence. A future modal-content entry is
+unprotected until its producer property receives the marker; names and paths are deliberately not used as
+classification heuristics.
+
+**Escape hatches:** the shared `[assembly: NnDesignBypass]` marker, the
+`<NnDesignPolicyAnalyzerEnabled>false</NnDesignPolicyAnalyzerEnabled>` build-property kill-switch, or a
+per-rule `dotnet_diagnostic.NNB050.severity` configuration. Use the broad bypass/kill-switch only when the
+whole assembly or build is intentionally outside the NnDesign policy; a local catalog correction is the
+preferred fix.
+
 ## Analyzer ID Registry (tested guard)
 
 The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s. This registry is the single source; the per-ID sections above point at it. A registry test (`AnalyzerIdRegistryTests`) asserts every ID below resolves to exactly one analyzer's `SupportedDiagnostics` descriptor (and the reverse — no implemented descriptor is unregistered), so prose IDs cannot drift from code (the failure mode that left "Planned: NNB022" stale while NNB022 was live).
@@ -1423,6 +1488,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB047 | `NnSampleSectionIdUniquenessAnalyzer` | Error | `.razor` `<NnSampleSection Id>` cross-file uniqueness |
 | NNB048 | `NnDesignJsPackageBoundaryAnalyzer` | Error | Producer JS interop identifier (constant only) |
 | NNB049 | `NnDesignAccentOnColorPairingAnalyzer` | Error | Producer method emitting a `-guide-color` fill property |
+| NNB050 | `NnModalSampleInliningAnalyzer` | Error | Marked primary `.razor` section directly rendering its catalog-designated modal subject |
 | NNB_CSS008 | `CssNnReachInAnalyzer` | Error | Consumer scoped CSS (`.nns-*` reach-in) |
 | NNB_CSS009 | `CssMudReachInAnalyzer` | Error | Consumer scoped CSS (`.mud-*` reach-in) |
 | NNB_CSS010 | `CssModernizationAnalyzer` | Error | Consumer CSS + `.razor` attr values (viewport units) |
