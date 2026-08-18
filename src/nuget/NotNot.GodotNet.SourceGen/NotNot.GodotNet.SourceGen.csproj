@@ -51,13 +51,6 @@
 			<!--required so that the .props file is included in the target project build-->
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<!--required for json IConfiguration.Bind()  _BinderShims.cs / JsonMerger-->
-		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
-		<!--System.Text.Json is used by the generator (Helpers/JsonMerger.cs); the aggregator hoists its (and its
-		    transitive deps') run-time dlls into analyzers/dotnet/cs so the generator can load them in-process.-->
-		<PackageReference Include="System.Text.Json" Version="10.0.0" PrivateAssets="all" />
 	</ItemGroup>
 
 	<!-- Build tools: MinVer drives assembly versioning (the package version is owned by the aggregator's MinVerTagPrefix). -->

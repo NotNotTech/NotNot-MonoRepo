@@ -18,7 +18,6 @@ Extended architecture, implementation details, and troubleshooting extracted fro
 
 3. **Helpers** ([Helpers/](Helpers/))
    - `Func.cs` - Template evaluation helpers
-   - `JsonMerger.cs` - JSON processing utilities
    - `zz_Extensions.cs` - Extension methods for code generation
 
 ### Data Flow
@@ -60,7 +59,6 @@ NotNot.GodotNet.SourceGen/
 │       └── _ResPath_Generator.cs                  [Asset path constants]
 ├── Helpers/
 │   ├── Func.cs                                    [Template evaluation]
-│   ├── JsonMerger.cs                              [JSON utilities]
 │   └── zz_Extensions.cs                           [Extension methods]
 ├── GodotResourceGeneratorContextConfig.cs         [Shared generator context]
 ├── NotNot.GodotNet.SourceGen.csproj               [Project file]

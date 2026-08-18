@@ -282,8 +282,8 @@ graph TB
 **Microsoft.CodeAnalysis.CSharp** (4.14.0) - Required for E2E_01, E2E_02, E2E_03, E2E_04:
 Provides Roslyn SDK for syntax tree analysis, semantic model access, and source generation APIs.
 
-**System.Text.Json** (9.0.8) - Required for E2E_03, E2E_04:
-Used to parse Godot `.import` files and `project.godot` configuration. Complex scaffolding required for netstandard2.0 compatibility (all transitive dependencies must be packaged in analyzers folder).
+**System.Text.Json** - NOT referenced by any source in this package (verified 20260817):
+No generator or analyzer here uses it; `.import` and `project.godot` parsing is done without it. The `PackageReference` was removed when its only consumer (`Helpers/JsonMerger.cs`, itself callerless) was deleted, and both Debug and Release builds succeed without it. The aggregator at `NotNot.GodotNet.SourceGen.Package/Package.csproj` still hoists this assembly plus six transitive deps (~1.1MB) into `analyzers/dotnet/cs`, so the packed `.nupkg` continues to ship them even though nothing references them. Removing that hoist alters shipped package contents and remains an open decision.
 
 **NotNot Framework** - Required for E2E_03, E2E_04:
 Generated code depends on `_GD.InstantiateScene<T>()` helper and other NotNot utilities. Not a direct dependency of this library but required in consuming projects.
