@@ -157,9 +157,13 @@ public sealed class SimpleStorageManager<TData> : IAsyncDisposable where TData :
 	/// On load, stored JSON is deep-merged onto the serialized <paramref name="initialData"/>:
 	/// nested objects are patched (deep merge), arrays and leaf values are replaced wholesale.
 	/// Properties absent from stored JSON retain their <paramref name="initialData"/> values.
-	/// Properties with explicit <c>null</c> in stored JSON are removed from the merged result;
-	/// STJ assigns <c>default(T)</c> for the missing property (0 for int, null for reference types, etc.),
-	/// NOT the C# property initializer value.
+	/// Properties with explicit <c>null</c> in stored JSON are removed from the merged result. STJ then
+	/// does not SET that property at all, so it keeps whatever the freshly constructed
+	/// <typeparamref name="TData"/> already holds: the C# property initializer when one exists, else the
+	/// CLR default (0 for int, null for reference types). CONSEQUENCE: an explicit-null removal is only
+	/// OBSERVABLE for properties WITHOUT an initializer — give a type a property initializer and stored
+	/// <c>null</c> removals for it become silent no-ops. (Corrected 2026-08-19: this comment previously
+	/// claimed <c>default(T)</c> was assigned regardless, which is measurably untrue.)
 	/// </summary>
 	/// <param name="adapter">The backing storage adapter.</param>
 	/// <param name="initialData">
