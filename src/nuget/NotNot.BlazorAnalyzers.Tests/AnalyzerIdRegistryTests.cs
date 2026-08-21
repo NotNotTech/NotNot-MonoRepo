@@ -38,8 +38,9 @@ public class AnalyzerIdRegistryTests
 
     /// <summary>
     /// Every <see cref="DiagnosticDescriptor"/> implemented by a <see cref="DiagnosticAnalyzer"/> in the
-    /// analyzer assembly, discovered by reflecting over the assembly's analyzer types. Used both to resolve
-    /// registry IDs and to assert no implemented descriptor is unregistered (the reverse direction).
+    /// analyzer assembly, discovered by reflecting over the assembly's analyzer types. Used to resolve
+    /// registry IDs; the registry intentionally does not assert reverse coverage of every implemented
+    /// descriptor.
     /// </summary>
     private static ImmutableArray<DiagnosticDescriptor> AllImplementedDescriptors()
     {

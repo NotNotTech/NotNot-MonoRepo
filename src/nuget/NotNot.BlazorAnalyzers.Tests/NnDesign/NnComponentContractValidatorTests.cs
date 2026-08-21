@@ -14,7 +14,8 @@ namespace NotNot.BlazorAnalyzers.Tests.NnDesign;
 /// it does NOT by itself prove the live components match it. This suite is the DIFF/VALIDATION PASS:
 /// <list type="number">
 ///   <item><see cref="Schema_IsInSync_With_Live_Producer"/> reads the REAL schema + every schema-declared
-///         <c>.razor</c> file + the REAL <c>nn-design.css</c> off disk and asserts ZERO drift.</item>
+///         <c>.razor</c> file and optional same-name <c>.razor.cs</c> sibling + the REAL <c>nn-design.css</c>
+///         off disk and asserts ZERO drift.</item>
 ///   <item>The <c>Drift_*</c> facts INJECT deliberate drift (a fake live Tier-A param; a removed schema
 ///         entry; a removed live slot; an unsupported <c>data-nns-fill</c> mode) and assert the pass CATCHES
 ///         it. "The schema exists" / "it compiles" is NOT the proof — the drift-catch is.</item>
@@ -62,7 +63,7 @@ public class NnComponentContractValidatorTests
 
     /// <summary>
     /// Builds the live-surface map by reading each schema block's declared <c>razor:</c> path off disk and
-    /// parsing it — the engine's real input. Returns the parsed schema + CSS modes alongside so the facts
+    /// parsing it with its optional same-name <c>.razor.cs</c> sibling — the engine's real input. Returns the parsed schema + CSS modes alongside so the facts
     /// can run the full pass or splice drift in.
     /// </summary>
     private static (ImmutableArray<NnComponentContractValidator.ComponentSchema> schema,
@@ -75,7 +76,12 @@ public class NnComponentContractValidatorTests
         foreach (var block in schema)
         {
             var razor = ReadRepoFile(block.RazorPath);
-            live[block.Component] = NnComponentContractValidator.ParseLiveSurface(razor);
+            var codeBehindPath = Path.Combine(
+                RepoRoot(),
+                (block.RazorPath + ".cs").Replace('/', Path.DirectorySeparatorChar));
+            live[block.Component] = File.Exists(codeBehindPath)
+                ? NnComponentContractValidator.ParseLiveSurface(razor, File.ReadAllText(codeBehindPath))
+                : NnComponentContractValidator.ParseLiveSurface(razor);
         }
         var cssModes = NnComponentContractValidator.ScanCssFillModes(ReadRepoFile(CssRelPath));
         return (schema, live, cssModes);
@@ -116,6 +122,29 @@ public class NnComponentContractValidatorTests
             p.EndsWith("Style") || p.EndsWith("Class"));
     }
 
+    [Fact]
+    public void LiveSurface_Parse_Includes_Combined_Attributes_And_CodeBehind_Params()
+    {
+        var (_, live, _) = LoadRealInputs();
+
+        live["NnTextField"].TierAParams.Should().Contain(new[] { "Label", "Placeholder" });
+        live["NnSidebarPanel"].TierAParams.Should().Contain(new[]
+        {
+            "Resizable", "MinWidthPx", "MaxWidthPercent", "InitialWidthPx", "WidthPersistenceKey",
+            "WidthChanged", "ResizeOwnerTag",
+        });
+
+        var combined = NnComponentContractValidator.ParseLiveSurface(@"
+            [Parameter, EditorRequired] public string? Label { get; set; }
+            [EditorRequired, ParameterAttribute] public string? Placeholder { get; set; }
+            [EditorRequired] public string? NotAParameter { get; set; }
+            [CascadingParameter] public string? Cascading { get; set; }
+            [CascadingParameter, Parameter] public string? Mixed { get; set; }
+            ");
+
+        combined.TierAParams.Should().Equal("Label", "Placeholder");
+    }
+
     // ── THE in-sync closure ───────────────────────────────────────────────────
 
     [Fact]
@@ -150,6 +179,45 @@ public class NnComponentContractValidatorTests
             d.Component == "NnTabs"
             && d.Kind == NnComponentContractValidator.DriftKind.LiveTierAParamMissingFromSchema
             && d.Detail.Contains("RogueAppearanceKnob"));
+    }
+
+    [Fact]
+    public void Drift_LiveTierAParam_AddedTo_Razor_Source_IsCaught()
+    {
+        var (schema, live, cssModes) = LoadRealInputs();
+        var driftedLive = new Dictionary<string, NnComponentContractValidator.LiveComponentSurface>(live)
+        {
+            ["NnTabs"] = NnComponentContractValidator.ParseLiveSurface(
+                ReadRepoFile("src/private-proj/NotNot.BlazorDesign/NnDesign/Navigation/NnTabs.razor")
+                + "\n[Parameter] public string RogueRazorParam { get; set; }")
+        };
+
+        var drift = NnComponentContractValidator.Diff(schema, driftedLive, cssModes);
+
+        drift.Should().Contain(d =>
+            d.Component == "NnTabs"
+            && d.Kind == NnComponentContractValidator.DriftKind.LiveTierAParamMissingFromSchema
+            && d.Detail.Contains("RogueRazorParam"));
+    }
+
+    [Fact]
+    public void Drift_LiveTierAParam_AddedTo_CodeBehind_Source_IsCaught()
+    {
+        var (schema, live, cssModes) = LoadRealInputs();
+        var driftedLive = new Dictionary<string, NnComponentContractValidator.LiveComponentSurface>(live)
+        {
+            ["NnSidebarPanel"] = NnComponentContractValidator.ParseLiveSurface(
+                ReadRepoFile("src/private-proj/NotNot.BlazorDesign/NnDesign/Layout/NnSidebarPanel.razor"),
+                ReadRepoFile("src/private-proj/NotNot.BlazorDesign/NnDesign/Layout/NnSidebarPanel.razor.cs")
+                + "\n[Parameter] public string RogueCodeBehindParam { get; set; }")
+        };
+
+        var drift = NnComponentContractValidator.Diff(schema, driftedLive, cssModes);
+
+        drift.Should().Contain(d =>
+            d.Component == "NnSidebarPanel"
+            && d.Kind == NnComponentContractValidator.DriftKind.LiveTierAParamMissingFromSchema
+            && d.Detail.Contains("RogueCodeBehindParam"));
     }
 
     [Fact]

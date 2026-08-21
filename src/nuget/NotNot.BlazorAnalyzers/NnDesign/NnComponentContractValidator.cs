@@ -255,52 +255,71 @@ public static class NnComponentContractValidator
         return result.ToImmutable();
     }
 
-    // ── Live .razor surface parsing ───────────────────────────────────────────
+    // ── Live component surface parsing ────────────────────────────────────────
 
-    // A [Parameter] (NOT [CascadingParameter]) property declaration. Captures the declared type + name.
-    // Razor @code blocks declare params exactly like C#: `[Parameter] public <Type> <Name> { get; set; }`.
+    // One or more C# attribute lists followed by a public auto-property declaration. Attribute filtering
+    // below keeps the text-grounded parser honest: only lists containing Parameter are Tier-A, while any
+    // cascading form is infrastructure and excluded. This handles both [Parameter] and combined forms such
+    // as [Parameter, EditorRequired] without introducing a syntax-tree dependency.
     private static readonly Regex ParameterDecl = new(
-        @"\[\s*Parameter\s*\]\s*public\s+(?<type>[\w<>?\.]+)\s+(?<name>\w+)\s*\{\s*get;\s*set;",
+        @"(?<attributes>(?:\[\s*[^\]]+\]\s*)+)\bpublic\s+(?<type>[\w<>?\.]+)\s+(?<name>\w+)\s*\{\s*get;\s*set;",
         RegexOptions.Compiled);
+
+    private static readonly Regex ParameterAttribute = new(
+        @"(?<![\w])Parameter(?:Attribute)?(?![\w])", RegexOptions.Compiled);
+
+    private static readonly Regex CascadingParameterAttribute = new(
+        @"(?<![\w])CascadingParameter(?:Attribute)?(?![\w])", RegexOptions.Compiled);
 
     // A RenderFragment / RenderFragment<T> type (the slot shape), with optional nullable '?'.
     private static readonly Regex RenderFragmentType = new(
         @"^RenderFragment(<[^>]+>)?\??$", RegexOptions.Compiled);
 
     /// <summary>
-    /// Extracts the Tier-A parameter surface + slot surface from live <c>.razor</c> source. Tier-A =
+    /// Extracts the Tier-A parameter surface + slot surface from one or more component-owned source parts.
+    /// Callers pass the <c>.razor</c> source and, when present, its same-name <c>.razor.cs</c> sibling. Tier-A =
     /// public <c>[Parameter]</c> members EXCLUDING the Tier-B <c>*Style</c>/<c>*Class</c> string shape that
     /// <see cref="NnDesignTierBExposureAnalyzer"/> bans (those are never schema'd as Tier-A) and EXCLUDING
-    /// <c>[CascadingParameter]</c> members (infrastructure, not a consumer call-site surface). Slots = the
-    /// subset whose declared type is <c>RenderFragment</c>/<c>RenderFragment&lt;T&gt;</c>.
+    /// <c>[CascadingParameter]</c> members (infrastructure, not a consumer call-site surface). Combined
+    /// attribute lists such as <c>[Parameter, EditorRequired]</c> are accepted. Slots = the subset whose
+    /// declared type is <c>RenderFragment</c>/<c>RenderFragment&lt;T&gt;</c>.
     /// </summary>
-    public static LiveComponentSurface ParseLiveSurface(string razorSource)
+    public static LiveComponentSurface ParseLiveSurface(params string[] sourceParts)
     {
         var tierA = new List<string>();
         var slots = new List<string>();
 
-        foreach (Match m in ParameterDecl.Matches(razorSource))
+        if (sourceParts == null) throw new ArgumentNullException(nameof(sourceParts));
+
+        foreach (var sourcePart in sourceParts)
         {
-            // Exclude [CascadingParameter] — the regex matched on the [Parameter] token, but a property may
-            // carry [CascadingParameter] instead; guard by checking the attribute immediately preceding.
-            // (ParameterDecl already requires the literal "[Parameter]" token, so cascading members — which
-            // use "[CascadingParameter]" — are not matched. No extra guard needed.)
-            var type = m.Groups["type"].Value;
-            var name = m.Groups["name"].Value;
+            if (string.IsNullOrEmpty(sourcePart)) continue;
 
-            // Tier-B *Style/*Class string shape (NNB043) is never a Tier-A schema entry — skip it so the
-            // diff does not demand the schema list a banned appearance-laundering param.
-            if (string.Equals(type, "string", StringComparison.Ordinal)
-                && (name.EndsWith("Style", StringComparison.Ordinal)
-                 || name.EndsWith("Class", StringComparison.Ordinal)))
+            foreach (Match m in ParameterDecl.Matches(sourcePart))
             {
-                continue;
-            }
+                var attributes = m.Groups["attributes"].Value;
+                if (!ParameterAttribute.IsMatch(attributes) || CascadingParameterAttribute.IsMatch(attributes))
+                {
+                    continue;
+                }
 
-            tierA.Add(name);
-            if (RenderFragmentType.IsMatch(type))
-            {
-                slots.Add(name);
+                var type = m.Groups["type"].Value;
+                var name = m.Groups["name"].Value;
+
+                // Tier-B *Style/*Class string shape (NNB043) is never a Tier-A schema entry — skip it so the
+                // diff does not demand the schema list a banned appearance-laundering param.
+                if (string.Equals(type, "string", StringComparison.Ordinal)
+                    && (name.EndsWith("Style", StringComparison.Ordinal)
+                     || name.EndsWith("Class", StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                tierA.Add(name);
+                if (RenderFragmentType.IsMatch(type))
+                {
+                    slots.Add(name);
+                }
             }
         }
 
@@ -337,7 +356,8 @@ public static class NnComponentContractValidator
     /// </summary>
     /// <param name="schema">Parsed schema blocks (<see cref="ParseSchema"/>).</param>
     /// <param name="liveSurfaces">Per-component live surface, keyed by component name
-    /// (<see cref="ParseLiveSurface"/> over each schema block's <c>.razor</c> source). A component whose
+    /// (<see cref="ParseLiveSurface"/> over each schema block's <c>.razor</c> source and optional sibling
+    /// <c>.razor.cs</c>). A component whose
     /// <c>.razor</c> could not be read is OMITTED from this map and yields a
     /// <see cref="DriftKind.SchemaRazorFileUnreadable"/> finding.</param>
     /// <param name="cssSupportedModes">The CSS-backed mode set (<see cref="ScanCssFillModes"/>).</param>

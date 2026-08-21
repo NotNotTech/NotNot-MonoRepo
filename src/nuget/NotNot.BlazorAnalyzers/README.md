@@ -1478,7 +1478,7 @@ preferred fix.
 
 ## Analyzer ID Registry (tested guard)
 
-The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s. This registry is the single source; the per-ID sections above point at it. A registry test (`AnalyzerIdRegistryTests`) asserts every ID below resolves to exactly one analyzer's `SupportedDiagnostics` descriptor (and the reverse — no implemented descriptor is unregistered), so prose IDs cannot drift from code (the failure mode that left "Planned: NNB022" stale while NNB022 was live).
+The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s. This registry is the single source; the per-ID sections above point at it. A registry test (`AnalyzerIdRegistryTests`) asserts every ID below resolves to exactly one analyzer's `SupportedDiagnostics` descriptor; duplicate IDs are checked separately, but the registry does not assert reverse coverage of every implemented descriptor, so prose IDs cannot drift from code (the failure mode that left "Planned: NNB022" stale while NNB022 was live).
 
 | ID | Analyzer type | Severity | Scan target |
 |----|---------------|----------|-------------|
