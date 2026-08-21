@@ -64,7 +64,7 @@ Godot C# development lacks compile-time safety for common runtime pitfalls and r
    {
        public static readonly string ResPath = "res://Player.tscn";
        public static Player InstantiateTscn() =>
-           _GD.InstantiateScene<Player>(ResPath);
+           global::NotNotSceneLoader.InstantiateTscn<Player>();
    }
    ```
 9. Developer writes: `var player = Player.InstantiateTscn();`
@@ -285,8 +285,8 @@ Provides Roslyn SDK for syntax tree analysis, semantic model access, and source 
 **System.Text.Json** - NOT referenced by any source in this package (verified 20260817):
 No generator or analyzer here uses it; `.import` and `project.godot` parsing is done without it. The `PackageReference` was removed when its only consumer (`Helpers/JsonMerger.cs`, itself callerless) was deleted, and both Debug and Release builds succeed without it. The aggregator at `NotNot.GodotNet.SourceGen.Package/Package.csproj` still hoists this assembly plus six transitive deps (~1.1MB) into `analyzers/dotnet/cs`, so the packed `.nupkg` continues to ship them even though nothing references them. Removing that hoist alters shipped package contents and remains an open decision.
 
-**NotNot Framework** - Required for E2E_03, E2E_04:
-Generated code depends on `_GD.InstantiateScene<T>()` helper and other NotNot utilities. Not a direct dependency of this library but required in consuming projects.
+**Generated scene loader** - Required for E2E_03:
+The generator emits `NotNotSceneRootAttribute` and `NotNotSceneLoader`; generated `InstantiateTscn()` calls the loader, which uses Godot's `ResourceLoader` and `PackedScene` APIs directly. No separate NotNot runtime helper package is required for scene generation.
 
 **Godot 4.x** - Required for E2E_01, E2E_02, E2E_03:
 Target platform. Analyzers scan for Godot.Node-derived classes and Godot API usage.
@@ -373,7 +373,7 @@ public partial class Player
 
     public static Player InstantiateTscn()
     {
-        return _GD.InstantiateScene<Player>(ResPath);
+        return global::NotNotSceneLoader.InstantiateTscn<Player>();
     }
 }
 ```
@@ -517,6 +517,7 @@ dotnet_diagnostic.GODOT002.severity = none
 1. Create `Player.cs`:
 ```csharp
 using Godot;
+using NotNot;
 
 [NotNotSceneRoot]
 public partial class Player : CharacterBody3D
@@ -540,7 +541,6 @@ public partial class Player : CharacterBody3D
 **Generated Code** (`Player.g.cs`):
 ```csharp
 using Godot;
-using NotNot;
 
 namespace MyGame;
 
@@ -550,7 +550,7 @@ public partial class Player
 
     public static Player InstantiateTscn()
     {
-        return _GD.InstantiateScene<Player>(ResPath);
+        return global::NotNotSceneLoader.InstantiateTscn<Player>();
     }
 }
 ```
@@ -580,8 +580,8 @@ sequenceDiagram
     Roslyn->>MSBuild: Compile generated + user code
     MSBuild->>Developer: Build succeeded
     Developer->>Runtime: Call Player.InstantiateTscn()
-    Runtime->>NotNot._GD: InstantiateScene<Player>(ResPath)
-    NotNot._GD->>Godot: Load and instantiate scene
+    Runtime->>NotNotSceneLoader: InstantiateTscn<Player>()
+    NotNotSceneLoader->>Godot: Load and instantiate scene
     Godot->>Developer: Return Player instance
 ```
 
@@ -615,7 +615,6 @@ sequenceDiagram
 **Generated Code** (`_ResPath.g.cs`):
 ```csharp
 using Godot;
-using NotNot;
 
 namespace MyGame;
 
@@ -790,7 +789,7 @@ Test analyzer/generator combinations:
 
 ### Related Topics
 
-**NotNot.Bcl.Core** ([../NotNot.Bcl.Core/](../NotNot.Bcl.Core/)) - Provides `_GD.InstantiateScene<T>()` helper used by generated code, extension methods like `_ConvertToAlphanumericCaps()`, and global `__` utilities.
+**Generated scene loader** - Provides the `NotNotSceneLoader` helper used by generated code; it calls Godot's `ResourceLoader` and `PackedScene` APIs directly.
 
 **Godot C# Bindings** - Target platform for all analyzers and generators. Analyzers scan for `Godot.Node` derived classes and Godot API usage patterns.
 

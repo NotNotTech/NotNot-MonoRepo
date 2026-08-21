@@ -45,6 +45,17 @@ public class NotNotSceneRoot_Generator : ModularGenerator_Base
 	/// <param name="config">The configuration object containing context and parameters.</param>
 	public override void GeneratePartialClasses(GodotResourceGeneratorContextConfig config)
 	{
+		var attributeCode = """
+using System;
+
+namespace NotNot;
+
+[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+public sealed class NotNotSceneRootAttribute : Attribute
+{
+}
+""";
+		config.Context.AddSource("NotNotSceneRootAttribute.g.cs", SourceText.From(attributeCode, Encoding.UTF8));
 
 
 		foreach (var classDeclaration in config.Classes)
@@ -112,11 +123,7 @@ public class NotNotSceneRoot_Generator : ModularGenerator_Base
 
 		sb.AppendLine($$"""
 
-//usings
 using Godot;
-//using System.CodeDom.Compiler;
-
-using NotNot;
 
 
 //namespace (if any)
@@ -167,7 +174,7 @@ public partial class {{className}} //[NotNotScene]
 
    public static {{className}} InstantiateTscn()
    {
-      return _GD.InstantiateScene<{{className}}>(ResPath);
+      return global::NotNotSceneLoader.InstantiateTscn<{{className}}>();
    }
 """;
 			}
@@ -227,6 +234,8 @@ public partial class {{className}} //[NotNotScene]
 
 		sb.AppendLine(@$"
 
+using System;
+using System.Collections.Generic;
 using Godot;
 
 public static class NotNotSceneLoader
@@ -274,7 +283,6 @@ public static class NotNotSceneLoader
     {
       //GD.PrintErr($""No .tscn path found for class: {className}"");
       throw new InvalidOperationException($""No.tscn path found for class: { className }"");
-      return null;
     }
   }
 ");

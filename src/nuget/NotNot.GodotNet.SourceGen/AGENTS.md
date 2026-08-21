@@ -47,4 +47,4 @@ Source generators and analyzers for Godot C# development. Target: netstandard2.0
 
 ## Related Topics
 
-- `NotNot.Bcl.Core` - Provides `_GD`, `__` helpers used in generated code
+- Generated scene code uses Godot's `ResourceLoader`/`PackedScene` APIs directly; no `NotNot.Bcl.Core` runtime helper is required.

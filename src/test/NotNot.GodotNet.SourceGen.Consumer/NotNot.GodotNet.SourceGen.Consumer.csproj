@@ -1,0 +1,23 @@
+<Project Sdk="Godot.NET.Sdk/4.5.0">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Configurations>Debug;Release;DebugNuget</Configurations>
+    <RootNamespace>NotNot.GodotNet.SourceGen.Consumer</RootNamespace>
+    <RestoreAdditionalProjectSources>$(MSBuildThisFileDirectory)feed</RestoreAdditionalProjectSources>
+    <RestoreNoCache>true</RestoreNoCache>
+    <GodotSourceGenPackageVersion>0.0.0-consumer.3</GodotSourceGenPackageVersion>
+    <EnableAnalyzerProbe>false</EnableAnalyzerProbe>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="generated-output/**/*.cs" />
+    <Compile Remove="AnalyzerProbe.cs" />
+    <None Remove="generated-output/**" />
+    <Compile Include="AnalyzerProbe.cs" Condition="'$(EnableAnalyzerProbe)' == 'true'" />
+    <PackageReference Include="NotNot.GodotNet.SourceGen" Version="$(GodotSourceGenPackageVersion)" PrivateAssets="all" Condition="'$(EnableGodotSourceGen)' != 'false'" />
+    <AdditionalFiles Include="**/*.tscn" />
+    <AdditionalFiles Include="**/*.import" />
+    <AdditionalFiles Include="project.godot" />
+  </ItemGroup>
+</Project>

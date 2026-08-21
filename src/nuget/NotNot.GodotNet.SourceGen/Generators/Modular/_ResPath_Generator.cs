@@ -66,11 +66,7 @@ public class _ResPath_Generator : ModularGenerator_Base
 
 		sb.AppendLine($$"""
 
-//usings
 using Godot;
-//using System.CodeDom.Compiler;
-
-using NotNot;
 
 
 //namespace (if any)
