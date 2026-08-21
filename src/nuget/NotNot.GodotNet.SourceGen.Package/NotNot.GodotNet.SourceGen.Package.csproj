@@ -49,8 +49,8 @@
 		<RepositoryUrl>https://github.com/NotNotTech/NotNot-MonoRepo</RepositoryUrl>
 		<PackageIcon>[!!]-logos_red_cropped.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<PackageTags>AppSettings; Source Generator; Json; </PackageTags>
-		<Description>Automatically create strongly typed C# settings classes from AppSettings.json. Uses Source Generators. Includes a simple deserialization helper for when you are using Dependency Injection, or not.</Description>
+		<PackageTags>Godot; Source Generator; Analyzer; CSharp; Roslyn; </PackageTags>
+		<Description>Source generators and analyzers for Godot C# projects, providing type-safe resource paths, scene tree helpers, and reliability diagnostics for common Godot engine patterns.</Description>
 		<!--if minVer runs properly, the following Version gets replaced.  if it doesnt, restart visual studio and try again.-->
 		<Version>0.0.0-0.invalidMinverProcess</Version>
 	</PropertyGroup>
