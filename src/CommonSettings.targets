@@ -101,7 +101,7 @@
 		<Otherwise>
 			<PropertyGroup>
 				<!--root of drive, eg: V:\.nuget-release-packages\$(AssemblyName)-->
-				<PackageOutputPath>$(SolutionDir).nuget-release-packages\$(AssemblyName)</PackageOutputPath>
+				<PackageOutputPath Condition="'$(UseArtifactsOutput)' != 'true'">$(SolutionDir).nuget-release-packages\$(AssemblyName)</PackageOutputPath>
 			</PropertyGroup>
 		</Otherwise>
 	</Choose>
