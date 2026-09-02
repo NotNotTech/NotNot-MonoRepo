@@ -345,6 +345,34 @@ while (await timer.WaitForNextTickAsync(ct)) { }
 
 Complementary to NN_R001/NN_R002 (Task-await) and NN_R007/NN_R008 (atomic-file-write) on a disjoint axis — NN_R009 is the timer-lifecycle concurrency-reliability rule.
 
+<a id="NN_R011"></a>
+### NN_R011: Inherited PATH read outside the sanctioned system-path owner
+**Severity:** Error
+**Category:** Reliability
+
+A read of the **inherited** `PATH` environment variable — `Environment.GetEnvironmentVariable("PATH")`, or the same call with an explicit `EnvironmentVariableTarget.Process` — from a type not marked `[NotNot.Bcl.Diagnostics.SystemPathOwner]`.
+
+A process receives its environment from its parent at creation and **never re-reads it**. A long-lived ancestor that started before an install therefore hands every descendant a stale `PATH` for that descendant's entire life — on Windows only a sign-out repairs it. Code resolving an executable against that inherited value silently stops finding tools installed later, or tools living in a directory added to the USER path afterwards. The defect is invisible in review because the code is correct in isolation, and it surfaces far from its cause: callers report the app "not found", or a startup timeout, never a search-path problem.
+
+**Flagged**: an invocation resolving to `System.Environment.GetEnvironmentVariable` whose first argument is the compile-time constant `"PATH"` (ordinal-ignore-case) AND whose overload is either the one-argument form or the two-argument form with `EnvironmentVariableTarget.Process`, AND whose enclosing type (or any enclosing type of a nested type) does not carry `[NotNot.Bcl.Diagnostics.SystemPathOwner]`. Reported at the invocation; `{0}` = the enclosing type name.
+
+**Allowed**:
+- `Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine)` and the `.User` target — these read the **persistent store** and stay current even when this process's copy is stale. They are the remedy this rule steers toward, so flagging them would invert the rule.
+- Any read inside a `[SystemPathOwner]`-marked type — the owner legitimately falls back to the inherited value when the persistent store is unreadable (a stale path still resolves machine-installed tools; an empty one resolves nothing).
+- `PATHEXT` and every other variable — the executable-extension list is effectively immutable, so the staleness hazard does not apply and flagging it would produce findings with no defect behind them.
+- A non-constant variable name, or a second argument whose value cannot be resolved at compile time — the rule cannot prove what is read, so it stays silent rather than guessing.
+- A same-named `GetEnvironmentVariable` on any type other than `System.Environment`.
+
+**Preferred fix** (in order):
+1. Resolve the executable through the application's sanctioned resolver instead of walking `PATH` by hand.
+2. If a raw search path is genuinely needed, read the persistent store: `GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine)` composed with `EnvironmentVariableTarget.User`.
+3. If this type IS the single owner of system-path composition, mark it `[NotNot.Bcl.Diagnostics.SystemPathOwner]`.
+4. `#pragma warning disable NN_R011` / `.editorconfig` severity override only when the process is provably short-lived and started from a freshly composed environment.
+
+The marker fails **closed**: an attribute that cannot bind (the consumer has not referenced `NotNot.Bcl.Core`, or the name is misspelled) does not exempt, so a typo cannot silently disable the rule.
+
+Complementary to NN_R008 on a disjoint axis — NN_R008 is a file-I/O concurrency rule, NN_R011 is an environment-staleness rule. Different APIs, different hazards; they can never co-fire.
+
 <a id="NN_C004"></a>
 ### NN_C004: No code-side default for AppSettings options
 **Severity:** Error

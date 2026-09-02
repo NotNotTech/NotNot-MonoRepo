@@ -135,6 +135,29 @@ A **field/property** `System.Threading.PeriodicTimer` that is BOTH polled via `W
 
 Complementary to NN_R001/NN_R002 (Task-await) and NN_R007/NN_R008 (atomic-file-write) on a disjoint axis — NN_R009 is the timer-lifecycle concurrency-reliability rule.
 
+### NN_R011: Inherited PATH Read Outside The Sanctioned Owner
+
+A read of the INHERITED `PATH` environment variable — `Environment.GetEnvironmentVariable("PATH")`, or the same call with an explicit `EnvironmentVariableTarget.Process` — from a type not marked `[NotNot.Bcl.Diagnostics.SystemPathOwner]`. A process receives its environment from its parent at creation and NEVER re-reads it, so a long-lived ancestor that started before an install hands every descendant a stale PATH for that descendant's whole life (on Windows only a sign-out repairs it). Executable resolution against that value silently stops finding tools installed later or living in a directory added to the USER path afterwards; the failure surfaces as "not found" or a startup timeout, never as a search-path problem.
+
+**Severity**: Error
+**Flagged**: invocation resolving to `System.Environment.GetEnvironmentVariable` with constant first argument `"PATH"` (ordinal-ignore-case) AND the 1-arg overload or the 2-arg overload with `EnvironmentVariableTarget.Process` AND no `[SystemPathOwner]` on the enclosing type (or any enclosing type of a nested type). `{0}` = enclosing type name.
+**Allowed**:
+- `EnvironmentVariableTarget.Machine` / `.User` — the PERSISTENT store, current even when this process's copy is stale. These are the FIX; flagging them would invert the rule.
+- Any read inside a `[SystemPathOwner]`-marked type — the owner's inherited read is a deliberate soft fallback for a host that denies the persistent store.
+- `PATHEXT` and every other variable (the extension list is effectively immutable — no staleness hazard).
+- Non-constant variable name, or an unresolvable target argument (conservative silence).
+- A same-named `GetEnvironmentVariable` on any other type.
+
+**Preferred Fix** (in order):
+1. Resolve through the application's sanctioned executable resolver instead of walking PATH locally.
+2. Read the persistent store via `EnvironmentVariableTarget.Machine` composed with `.User`.
+3. Mark the single composition owner `[NotNot.Bcl.Diagnostics.SystemPathOwner]`.
+4. `#pragma warning disable NN_R011` only when the process is provably short-lived and started from a fresh environment.
+
+**Marker contract**: matched as simple-name + containing-namespace (NOT one rendered display string — formats vary by symbol kind and Roslyn version, and a mismatch there would fail OPEN). The marker fails CLOSED: an attribute that cannot bind — consumer has not referenced `NotNot.Bcl.Core`, or the name is misspelled — does NOT exempt, so a typo cannot silently disable the rule. Declaring type: `NotNot.Bcl.Core/NotNot/Diagnostics/SystemPathOwnerAttribute.cs`.
+
+Complementary to NN_R008 on a disjoint axis: NN_R008 = file-I/O concurrency; NN_R011 = environment staleness. Never co-fire.
+
 ### NN_C003: Boolean Default False
 
 Enforces the `BOOLEAN_DEFAULT_FALSE` convention — boolean parameters, properties, and fields must default to `false`, not `true`. Default-true booleans silently flip behavior on consumers who don't know to opt out; default-false forces explicit opt-in and keeps the read surface unsurprising.
@@ -273,6 +296,7 @@ Rejects either canonical Microsoft `AddHostedService<T>()` overload when `T` is 
 | `Reliability/Concurrency/HandRolledAtomicFileWriteAnalyzer.cs` | NN_R007 |
 | `Reliability/Concurrency/DirectFileAppendAnalyzer.cs` | NN_R008 |
 | `Reliability/Concurrency/PeriodicTimerDisposalRaceAnalyzer.cs` | NN_R009 |
+| `Reliability/EnvironmentAccess/InheritedEnvironmentPathReadAnalyzer.cs` | NN_R011 |
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
 | `Conventions/AppSettingsCodeDefaultAnalyzer.cs` | NN_C004 |
 | `Conventions/NnAppSettingsServerOnlyReadAnalyzer.cs` | NN_C005 |
