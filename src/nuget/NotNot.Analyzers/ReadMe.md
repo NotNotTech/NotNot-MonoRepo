@@ -367,9 +367,13 @@ A process receives its environment from its parent at creation and **never re-re
 1. Resolve the executable through the application's sanctioned resolver instead of walking `PATH` by hand.
 2. If a raw search path is genuinely needed, read the persistent store: `GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine)` composed with `EnvironmentVariableTarget.User`.
 3. If this type IS the single owner of system-path composition, mark it `[NotNot.Bcl.Diagnostics.SystemPathOwner]`.
-4. `#pragma warning disable NN_R011` / `.editorconfig` severity override only when the process is provably short-lived and started from a freshly composed environment.
+4. `#pragma warning disable NN_R011` / `.editorconfig` severity override when the read never drives executable resolution — a diagnostic dump, a log line, or a test asserting the owner's fallback behavior — or when the process is provably short-lived and started from a freshly composed environment.
 
 The marker fails **closed**: an attribute that cannot bind (the consumer has not referenced `NotNot.Bcl.Core`, or the name is misspelled) does not exempt, so a typo cannot silently disable the rule.
+
+**Both call shapes are covered.** The rule matches the qualified `Environment.GetEnvironmentVariable("PATH")` and the bare `GetEnvironmentVariable("PATH")` that `using static System.Environment;` enables — they bind to the identical method, so qualification alone must not decide whether the rule fires. Arguments are resolved through their **parameter**, not their syntax position, so out-of-order named arguments (`GetEnvironmentVariable(target: EnvironmentVariableTarget.Process, variable: "PATH")`) cannot evade the predicate. Both holes existed in the first implementation and were caught by independent review; each carries a regression fixture.
+
+**Known scope boundary** (deliberate): the rule matches only `Environment.GetEnvironmentVariable`. The siblings `Environment.GetEnvironmentVariables()` — the whole inherited block, indexable by `"PATH"` — and `Environment.ExpandEnvironmentVariables("%PATH%")` read the same stale data and are **not** flagged, because their legitimate uses (diagnostic dumps, composing a child process's environment) vastly outnumber search-path derivation and flagging them at Error severity would break correct code. If a PATH-resolution defect ever arrives through one of them, widen this rule deliberately rather than assuming it was already covered.
 
 Complementary to NN_R008 on a disjoint axis — NN_R008 is a file-I/O concurrency rule, NN_R011 is an environment-staleness rule. Different APIs, different hazards; they can never co-fire.
 

@@ -152,7 +152,11 @@ A read of the INHERITED `PATH` environment variable — `Environment.GetEnvironm
 1. Resolve through the application's sanctioned executable resolver instead of walking PATH locally.
 2. Read the persistent store via `EnvironmentVariableTarget.Machine` composed with `.User`.
 3. Mark the single composition owner `[NotNot.Bcl.Diagnostics.SystemPathOwner]`.
-4. `#pragma warning disable NN_R011` only when the process is provably short-lived and started from a fresh environment.
+4. `#pragma warning disable NN_R011` when the read never drives executable resolution (diagnostic dump, log line, a test asserting the owner's fallback), or when the process is provably short-lived and started from a fresh environment.
+
+**Call shapes**: BOTH the qualified `Environment.GetEnvironmentVariable(...)` and the bare `GetEnvironmentVariable(...)` under `using static System.Environment;` — identical bound method, so qualification must not decide whether the rule fires. Arguments resolve through their PARAMETER, never syntax position, so reordered named arguments cannot evade the predicate. Both were holes in the first implementation; independent review caught them and both carry regression fixtures.
+
+**Scope boundary** (deliberate, not an oversight): matches ONLY `GetEnvironmentVariable`. `Environment.GetEnvironmentVariables()` (whole inherited block, indexable by `"PATH"`) and `ExpandEnvironmentVariables("%PATH%")` read the same stale data and are NOT flagged — their legitimate uses outnumber search-path derivation, so Error-severity flagging would break correct code. Widen deliberately if a defect ever arrives that way; do not assume coverage.
 
 **Marker contract**: matched as simple-name + containing-namespace (NOT one rendered display string — formats vary by symbol kind and Roslyn version, and a mismatch there would fail OPEN). The marker fails CLOSED: an attribute that cannot bind — consumer has not referenced `NotNot.Bcl.Core`, or the name is misspelled — does NOT exempt, so a typo cannot silently disable the rule. Declaring type: `NotNot.Bcl.Core/NotNot/Diagnostics/SystemPathOwnerAttribute.cs`.
 
