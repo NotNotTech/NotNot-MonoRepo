@@ -11,6 +11,17 @@ namespace NotNot.BlazorAnalyzers.Tests.Localization;
 /// </summary>
 public class LocalizationAnalyzerTests
 {
+    private const string PerFileEnabledOption =
+        "build_metadata.AdditionalFiles.LocalizationAnalyzerEnabled";
+
+    private static CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier> CreateRazorTest()
+    {
+        return new CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier>
+        {
+            TestCode = "class Placeholder { }"
+        };
+    }
+
     /// <summary>
     /// Creates a test with the given .razor content as an AdditionalFile and runs it.
     /// The analyzer scans AdditionalTexts (not C# syntax trees), so we add the Razor
@@ -181,6 +192,130 @@ build_property.LocalizationAnalyzerEnabled = false
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // Test: Razor directives/control-flow lines are syntax, not text
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task RazorDirectiveAndControlFlowLines_NoWarning()
+    {
+        var razor = @"@namespace TestProject.Pages
+@using TestProject.Components
+@inject TestService Service
+@page ""/route""
+@if (true)
+@else
+@foreach (var item in items)
+@for (var i = 0; i < 1; i++)
+@switch (value)
+@case 1:
+@while (false)
+@default:
+@rendermode InteractiveWebAssembly";
+
+        await VerifyRazorAsync(razor);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test: Control-flow filtering does not hide real markup text
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task RazorControlFlow_PreservesMarkupTextDetection()
+    {
+        var razor = @"@if (show)
+{
+    <p>Visible text</p>
+}
+else
+{
+    <p>Fallback text</p>
+}";
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Visible text", path, 3, 8),
+            Diagnostic("Fallback text", path, 7, 8));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test: Mixed Razor control-flow bodies classify C# as code
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task RazorControlFlowBody_SkipsStatementsReportsMarkup()
+    {
+        var razor = @"@if (show)
+{
+    var detail = GetDetail();
+    var pct = detail.Percent;
+    if (pct > 0)
+    {
+        <span>Visible percentage</span>
+    }
+    return;
+}";
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Visible percentage", path, 7, 15));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test: Multiline nested Razor expressions do not expose C# fragments
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task NestedRazorExpression_MultilineFragments_NoWarning()
+    {
+        var razor = @"@foreach (var item in items)
+{
+    <span>@(
+        item.Detail?.Name ?? ""fallback""
+    )</span>
+}";
+
+        await VerifyRazorAsync(razor);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test: Implicit Razor code retains localizable assignment detection
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task ImplicitRazorCode_LocalizableAssignmentStillReports()
+    {
+        var razor = @"@{
+    var detail = GetDetail();
+    Title = ""Rendered title"";
+}
+<p>Visible text</p>";
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Rendered title", path, 3, 14),
+            Diagnostic("Visible text", path, 5, 4));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test: CSS inside a Razor style element is not user-facing text
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task RazorStyleBlock_SkipsCssReportsMarkup()
+    {
+        var razor = @"<style>
+    .demo {
+        display: flex;
+    }
+</style>
+<p>Visible text</p>";
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Visible text", path, 6, 4));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // Test: Pure numeric → no warning
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -203,8 +338,18 @@ build_property.LocalizationAnalyzerEnabled = false
     {
         var razor = @"<h1>Sample Heading</h1>";
         var path = "/TestProject/NnDesignSamples/SampleComponent.razor";
+        var test = CreateRazorTest();
 
-        await VerifyRazorAsync(razor, path);
+        test.TestState.AdditionalFiles.Add((path, razor));
+        test.TestState.AnalyzerConfigFiles.Add(
+            ("/TestProject/.editorconfig", $@"
+root = true
+
+[NnDesignSamples/SampleComponent.razor]
+{PerFileEnabledOption} = false
+"));
+
+        await test.RunAsync();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -217,6 +362,250 @@ build_property.LocalizationAnalyzerEnabled = false
         var razor = @"<h1>This should not trigger</h1>";
 
         await VerifyRazorOptedOutAsync(razor);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test: Per-AdditionalText enable overrides the global opt-out
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task PerFileEnabled_OverridesGlobalOptOut_ReportsNNB014()
+    {
+        var razor = @"<h1>Enabled file</h1>";
+        var path = "/TestProject/Enabled.razor";
+        var test = CreateRazorTest();
+
+        test.TestState.AdditionalFiles.Add((path, razor));
+        test.TestState.AnalyzerConfigFiles.Add(("/.globalconfig", @"
+is_global = true
+build_property.LocalizationAnalyzerEnabled = false
+"));
+        test.TestState.AnalyzerConfigFiles.Add(("/TestProject/.editorconfig", $@"
+root = true
+
+[Enabled.razor]
+{PerFileEnabledOption} = true
+"));
+        test.ExpectedDiagnostics.Add(
+            Diagnostic("Enabled file", path, 1, 5));
+
+        await test.RunAsync();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test: Per-AdditionalText disable skips one file
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task PerFileDisabled_NoWarning()
+    {
+        var razor = @"<h1>Disabled file</h1>";
+        var path = "/TestProject/Disabled.razor";
+        var test = CreateRazorTest();
+
+        test.TestState.AdditionalFiles.Add((path, razor));
+        test.TestState.AnalyzerConfigFiles.Add(("/TestProject/.editorconfig", $@"
+root = true
+
+[Disabled.razor]
+{PerFileEnabledOption} = false
+"));
+
+        await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task NestedPathPerFileDisabled_NoWarning()
+    {
+        var razor = @"<h1>Disabled nested file</h1>";
+        var path = "/TestProject/Components/Pages/NnDesignSamples/Sample.razor";
+        var test = CreateRazorTest();
+
+        test.TestState.AdditionalFiles.Add((path, razor));
+        test.TestState.AnalyzerConfigFiles.Add(("/TestProject/.editorconfig", $@"
+root = true
+
+[Components/Pages/NnDesignSamples/**/*.razor]
+{PerFileEnabledOption} = false
+"));
+
+        await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task NestedLocalizedAttributes_NoWarning()
+    {
+        var razor = "<NnTextField T=\"string\"\n"
+            + "                    Label=\"@L[\"SearchTranscriptsPlaceholder:UI.Prompt\"]\" Placeholder=\"@null\"\n"
+            + "                    Validation=\"@(v => L[\"FieldRequired:UI.Format\", v])\" />\n"
+            + "<NnChip Label=\"@ProviderLabel(provider)\" />";
+
+        await VerifyRazorAsync(razor);
+    }
+
+    [Fact]
+    public async Task StandaloneMarkupClose_NoWarning()
+    {
+        var razor = @"<NnTextField
+    Label=""@L[""""SearchTranscriptsPlaceholder:UI.Prompt""""]""
+/>";
+
+        await VerifyRazorAsync(razor);
+    }
+
+    [Fact]
+    public async Task MultilineMarkupLambdaExpression_SkipsCodeFragments()
+    {
+        var razor = string.Join("\n", new[]
+        {
+            "<NnLiveValue Projection=\"@(() =>",
+            "{",
+            "    var detail = GetDetail();",
+            "    var has = detail is not null;",
+            "    return new Snapshot(",
+            "        detail.Value,",
+            "        has);",
+            "})\" />"
+        });
+
+        await VerifyRazorAsync(razor);
+    }
+
+    [Fact]
+    public async Task MemberAndExpressionContinuations_SkipCodeButKeepMarkupText()
+    {
+        var razor = string.Join("\n", new[]
+        {
+            "@if (show)",
+            "{",
+            "    option.ValueKind is SessionAppConfigValueKind.Text or SessionAppConfigValueKind.Boolean",
+            "    @(",
+            "        detail.ThroughputSamples,",
+            "        snap,",
+            "        prod);",
+            "    )",
+            "    <p>Visible label</p>",
+            "}"
+        });
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Visible label", path, 9, 8));
+    }
+
+    [Fact]
+    public async Task MarkupEntitiesIconsAndSyntax_SkipNonTextTokens()
+    {
+        var razor = string.Join("\n", new[]
+        {
+            "<span>&gt;</span>",
+            "data-nn-toc-anchor>",
+            "=\"",
+            "<span>🗙</span>",
+            "<p>Visible label</p>"
+        });
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Visible label", path, 5, 4));
+    }
+
+    [Fact]
+    public async Task AttributeExpressionsAndInlineStyleContinuations_NoWarning()
+    {
+        var razor = string.Join("\n", new[]
+        {
+            "<NnButton Variant=\"Variant.Outlined\"",
+            "          Disabled=\"@OfferActionsDisabled\"",
+            "          Title=\"@ActionsDisabledReason\"",
+            "          OnClick=\"OnIgnoreAsync\">",
+            "    @L[\"Ignore:UI.Action\"]",
+            "</NnButton>",
+            "<div style=\"flex: 1; min-width: 2px;",
+            "            height: @(Math.Max(pct, 1))%; border-radius: 1px;\">",
+            "    <span>Visible text</span>",
+            "</div>"
+        });
+
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Visible text", path, 9, 11));
+    }
+
+    [Fact]
+    public async Task ActualVowMultilineAttributeExpressions_NoFalsePositives()
+    {
+        var razor = string.Join("\n", new[]
+        {
+            "<NnTextField T=\"string\" @bind-Value=\"_query\" @bind-Value:after=\"HandleSearchValueChanged\"",
+            "              Label=\"@L[\"SearchTranscriptsPlaceholder:UI.Prompt\"]\" Placeholder=\"@null\" Variant=\"Variant.Outlined\"",
+            "              Immediate=\"true\" DebounceInterval=\"1000\" Adornment=\"Adornment.Start\" AdornmentIcon=\"@NnIcons.Search\" />",
+            "<NnTextField T=\"string\"",
+            "             Value=\"_sessionUuid\"",
+            "             ValueChanged=\"@((string? v) => HandleUuidChanged(v))\"",
+            "             Label=\"@L[\"LabelSessionUuid:UI.Label\"].Value\"",
+            "             Placeholder=\"@L[\"SessionUuidPlaceholder:UI.Prompt\"].Value\"",
+            "             Variant=\"Variant.Outlined\" AutoFocus=\"true\" />",
+            "<NnTooltip Text=\"@status.ToStatusTooltipText(L)\">",
+            "    <NnText>@status.ToStatusText(L)</NnText>",
+            "</NnTooltip>",
+            "<NnChip Label=\"@ProviderLabel(a.Provider)\" />",
+            "<NnTextField Label=\"@DisplayLabel\" Placeholder=\"@Placeholder\" />",
+            "<NnTooltip Text=\"@RevealUnavailableReason()\">",
+            "    <span>@L[\"Visible:UI.Label\"]</span>",
+            "</NnTooltip>",
+            "<NnButton Title=\"@ActionsDisabledReason\" OnClick=\"OnInstallAsync\">Install</NnButton>",
+            "<NnSwitch T=\"bool\"",
+            "          Label=\"@option.Label\"",
+            "          Value=\"@GetBooleanOption(option)\"",
+            "          ValueChanged=\"@(value => HandleBooleanOptionChanged(option, value))\" />",
+            "<NnText>",
+            "    <text> [@L[\"VowEditReadOnly:UI.Label\"].Value]</text>",
+            "    <text> @L[\"VowEditCreated:UI.Label\"].Value:@created.ToLocalTime().ToString(\"g\")</text>",
+            "</NnText>"
+        });
+
+        await VerifyRazorAsync(razor);
+    }
+
+    [Fact]
+    public async Task ActualVowAccountsFile_NoFalsePositives()
+    {
+        var sourcePath = @"V:\r\2026-claude-conversation-tree\src\private-proj\Novaleaf.VibeOverwatch\Novaleaf.VibeOverwatch.Shared\Components\Pages\VowAccountsPage.razor";
+        var test = CreateRazorTest();
+
+        test.TestState.AdditionalFiles.Add(("/TestProject/VowAccountsPage.razor", File.ReadAllText(sourcePath)));
+
+        await test.RunAsync();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test: Mixed per-AdditionalText settings share one compilation
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task MixedPerFileConfiguration_AnalyzesOnlyEnabledAdditionalText()
+    {
+        var enabledPath = "/TestProject/Enabled.razor";
+        var disabledPath = "/TestProject/Disabled.razor";
+        var test = CreateRazorTest();
+
+        test.TestState.AdditionalFiles.Add((enabledPath, @"<h1>Enabled file</h1>"));
+        test.TestState.AdditionalFiles.Add((disabledPath, @"<h1>Disabled file</h1>"));
+        test.TestState.AnalyzerConfigFiles.Add(("/TestProject/.editorconfig", $@"
+root = true
+
+[Enabled.razor]
+{PerFileEnabledOption} = true
+
+[Disabled.razor]
+{PerFileEnabledOption} = false
+"));
+        test.ExpectedDiagnostics.Add(
+            Diagnostic("Enabled file", enabledPath, 1, 5));
+
+        await test.RunAsync();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -245,6 +634,24 @@ build_property.LocalizationAnalyzerEnabled = false
         var razor = @"<MudButton Class=""my-class"" Style=""color: red"" Id=""btn1"" Href=""/home"" Icon=""@Icons.Material.Add"" Color=""Primary"" Variant=""Filled"" />";
 
         await VerifyRazorAsync(razor);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test: Multiline component attributes do not become text nodes
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task MultilineAttributeContinuation_SkipsSyntaxButChecksLocalizableAttribute()
+    {
+        var razor = @"<MudButton
+    OnClick=""HandleClick""
+    Label=""Save""
+    Value=""@value"">
+</MudButton>";
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Save", path, 3, 12));
     }
 
     // ═══════════════════════════════════════════════════════════════════════

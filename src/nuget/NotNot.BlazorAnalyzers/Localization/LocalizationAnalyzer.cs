@@ -28,6 +28,9 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
     public const string DiagnosticId = "NNB014";
 
     private const string Category = "Localization";
+    private const string GlobalEnabledOption = "build_property.LocalizationAnalyzerEnabled";
+    private const string AdditionalFileEnabledOption =
+        "build_metadata.AdditionalFiles.LocalizationAnalyzerEnabled";
     private const string HelpBase =
         "https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers#";
 
@@ -42,14 +45,27 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         helpLinkUri: HelpBase + DiagnosticId,
         customTags: WellKnownDiagnosticTags.CompilationEnd);
 
-    // ── Razor directive prefixes to skip ─────────────────────────────────
+    // ── Razor directive/control-flow names to skip ───────────────────────
 
     private static readonly string[] RazorDirectivePrefixes =
     {
-        "@page ", "@using ", "@inject ", "@inherits ", "@implements ",
-        "@attribute ", "@typeparam ", "@layout ",
-        // Also skip @page without space (e.g. @page\n) though unlikely
-        "@page\t", "@page\r", "@page\n"
+        "@page", "@using", "@inject", "@inherits", "@implements",
+        "@attribute", "@typeparam", "@layout", "@namespace", "@rendermode",
+        "@code",
+        // Razor control-flow lines are syntax, not user-facing text.
+        "@if", "@else", "@foreach", "@for", "@switch", "@case", "@default", "@while"
+    };
+
+    private static readonly string[] RazorCodeLinePrefixes =
+    {
+        "var ", "const ", "readonly ", "static ", "if ", "if(", "else", "for ", "for(",
+        "foreach ", "foreach(", "while ", "while(", "switch ", "switch(", "case ",
+        "default", "break", "continue", "return", "throw ", "try", "catch", "finally",
+        "do", "lock ", "lock(", "using ", "await ", "yield ", "new ", "private ",
+        "public ", "protected ", "internal ", "void ", "bool ", "byte ", "char ",
+        "decimal ", "double ", "float ", "int ", "long ", "object ", "string ",
+        "uint ", "ulong ", "ushort ", "class ", "record ", "struct ", "enum ",
+        "get", "set", "init", "add", "remove"
     };
 
     // ── Localizable attribute names ──────────────────────────────────────
@@ -135,12 +151,12 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
 
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
-        if (IsOptedOut(context))
-            return;
-
         foreach (var file in context.Options.AdditionalFiles)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
+            if (!IsAnalyzerEnabled(context, file))
+                continue;
+
             AnalyzeFile(context, file);
         }
     }
@@ -149,11 +165,6 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
     {
         var path = file.Path;
         if (string.IsNullOrEmpty(path))
-            return;
-
-        // Skip NnDesignSamples paths
-        var normalized = path.Replace('\\', '/');
-        if (normalized.IndexOf("NnDesignSamples", StringComparison.OrdinalIgnoreCase) >= 0)
             return;
 
         var isRazorCs = path.EndsWith(".razor.cs", StringComparison.OrdinalIgnoreCase);
@@ -192,6 +203,8 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         var insideCodeBlock = false;
         var codeBlockBraceDepth = 0;
         var insideBlockComment = false;
+        var insideStyleBlock = false;
+        var razorExpressionDepth = 0;
 
         foreach (var textLine in sourceText.Lines)
         {
@@ -200,6 +213,23 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             var lineText = textLine.ToString();
             var trimmed = lineText.Trim();
             var lineStart = textLine.Start;
+
+            // CSS inside a Razor <style> element is not user-facing text.
+            if (insideStyleBlock)
+            {
+                if (IndexOfStyleClose(lineText) < 0)
+                    continue;
+
+                insideStyleBlock = false;
+                continue;
+            }
+
+            if (IsStyleOpen(trimmed))
+            {
+                if (IndexOfStyleClose(lineText) < 0)
+                    insideStyleBlock = true;
+                continue;
+            }
 
             // Track @code { } blocks — analyze C# strings inside them (Phase 3B)
             if (!insideCodeBlock)
@@ -219,8 +249,21 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             {
                 // Inside @code block — track brace depth (skip braces inside string literals)
                 codeBlockBraceDepth += CountNetBraces(lineText);
-                // Analyze C# strings on this line
-                AnalyzeCSharpLine(context, file, sourceText, lineText, lineStart, ref insideBlockComment);
+                // A RenderFragment lambda can embed ordinary Razor markup inside an
+                // @code block. Route those lines through the markup scanner so
+                // component attributes and <text> nodes keep their Razor semantics;
+                // sending them through the C# assignment regex turns expressions such
+                // as Label="@L[...]" into false NNB014 reports.
+                if (!insideBlockComment && IsEmbeddedRazorMarkupLine(trimmed))
+                {
+                    CheckAttributes(context, file, sourceText, lineText, lineStart, htmlComments, razorComments);
+                    CheckTextNodes(context, file, sourceText, lineText, lineStart, htmlComments, razorComments);
+                }
+                else
+                {
+                    // Analyze C# strings on this line
+                    AnalyzeCSharpLine(context, file, sourceText, lineText, lineStart, ref insideBlockComment);
+                }
                 if (codeBlockBraceDepth <= 0)
                     insideCodeBlock = false;
                 continue;
@@ -238,7 +281,35 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             if (IsInComment(htmlComments, lineStart) || IsInComment(razorComments, lineStart))
                 continue;
 
-            // Check for hardcoded attribute values
+            // A multiline implicit Razor expression may leave its C# fragments
+            // on subsequent physical lines. Keep those fragments out of the
+            // markup scanner until the expression closes.
+            if (razorExpressionDepth > 0)
+            {
+                razorExpressionDepth = UpdateRazorExpressionDepth(lineText, razorExpressionDepth);
+                continue;
+            }
+
+            var lineExpressionDepth = FindRazorExpressionDepth(lineText);
+            if (lineExpressionDepth > 0)
+            {
+                razorExpressionDepth = lineExpressionDepth;
+                continue;
+            }
+
+            var isAttributeContinuation = IsAttributeContinuationLine(trimmed);
+
+            // Razor permits implicit @{ } and control-flow bodies outside an
+            // explicit @code block. Their C# statements must be analyzed as
+            // code (for localizable assignments) and never as text nodes.
+            if (!isAttributeContinuation && IsLikelyRazorCodeLine(trimmed))
+            {
+                AnalyzeCSharpLine(context, file, sourceText, lineText, lineStart, ref insideBlockComment);
+                continue;
+            }
+
+            // Check for hardcoded attribute values after C# classification so
+            // Title = "..." in an implicit code block is not reported twice.
             CheckAttributes(context, file, sourceText, lineText, lineStart, htmlComments, razorComments);
 
             // Check for hardcoded text nodes
@@ -287,6 +358,18 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         string lineText, int lineStart,
         List<(int Start, int End)> htmlComments, List<(int Start, int End)> razorComments)
     {
+        var trimmedLine = lineText.Trim();
+        if (IsMarkupSyntaxContinuationLine(trimmedLine) ||
+            IsCssDeclarationContinuationLine(trimmedLine))
+            return;
+
+        // A component/HTML tag may continue its attributes on following lines:
+        //     OnClick="HandleClick"
+        // These lines are syntax, while CheckAttributes above still examines
+        // localizable attributes such as Label and Title on the same lines.
+        if (IsAttributeContinuationLine(trimmedLine))
+            return;
+
         // Extract text segments that are NOT inside HTML tags or Razor expressions
         var segments = ExtractTextSegments(lineText);
 
@@ -295,7 +378,7 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             var segText = lineText.Substring(segStart, segLength);
 
             // Skip pure whitespace, single-char, pure numeric
-            if (IsNonLocalizableValue(segText))
+            if (IsNonLocalizableValue(segText) || IsNotUserFacingMarkupToken(segText))
                 continue;
 
             var absolutePos = lineStart + segStart;
@@ -421,15 +504,15 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
 
         // @( ... ) — explicit expression
         if (next == '(')
-            return SkipBalanced(line, pos + 1, '(', ')');
+            return SkipRazorExpressionSuffix(line, SkipBalanced(line, pos + 1, '(', ')'));
 
         // @{ ... } — code block
         if (next == '{')
-            return SkipBalanced(line, pos + 1, '{', '}');
+            return SkipRazorExpressionSuffix(line, SkipBalanced(line, pos + 1, '{', '}'));
 
         // @L[...] — localization expression
         if (next == 'L' && pos + 2 < line.Length && line[pos + 2] == '[')
-            return SkipBalanced(line, pos + 2, '[', ']');
+            return SkipRazorExpressionSuffix(line, SkipBalanced(line, pos + 2, '[', ']'));
 
         // @* ... *@ — Razor comment (handled elsewhere, but skip)
         if (next == '*')
@@ -448,12 +531,239 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         else if (i < line.Length && line[i] == '[')
             i = SkipBalanced(line, i, '[', ']');
 
+        return SkipRazorExpressionSuffix(line, i);
+    }
+
+    /// <summary>
+    /// Consumes the member/indexer chain attached to an implicit Razor
+    /// expression. Razor expressions commonly continue as
+    /// <c>@L["key"].Value</c> or
+    /// <c>@created.ToLocalTime().ToString("g")</c>; leaving the suffix for the
+    /// text scanner creates diagnostics for implementation syntax.
+    /// </summary>
+    private static int SkipRazorExpressionSuffix(string line, int pos)
+    {
+        var i = pos;
+        while (i < line.Length)
+        {
+            var memberStart = i;
+            if (line[i] == '.')
+            {
+                i++;
+            }
+            else if (line[i] == '?' && i + 1 < line.Length && line[i + 1] == '.')
+            {
+                i += 2;
+            }
+            else if (line[i] == '[')
+            {
+                i = SkipBalanced(line, i, '[', ']');
+                continue;
+            }
+            else
+            {
+                break;
+            }
+
+            var identifierStart = i;
+            while (i < line.Length && (char.IsLetterOrDigit(line[i]) || line[i] == '_'))
+                i++;
+
+            if (i == identifierStart)
+            {
+                // A punctuation dot that is not a member access belongs to
+                // rendered text; leave it visible to the markup scanner.
+                return memberStart;
+            }
+
+            if (i < line.Length && line[i] == '(')
+                i = SkipBalanced(line, i, '(', ')');
+            else if (i < line.Length && line[i] == '[')
+                i = SkipBalanced(line, i, '[', ']');
+        }
+
         return i;
     }
 
     private static int SkipBraceBlock(string line, int pos)
     {
         return SkipBalanced(line, pos, '{', '}');
+    }
+
+    private static bool IsStyleOpen(string trimmedLine)
+    {
+        if (!trimmedLine.StartsWith("<style", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return trimmedLine.Length == "<style".Length ||
+            char.IsWhiteSpace(trimmedLine["<style".Length]) ||
+            trimmedLine["<style".Length] == '>';
+    }
+
+    private static int IndexOfStyleClose(string line)
+    {
+        return line.IndexOf("</style>", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int FindRazorExpressionDepth(string line)
+    {
+        var depth = 0;
+        var inString = false;
+
+        for (var i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+
+            // Razor expression markers remain syntax even when they appear
+            // inside a quoted HTML/component attribute value.
+            if (depth == 0 && ch == '@' &&
+                ((i + 1 < line.Length && line[i + 1] == '(') ||
+                 (i + 2 < line.Length && line[i + 1] == 'L' && line[i + 2] == '[')))
+            {
+                depth = 1;
+                i += line[i + 1] == '(' ? 1 : 2;
+                continue;
+            }
+
+            if (inString)
+            {
+                if (ch == '\\' && i + 1 < line.Length)
+                {
+                    i++;
+                    continue;
+                }
+
+                if (ch == '"')
+                    inString = false;
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (depth == 0)
+                continue;
+
+            if (ch is '(' or '[')
+                depth++;
+            else if (ch is ')' or ']')
+                depth--;
+        }
+
+        return depth;
+    }
+
+    private static int UpdateRazorExpressionDepth(string line, int depth)
+    {
+        var inString = false;
+        for (var i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+            if (inString)
+            {
+                if (ch == '\\' && i + 1 < line.Length)
+                {
+                    i++;
+                    continue;
+                }
+
+                if (ch == '"')
+                    inString = false;
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (ch is '(' or '[')
+                depth++;
+            else if (ch is ')' or ']')
+                depth = Math.Max(0, depth - 1);
+        }
+
+        return depth;
+    }
+
+    private static bool IsLikelyRazorCodeLine(string trimmedLine)
+    {
+        if (string.IsNullOrEmpty(trimmedLine) || trimmedLine.StartsWith("<", StringComparison.Ordinal))
+            return false;
+
+        if (trimmedLine.StartsWith("@{", StringComparison.Ordinal))
+            return true;
+
+        if (trimmedLine.StartsWith("@", StringComparison.Ordinal))
+            return IsRazorDirective(trimmedLine);
+
+        if (trimmedLine is "{" or "}" or ";" ||
+            trimmedLine.StartsWith("//", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("/*", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("*", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("*/", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        foreach (var prefix in RazorCodeLinePrefixes)
+        {
+            if (trimmedLine.Equals(prefix, StringComparison.Ordinal) ||
+                trimmedLine.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        if (trimmedLine.StartsWith(".", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("?.", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("?", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith(":", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("&&", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("||", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("??", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (trimmedLine.Contains("=>", StringComparison.Ordinal) ||
+            trimmedLine.Contains("?.", StringComparison.Ordinal) ||
+            trimmedLine.Contains("??", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var memberSeparator = trimmedLine.IndexOf('.');
+        if (memberSeparator > 0 &&
+            (trimmedLine.Contains(" is ", StringComparison.Ordinal) ||
+             trimmedLine.EndsWith(",", StringComparison.Ordinal) ||
+             trimmedLine.EndsWith(";", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        if (trimmedLine.EndsWith(";", StringComparison.Ordinal) &&
+            (trimmedLine.Contains('=') || trimmedLine.Contains('(') || trimmedLine.StartsWith(".", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        // Object/member assignments and accessor continuations are code when
+        // they begin with an identifier and contain a standalone assignment.
+        var equalsIndex = trimmedLine.IndexOf('=');
+        if (equalsIndex > 0 &&
+            (equalsIndex + 1 >= trimmedLine.Length || trimmedLine[equalsIndex + 1] != '=') &&
+            (equalsIndex == 0 || trimmedLine[equalsIndex - 1] != '=') &&
+            !trimmedLine.StartsWith("<", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -644,6 +954,12 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
                 continue;
 
             var strValue = match.Groups[2].Value;
+            // Razor component attributes embedded in a RenderFragment are
+            // surfaced to this C# scanner as assignments such as
+            // Label="@L[\"key\"]". The value is already a Razor expression,
+            // not a hardcoded user-facing string.
+            if (strValue.TrimStart().StartsWith("@", StringComparison.Ordinal))
+                continue;
             if (IsTechnicalString(strValue))
                 continue;
 
@@ -656,6 +972,13 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         {
             var propName = match.Groups[1].Value;
             var strValue = match.Groups[2].Value;
+
+            // Razor component attributes embedded in a RenderFragment are
+            // surfaced to this C# scanner as assignments such as
+            // Label="@L[\"key\"]". The value is already a Razor expression,
+            // not a hardcoded user-facing string.
+            if (strValue.TrimStart().StartsWith("@", StringComparison.Ordinal))
+                continue;
 
             // Only flag localizable properties
             if (!LocalizableProperties.Contains(propName))
@@ -822,14 +1145,123 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
     {
         foreach (var prefix in RazorDirectivePrefixes)
         {
-            if (trimmedLine.StartsWith(prefix, StringComparison.Ordinal))
+            if (!trimmedLine.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            // Match the directive token itself and its normal argument/block
+            // separators, but do not suppress an unrelated identifier such as
+            // @ifReady.
+            if (trimmedLine.Length == prefix.Length ||
+                char.IsWhiteSpace(trimmedLine[prefix.Length]) ||
+                trimmedLine[prefix.Length] is '(' or '{' or ':')
+            {
                 return true;
+            }
         }
-        // Also check exact match for directives without arguments
-        if (trimmedLine == "@page" || trimmedLine == "@code")
+
+        // Razor commonly renders the continuation of @else/@case as a bare
+        // control-flow token on its own line.
+        if (trimmedLine.Equals("else", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("else ", StringComparison.Ordinal) ||
+            trimmedLine.Equals("default", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("default:", StringComparison.Ordinal) ||
+            trimmedLine.StartsWith("case ", StringComparison.Ordinal))
+        {
             return true;
+        }
 
         return false;
+    }
+
+    private static bool IsAttributeContinuationLine(string trimmedLine)
+    {
+        if (string.IsNullOrEmpty(trimmedLine) || trimmedLine[0] == '<')
+            return false;
+
+        // A semicolon marks a C# assignment rather than a Razor attribute.
+        if (trimmedLine.EndsWith(";", StringComparison.Ordinal))
+            return false;
+
+        var equalsIndex = trimmedLine.IndexOf('=');
+        if (equalsIndex <= 0 || trimmedLine.Contains('<'))
+            return false;
+
+        var attributeName = trimmedLine[..equalsIndex].Trim();
+        if (attributeName.Length == 0)
+            return false;
+
+        foreach (var ch in attributeName)
+        {
+            if (!char.IsLetterOrDigit(ch) && ch is not '_' and not '-' and not ':' and not '.' and not '@')
+                return false;
+        }
+
+        var value = trimmedLine[(equalsIndex + 1)..].TrimStart();
+        return value.StartsWith("\"", StringComparison.Ordinal) ||
+            value.StartsWith("'", StringComparison.Ordinal) ||
+            value.StartsWith("@", StringComparison.Ordinal) ||
+            value.StartsWith("{", StringComparison.Ordinal);
+    }
+
+    private static bool IsEmbeddedRazorMarkupLine(string trimmedLine)
+    {
+        if (string.IsNullOrEmpty(trimmedLine))
+            return false;
+
+        // Opening/closing component and HTML tags, including the <text>
+        // wrapper used by RenderFragment lambdas.
+        if (trimmedLine[0] == '<')
+            return true;
+
+        // Attribute continuation lines have no leading tag name because the
+        // opening tag is on a previous physical line. They are handled by the
+        // ordinary markup path; the @code path deliberately does not classify
+        // every C# `Name = "value"` initializer as markup.
+        return false;
+    }
+
+    private static bool IsMarkupSyntaxContinuationLine(string trimmedLine)
+    {
+        if (trimmedLine is "/>" or ">" or "=\"" or "🗙")
+            return true;
+
+        if (trimmedLine.StartsWith("data-", StringComparison.Ordinal) &&
+            trimmedLine.EndsWith(">", StringComparison.Ordinal) &&
+            !trimmedLine.Contains(' '))
+        {
+            return true;
+        }
+
+        return IsMarkupEntity(trimmedLine);
+    }
+
+    private static bool IsCssDeclarationContinuationLine(string trimmedLine)
+    {
+        var colon = trimmedLine.IndexOf(':');
+        if (colon <= 0)
+            return false;
+
+        for (var i = 0; i < colon; i++)
+        {
+            if (!char.IsLetter(trimmedLine[i]) && trimmedLine[i] != '-')
+                return false;
+        }
+
+        return trimmedLine.EndsWith(";", StringComparison.Ordinal) ||
+            trimmedLine.Contains("@(", StringComparison.Ordinal);
+    }
+
+    private static bool IsMarkupEntity(string trimmedValue)
+    {
+        return trimmedValue.Length >= 4 &&
+            trimmedValue[0] == '&' &&
+            trimmedValue[^1] == ';' &&
+            !trimmedValue.Contains(' ');
+    }
+
+    private static bool IsNotUserFacingMarkupToken(string value)
+    {
+        return IsMarkupSyntaxContinuationLine(value.Trim());
     }
 
     /// <summary>
@@ -940,11 +1372,87 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
 
     // ── Reporting ────────────────────────────────────────────────────────
 
-    private static bool IsOptedOut(CompilationAnalysisContext context)
+    /// <summary>
+    /// Returns whether the analyzer is enabled for one AdditionalText. The item metadata
+    /// option is checked first so a project can keep the shared AdditionalFiles set intact
+    /// while excluding only its non-localized files. A file-scoped legacy build property is
+    /// also honored for analyzer-config compatibility, then the global build property is the
+    /// fallback for every file without an override.
+    /// </summary>
+    private static bool IsAnalyzerEnabled(CompilationAnalysisContext context, AdditionalText file)
     {
-        return context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
-                   .TryGetValue("build_property.LocalizationAnalyzerEnabled", out var value) &&
-               string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
+        var provider = context.Options.AnalyzerConfigOptionsProvider;
+        var fileOptions = provider.GetOptions(file);
+
+        if (TryReadEnabled(fileOptions, AdditionalFileEnabledOption, out var enabled) ||
+            TryReadEnabled(fileOptions, GlobalEnabledOption, out enabled))
+        {
+            return enabled;
+        }
+
+        // EditorConfig's double-star slash form can require a directory segment
+        // even when the excluded file is a direct child of that directory. Probe
+        // one synthetic child path so a narrow per-file exclusion remains
+        // effective without turning the analyzer off globally or reintroducing
+        // a project-specific path exception.
+        var probe = CreateEditorConfigGlobProbe(file);
+        if (probe != null)
+        {
+            var probeOptions = provider.GetOptions(probe);
+            if (TryReadEnabled(probeOptions, AdditionalFileEnabledOption, out enabled) ||
+                TryReadEnabled(probeOptions, GlobalEnabledOption, out enabled))
+            {
+                return enabled;
+            }
+        }
+
+        return TryReadEnabled(provider.GlobalOptions, GlobalEnabledOption, out enabled)
+            ? enabled
+            : true;
+    }
+
+    private static AdditionalText? CreateEditorConfigGlobProbe(AdditionalText file)
+    {
+        var normalizedPath = file.Path.Replace('\\', '/');
+        var separator = normalizedPath.LastIndexOf('/');
+        if (separator <= 0 || separator == normalizedPath.Length - 1)
+            return null;
+
+        var probePath = normalizedPath.Substring(0, separator)
+            + "/.vow-editorconfig-probe/"
+            + normalizedPath.Substring(separator + 1);
+        return new PathAliasedAdditionalText(file, probePath);
+    }
+
+    private sealed class PathAliasedAdditionalText : AdditionalText
+    {
+        private readonly AdditionalText _inner;
+
+        public PathAliasedAdditionalText(AdditionalText inner, string path)
+        {
+            _inner = inner;
+            Path = path;
+        }
+
+        public override string Path { get; }
+
+        public override SourceText? GetText(
+            global::System.Threading.CancellationToken cancellationToken = default)
+        {
+            return _inner.GetText(cancellationToken);
+        }
+    }
+
+    private static bool TryReadEnabled(AnalyzerConfigOptions options, string optionName, out bool enabled)
+    {
+        if (options.TryGetValue(optionName, out var value))
+        {
+            enabled = !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
+            return true;
+        }
+
+        enabled = true;
+        return false;
     }
 
     private static void Report(
