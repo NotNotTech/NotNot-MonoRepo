@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using NotNot.Storage;
 using Xunit;
 
@@ -26,17 +26,14 @@ public class AtomicFileWriterAppendWithRetryTests
 {
     /// <summary>
     /// (a) TRANSIENT collision: an external <see cref="FileShare.None"/> holder excludes the append's first
-    /// attempt(s), then releases WELL WITHIN the retry window (~40ms release vs the ~150ms+ exhaustion floor
-    /// of BackoffMs 50+100 plus jitter). EXPECTED: <c>AppendWithRetry</c> returns without throwing and the file
-    /// content ends with the appended line (the append landed after the holder released).
+    /// attempt, then releases synchronously when this test observes the actual target sharing violation.
+    /// EXPECTED: <c>AppendWithRetry</c> returns without throwing and the file content ends with the appended line
+    /// (the append landed after the holder released).
     /// <para>
-    /// <b>Retry-engagement floor</b>: the call is wrapped in a <see cref="Stopwatch"/> and asserted to take
-    /// ≥ ~35ms — proving the FIRST attempt actually collided with the holder and the retry WAITED for the
-    /// ~40ms release (first backoff base 50ms). Without this floor the pin is vacuous: if the first attempt
-    /// were scheduled AFTER the holder released, it would succeed on attempt 1 without exercising the retry
-    /// path, yet the no-throw + content assertions would still pass (false green). The margins (holder ~40ms,
-    /// first backoff base 50ms) keep the ≥35ms assert robust: a genuine retry can return no earlier than the
-    /// ~40ms release, well above the 35ms floor.
+    /// <b>Collision evidence</b>: a narrowly filtered <see cref="AppDomain.FirstChanceException"/> handler runs on
+    /// the invoking thread, matches the Windows sharing-violation HRESULT and this unique target path, and releases
+    /// the holder inside the first actual failed open. This proves the retry path without relying on thread-pool
+    /// scheduling or wall-clock timing. The handler never asserts or intercepts unrelated exceptions.
     /// </para>
     /// </summary>
     [Fact]
@@ -52,32 +49,50 @@ public class AtomicFileWriterAppendWithRetryTests
         {
             const string line = "transient-line\n";
 
-            // External holder excludes concurrent writers (FileShare.None) — the append's first attempt throws
-            // ERROR_SHARING_VIOLATION and enters the jittered-backoff retry. Released after ~40ms: comfortably
-            // between attempt 1 (t~0) and the ~150ms+ exhaustion floor, so a later attempt succeeds.
+            // External holder excludes concurrent writers (FileShare.None). The first actual sharing violation
+            // releases it synchronously from the narrowly filtered FirstChanceException handler below.
             var holder = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-            var releaser = Task.Run(async () =>
+            var invokingThreadId = Environment.CurrentManagedThreadId;
+            var normalizedPath = Path.GetFullPath(path);
+            var collisionObserved = 0;
+            const int sharingViolationHResult = unchecked((int)0x80070020);
+            void ReleaseHolderOnTargetSharingViolation(object? _, FirstChanceExceptionEventArgs args)
             {
-                await Task.Delay(40);
+                if (Environment.CurrentManagedThreadId != invokingThreadId
+                    || args.Exception is not IOException io
+                    || io.HResult != sharingViolationHResult
+                    || !io.Message.Contains(normalizedPath, StringComparison.OrdinalIgnoreCase)
+                    || Interlocked.Exchange(ref collisionObserved, 1) != 0)
+                {
+                    return;
+                }
+
+                try
+                {
+                    holder.Dispose();
+                }
+                catch (IOException)
+                {
+                    // The append owns the assertion; a release failure leaves the real retry outcome visible.
+                }
+            }
+
+            AppDomain.CurrentDomain.FirstChanceException += ReleaseHolderOnTargetSharingViolation;
+            try
+            {
+                // EXPECTED: the first attempt collides, the handler releases the holder, and a later retry
+                // succeeds. The explicit collision flag closes the vacuous-pass window without timing assumptions.
+                AtomicFileWriter.AppendWithRetry(path, line);
+                Assert.Equal(1, Volatile.Read(ref collisionObserved));
+
+                var actual = File.ReadAllText(path);
+                Assert.EndsWith(line, actual, StringComparison.Ordinal);
+            }
+            finally
+            {
+                AppDomain.CurrentDomain.FirstChanceException -= ReleaseHolderOnTargetSharingViolation;
                 holder.Dispose();
-            });
-
-            // EXPECTED: append succeeds (retry rides out the transient lock) AND takes ≥ ~35ms (retry engaged —
-            // the first attempt collided and waited for the ~40ms holder release). ACTUAL: captured from the
-            // stopwatch elapsed, the call returning without throwing, and the on-disk content read below.
-            var sw = Stopwatch.StartNew();
-            AtomicFileWriter.AppendWithRetry(path, line);
-            sw.Stop();
-            releaser.GetAwaiter().GetResult();
-
-            // Retry-engagement floor (closes the vacuous-pass window): a success that skipped the retry would
-            // return in well under 35ms; a genuine retry cannot return before the ~40ms holder release.
-            Assert.True(
-                sw.ElapsedMilliseconds >= 35,
-                $"Expected the retry to engage (elapsed ≥ 35ms proving the first attempt collided and waited for the ~40ms holder release), but the call returned in {sw.ElapsedMilliseconds}ms — the retry path was not exercised (vacuous pass).");
-
-            var actual = File.ReadAllText(path);
-            Assert.EndsWith(line, actual, StringComparison.Ordinal);
+            }
         }
         finally
         {
