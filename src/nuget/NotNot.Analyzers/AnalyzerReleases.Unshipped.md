@@ -15,6 +15,7 @@ NN_C002 | Naming | Error | RefPrefixMustBeRefAnalyzer, [Documentation](https://g
 NN_C003 | CodeStyle | Error | BoolDefaultFalseAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_C003)
 NN_C004 | CodeStyle | Error | AppSettingsCodeDefaultAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_C004)
 NN_C005 | CodeStyle | Error | NnAppSettingsServerOnlyReadAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_C005)
+NN_C006 | CodeStyle | Warning | VacuousTestAssertionAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#nn_c006)
 NN_CULTURE_BANNED | NotNot_Architecture | Error | NnCultureBannedAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_CULTURE_BANNED)
 NN_DI_001 | Reliability | Error | DiMarkerEnforcementAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_DI_001)
 NN_DI_002 | Design | Warning | DiMarkerEnforcementAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.Analyzers/#NN_DI_002)

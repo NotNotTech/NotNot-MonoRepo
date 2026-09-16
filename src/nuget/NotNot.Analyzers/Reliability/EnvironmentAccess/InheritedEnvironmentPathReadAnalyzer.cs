@@ -178,7 +178,8 @@ public class InheritedEnvironmentPathReadAnalyzer : DiagnosticAnalyzer
         // Resolve each argument through its PARAMETER, never its syntax position: a named argument may be
         // written out of order (`GetEnvironmentVariable(target: …, variable: "PATH")`), and reading
         // `arguments[0]` there inspects the target and silently misses the guarded read.
-        var nameExpression = FindArgumentForParameter(method, arguments, parameterOrdinal: 0);
+        var nameExpression = AnalyzerArgumentBinding.FindArgumentForParameter(
+            method, arguments, parameterOrdinal: 0);
         if (nameExpression is null) return;
 
         // Only the guarded variable. A non-constant name cannot be proven, so stay silent rather than guess.
@@ -191,7 +192,8 @@ public class InheritedEnvironmentPathReadAnalyzer : DiagnosticAnalyzer
         // target reads the inherited value and is therefore equivalent to the one-argument form.
         if (arguments.Count == 2)
         {
-            var targetExpression = FindArgumentForParameter(method, arguments, parameterOrdinal: 1);
+            var targetExpression = AnalyzerArgumentBinding.FindArgumentForParameter(
+                method, arguments, parameterOrdinal: 1);
             if (targetExpression is null) return;
 
             var targetConstant = context.SemanticModel.GetConstantValue(
@@ -210,45 +212,6 @@ public class InheritedEnvironmentPathReadAnalyzer : DiagnosticAnalyzer
             Rule,
             invocation.GetLocation(),
             enclosingTypeName));
-    }
-
-    /// <summary>
-    /// The expression bound to the parameter at <paramref name="parameterOrdinal" />, or null when no
-    /// argument supplies it.
-    /// </summary>
-    /// <remarks>
-    /// A named argument is matched by parameter NAME. An unnamed argument binds by position, which is exact
-    /// rather than approximate: C# requires a positional argument to appear in its own parameter's position,
-    /// so syntax index == parameter ordinal always holds for one. Returning null for an absent parameter
-    /// keeps the caller conservative — an optional argument left off simply is not the inherited-read proof.
-    /// </remarks>
-    private static ExpressionSyntax? FindArgumentForParameter(
-        IMethodSymbol method,
-        SeparatedSyntaxList<ArgumentSyntax> arguments,
-        int parameterOrdinal)
-    {
-        if (parameterOrdinal >= method.Parameters.Length) return null;
-        var parameterName = method.Parameters[parameterOrdinal].Name;
-
-        for (var index = 0; index < arguments.Count; index++)
-        {
-            var argument = arguments[index];
-
-            if (argument.NameColon is { } nameColon)
-            {
-                if (string.Equals(
-                        nameColon.Name.Identifier.ValueText, parameterName, StringComparison.Ordinal))
-                {
-                    return argument.Expression;
-                }
-
-                continue;
-            }
-
-            if (index == parameterOrdinal) return argument.Expression;
-        }
-
-        return null;
     }
 
     /// <summary>

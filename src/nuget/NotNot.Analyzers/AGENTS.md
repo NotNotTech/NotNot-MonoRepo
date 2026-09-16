@@ -231,6 +231,54 @@ Forbids reading a `NotNot.AppSettings`-generated **ServerOnly** key from a `.Sha
 
 Complementary to NN_C004 (AppSettingsCodeDefault) on a disjoint axis: C004 = write-side `?? default` ban at CONSUMPTION; C005 = read-side ServerOnly-reachability ban. Never co-fire.
 
+### NN_C006: Behaviorally Vacuous Test Assertion
+
+A test assertion whose outcome is fixed by DECLARATION SHAPE rather than by the behavior of the code under test — it passes whether or not the subject works, so it consumes review attention and CI time while protecting nothing. Three shapes share one ID because they share one remedy and one disposition. This rule decides condition 1 of `greenfield-patterns.md#CEREMONY_SHAPE_REMOVAL` (the shape matches); condition 2 (the justification names no protected behavior or consumer) is manual by design, so **the finding is a CANDIDATE, never a verdict**.
+
+**Severity**: Warning — a DELIBERATE override of the `Design Rules` default-`Error` above, not drift. Error would assert a deletability the enforced authority explicitly forbids ("shape match alone NEVER authorizes deletion"), and it would break builds on load-bearing cross-assembly ABI mirrors, which are all-constant by construction. `Novaleaf.VibeOverwatch.Tests/AppProtection/PtyAbiContractTests.cs` is the live proof: this rule flags it, and its xmldoc names the consumer both build graphs bind to, so it is a KEEP.
+
+**Scope gate** (all three cases): the enclosing **type** declares ≥1 method carrying a test attribute (simple name ending `Fact`/`Theory`/`Test`/`TestMethod`/`TestCase`, with an optional `Attribute` suffix stripped first, and no namespace requirement — one rule serves xunit/NUnit/MSTest). **ANY** method of that type is then in scope, INCLUDING non-attributed private helpers: Case C's real locus class puts the reflection in a `private static` helper, which an attributed-methods-only gate would miss. Membership is decided on the **type**, so a `partial` class whose attributed methods live in another part, and a class that INHERITS its attributed methods, are both in scope. Implementation is two-stage to keep the `InvocationExpression` perf contract: a syntax-only fast path decides the common case with no symbol work, escalating to the type symbol only for a `partial` or base-listed declaration — the two shapes where one declaration's own member list is not the type's.
+
+**Compared vs carried arguments** (one condition, consumed by Cases A and B): an argument participates in the verdict (COMPARED) unless it is bound to a parameter that carries diagnostic text — `userMessage`, `message`, `reason`, `detail`, `because`, … or any `params` tail. Case A's all-quantifier quantifies over compared arguments only and Case B searches only those, so a failure message is not an operand. An argument list that cannot be mapped to parameters yields conservative silence.
+
+**Flagged**:
+- `constant-tautology` — an invocation on a type whose simple name is `Assert` where EVERY COMPARED argument is behavior-independent: a resolvable constant (literal, `const`, enum member, cast of one), a `typeof(...)`, a `nameof(...)`, or a declaration-metadata member (`System.Type`/`MemberInfo`) whose RECEIVER is itself behavior-independent. `{0}` = case name, `{1}` = enclosing method name (falling back to the type name). Reported at the assertion.
+- `enum-shape-pin` — an `Assert` method named `Equal`/`NotEqual`/`StrictEqual`/`Same`/`True`/`False` where some COMPARED argument's expression tree contains a `System.Enum.GetNames`/`GetValues` invocation (generic overloads included). Reported at the assertion.
+- `foreign-nonpublic-reflection` — `System.Type.GetMethod`/`GetProperty`/`GetField`/`GetMember`/`GetEvent` where ALL hold: the `name` argument is a constant string, the `bindingAttr` argument constant-evaluates with `BindingFlags.NonPublic` set, the receiver is a `typeof(T)`, and `T`'s containing assembly is not the compilation's own. Reported at the REFLECTION invocation, which is frequently inside no assertion at all.
+
+**Allowed**:
+- Any behavior-dependent operand — `Assert.Equal(7, list.Count)`, `Assert.Equal(expected, Subject.Compute(input))`. Case A's all-quantifier is the precision story: one meaningful operand makes the assertion meaningful.
+- **Unconditional-outcome markers** — `Assert.Fail("...")`, `Assert.Skip("...")`, `Assert.True(false, "...")`, `Assert.False(true, "...")`. These are all-constant BY CONSTRUCTION but their fixed outcome is FAILURE, so each is a detector for an unexpected branch or a missing exception, not ceremony. Vacuity means a fixed outcome of PASS. Flagging them is the one way this rule could cause the harm it exists to prevent: a local control marker names no consumer, so tier 1 cannot apply and the ladder routes to tier 3 — deleting `Assert.Fail("expected X")` from a negative-path test converts a test that FAILS into one that PASSES.
+- **An enum accessor in a CARRIED argument** — `Assert.True(Ready(), string.Join(",", Enum.GetNames<E>()))`. The enum call is being formatted into a failure message, or projected into input for the code under test; either way it pins nothing, because the verdict does not rest on it.
+- `Assert.All`/`Collection`/`Contains` over an enum reflection source — reflection as a per-member ENUMERATION SOURCE for behavioral assertions is the pattern this rule steers toward; flagging it would invert the rule.
+- A same-named `GetNames`/`GetValues` on any type other than `System.Enum`.
+- A runtime receiver — `obj.GetType().IsPublic`, `obj.GetType().GetMethod(...)`. The reflected type is not compile-time decidable, so ownership cannot be proven.
+- `Public` rather than `NonPublic` binding flags; a non-constant member name; a non-constant `bindingAttr` (conservative silence).
+- Non-public reflection into a type the compilation DOES own — testing your own internals is ordinary.
+- `[NotNot.Bcl.Diagnostics.CodeStyleBypass]` on the member, declaring type, or assembly.
+
+**Preferred Fix** (in order — the order is load-bearing, do not reshuffle):
+1. **KEEP and cite.** If the pinned shape IS a contract — a wire format or a cross-assembly binary-interface mirror — keep the test and name the consumer it protects in its documentation. That citation is what makes it a KEEP, and for a genuine contract it is the cheapest correct remedy.
+2. Replace the assertion with one over observable behavior of the code under test.
+3. Delete the assertion **only after** confirming no consumer is named. Deletion is never the lead: leading with it would cause silent coverage loss on binary-interface mirrors.
+4. `[NotNot.Bcl.Diagnostics.CodeStyleBypass]` on the member, or `#pragma warning disable NN_C006`, for a deliberately declaration-level assertion.
+
+**Call shapes**: both the qualified `Assert.Equal(...)` and the bare `Equal(...)` under `using static Xunit.Assert;` — including the bare GENERIC spelling `Equal<int>(1, 1)`, which is a `GenericNameSyntax`, a SIBLING of `IdentifierNameSyntax` under `SimpleNameSyntax` rather than a subtype, so the gate matches `SimpleNameSyntax` — and both `Enum.GetNames(...)` and the bare `GetNames(...)` under `using static System.Enum;`. The `Assert` gate and Case B's inner scan decide on the RESOLVED SYMBOL's containing type, never on syntax shape, so qualification is structurally incapable of deciding whether the rule fires. Case C's `name` and `bindingAttr` resolve through their PARAMETER via `Diagnostics/AnalyzerArgumentBinding.cs`, never by syntax position, so `GetMethod(bindingAttr: …, name: "Hidden")` cannot evade it. Both holes were confirmed defects in NN_R011's first implementation and both carry regression fixtures here.
+
+**Dispatch**: Cases A and B both register on the same `Assert.*` node and evaluate A → B, returning on the FIRST match, so one assertion can never produce two NN_C006 diagnostics. Case C is disjoint by construction (its node is a `System.Type` reflection call, never an `Assert` member call).
+
+**Scope boundary** (deliberate, not an oversight — an ALLOWED list that implies completeness is itself the defect):
+1. Assertion libraries other than a type named `Assert` — FluentAssertions `.Should()` chains, Shouldly, raw `Debug.Assert`. Their call shapes are structurally different and would each need their own predicate.
+2. `Assert.All`/`Collection`/`Contains` over enum reflection — per-member behavioral assertions, as above.
+3. Reflection through a runtime receiver rather than `typeof(T)` — the reflected type is undecidable, so ownership cannot be proven.
+4. Non-public reflection into an owned type — testing your own internals is ordinary.
+5. Condition 2 of the authority (whether a justification names a consumer) — protocol-manual by design.
+6. An extension method shadowing `Type.GetMethod` would evade Case C, whose dispatch requires the resolved containing type to be `System.Type`. A contrived shape with no observed locus; recorded rather than fixtured.
+
+Widening to any of these is a deliberate future decision, **not** an assumed gap. Accepted trade-off of one ID for three cases: no per-shape `.editorconfig` severity control; revisit only if one case proves noisier than the others in practice.
+
+Complementary to NN_C003/NN_C004/NN_C005 on a disjoint axis: C003 governs production *declaration*, C004 production *consumption*, C005 read-*reachability*; none addresses test-assertion behavioral content. NN_C006 cannot co-fire with any of them — their trigger nodes are `Parameter`/`Property`/`Field`, coalesce operators, and member-access reads, while NN_C006 triggers only on `InvocationExpression`.
+
 ### NN_DI_006: Hosted Service Required Delegate Ctor Param
 
 A concrete `IHostedService` (e.g. `BackgroundService`) whose single public constructor has a REQUIRED delegate-typed parameter (`Func<>`/`Action<>`/custom delegate) that DI never registers. The NotNot Scrutor convention auto-registers every `IHostedService` `AsSelfWithInterfaces` with constructor injection; a required delegate param makes the concrete registration unconstructible → the host crashes at `builder.Build()` (Dev `ValidateOnBuild`) / `Host.StartAsync` (Prod) BEFORE any port binds. Gap-filling third rule of the hosted-service matrix (NN_DI_004 = marker+IHostedService conflict; NN_DI_005 = marker-absence; NN_DI_006 = ctor-unconstructibility) — marker-INDEPENDENT (fires whether or not the type carries an `IDi{L}Service` marker), but scan-marker GATED: the crash only occurs when the type is auto-registered, which requires the declaring assembly to carry `[assembly: AutoDiScanAssembly]` (unmarked assembly ⇒ never auto-registered ⇒ silent).
@@ -304,6 +352,8 @@ Rejects either canonical Microsoft `AddHostedService<T>()` overload when `T` is 
 | `Conventions/BoolDefaultFalseAnalyzer.cs` | NN_C003 |
 | `Conventions/AppSettingsCodeDefaultAnalyzer.cs` | NN_C004 |
 | `Conventions/NnAppSettingsServerOnlyReadAnalyzer.cs` | NN_C005 |
+| `Conventions/VacuousTestAssertionAnalyzer.cs` | NN_C006 |
+| `Diagnostics/AnalyzerArgumentBinding.cs` | Shared parameter→argument binder (NN_R011, NN_C006) |
 | `Architecture/DI/DiMarkerEnforcementAnalyzer.cs` | NN_DI_001..007 |
 
 ## Adding New Suppressors

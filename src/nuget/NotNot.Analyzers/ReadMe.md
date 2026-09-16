@@ -449,6 +449,60 @@ var key   = nameof(settings.ServerKey);              // no runtime dereference
 
 Complementary to NN_C004 (AppSettingsCodeDefault) on a disjoint axis: C004 = write-side `?? default` ban at *consumption*; C005 = read-side ServerOnly-reachability ban. They never co-fire.
 
+<a id="nn_c006"></a>
+### NN_C006: Behaviorally vacuous test assertion
+**Severity:** Warning
+**Category:** CodeStyle
+
+Flags a test assertion whose outcome is fixed by **declaration shape** rather than by the behavior of the code under test — it passes whether or not the subject works. Three shapes share one diagnostic ID because they share one remedy and one disposition: a tautology over constants/type identities/`nameof`/declaration metadata, a pin on an enum's member names or count, and a lookup of a named non-public member on a type the compilation does not own.
+
+**The finding is a CANDIDATE, not a verdict.** Shape match alone never authorizes deletion — the same all-constant shape is exactly how a legitimate wire-format or cross-assembly binary-interface mirror is written, and deleting one silently removes the only guard against value drift between two build graphs. That is why the severity is `Warning` and why the first remediation tier **keeps** the test.
+
+**Scope gate** (all three shapes): the enclosing **type** declares at least one method carrying a test attribute (simple name ending `Fact`/`Theory`/`Test`/`TestMethod`/`TestCase`, an optional `Attribute` suffix stripped first — no namespace requirement, so one rule serves xunit, NUnit, and MSTest). **Any** method of that type is then in scope, *including* non-attributed private helpers, and membership is decided on the type — so a `partial` class whose attributed methods live in another part, and a class that inherits its attributed methods from a base, are both in scope.
+
+**Compared vs carried arguments**: an argument participates in the verdict (*compared*) unless it is bound to a parameter carrying diagnostic text — `userMessage`, `message`, `reason`, … or any `params` tail. Both the constant-tautology all-quantifier and the enum-shape-pin search consider compared arguments only, so a failure message is never treated as an operand.
+
+```csharp
+// ❌ Flagged — constant-tautology (every operand is fixed by declaration):
+Assert.NotEqual(typeof(Foo), typeof(Bar));              // type identities
+Assert.True(typeof(Foo).IsPublic);                      // declaration metadata, compile-time receiver
+Assert.Equal(DenialReason.PoolExhausted, (int)WireStatus.PoolExhausted); // all-constant ABI mirror
+Assert.Equal("Foo", nameof(Foo));                       // no runtime dereference
+
+// ❌ Flagged — enum-shape-pin (the assertion pins the enum's declaration shape):
+Assert.Equal(new[] { "A", "B" }, Enum.GetNames(typeof(Shade)));
+Assert.Equal(3, Enum.GetValues<Shade>().Length);
+
+// ❌ Flagged — foreign-nonpublic-reflection (pins another assembly's private surface):
+typeof(ComponentBase).GetMethod("ShouldRender", BindingFlags.Instance | BindingFlags.NonPublic);
+
+// ✅ Allowed:
+Assert.Equal(7, list.Count);                            // behavior-dependent operand
+Assert.Equal(expected, Subject.Compute(input));         // calls the code under test
+Assert.Fail("expected ArgumentException");              // unconditional-outcome MARKER (fixed outcome = FAIL)
+Assert.Skip("not supported on this platform");          // unconditional-outcome MARKER
+Assert.True(false, "unreachable branch");               // negative-path detector, not ceremony
+Assert.True(Ready(), string.Join(",", Enum.GetNames<Shade>())); // enum call is CARRIED, not compared
+Assert.All(Enum.GetValues<Shade>(), v => Assert.NotNull(Map(v))); // enumeration SOURCE, not a shape pin
+Assert.True(obj.GetType().IsPublic);                    // runtime receiver
+obj.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public); // runtime receiver, Public
+typeof(OwnType).GetMethod("Hidden", BindingFlags.Instance | BindingFlags.NonPublic); // owned type
+```
+
+**Flagged**: `constant-tautology` — an invocation on a type whose simple name is `Assert` where **every compared** argument is behavior-independent (a resolvable constant, a `typeof(...)`, a `nameof(...)`, or a `System.Type`/`MemberInfo` member whose *receiver* is itself behavior-independent). `enum-shape-pin` — an `Assert` method named `Equal`/`NotEqual`/`StrictEqual`/`Same`/`True`/`False` where some **compared** argument's expression tree contains a `System.Enum.GetNames`/`GetValues` invocation. `foreign-nonpublic-reflection` — `System.Type.GetMethod`/`GetProperty`/`GetField`/`GetMember`/`GetEvent` with a constant `name`, a `bindingAttr` carrying `BindingFlags.NonPublic`, a `typeof(T)` receiver, and `T` outside the compilation's own assembly. Message argument `{0}` is the case name, `{1}` the enclosing method name.
+
+**Allowed**: any behavior-dependent operand; an unconditional-outcome marker whose fixed outcome is FAILURE (`Assert.Fail`, `Assert.Skip`, `Assert.True(false, …)`, `Assert.False(true, …)`) — these are negative-path detectors, and deleting one converts a failing test into a passing one; an enum accessor appearing only in a carried message or detail argument, which pins nothing because the verdict does not rest on it; `Assert.All`/`Collection`/`Contains` over an enum reflection source (per-member behavioral assertions — the pattern this rule steers toward); a same-named `GetNames`/`GetValues` on a non-`System.Enum` type; a runtime receiver (`obj.GetType()`); `Public` rather than `NonPublic` flags; a non-constant member name or binding-flags argument (conservative silence); non-public reflection into a type the compilation owns; and `[NotNot.Bcl.Diagnostics.CodeStyleBypass]` on the member, type, or assembly.
+
+**Preferred fix** (the order is load-bearing — deletion is never the lead):
+1. **Keep and cite.** If the pinned shape *is* a contract — a wire format or cross-assembly binary-interface mirror — keep the test and name the consumer it protects in its documentation. That citation is what makes it a KEEP.
+2. Replace the assertion with one over observable behavior of the code under test.
+3. Delete the assertion **only after** confirming no consumer is named.
+4. `[NotNot.Bcl.Diagnostics.CodeStyleBypass]` on the member, or `#pragma warning disable NN_C006` / an `.editorconfig` severity override, for a deliberately declaration-level assertion.
+
+**Scope boundary** (deliberate, not an oversight — an allowed list that implies completeness is itself the defect): assertion libraries other than a type named `Assert` (FluentAssertions `.Should()`, Shouldly, raw `Debug.Assert`); `Assert.All`/`Collection`/`Contains` over enum reflection; reflection through a runtime receiver; non-public reflection into an owned type; the manual judgment of whether a justification names a consumer; and an extension method shadowing `Type.GetMethod`. Widening to any of these is a deliberate future decision, not an assumed gap. Accepted trade-off of one ID for three cases: no per-shape severity control.
+
+Complementary to NN_C003/NN_C004/NN_C005 on a disjoint axis: C003 = production *declaration*, C004 = production *consumption*, C005 = read-*reachability*, C006 = test-assertion behavioral content. They never co-fire — NN_C006 triggers only on `InvocationExpression`.
+
 ## ⚙️ Configuration
 
 Configure rules using `.editorconfig`:
@@ -468,6 +522,9 @@ dotnet_diagnostic.NN_R008.severity = error
 dotnet_diagnostic.NN_R009.severity = error
 dotnet_diagnostic.NN_C004.severity = error
 dotnet_diagnostic.NN_C005.severity = error
+# NN_C006 reports a CANDIDATE that still needs the manual consumer-citation judgment, so it ships as a
+# warning. Escalating it to error asserts a deletability the rule deliberately does not claim.
+dotnet_diagnostic.NN_C006.severity = warning
 
 # Disable specific rules
 dotnet_diagnostic.NN_R003.severity = none
