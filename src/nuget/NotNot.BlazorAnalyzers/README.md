@@ -1322,6 +1322,44 @@ A bare `var(--nns-typo)` (no fallback) to a token declared in NO authority CSS s
 dotnet_diagnostic.NNB_CSS013.severity = suggestion
 ```
 
+<a id="NNB_CSS014"></a><a id="nnb_css014"></a>
+### NNB_CSS014: `@keyframes` block animates a non-composited property
+
+**Severity:** Error
+**Category:** CssModernization
+**Authority:** The NnDesign motion contract — the closed `.nns-motion-*` utility vocabulary in `nn-design.css` (`opacity`/`transform`-only) is the SSOT for what may animate.
+
+A different axis from the reach-in family ([NNB_CSS008](#NNB_CSS008) / [NNB_CSS009](#nnb_css009) / [NNB_CSS011](#NNB_CSS011)): those police the styled SUBJECT of a selector; NNB_CSS014 polices the animated PROPERTY SET of a `@keyframes` block. A keyframe that animates `filter`, `color`, geometry (`top`/`left`/`width`/`height`), `border-color`, `background-color`, `stroke-dash*` or a custom property forces the browser to rebuild the display list and repaint on every refresh tick while the animation runs — the exact regression class behind two measured 76%+ paint-loop incidents (notification-bell `filter` pulse, reduced-motion `color` + `filter` pulse). The cheapest correct fix is to move the static presentation onto the rule (or a pseudo-layer) and animate that layer's `opacity`, or to adopt an `.nns-motion-*` vocabulary utility.
+
+**Iteration-agnostic by design.** The rule does not resolve `animation:` declarations to keyframe names (references routinely cross file boundaries), so bounded one-shots on disqualified properties (focus-flash `border-color`, bell `background-color`) also fire and carry the marker with a "bounded one-shot" justification. The marker documents the bound at the keyframe, which is where a future `infinite` edit would be reviewed.
+
+**Exemption posture is producer-INCLUSIVE (like [NNB_CSS012](#NNB_CSS012) / [NNB_CSS013](#NNB_CSS013), unlike the reach-in family).** The producer owns `nn-design.css`, where the alert-glow and dash-march residuals live, so the check deliberately does NOT call the producer-path exemption. Only the vendor-file skip, the shared `CssAnalyzerEnabled=false` kill-switch, and the per-file `nnb_css014:allow-noncomposited-keyframe` marker apply.
+
+```css
+/* ❌ NNB_CSS014 fires (Error) — filter keyframe pins the paint loop */
+@keyframes glow { 0%, 100% { filter: drop-shadow(0 0 2px red); } }
+
+/* ❌ NNB_CSS014 fires (Error) — one diagnostic per bad property; opacity stays silent */
+@keyframes rejoin { 0% { top: 40px; left: 40px; width: 0; opacity: 0; } }
+
+/* ✅ opacity/transform only — NO warning */
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.9; } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ✅ bounded one-shot with a marker — NO warning */
+@keyframes bell { 0% { background-color: white; } }
+/* nnb_css014:allow-noncomposited-keyframe: bounded 150ms one-shot, not steady-state */
+```
+
+**Documented non-goals / false-negatives** (accepted): keyframe-shaped text inside CSS comments is documentation, never flagged; vendor files (`*.min.css`, `/lib/`, `/node_modules/` — the MudBlazor indeterminate keyframes are an acknowledged residual covered only by the perf-monitor runtime detector); inline `<style>` blocks in `.razor` markup (no keyframes live there today).
+
+**Per-file opt-out**: `/* nnb_css014:allow-noncomposited-keyframe: <reason> */`. **Kill-switch** (shared with the CSS suite): `<CssAnalyzerEnabled>false</CssAnalyzerEnabled>`. To soften locally:
+
+```ini
+[*.css]
+dotnet_diagnostic.NNB_CSS014.severity = suggestion
+```
+
 ### NNB048: Design-system component calls application-owned JavaScript
 
 **Severity:** Error
@@ -1495,6 +1533,7 @@ The documented diagnostic IDs MUST match the implemented `DiagnosticDescriptor`s
 | NNB_CSS011 | `CssNnConsumerClassAnalyzer` | Warning | Consumer CSS class bound to an `Nn*` root via TWO deliveries: scoped `::deep` in `.razor.css` (cross-file `.razor.css`↔`.razor`) AND an inline `<style>` block in a `.razor` (intra-file) |
 | NNB_CSS012 | `CssFontSizeTokenAnalyzer` | Error | `font-size` literal (rem / px) in `.css` / `.razor.css` duplicating an `--nns-font-size-*` token value |
 | NNB_CSS013 | `CssNnTokenValidityAnalyzer` | Error | Unknown `--nns-*` token reference (bare, producer-scoped) |
+| NNB_CSS014 | `CssKeyframePropertyAnalyzer` | Error | `@keyframes` block in `.css` / `.razor.css` animating a non-composited property |
 
 ## Configuration
 

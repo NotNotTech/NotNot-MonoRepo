@@ -41,6 +41,7 @@ NNB_CSS010 | CssModernization | Error | CssModernizationAnalyzer, [Documentation
 NNB_CSS011 | CssModernization | Warning | CssNnConsumerClassAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB_CSS011)
 NNB_CSS012 | CssModernization | Error | CssFontSizeTokenAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB_CSS012)
 NNB_CSS013 | CssModernization | Error | CssNnTokenValidityAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB_CSS013)
+NNB_CSS014 | CssModernization | Error | CssKeyframePropertyAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NNB_CSS014)
 NN_ABMCS_001 | ABMCS.AssemblyFence | Warning | LdddAssemblyFenceAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NN_ABMCS_001)
 NN_ABMCS_002 | ABMCS.ComponentBoundary | Warning | LdddInjectAndCallAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NN_ABMCS_002)
 NN_ABMCS_003 | ABMCS.ComponentBoundary | Warning | LdddInjectAndCallAnalyzer, [Documentation](https://github.com/NotNotTech/NotNot-MonoRepo/tree/master/src/nuget/NotNot.BlazorAnalyzers/#NN_ABMCS_003)
