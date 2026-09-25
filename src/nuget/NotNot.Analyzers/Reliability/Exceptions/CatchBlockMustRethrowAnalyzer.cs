@@ -37,12 +37,12 @@ public class CatchBlockMustRethrowAnalyzer : DiagnosticAnalyzer
     public const string DiagnosticId = "NN_R005";
 
     private static readonly LocalizableString Title = "Catch block must rethrow exception";
-    private static readonly LocalizableString MessageFormat = "Catch block catches '{0}' but does not rethrow. Either rethrow the exception, use __.DebugAssertOnce(ex), or catch a more specific exception type. See protocols/debugging.md for diagnostic patterns.";
+    private static readonly LocalizableString MessageFormat = "Catch block catches '{0}' but does not rethrow. Either rethrow the exception, use __.DebugAssertOnce(ex) only for an unexpected exception, or catch the specific expected exception type and log it. See protocols/debugging.md for diagnostic patterns.";
     private static readonly LocalizableString Description =
         "Catch blocks that catch general exception types (Exception, SystemException, or bare catch) must rethrow the exception. " +
         "Silent exception swallowing masks bugs and makes debugging difficult. " +
-        "Options: (1) Add 'throw;' to rethrow, (2) Use __.DebugAssertOnce(ex) for debug-only assertion + return fallback, " +
-        "(3) Catch a specific exception type instead (IOException, JsonException, etc.).";
+        "Options: (1) Add 'throw;' to rethrow, (2) Use __.DebugAssertOnce(ex) + return fallback only for an unexpected exception, since it asserts in Debug builds and can terminate the process, " +
+        "(3) For an expected exception, catch its specific type instead (IOException, JsonException, etc.) and log it.";
     private const string Category = "Reliability";
 
     private static readonly DiagnosticDescriptor Rule = new(
@@ -83,7 +83,7 @@ public class CatchBlockMustRethrowAnalyzer : DiagnosticAnalyzer
         if (HasThrowInBlock(catchClause.Block)) return;
 
         // Check if the catch block uses __.DebugAssertOnce(ex) or similar debug assertion
-        // This is an approved pattern for graceful degradation with debug visibility
+        // Approved for an unexpected exception only (asserts in Debug; graceful only in Release or when suppressed)
         if (HasDebugAssertCall(catchClause, context)) return;
 
         // Report diagnostic - general exception caught without rethrow
@@ -183,7 +183,8 @@ public class CatchBlockMustRethrowAnalyzer : DiagnosticAnalyzer
 
     /// <summary>
     /// Checks if the catch block contains a call to __.DebugAssert* with the exception variable.
-    /// This is an approved pattern for graceful degradation with debug visibility.
+    /// Approved for an unexpected exception only: it asserts in Debug builds and degrades gracefully only in
+    /// Release or when assertion suppression is enabled. An expected exception should be caught by type and logged.
     /// </summary>
     /// <remarks>
     /// Approved patterns:

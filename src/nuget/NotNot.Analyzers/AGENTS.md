@@ -43,14 +43,19 @@ Catch blocks catching `Exception`, `SystemException`, or bare `catch` must rethr
 - `throw new Wrapped(ex);` - rethrows wrapped
 - `when (condition)` - exception filter narrows scope
 - Specific types like `IOException`, `JsonException`
-- `__.DebugAssertOnce(ex)` - debug assertion with graceful degradation
+- `__.DebugAssertOnce(ex)` - debug assertion, unexpected exceptions only; graceful only in Release or when assertion suppression is enabled
 
-**Preferred Pattern** (graceful degradation with visibility):
+**Preferred Pattern**: expected exception → catch its specific type (or a `when` filter) and log; `__.DebugAssertOnce(ex)` only for an unexpected one — it asserts in DEBUG, which terminates a host with no debugger attached unless `LoLoConfig.IsDebugAssertSuppressed` is set:
 ```csharp
+catch (Exception ex) when (ex is IOException or TimeoutException)
+{
+    _logger.LogDebug(ex, "expected race");  // expected: log, then degrade
+    return fallbackValue;
+}
 catch (Exception ex)
 {
-    __.DebugAssertOnce(ex);  // Fires in DEBUG, logs once, doesn't throw
-    return fallbackValue;    // Graceful degradation in RELEASE
+    __.DebugAssertOnce(ex);  // unexpected: asserts in DEBUG
+    return fallbackValue;    // graceful degradation in RELEASE
 }
 ```
 
@@ -63,7 +68,7 @@ Catch blocks with zero statements silently swallow exceptions. Any exception typ
 **Severity**: Error
 **Flagged**: `catch { }`, `catch (IOException) { }`, `catch (Ex) { // comment }`, `catch (Ex ex) when (cond) { }`
 **Allowed** (has >=1 statement):
-- `__.DebugAssertOnce(ex)` - debug assertion with graceful degradation
+- `__.DebugAssertOnce(ex)` - debug assertion, unexpected exceptions only; graceful only in Release or when assertion suppression is enabled
 - `Log(ex)` - logging for expected exceptions
 - `throw;` or `throw new Wrapped(ex);` - rethrow
 - `return fallback;` - explicit control flow
@@ -74,7 +79,7 @@ Catch blocks with zero statements silently swallow exceptions. Any exception typ
 3. Logging for expected-but-notable exceptions (e.g., `_logger.LogDebug(ex, "race-condition conflict")` for atomic-op catches)
 4. `#pragma disable` only if truly needed
 
-**Key principle**: Even legitimate race-condition catches must not be empty — observability requires at minimum a DebugAssert or log statement.
+**Key principle**: Even legitimate race-condition catches must not be empty — an expected race needs at minimum a log statement; a DebugAssert is only for an unexpected exception.
 
 ### NN_R007: Hand-Rolled Atomic File Write
 

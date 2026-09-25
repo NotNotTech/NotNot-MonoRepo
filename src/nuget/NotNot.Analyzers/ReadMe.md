@@ -195,8 +195,9 @@ Catch blocks catching `Exception`, `SystemException`, or bare `catch` must rethr
 catch (Exception ex) { Log(ex); }  // Logs but doesn't rethrow
 
 // ✅ Fixed
-catch (Exception ex) { __.DebugAssertOnce(ex); return fallback; }
 catch (Exception ex) { throw; }
+catch (IOException ex) { _logger.LogDebug(ex, "expected race"); return fallback; }  // expected: catch the type, log
+catch (Exception ex) { __.DebugAssertOnce(ex); return fallback; }  // unexpected only: asserts in DEBUG
 ```
 
 ### NN_R006: Empty catch block silently swallows exception
@@ -217,10 +218,10 @@ catch (IOException)
 // ✅ Option 1: Avoid exceptions (non-concurrent only — TOCTOU race if concurrent)
 if (File.Exists(path)) return;
 
-// ✅ Option 2: Debug assertion (good for atomic race-condition catches)
+// ✅ Option 2: Debug assertion — only if the exception is unexpected (an expected race like this one uses Option 3)
 catch (IOException ex)
 {
-    __.DebugAssertOnce(ex);  // Visible in DEBUG, logged once, graceful in RELEASE
+    __.DebugAssertOnce(ex);  // unexpected only: asserts in DEBUG (can terminate the process), graceful in RELEASE
 }
 
 // ✅ Option 3: Logging (good for expected concurrent conflicts)
