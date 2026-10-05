@@ -10,9 +10,9 @@ using Xunit;
 namespace NotNot.Bcl.Test.Simple;
 
 /// <summary>
-/// The shared log options (<c>__.SerializationHelper._logJsonOptions</c>) are complete and read-only from
-/// construction: NotNot.Bcl adds nothing to them at load, EntityEntry renders as <c>ToString()</c>, and a
-/// mutation attempt fails at its own call.
+/// The shared log options (<c>__.SerializationHelper._logJsonOptions</c>) are built with their EntityEntry rule and
+/// made read-only (<c>MakeReadOnly()</c>) at construction: NotNot.Bcl adds nothing to them at load, EntityEntry
+/// renders as <c>ToString()</c>, and adding a converter fails at its own call.
 /// </summary>
 public class SerializationHelperLogOptionsTests
 {
