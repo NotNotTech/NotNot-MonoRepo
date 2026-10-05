@@ -14,12 +14,42 @@ public class LocalizationAnalyzerTests
     private const string PerFileEnabledOption =
         "build_metadata.AdditionalFiles.LocalizationAnalyzerEnabled";
 
-    private static CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier> CreateRazorTest()
+    /// <summary>
+    /// Global analyzer config declaring the localization contract. NNB014 is opt-in, so
+    /// every test that expects diagnostics runs under this declaration.
+    /// </summary>
+    private const string ContractDeclaredGlobalConfig = @"
+is_global = true
+build_property.LocalizationAnalyzerEnabled = true
+";
+
+    /// <summary>
+    /// Creates a test for AdditionalText-based Razor analysis. By default the test project
+    /// declares the localization contract; pass <paramref name="declareContract"/>=false to
+    /// supply (or omit) the declaration explicitly.
+    /// </summary>
+    private static CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier> CreateRazorTest(
+        bool declareContract = true)
     {
-        return new CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier>
+        var test = new CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier>
         {
+            // Minimal C# source — analyzer doesn't inspect C# trees
             TestCode = "class Placeholder { }"
         };
+
+        if (declareContract)
+            test.TestState.AnalyzerConfigFiles.Add(("/.globalconfig", ContractDeclaredGlobalConfig));
+
+        return test;
+    }
+
+    /// <summary>Creates a test whose only analyzer config is the given global config body.</summary>
+    private static CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier> CreateRazorTestWithGlobalConfig(
+        string globalConfig)
+    {
+        var test = CreateRazorTest(declareContract: false);
+        test.TestState.AnalyzerConfigFiles.Add(("/.globalconfig", globalConfig));
+        return test;
     }
 
     /// <summary>
@@ -32,11 +62,7 @@ public class LocalizationAnalyzerTests
         string razorFilePath = "/TestProject/Components/TestComponent.razor",
         params DiagnosticResult[] expected)
     {
-        var test = new CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier>
-        {
-            // Minimal C# source — analyzer doesn't inspect C# trees
-            TestCode = "class Placeholder { }"
-        };
+        var test = CreateRazorTest();
 
         // Register the .razor file as an AdditionalText (same as .props does at build time)
         test.TestState.AdditionalFiles.Add((razorFilePath, razorContent));
@@ -54,10 +80,7 @@ public class LocalizationAnalyzerTests
     /// </summary>
     private static async Task VerifyRazorOptedOutAsync(string razorContent)
     {
-        var test = new CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier>
-        {
-            TestCode = "class Placeholder { }"
-        };
+        var test = CreateRazorTest(declareContract: false);
 
         test.TestState.AdditionalFiles.Add(
             ("/TestProject/Components/TestComponent.razor", razorContent));
@@ -82,10 +105,7 @@ build_property.LocalizationAnalyzerEnabled = false
         string razorCsFilePath = "/TestProject/Components/TestComponent.razor.cs",
         params DiagnosticResult[] expected)
     {
-        var test = new CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier>
-        {
-            TestCode = "class Placeholder { }"
-        };
+        var test = CreateRazorTest();
 
         test.TestState.AdditionalFiles.Add((razorCsFilePath, csharpContent));
 
@@ -373,7 +393,7 @@ root = true
     {
         var razor = @"<h1>Enabled file</h1>";
         var path = "/TestProject/Enabled.razor";
-        var test = CreateRazorTest();
+        var test = CreateRazorTest(declareContract: false);
 
         test.TestState.AdditionalFiles.Add((path, razor));
         test.TestState.AnalyzerConfigFiles.Add(("/.globalconfig", @"
@@ -710,10 +730,7 @@ root = true
     public async Task CssFile_NotAnalyzed()
     {
         // Even though this has "label: Submit" it's a CSS file, not Razor
-        var test = new CSharpAnalyzerTest<LocalizationAnalyzer, DefaultVerifier>
-        {
-            TestCode = "class Placeholder { }"
-        };
+        var test = CreateRazorTest();
         test.TestState.AdditionalFiles.Add(
             ("/TestProject/wwwroot/app.css", "label { content: 'Submit'; }"));
 
@@ -1141,5 +1158,237 @@ public partial class TestComponent
 }";
 
         await VerifyRazorCsAsync(csharp);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Opt-in contract: parse rule for LocalizationAnalyzerEnabled
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private const string ContractProbeRazor = @"<h1>Welcome to our app</h1>";
+    private const string ContractProbePath = "/TestProject/Components/TestComponent.razor";
+
+    [Fact]
+    public async Task ContractAbsent_NoWarning()
+    {
+        var test = CreateRazorTest(declareContract: false);
+        test.TestState.AdditionalFiles.Add((ContractProbePath, ContractProbeRazor));
+
+        await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task ContractEmptyValue_NoWarning()
+    {
+        // MSBuild writes an empty value for an undefined compiler-visible property.
+        var test = CreateRazorTestWithGlobalConfig(@"
+is_global = true
+build_property.LocalizationAnalyzerEnabled =
+");
+        test.TestState.AdditionalFiles.Add((ContractProbePath, ContractProbeRazor));
+
+        await test.RunAsync();
+    }
+
+    [Theory]
+    [InlineData("true")]
+    [InlineData("True")]
+    public async Task ContractTrue_ReportsNNB014(string value)
+    {
+        var test = CreateRazorTestWithGlobalConfig($@"
+is_global = true
+build_property.LocalizationAnalyzerEnabled = {value}
+");
+        test.TestState.AdditionalFiles.Add((ContractProbePath, ContractProbeRazor));
+        test.ExpectedDiagnostics.Add(Diagnostic("Welcome to our app", ContractProbePath, 1, 5));
+
+        await test.RunAsync();
+    }
+
+    [Theory]
+    [InlineData("false")]
+    [InlineData("FALSE")]
+    public async Task ContractFalse_NoWarning(string value)
+    {
+        var test = CreateRazorTestWithGlobalConfig($@"
+is_global = true
+build_property.LocalizationAnalyzerEnabled = {value}
+");
+        test.TestState.AdditionalFiles.Add((ContractProbePath, ContractProbeRazor));
+
+        await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task ContractInvalidValue_ReportsNNB014()
+    {
+        // Any non-empty value other than false keeps the analyzer on.
+        var test = CreateRazorTestWithGlobalConfig(@"
+is_global = true
+build_property.LocalizationAnalyzerEnabled = yes
+");
+        test.TestState.AdditionalFiles.Add((ContractProbePath, ContractProbeRazor));
+        test.ExpectedDiagnostics.Add(Diagnostic("Welcome to our app", ContractProbePath, 1, 5));
+
+        await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task PerFileFalse_UnderGlobalTrue_NoWarning()
+    {
+        var path = "/TestProject/Excluded.razor";
+        var test = CreateRazorTest();
+
+        test.TestState.AdditionalFiles.Add((path, ContractProbeRazor));
+        test.TestState.AnalyzerConfigFiles.Add(("/TestProject/.editorconfig", $@"
+root = true
+
+[Excluded.razor]
+{PerFileEnabledOption} = false
+"));
+
+        await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task PerFileEmpty_UnderGlobalTrue_ReportsNNB014()
+    {
+        // An empty per-file value is "not set" and falls through to the global declaration.
+        var path = "/TestProject/Inherits.razor";
+        var test = CreateRazorTest();
+
+        test.TestState.AdditionalFiles.Add((path, ContractProbeRazor));
+        test.TestState.AnalyzerConfigFiles.Add(("/TestProject/.editorconfig", $@"
+root = true
+
+[Inherits.razor]
+{PerFileEnabledOption} =
+"));
+        test.ExpectedDiagnostics.Add(Diagnostic("Welcome to our app", path, 1, 5));
+
+        await test.RunAsync();
+    }
+
+    [Fact]
+    public async Task GlobProbePerFileTrue_WithoutGlobalContract_ReportsNNB014()
+    {
+        // The double-star glob only matches through the synthetic probe directory; a
+        // per-file true reached that way enables the analyzer with no global declaration.
+        var path = "/TestProject/Components/Pages/Localized/Page.razor";
+        var test = CreateRazorTest(declareContract: false);
+
+        test.TestState.AdditionalFiles.Add((path, ContractProbeRazor));
+        test.TestState.AnalyzerConfigFiles.Add(("/TestProject/.editorconfig", $@"
+root = true
+
+[Components/Pages/Localized/**/*.razor]
+{PerFileEnabledOption} = true
+"));
+        test.ExpectedDiagnostics.Add(Diagnostic("Welcome to our app", path, 1, 5));
+
+        await test.RunAsync();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // <script> bodies and @{ } statement blocks
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private static readonly string[] AppRazorShapeLines =
+    {
+        "@inject ILogger<App> Logger",
+        "<head>",
+        "    <script>",
+        "    window.reportCssLoadError = function(el) {",
+        "        var msg = '[CSS] Failed to load stylesheet: ' + href + '. Scoped component styles may be missing.';",
+        "        console.error(msg);",
+        "    };",
+        "    </script>",
+        "    <script>",
+        "    (function () {",
+        "        try {",
+        "            if (m === \"dark\") {",
+        "                isDark = true;",
+        "            } else if (m === \"light\") {",
+        "                isDark = false;",
+        "            } else {",
+        "                isDark = !!(window.matchMedia &&",
+        "                    window.matchMedia(\"(prefers-color-scheme: dark)\").matches);",
+        "            }",
+        "        } catch (e) {",
+        "            // Fallback: leave default (no class, no inline color-scheme).",
+        "        }",
+        "    })();",
+        "    </script>",
+        "    @{",
+        "        string cssHref;",
+        "        try",
+        "        {",
+        "            cssHref = Assets[$\"{CssBundleAssemblyName}.styles.css\"];",
+        "        }",
+        "        catch (Exception ex)",
+        "        {",
+        "            cssHref = $\"{CssBundleAssemblyName}.styles.css\";",
+        "            Logger.LogError(ex, \"CSS isolation bundle '{Bundle}' not found in static asset manifest. \" +",
+        "                \"AssemblyName='{AssemblyName}'. Falling back to literal path (will likely 404).\",",
+        "                $\"{CssBundleAssemblyName}.styles.css\", CssBundleAssemblyName);",
+        "        }",
+        "    }",
+        "    <link rel=\"stylesheet\" href=\"@cssHref\" onerror=\"reportCssLoadError(this)\" />",
+        "    <script src=\"_content/MudBlazor/MudBlazor.min.js\"></script>",
+        "    <script type=\"module\" src=\"_content/NotNot.BlazorDesign/nn-ellipsis-title.js\"></script>",
+        "</head>",
+    };
+
+    [Fact]
+    public async Task AppRazorShape_ScriptsAndStatementBlock_NoWarning()
+    {
+        await VerifyRazorAsync(string.Join("\n", AppRazorShapeLines));
+    }
+
+    [Fact]
+    public async Task AppRazorShape_AdjacentMarkupText_ReportsOnlyMarkup()
+    {
+        // Real markup text next to the script and statement blocks stays detected.
+        var lines = new List<string>(AppRazorShapeLines);
+        lines.Insert(24, "    <p>After the scripts</p>");   // line 25, before @{
+        lines.Insert(39, "    <p>After the statement block</p>"); // line 40, after the closing }
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(string.Join("\n", lines), path,
+            Diagnostic("After the scripts", path, 25, 8),
+            Diagnostic("After the statement block", path, 40, 8));
+    }
+
+    [Fact]
+    public async Task StatementBlock_EmbeddedMarkupText_ReportsNNB014()
+    {
+        // SampleNnScrollAnchor.razor shape: a RenderFragment declared inside @{ } whose
+        // markup text is user-facing and must stay detected.
+        var razor = string.Join("\n", new[]
+        {
+            "@{",
+            "    // Shared row list declared in the render body.",
+            "    RenderFragment demoLines =",
+            "        @<text>",
+            "            @foreach (var line in _lines)",
+            "            {",
+            "                <div style=\"padding: 3px 10px;\">Hello world</div>",
+            "            }",
+            "        </text>;",
+            "}",
+        });
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Hello world", path, 7, 49));
+    }
+
+    [Fact]
+    public async Task SameLineScript_TrailingTextOnly_ReportsNNB014()
+    {
+        var razor = "<script>var greeting = 'Hello there';</script> Visible text";
+        var path = "/TestProject/Components/TestComponent.razor";
+
+        await VerifyRazorAsync(razor, path,
+            Diagnostic("Visible text", path, 1, 47));
     }
 }

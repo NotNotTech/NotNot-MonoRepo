@@ -2342,7 +2342,7 @@ public class Chunk<TComponent> : Chunk
 		_count++;
 #if DEBUG
 		//clear the slot
-		UnsafeArray[pageToken.slotRef.slotIndex] = default;
+		Array.Clear(UnsafeArray, pageToken.slotRef.slotIndex, 1);
 #endif
 	}
 
@@ -2364,7 +2364,7 @@ public class Chunk<TComponent> : Chunk
 			var chunk =
 				_GLOBAL_LOOKUP[moveComponentDataFrom.pageId]._AsSpan()[moveComponentDataFrom.slotRef.chunkIndex];
 
-			chunk.UnsafeArray[moveComponentDataFrom.slotRef.slotIndex] = default;
+			Array.Clear(chunk.UnsafeArray, moveComponentDataFrom.slotRef.slotIndex, 1);
 		}
 #endif
 	}

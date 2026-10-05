@@ -13,6 +13,11 @@ namespace NotNot.BlazorAnalyzers.Localization;
 /// <c>@L["key"]</c> localization pattern. Scans <c>.razor</c> and <c>.razor.cs</c>
 /// AdditionalTexts registered via the .props file.
 /// <para>
+/// Opt-in: NNB014 runs only for files whose project declares a localization contract
+/// (<c>LocalizationAnalyzerEnabled=true</c> made compiler-visible). Projects without a
+/// localizer have no <c>@L["key"]</c> remedy, so an undeclared or empty value means off.
+/// </para>
+/// <para>
 /// Reports NNB014 for:
 /// <list type="bullet">
 ///   <item>Hardcoded text nodes in Razor markup</item>
@@ -204,6 +209,7 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         var codeBlockBraceDepth = 0;
         var insideBlockComment = false;
         var insideStyleBlock = false;
+        var insideScriptBlock = false;
         var razorExpressionDepth = 0;
 
         foreach (var textLine in sourceText.Lines)
@@ -213,6 +219,39 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
             var lineText = textLine.ToString();
             var trimmed = lineText.Trim();
             var lineStart = textLine.Start;
+
+            // JavaScript inside a Razor <script> element is not user-facing text.
+            // Markup after a same-line </script> is still scanned: the script part
+            // is masked as one inert tag so positions of the remaining text hold.
+            if (insideScriptBlock)
+            {
+                var closeEnd = IndexOfScriptCloseEnd(lineText, 0);
+                if (closeEnd < 0)
+                    continue;
+
+                insideScriptBlock = false;
+                if (string.IsNullOrWhiteSpace(lineText.Substring(closeEnd)))
+                    continue;
+
+                lineText = MaskScriptPrefix(lineText, closeEnd);
+                trimmed = lineText.Trim();
+            }
+            else if (IsScriptOpen(trimmed))
+            {
+                var openIndex = lineText.IndexOf('<');
+                var closeEnd = IndexOfScriptCloseEnd(lineText, openIndex);
+                if (closeEnd < 0)
+                {
+                    insideScriptBlock = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(lineText.Substring(closeEnd)))
+                    continue;
+
+                lineText = MaskScriptPrefix(lineText, closeEnd);
+                trimmed = lineText.Trim();
+            }
 
             // CSS inside a Razor <style> element is not user-facing text.
             if (insideStyleBlock)
@@ -231,23 +270,28 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            // Track @code { } blocks — analyze C# strings inside them (Phase 3B)
+            // Track @code { } blocks and @{ } statement blocks. Both hold C#
+            // statements, so their lines are analyzed as C# (Phase 3B) while
+            // embedded markup lines keep the markup scanner.
             if (!insideCodeBlock)
             {
-                if (trimmed.StartsWith("@code", StringComparison.Ordinal))
+                var isCodeDirective = trimmed.StartsWith("@code", StringComparison.Ordinal);
+                if (isCodeDirective ||
+                    (trimmed.StartsWith("@{", StringComparison.Ordinal) &&
+                     !IsInComment(htmlComments, lineStart) && !IsInComment(razorComments, lineStart)))
                 {
-                    insideCodeBlock = true;
-                    codeBlockBraceDepth = 0;
-                    // Count braces on this line (skip braces inside string literals)
-                    codeBlockBraceDepth += CountNetBraces(lineText);
-                    // Analyze C# strings on the @code opening line (rare but possible)
+                    // Count braces on this line (skip braces inside string literals).
+                    // A single-line @{ ... } closes on this line and opens no block.
+                    codeBlockBraceDepth = CountNetBraces(lineText);
+                    insideCodeBlock = isCodeDirective || codeBlockBraceDepth > 0;
+                    // Analyze C# strings on the opening line
                     AnalyzeCSharpLine(context, file, sourceText, lineText, lineStart, ref insideBlockComment);
                     continue;
                 }
             }
             else
             {
-                // Inside @code block — track brace depth (skip braces inside string literals)
+                // Inside @code / @{ } block: track brace depth (skip braces inside string literals)
                 codeBlockBraceDepth += CountNetBraces(lineText);
                 // A RenderFragment lambda can embed ordinary Razor markup inside an
                 // @code block. Route those lines through the markup scanner so
@@ -603,6 +647,49 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
     private static int IndexOfStyleClose(string line)
     {
         return line.IndexOf("</style>", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsScriptOpen(string trimmedLine)
+    {
+        if (!trimmedLine.StartsWith("<script", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return trimmedLine.Length == "<script".Length ||
+            char.IsWhiteSpace(trimmedLine["<script".Length]) ||
+            trimmedLine["<script".Length] is '>' or '/';
+    }
+
+    /// <summary>
+    /// Returns the index just past the first <c>&lt;/script&gt;</c> at or after
+    /// <paramref name="start"/>, or -1 when the script element stays open.
+    /// A self-closing <c>&lt;script ... /&gt;</c> opening tag at <paramref name="start"/>
+    /// also ends the element.
+    /// </summary>
+    private static int IndexOfScriptCloseEnd(string line, int start)
+    {
+        start = Math.Max(start, 0);
+        var close = line.IndexOf("</script>", start, StringComparison.OrdinalIgnoreCase);
+        if (close >= 0)
+            return close + "</script>".Length;
+
+        if (string.Compare(line, start, "<script", 0, "<script".Length, StringComparison.OrdinalIgnoreCase) == 0)
+        {
+            var tagEnd = SkipHtmlTag(line, start);
+            if (tagEnd >= 2 && tagEnd <= line.Length && line[tagEnd - 1] == '>' && line[tagEnd - 2] == '/')
+                return tagEnd;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Replaces the first <paramref name="length"/> characters (a whole script element,
+    /// at least <c>&lt;/script&gt;</c> long) with an inert tag of the same length, so the
+    /// markup scanner skips them and text after the script keeps its original column.
+    /// </summary>
+    private static string MaskScriptPrefix(string line, int length)
+    {
+        return "<" + new string(' ', length - 2) + ">" + line.Substring(length);
     }
 
     private static int FindRazorExpressionDepth(string line)
@@ -1373,22 +1460,20 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
     // ── Reporting ────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns whether the analyzer is enabled for one AdditionalText. The item metadata
-    /// option is checked first so a project can keep the shared AdditionalFiles set intact
-    /// while excluding only its non-localized files. A file-scoped legacy build property is
-    /// also honored for analyzer-config compatibility, then the global build property is the
-    /// fallback for every file without an override.
+    /// Returns whether the analyzer is enabled for one AdditionalText. NNB014 is opt-in: it
+    /// runs only where a localization contract is declared (<c>LocalizationAnalyzerEnabled=true</c>).
+    /// Per-file item metadata outranks the build property, so a narrow per-file exclusion stays
+    /// effective under a project-wide declaration. Levels are read in order: per-file metadata
+    /// (exact path, then the editorconfig glob probe), the file-scoped build property (exact
+    /// path, then the probe), then the global build property. Each level falls through when
+    /// its value is absent or empty, because MSBuild writes an empty value for an undefined
+    /// compiler-visible property. <c>true</c> enables, <c>false</c> disables, any other
+    /// non-empty value enables; with no level set the analyzer is off.
     /// </summary>
     private static bool IsAnalyzerEnabled(CompilationAnalysisContext context, AdditionalText file)
     {
         var provider = context.Options.AnalyzerConfigOptionsProvider;
         var fileOptions = provider.GetOptions(file);
-
-        if (TryReadEnabled(fileOptions, AdditionalFileEnabledOption, out var enabled) ||
-            TryReadEnabled(fileOptions, GlobalEnabledOption, out enabled))
-        {
-            return enabled;
-        }
 
         // EditorConfig's double-star slash form can require a directory segment
         // even when the excluded file is a direct child of that directory. Probe
@@ -1396,19 +1481,18 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
         // effective without turning the analyzer off globally or reintroducing
         // a project-specific path exception.
         var probe = CreateEditorConfigGlobProbe(file);
-        if (probe != null)
+        var probeOptions = probe != null ? provider.GetOptions(probe) : null;
+
+        if (TryReadEnabled(fileOptions, AdditionalFileEnabledOption, out var enabled) ||
+            (probeOptions != null && TryReadEnabled(probeOptions, AdditionalFileEnabledOption, out enabled)) ||
+            TryReadEnabled(fileOptions, GlobalEnabledOption, out enabled) ||
+            (probeOptions != null && TryReadEnabled(probeOptions, GlobalEnabledOption, out enabled)))
         {
-            var probeOptions = provider.GetOptions(probe);
-            if (TryReadEnabled(probeOptions, AdditionalFileEnabledOption, out enabled) ||
-                TryReadEnabled(probeOptions, GlobalEnabledOption, out enabled))
-            {
-                return enabled;
-            }
+            return enabled;
         }
 
         return TryReadEnabled(provider.GlobalOptions, GlobalEnabledOption, out enabled)
-            ? enabled
-            : true;
+            && enabled;
     }
 
     private static AdditionalText? CreateEditorConfigGlobProbe(AdditionalText file)
@@ -1445,13 +1529,13 @@ public class LocalizationAnalyzer : DiagnosticAnalyzer
 
     private static bool TryReadEnabled(AnalyzerConfigOptions options, string optionName, out bool enabled)
     {
-        if (options.TryGetValue(optionName, out var value))
+        if (options.TryGetValue(optionName, out var value) && !string.IsNullOrWhiteSpace(value))
         {
-            enabled = !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
+            enabled = !string.Equals(value.Trim(), "false", StringComparison.OrdinalIgnoreCase);
             return true;
         }
 
-        enabled = true;
+        enabled = false;
         return false;
     }
 

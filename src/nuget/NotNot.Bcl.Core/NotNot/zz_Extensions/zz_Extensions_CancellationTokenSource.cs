@@ -528,7 +528,16 @@ public static partial class zz_Extensions_Task
 			{
 				loop++;
 				var waitMs = loop / 10;
-				var result = task.Wait(waitMs);
+				bool result;
+				try
+				{
+					//observe spinCt so the bounded spin stops as soon as either token cancels
+					result = task.Wait(waitMs, spinCt);
+				}
+				catch (OperationCanceledException)
+				{
+					break;
+				}
 				if (result)
 				{
 					//task completed

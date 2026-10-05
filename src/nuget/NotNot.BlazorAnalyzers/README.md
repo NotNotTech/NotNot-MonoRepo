@@ -673,6 +673,47 @@ catch (ObjectDisposedException ex) { Log(ex); }
 - Blanket `catch (Exception)` or bare `catch` (catches everything)
 - No cancellation exception in any catch clause (NNB012's direction, not NNB013's)
 
+<a id="nnb014"></a>
+### NNB014: Hardcoded user-facing string should be localized
+
+**Severity:** Warning
+**Category:** Localization
+**Default:** Off. NNB014 runs only in projects that declare a localization contract.
+
+Detects hardcoded user-facing text in `.razor` markup (text nodes and localizable attributes such as `Label`, `Title`, `Placeholder`) and hardcoded strings assigned to localizable properties in `@code` blocks, `@{ }` statement blocks and `.razor.cs` code-behind. The remedy is the `@L["key"]` localization pattern, so the rule only applies where a localizer exists. JavaScript inside `<script>` elements and CSS inside `<style>` elements is not scanned.
+
+```razor
+@* ❌ NNB014 fires (contract declared) *@
+<h1>Welcome</h1>
+<NnTextField Label="Search" />
+
+@* ✅ Localized *@
+<h1>@L["Welcome:UI.Heading"]</h1>
+<NnTextField Label="@L["Search:UI.Label"]" />
+```
+
+**Opt in** (the project owns a localizer). A `ProjectReference` analyzer consumer does not import the package props, so it declares both items:
+
+```xml
+<PropertyGroup>
+  <LocalizationAnalyzerEnabled>true</LocalizationAnalyzerEnabled>
+</PropertyGroup>
+<ItemGroup>
+  <CompilerVisibleProperty Include="LocalizationAnalyzerEnabled" />
+</ItemGroup>
+```
+
+A `PackageReference` consumer already gets the `CompilerVisibleProperty` from the package props and sets only the property.
+
+**Exclude single files** under a declared contract with the per-file key in `.editorconfig` (per-file metadata outranks the project property):
+
+```ini
+[Components/Pages/Samples/*.razor]
+build_metadata.AdditionalFiles.LocalizationAnalyzerEnabled = false
+```
+
+**Parse rule** (applies to the per-file key and the build property): `true` → on; `false` → off (both case-insensitive); empty or absent → not set, fall through to the next level; any other value → on. With no level set the analyzer is off. MSBuild writes an empty value for an undefined compiler-visible property, so an undeclared project stays off.
+
 <a id="nnb009"></a>
 ### NNB009: Verbose Disposal Exception Catching
 
