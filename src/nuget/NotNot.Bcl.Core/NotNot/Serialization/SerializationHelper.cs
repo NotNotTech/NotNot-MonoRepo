@@ -141,7 +141,8 @@ public class SerializationHelper
 
 	/// <summary>
 	/// how the serialization helper should convert objects to json (for use with logging, etc).
-	/// <para>These options are complete and read-only from construction; mutating them throws <see cref="InvalidOperationException"/>.
+	/// <para>These options are made read-only at construction (<see cref="JsonSerializerOptions.MakeReadOnly()"/>): adding or removing converters
+	/// or changing option settings throws <see cref="InvalidOperationException"/>.
 	/// To handle another type in logs, add its rule to the construction list in <see cref="_CreateLogJsonOptions"/>
 	/// (match framework types this library cannot reference by type name).
 	/// For a different policy, copy them: <c>new JsonSerializerOptions(__.SerializationHelper._logJsonOptions)</c>.</para>
@@ -187,9 +188,9 @@ public class SerializationHelper
 
 	/// <summary>
 	/// our general, standard way of serializing to/from JSON. 
-	/// <para>This is a shared instance; do not mutate it. For custom converters, copy it into your own options via
-	/// <c>new JsonSerializerOptions(__.SerializationHelper._roundtripJsonOptions)</c> or <c>_CopyFrom</c>, then add them there.</para>
-	/// <para>use the jsonSerializerOptions _CopyFrom() extension method to copy this to your existing options, eg: `yourOptions._CopyFrom(__.SerializationHelper._roundtripJsonOptions)`</para>
+	/// <para>This is a shared instance; do not mutate it. For custom converters, copy it into new options via
+	/// <c>new JsonSerializerOptions(__.SerializationHelper._roundtripJsonOptions)</c>, or into your existing options via
+	/// <c>yourOptions._CopyFrom(__.SerializationHelper._roundtripJsonOptions)</c>, then add them there.</para>
 	/// </summary>
 	public JsonSerializerOptions _roundtripJsonOptions = new()
 	{
