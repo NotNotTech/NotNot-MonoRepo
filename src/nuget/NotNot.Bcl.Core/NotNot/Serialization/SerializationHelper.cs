@@ -65,10 +65,6 @@ public class SerializationHelper
 #pragma warning restore NN_R005
 				}
 			}
-			if (_logJsonOptions.IsReadOnly is false)
-			{
-				_logJsonOptions.Converters.Clear();
-			}
 			// Teardown: release after dispose; _isDisposed guards against post-dispose reuse.
 			_logJsonOptions = null!;
 		}
@@ -145,41 +141,54 @@ public class SerializationHelper
 
 	/// <summary>
 	/// how the serialization helper should convert objects to json (for use with logging, etc).
-	/// <para>if you have a custom type that needs to be handled, add it to _jsonOptions.Converters at application start up.</para>
+	/// <para>These options are complete and read-only from construction; mutating them throws <see cref="InvalidOperationException"/>.
+	/// To handle another type in logs, add its rule to the construction list in <see cref="_CreateLogJsonOptions"/>
+	/// (match framework types this library cannot reference by type name).
+	/// For a different policy, copy them: <c>new JsonSerializerOptions(__.SerializationHelper._logJsonOptions)</c>.</para>
 	/// <para>Deep object graphs are truncated at depth 10 with "[depth limit exceeded]" placeholder.</para>
 	/// </summary>
-	public JsonSerializerOptions _logJsonOptions = new()
+	public JsonSerializerOptions _logJsonOptions = _CreateLogJsonOptions();
+
+	private static JsonSerializerOptions _CreateLogJsonOptions()
 	{
-		TypeInfoResolver = new DefaultJsonTypeInfoResolver
+		var options = new JsonSerializerOptions
 		{
-			Modifiers = { JsonLogFilterModifier.Apply }
-		},
-		MaxDepth = 64, // High limit - actual truncation handled by DepthTruncatingConverterFactory
-		IncludeFields = true,
-		ReferenceHandler = ReferenceHandler.IgnoreCycles,
-		Converters =
-		{
-			//new ObjConverter<Exception>(value => $"EX={value.GetType().Name}_MSG={value.Message}_INNER={value.InnerException?.Message}"),
-			new ObjConverter<MethodBase>(value => value.Name),
-			new ObjConverter<Type>(value => value.FullName),
-			new ObjConverter<StackTrace>(value => value.GetFrames()),
-			new ObjConverter<IntPtr>(value => value.ToInt64().ToString("x8")),
-			new ObjConverter<StackFrame>(value =>
-				$"at {value.GetMethod()?.Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
-			//new ObjConverter<StackFrame>((value) => $"{value.ToString()}\n"),
-			new ObjConverter<Delegate>(value => $"[delegate: {value.Method?.DeclaringType?.Name}.{value.Method?.Name}]"),
-			new JsonStringEnumConverter(),
-			// Must be LAST - gracefully truncates deep graphs instead of throwing
-			new DepthTruncatingConverterFactory(maxDepth: 10),
-		},
-		AllowTrailingCommas = true,
-		WriteIndented = true,
-		NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
-	};
+			TypeInfoResolver = new DefaultJsonTypeInfoResolver
+			{
+				Modifiers = { JsonLogFilterModifier.Apply }
+			},
+			MaxDepth = 64, // High limit - actual truncation handled by DepthTruncatingConverterFactory
+			IncludeFields = true,
+			ReferenceHandler = ReferenceHandler.IgnoreCycles,
+			Converters =
+			{
+				//new ObjConverter<Exception>(value => $"EX={value.GetType().Name}_MSG={value.Message}_INNER={value.InnerException?.Message}"),
+				new ObjConverter<MethodBase>(value => value.Name),
+				new ObjConverter<Type>(value => value.FullName),
+				new ObjConverter<StackTrace>(value => value.GetFrames()),
+				new ObjConverter<IntPtr>(value => value.ToInt64().ToString("x8")),
+				new ObjConverter<StackFrame>(value =>
+					$"at {value.GetMethod()?.Name} in {value.GetFileName()}:{value.GetFileLineNumber()}"),
+				//new ObjConverter<StackFrame>((value) => $"{value.ToString()}\n"),
+				new ObjConverter<Delegate>(value => $"[delegate: {value.Method?.DeclaringType?.Name}.{value.Method?.Name}]"),
+				new JsonStringEnumConverter(),
+				//need to treat as string because potential loops; must precede the depth factory so it also applies at the depth limit
+				new EntityEntryToStringConverterFactory(),
+				// Must be LAST - gracefully truncates deep graphs instead of throwing
+				new DepthTruncatingConverterFactory(maxDepth: 10),
+			},
+			AllowTrailingCommas = true,
+			WriteIndented = true,
+			NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
+		};
+		options.MakeReadOnly();
+		return options;
+	}
 
 	/// <summary>
 	/// our general, standard way of serializing to/from JSON. 
-	/// <para>if you have a custom type that needs to be handled, add it to _roundtripJsonOptions.Converters at application start up.</para>
+	/// <para>This is a shared instance; do not mutate it. For custom converters, copy it into your own options via
+	/// <c>new JsonSerializerOptions(__.SerializationHelper._roundtripJsonOptions)</c> or <c>_CopyFrom</c>, then add them there.</para>
 	/// <para>use the jsonSerializerOptions _CopyFrom() extension method to copy this to your existing options, eg: `yourOptions._CopyFrom(__.SerializationHelper._roundtripJsonOptions)`</para>
 	/// </summary>
 	public JsonSerializerOptions _roundtripJsonOptions = new()
@@ -720,6 +729,46 @@ internal static class EnumWireMap<T> where T : struct, Enum
 
 		// Last-resort: numeric strings / composite flag values the name map does not carry.
 		return Enum.TryParse(wire, ignoreCase: true, out value);
+	}
+}
+
+/// <summary>
+/// Log-only rule: renders EF Core <c>EntityEntry</c> (and <c>EntityEntry&lt;T&gt;</c>) as its <c>ToString()</c>, avoiding
+/// reference loops. Matched by type name because NotNot.Bcl.Core does not reference EF Core. Stateless.
+/// </summary>
+internal sealed class EntityEntryToStringConverterFactory : JsonConverterFactory
+{
+	private const string EntityEntryFullName = "Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry";
+
+	public override bool CanConvert(Type typeToConvert)
+	{
+		for (var t = typeToConvert; t is not null; t = t.BaseType)
+		{
+			if (t.FullName == EntityEntryFullName)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+	{
+		var converterType = typeof(ToStringConverter<>).MakeGenericType(typeToConvert);
+		return (JsonConverter?)Activator.CreateInstance(converterType);
+	}
+
+	private sealed class ToStringConverter<T> : JsonConverter<T>
+	{
+		public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			throw new NotSupportedException("EntityEntry log rendering is write-only.");
+		}
+
+		public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
+		{
+			writer.WriteStringValue(value?.ToString());
+		}
 	}
 }
 

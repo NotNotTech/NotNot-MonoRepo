@@ -7,7 +7,7 @@
 ## (a) Policy
 
 - **Terminal metric = ZERO-UNDISPOSITIONED.** Every warning is either FIXED or verified per-site and terminally dispositioned. The success criterion is zero *undispositioned* warnings.
-- **Disposition mechanism = SITE-SCOPED pragma + at-site justification comment** (policy updated 2026-07-23, user-ratified). Each of the 26 verified sites below now carries `#pragma warning disable {code}` with a `FALSE_POSITIVE` or `ACCEPTED_BY_DESIGN` justification comment. This keeps each rule LIVE for new violations while silencing only the verified site. Blanket suppression (`NoWarn`, file-scope pragma, `[SuppressMessage]` without site verification) remains forbidden as a fix.
+- **Disposition mechanism = SITE-SCOPED pragma + at-site justification comment** (policy updated 2026-07-23, user-ratified). Each of the 25 verified sites below now carries `#pragma warning disable {code}` with a `FALSE_POSITIVE` or `ACCEPTED_BY_DESIGN` justification comment. This keeps each rule LIVE for new violations while silencing only the verified site. Blanket suppression (`NoWarn`, file-scope pragma, `[SuppressMessage]` without site verification) remains forbidden as a fix.
 - **Expected residual in build output: 0 warnings** from the sites below. A full Release compile reporting ANY warning is a genuine finding: either a new site (fix or verify+disposition it) or a pragma drifted off its diagnostic (re-anchor it). This ledger remains the narrative record of each site's verification; the pragmas at the sites are the enforcement.
 
 ---
@@ -29,7 +29,7 @@ Every remaining distinct warning must map to a row in section (c). Zero UNDISPOS
 
 ## (c) Disposition table
 
-All 26 residual warnings are **OWN** (intentional-by-design), and as of 2026-07-23 each site carries a site-scoped pragma + justification comment (classification `FALSE_POSITIVE` = analyzer model factually wrong · `ACCEPTED_BY_DESIGN` = analyzer right, behavior verified-intentional). Paths are relative to the monorepo root; the three owning projects are `NotNot.Bcl.Core`, `NotNot.Bcl`, and `NotNot.SimStorm`.
+All 25 residual warnings are **OWN** (intentional-by-design), and as of 2026-07-23 each site carries a site-scoped pragma + justification comment (classification `FALSE_POSITIVE` = analyzer model factually wrong · `ACCEPTED_BY_DESIGN` = analyzer right, behavior verified-intentional). Paths are relative to the monorepo root; the two owning projects are `NotNot.Bcl.Core` and `NotNot.SimStorm`.
 
 | Code | Count | Site(s) | Disposition |
 |---|---|---|---|
@@ -41,10 +41,9 @@ All 26 residual warnings are **OWN** (intentional-by-design), and as of 2026-07-
 | PH_P006 | 1 | `Concurrency/FrameDataChannel.cs:95` | OWN — see P006 |
 | RCS1194 | 1 | `Diagnostics/Problem.cs:101` (`ProblemException`) | OWN — see RCS1194 |
 | CS0618 | 1 | `NotNot.SimStorm/src/_scratch/Ecs/Allocation/_allocaton.cs:2232` | OWN — see CS0618 |
-| CA2255 | 1 | `NotNot.Bcl/NotNot/Serialization/_Initialize_SerializationHelper_ObjectConverters.cs:18` | OWN — see CA2255 |
-| **Total** | **26** | | |
+| **Total** | **25** | | |
 
-All 26 live in `NotNot.Bcl.Core` (24), `NotNot.Bcl` (1 — CA2255), and `NotNot.SimStorm` (1 — CS0618).
+All 25 live in `NotNot.Bcl.Core` (24) and `NotNot.SimStorm` (1 — CS0618).
 
 ### Per-site rationales
 
@@ -70,8 +69,6 @@ All 26 live in `NotNot.Bcl.Core` (24), `NotNot.Bcl` (1 — CA2255), and `NotNot.
 
 **CS0618 — obsolete-member use, CS0618×1** — `_allocaton.cs:2232`: `Chunk<TComponent>._GLOBAL_LOOKUP` uses the `[Obsolete]` `ResizableArray` from Bcl.Core. Replacing it requires migrating the ECS hot-path chunk store off `.Span`/`.GetOrSet`/`.FreeSlot` — behavior-risky, deliberately deferred. (This file lives under `_scratch/` — the folder name is misleading; the code is PROVEN LIVE, a rename candidate, not a deletion candidate.)
 
-**CA2255 — `[ModuleInitializer]` in application code, CA2255×1** — `_Initialize_SerializationHelper_ObjectConverters.cs:18`: the `[ModuleInitializer]` intentionally auto-registers serialization converters (the `ObjConverter` set) at module load. A redesign to explicit initialization is out of scope for the warning drive.
-
 ---
 
 ## (d) Related contract decisions log
@@ -83,4 +80,4 @@ Decisions from the warnings-to-zero drive that shape the package/analyzer contra
 - **GodotNet package dropped 3 dead nuspec dependency entries** (`Microsoft.Extensions.Configuration.*`) — zero source usages.
 - **`_graveyard/` deleted.** `_scratch/` and the remaining `Collections/_unused/` files are **PROVEN LIVE** (reference-enumerated) — the folder names are misleading. They are rename candidates, NOT deletion candidates.
 - **IDE quick-fix smoke after the split (VS + Rider):** automated proxies PASSED (nupkg content layout, MEF/`[ExportCodeFixProvider]` attributes, 398 unit tests). Interactive IDE quick-fix verification remains PENDING a human.
-- **Out-of-solution MSB3277 (not one of the 26):** an assembly-version-unification advisory (`System.IO.Pipelines` / `Microsoft.Bcl.AsyncInterfaces` 9-vs-10) on the non-shipped intermediate `NotNot.GodotNet.SourceGen.CodeFixes`. Counterfactually proven pre-existing; the shipped nupkg was verified correct. Producer-side dependency alignment noted as a follow-up.
+- **Out-of-solution MSB3277 (not one of the 25):** an assembly-version-unification advisory (`System.IO.Pipelines` / `Microsoft.Bcl.AsyncInterfaces` 9-vs-10) on the non-shipped intermediate `NotNot.GodotNet.SourceGen.CodeFixes`. Counterfactually proven pre-existing; the shipped nupkg was verified correct. Producer-side dependency alignment noted as a follow-up.

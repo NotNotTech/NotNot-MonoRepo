@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NotNot.Bcl.Core\NotNot.Bcl.Core.csproj" />
+    <ProjectReference Include="..\NotNot.Bcl\NotNot.Bcl.csproj" />
   </ItemGroup>
 
 </Project>
