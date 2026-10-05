@@ -112,7 +112,10 @@ namespace MudBlazor.Services
 	{
 		var test = new CSharpAnalyzerTest<NnDesignMudBlazorPolicyAnalyzer, DefaultVerifier>
 		{
-			TestCode = "class Placeholder { }"
+			TestCode = "class Placeholder { }",
+			// Net8.0 reference assemblies expose `IsExternalInit` for init-only fixture properties;
+			// the default netstandard2.0 references trigger CS0518.
+			ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
 		};
 		// Add primary source under test at the desired path (so SyntaxTree.FilePath matches)
 		test.TestState.Sources.Add((csFilePath, csharpContent));
