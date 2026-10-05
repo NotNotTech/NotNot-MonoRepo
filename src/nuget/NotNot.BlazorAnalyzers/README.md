@@ -1333,7 +1333,7 @@ A different axis from the reach-in family ([NNB_CSS008](#NNB_CSS008) / [NNB_CSS0
 
 **Iteration-agnostic by design.** The rule does not resolve `animation:` declarations to keyframe names (references routinely cross file boundaries), so bounded one-shots on disqualified properties (focus-flash `border-color`, bell `background-color`) also fire and carry the marker with a "bounded one-shot" justification. The marker documents the bound at the keyframe, which is where a future `infinite` edit would be reviewed.
 
-**Exemption posture is producer-INCLUSIVE (like [NNB_CSS012](#NNB_CSS012) / [NNB_CSS013](#NNB_CSS013), unlike the reach-in family).** The producer owns `nn-design.css`, where the alert-glow and dash-march residuals live, so the check deliberately does NOT call the producer-path exemption. Only the vendor-file skip, the shared `CssAnalyzerEnabled=false` kill-switch, and the per-file `nnb_css014:allow-noncomposited-keyframe` marker apply.
+**Exemption posture is producer-INCLUSIVE (like [NNB_CSS012](#NNB_CSS012) / [NNB_CSS013](#NNB_CSS013), unlike the reach-in family).** The producer owns `nn-design.css`, and an infinite non-composited keyframe there costs the same as anywhere else, so the check deliberately does NOT call the producer-path exemption. Only the vendor-file skip, the shared `CssAnalyzerEnabled=false` kill-switch, and the per-file `nnb_css014:allow-noncomposited-keyframe` marker apply.
 
 ```css
 /* ❌ NNB_CSS014 fires (Error) — filter keyframe pins the paint loop */

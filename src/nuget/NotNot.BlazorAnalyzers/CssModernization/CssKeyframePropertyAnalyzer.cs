@@ -32,7 +32,7 @@ namespace NotNot.BlazorAnalyzers.CssModernization;
 /// </para>
 /// <para>
 /// <b>Exemption posture is producer-INCLUSIVE (like NNB_CSS012/013, unlike the reach-in family).</b>
-/// The producer owns <c>nn-design.css</c>, where the alert-glow and dash-march residuals live, so the
+/// The producer owns <c>nn-design.css</c>, and an infinite non-composited keyframe there costs the same as anywhere else, so the
 /// reference-check deliberately does NOT call <c>IsExceptedPath</c>. Only the vendor-file skip, the
 /// shared <c>CssAnalyzerEnabled=false</c> kill-switch, and the per-file opt-out marker apply.
 /// </para>
@@ -164,7 +164,7 @@ public sealed class CssKeyframePropertyAnalyzer : DiagnosticAnalyzer
             return;
 
         // NOTE: NNB_CSS014 does NOT call CssConsumerExemptions.IsExceptedPath — it MUST scan the NnDesign
-        // producer CSS (nn-design.css owns the alert-glow and dash-march residuals), the very path
+        // producer CSS (nn-design.css), the very path
         // IsExceptedPath exempts. Only vendor-skip + kill-switch + per-file opt-out apply (exemption
         // posture producer-INCLUSIVE, like NNB_CSS012/013).
 
