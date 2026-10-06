@@ -9,20 +9,42 @@
     GitThisAssembly=false disables GitInfo's ThisAssembly.Git.* source-constant generation (it leaks tokens
     into @(Compile) under the Razor SDK) — we consume only GitInfo's computed $(Git*) MSBuild properties and
     project them to AssemblyMetadata here (Razor-SDK-safe; standard assembly-attribute generation).
+
+    AGENT PLACEHOLDER IDENTITY: a host agent build (VOW_AGENT_PORT set by the host repository's
+    .vow-agent/tools/vow-build.ps1) without a dogfood flag and without a command-line MinVerVersionOverride
+    gets MinVerVersionOverride=0.0.0-agent (MinVer runs git-free; CommonSettings.targets' Debug override
+    0.0.0-0.localDebug still wins in Debug), no GitInfo reference or Git* metadata, no SourceLink or
+    source-control queries, and a fixed BuildTimestampUtc so unchanged projects stay incremental. The
+    dogfood precedence mirrors the host's _BuildEnv detection (src/private-proj/Directory.Build.props:
+    DogfoodDevBuild / DogfoodProdBuild win over VOW_AGENT_PORT). A command-line -p:MinVerVersionOverride
+    keeps the real identity. Standalone builds of this repository never set VOW_AGENT_PORT and are unchanged.
+    RESTORE PRECONDITION: the GitInfo import comes from the restore-generated nuget.g.targets; switching one
+    output slot between placeholder and explicit-version builds takes effect through a restoring build
+    (a restore-free explicit-version build after a placeholder restore fails MSB4057: target GitInfo absent).
   -->
   <PropertyGroup>
     <GitVersion>false</GitVersion>
     <GitThisAssembly>false</GitThisAssembly>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(VOW_AGENT_PORT)' != '' and '$(DogfoodDevBuild)' != 'true' and '$(DogfoodProdBuild)' != 'true' and '$(MinVerVersionOverride)' == ''">
+    <_VowPlaceholderIdentity>true</_VowPlaceholderIdentity>
+    <MinVerVersionOverride>0.0.0-agent</MinVerVersionOverride>
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
+    <EnableSourceLink>false</EnableSourceLink>
+  </PropertyGroup>
+  <PropertyGroup>
+    <_VowGitInfoDep Condition="'$(_VowPlaceholderIdentity)' != 'true'">GitInfo</_VowGitInfoDep>
+  </PropertyGroup>
+
   <ItemGroup>
-    <PackageReference Include="GitInfo" Version="3.6.0" PrivateAssets="all" />
+    <PackageReference Include="GitInfo" Version="3.6.0" PrivateAssets="all" Condition="'$(_VowPlaceholderIdentity)' != 'true'" />
   </ItemGroup>
 
   <Target Name="_VowEmitBuildMetadata"
-          DependsOnTargets="GitInfo"
+          DependsOnTargets="$(_VowGitInfoDep)"
           BeforeTargets="GetAssemblyAttributes">
-    <ItemGroup>
+    <ItemGroup Condition="'$(_VowPlaceholderIdentity)' != 'true'">
       <AssemblyMetadata Include="GitBranch"         Value="$(GitBranch)" />
       <AssemblyMetadata Include="GitCommit"         Value="$(GitCommit)" />
       <AssemblyMetadata Include="GitSha"            Value="$(GitSha)" />
@@ -30,6 +52,9 @@
       <AssemblyMetadata Include="GitIsDirty"        Value="$(GitIsDirty)" />
       <AssemblyMetadata Include="GitRepositoryUrl"  Value="$(GitRepositoryUrl)" />
       <AssemblyMetadata Include="BuildTimestampUtc" Value="$([System.DateTime]::UtcNow.ToString('o'))" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(_VowPlaceholderIdentity)' == 'true'">
+      <AssemblyMetadata Include="BuildTimestampUtc" Value="0001-01-01T00:00:00.0000000Z" />
     </ItemGroup>
   </Target>
 
